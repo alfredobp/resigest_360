@@ -36,52 +36,27 @@ const navItems: NavItem[] = [
 path: "/",
   },
   {
-    icon: <MapIcon />,
-    name: "Map View",
-    path: "/map",
-  },
-   {
-    icon: <MapSettingsIcon  />,
-    name: "Map Builder",
-    path: "/map-builder",
+    icon: <HorizontaLDots />,
+    name: "Mi Empresa",
+   path: "/residuos/mi-empresa"
   },
    {
     icon: <HorizontaLDots />,
-    name: "IFC Viewer",
-    path: "/ifc-viewer",
+    name: "Contratos",
+   path: "/residuos/contratos"
   },
+ 
   {
     icon: <TableIcon />,
-    name: "Data library",
-    path: "/data",
+    name: "Documentos de Identificación",
+    path: "/residuos/documentos",
   },
-  {
-    icon: <TrashBinIcon />,
-    name: "Gestión de Residuos",
-    subItems: [
-      { name: "Mi Empresa", path: "/residuos/mi-empresa", pro: false },
-      { name: "Contratos", path: "/residuos/contratos", pro: false },
-      { name: "Documentos de Identificación", path: "/residuos/documentos", pro: false },
-      { name: "Memorias Anuales", path: "/residuos/memorias", pro: false },
-    ],
-  },
-  {
-    name: "Team",
-    icon: <UserCircleIcon />,
-  path: "/team", },
-  {
-    name: "Analytics",
+    {
     icon: <TableIcon />,
-    // subItems: [{ name: "Basic Tables", path: "/basic-tables", pro: false }],
+    name: "Memorias Anuales",
+    path: "/residuos/memorias",
   },
-  {
-    name: "Settings",
-    icon: <PageIcon />,
-    // subItems: [
-    //   { name: "Blank Page", path: "/blank", pro: false },
-    //   { name: "404 Error", path: "/error-404", pro: false },
-    // ],
-  },
+
 ];
 
 const othersItems: NavItem[] = [
