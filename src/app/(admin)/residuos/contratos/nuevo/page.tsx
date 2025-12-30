@@ -183,9 +183,9 @@ export default function NuevoContratoPage() {
 
       <div className="max-w-5xl mx-auto">
         {error && (
-          <Alert variant="error" className="mb-6">
-            {error}
-          </Alert>
+          <div className="mb-6">
+            <Alert variant="error" title="Error" message={error} />
+          </div>
         )}
 
         <form onSubmit={handleSubmit}>
@@ -401,14 +401,15 @@ export default function NuevoContratoPage() {
           {/* Residuos y Condiciones */}
           <ComponentCard title="Residuos y Condiciones" className="mt-6">
             <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium mb-2">Descripción de Residuos</label>
               <TextArea
-                label="Descripción de Residuos"
-                name="descripcion_residuos"
                 value={formData.descripcion_residuos}
-                onChange={handleChange}
+                onChange={(value) => setFormData(prev => ({ ...prev, descripcion_residuos: value }))}
                 rows={3}
                 placeholder="Describe los tipos de residuos cubiertos por el contrato..."
               />
+            </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -464,14 +465,15 @@ export default function NuevoContratoPage() {
                 </div>
               </div>
 
-              <TextArea
-                label="Notas / Observaciones"
-                name="notas"
-                value={formData.notas}
-                onChange={handleChange}
-                rows={4}
-                placeholder="Información adicional del contrato..."
-              />
+              <div>
+                <label className="block text-sm font-medium mb-2">Notas / Observaciones</label>
+                <TextArea
+                  value={formData.notas}
+                  onChange={(value) => setFormData(prev => ({ ...prev, notas: value }))}
+                  rows={4}
+                  placeholder="Información adicional del contrato..."
+                />
+              </div>
             </div>
           </ComponentCard>
 
