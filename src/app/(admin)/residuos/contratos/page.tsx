@@ -13,9 +13,9 @@ import companyService from '@/services/companyService';
 import type { WasteContract, Company } from '@/types/wasteManagement';
 
 const STATUS_COLORS = {
-  borrador: 'secondary',
+  borrador: 'info',
   vigente: 'success',
-  finalizado: 'default',
+  finalizado: 'light',
   cancelado: 'error',
 } as const;
 
@@ -114,18 +114,14 @@ export default function ContratosPage() {
         />
 
         <div className="max-w-4xl mx-auto">
-          <Alert variant="warning">
-            <strong>Empresa no registrada</strong>
-            <p className="mt-2">
-              Antes de crear contratos, debes registrar los datos de tu empresa.
-            </p>
-            <Button
-              className="mt-4"
-              onClick={() => router.push('/admin/residuos/mi-empresa')}
-            >
-              Ir a Mi Empresa
-            </Button>
-          </Alert>
+          <Alert 
+            variant="warning" 
+            title="Empresa no registrada"
+            message="Antes de crear contratos, debes registrar los datos de tu empresa."
+            showLink
+            linkHref="/admin/residuos/mi-empresa"
+            linkText="Ir a Mi Empresa"
+          />
         </div>
       </>
     );
@@ -139,9 +135,7 @@ export default function ContratosPage() {
 
       <div className="space-y-6">
         {error && (
-          <Alert variant="error">
-            {error}
-          </Alert>
+          <Alert variant="error" title="Error" message={error} />
         )}
 
         {/* Acciones Principales */}
@@ -152,7 +146,7 @@ export default function ContratosPage() {
               Gestiona los contratos de tratamiento de residuos con gestores
             </p>
           </div>
-          <Button onClick={() => router.push('/admin/residuos/contratos/nuevo')}>
+          <Button onClick={() => setShowNewContractModal(true)}>
             + Nuevo Contrato
           </Button>
         </div>
@@ -161,28 +155,28 @@ export default function ContratosPage() {
         <ComponentCard title="Filtros">
           <div className="flex flex-wrap gap-2">
             <Button
-              variant={filterStatus === 'all' ? 'default' : 'outline'}
+              variant={filterStatus === 'all' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('all')}
             >
               Todos ({contracts.length})
             </Button>
             <Button
-              variant={filterStatus === 'vigente' ? 'default' : 'outline'}
+              variant={filterStatus === 'vigente' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('vigente')}
             >
               Vigentes ({contracts.filter(c => c.estado === 'vigente').length})
             </Button>
             <Button
-              variant={filterStatus === 'borrador' ? 'default' : 'outline'}
+              variant={filterStatus === 'borrador' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('borrador')}
             >
               Borradores ({contracts.filter(c => c.estado === 'borrador').length})
             </Button>
             <Button
-              variant={filterStatus === 'finalizado' ? 'default' : 'outline'}
+              variant={filterStatus === 'finalizado' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('finalizado')}
             >
@@ -193,7 +187,7 @@ export default function ContratosPage() {
 
         {/* Lista de Contratos */}
         {filteredContracts.length === 0 ? (
-          <ComponentCard>
+          <ComponentCard title="Contratos">
             <div className="text-center py-12">
               <svg
                 className="mx-auto h-12 w-12 text-muted"
@@ -214,7 +208,7 @@ export default function ContratosPage() {
               </p>
               <Button
                 className="mt-4"
-                onClick={() => router.push('/admin/residuos/contratos/nuevo')}
+                onClick={() => setShowNewContractModal(true)}
               >
                 Crear Primer Contrato
               </Button>
@@ -223,7 +217,7 @@ export default function ContratosPage() {
         ) : (
           <div className="grid grid-cols-1 gap-6">
             {filteredContracts.map((contract) => (
-              <ComponentCard key={contract.id}>
+              <ComponentCard key={contract.id} title="">
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-start gap-3">
@@ -232,7 +226,7 @@ export default function ContratosPage() {
                           <h3 className="text-lg font-semibold text-foreground">
                             {contract.numero_contrato || `Contrato #${contract.id}`}
                           </h3>
-                          <Badge variant={STATUS_COLORS[contract.estado]}>
+                          <Badge color={STATUS_COLORS[contract.estado]}>
                             {STATUS_LABELS[contract.estado]}
                           </Badge>
                         </div>
@@ -316,6 +310,16 @@ export default function ContratosPage() {
               </ComponentCard>
             ))}
           </div>
+        )}
+
+        {/* Modal de Nuevo Contrato */}
+        {myCompany && (
+          <NuevoContratoModal
+            isOpen={showNewContractModal}
+            onClose={() => setShowNewContractModal(false)}
+            onSuccess={loadData}
+            myCompany={myCompany}
+          />
         )}
       </div>
     </>

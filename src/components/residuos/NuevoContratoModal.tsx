@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Modal from '@/components/ui/Modal';
-import InputField from '@/components/form/InputField';
-import TextArea from '@/components/form/TextArea';
-import SelectField from '@/components/form/SelectField';
-import Button from '@/components/ui/Button';
-import Alert from '@/components/ui/Alert';
+import { Modal } from '@/components/ui/modal';
+import Input from '@/components/form/input/InputField';
+import TextArea from '@/components/form/input/TextArea';
+import Select from '@/components/form/Select';
+import Button from '@/components/ui/button/Button';
+import Alert from '@/components/ui/alert/Alert';
 import wasteContractService from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
 import type { Company, WasteContractFormData } from '@/types/wasteManagement';
@@ -179,76 +179,90 @@ export default function NuevoContratoModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="Nuevo Contrato de Tratamiento" size="xl">
+    <Modal isOpen={isOpen} onClose={handleClose} className="max-w-5xl max-h-[90vh] overflow-y-auto p-8">
+      <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Nuevo Contrato de Tratamiento</h2>
+      
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <Alert variant="error">
-            {error}
-          </Alert>
+          <Alert variant="error" title="Error" message={error} />
         )}
 
         {/* Datos del Contrato */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-foreground">Datos del Contrato</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <InputField
-              label="Número de Contrato"
-              name="numero_contrato"
-              value={formData.numero_contrato}
-              onChange={handleChange}
-              placeholder="Se genera automáticamente"
-            />
+            <div>
+              <label className="block text-sm font-medium mb-2">Número de Contrato</label>
+              <Input
+                name="numero_contrato"
+                value={formData.numero_contrato}
+                onChange={handleChange}
+                placeholder="Se genera automáticamente"
+              />
+            </div>
 
-            <InputField
-              label="Fecha del Contrato *"
-              name="fecha_contrato"
-              type="date"
-              value={formData.fecha_contrato}
-              onChange={handleChange}
-              required
-            />
+            <div>
+              <label className="block text-sm font-medium mb-2">Fecha del Contrato *</label>
+              <Input
+                name="fecha_contrato"
+                type="date"
+                value={formData.fecha_contrato}
+                onChange={handleChange}
+                required
+              />
+            </div>
 
-            <InputField
-              label="Fecha de Inicio"
-              name="fecha_inicio"
-              type="date"
-              value={formData.fecha_inicio}
-              onChange={handleChange}
-            />
+            <div>
+              <label className="block text-sm font-medium mb-2">Fecha de Inicio</label>
+              <Input
+                name="fecha_inicio"
+                type="date"
+                value={formData.fecha_inicio}
+                onChange={handleChange}
+              />
+            </div>
 
-            <InputField
-              label="Fecha de Fin"
-              name="fecha_fin"
-              type="date"
-              value={formData.fecha_fin}
-              onChange={handleChange}
-            />
+            <div>
+              <label className="block text-sm font-medium mb-2">Fecha de Fin</label>
+              <Input
+                name="fecha_fin"
+                type="date"
+                value={formData.fecha_fin}
+                onChange={handleChange}
+              />
+            </div>
 
-            <SelectField
-              label="Tipo de Contrato *"
-              name="tipo_contrato"
-              value={formData.tipo_contrato}
-              onChange={handleChange}
-              required
-            >
-              {TIPOS_CONTRATO.map((tipo) => (
-                <option key={tipo.value} value={tipo.value}>
-                  {tipo.label}
-                </option>
-              ))}
-            </SelectField>
+            <div>
+              <label className="block text-sm font-medium mb-2">Tipo de Contrato *</label>
+              <select
+                name="tipo_contrato"
+                value={formData.tipo_contrato}
+                onChange={handleChange}
+                required
+                className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
+              >
+                {TIPOS_CONTRATO.map((tipo) => (
+                  <option key={tipo.value} value={tipo.value}>
+                    {tipo.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            <SelectField
-              label="Estado"
-              name="estado"
-              value={formData.estado}
-              onChange={handleChange}
-            >
-              <option value="borrador">Borrador</option>
-              <option value="vigente">Vigente</option>
-              <option value="finalizado">Finalizado</option>
-              <option value="cancelado">Cancelado</option>
-            </SelectField>
+            <div>
+              <label className="block text-sm font-medium mb-2">Estado</label>
+              <select
+                name="estado"
+                value={formData.estado}
+                onChange={handleChange}
+                className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
+              >
+                <option value="borrador">Borrador</option>
+                <option value="vigente">Vigente</option>
+                <option value="finalizado">Finalizado</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -290,19 +304,22 @@ export default function NuevoContratoModal({
             </div>
 
             {gestores.length > 0 && (
-              <SelectField
-                label="Gestor"
-                name="gestor_company_id"
-                value={formData.gestor_company_id || ''}
-                onChange={handleChange}
-              >
-                <option value="">Selecciona un gestor...</option>
-                {gestores.map((gestor) => (
-                  <option key={gestor.id} value={gestor.id}>
-                    {gestor.razon_social} - {gestor.cif}
-                  </option>
-                ))}
-              </SelectField>
+              <div>
+                <label className="block text-sm font-medium mb-2">Gestor</label>
+                <select
+                  name="gestor_company_id"
+                  value={formData.gestor_company_id || ''}
+                  onChange={handleChange}
+                  className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
+                >
+                  <option value="">Selecciona un gestor...</option>
+                  {gestores.map((gestor) => (
+                    <option key={gestor.id} value={gestor.id}>
+                      {gestor.razon_social} - {gestor.cif}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
           </div>
 
@@ -318,43 +335,53 @@ export default function NuevoContratoModal({
 
             {showGestorForm && (
               <div className="mt-4 p-4 bg-muted/20 rounded-lg space-y-3">
-                <InputField
-                  label="Razón Social *"
-                  name="razon_social"
-                  value={gestorData.razon_social}
-                  onChange={handleGestorChange}
-                  placeholder="Nombre de la empresa gestora"
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <InputField
-                    label="CIF *"
-                    name="cif"
-                    value={gestorData.cif}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Razón Social *</label>
+                  <Input
+                    name="razon_social"
+                    value={gestorData.razon_social}
                     onChange={handleGestorChange}
-                    placeholder="B12345678"
-                  />
-                  <InputField
-                    label="NIMA"
-                    name="nima"
-                    value={gestorData.nima}
-                    onChange={handleGestorChange}
-                    placeholder="1234567890AB"
+                    placeholder="Nombre de la empresa gestora"
                   />
                 </div>
-                <InputField
-                  label="Dirección"
-                  name="direccion"
-                  value={gestorData.direccion}
-                  onChange={handleGestorChange}
-                  placeholder="Dirección completa"
-                />
-                <InputField
-                  label="Teléfono"
-                  name="telefono"
-                  value={gestorData.telefono}
-                  onChange={handleGestorChange}
-                  placeholder="954123456"
-                />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">CIF *</label>
+                    <Input
+                      name="cif"
+                      value={gestorData.cif}
+                      onChange={handleGestorChange}
+                      placeholder="B12345678"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">NIMA</label>
+                    <Input
+                      name="nima"
+                      value={gestorData.nima}
+                      onChange={handleGestorChange}
+                      placeholder="1234567890AB"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Dirección</label>
+                  <Input
+                    name="direccion"
+                    value={gestorData.direccion}
+                    onChange={handleGestorChange}
+                    placeholder="Dirección completa"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Teléfono</label>
+                  <Input
+                    name="telefono"
+                    value={gestorData.telefono}
+                    onChange={handleGestorChange}
+                    placeholder="954123456"
+                  />
+                </div>
                 <Button type="button" size="sm" onClick={handleCreateGestor}>
                   Crear Gestor
                 </Button>
@@ -367,67 +394,79 @@ export default function NuevoContratoModal({
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-foreground">Residuos y Condiciones</h3>
           
-          <TextArea
-            label="Descripción de Residuos"
-            name="descripcion_residuos"
-            value={formData.descripcion_residuos}
-            onChange={handleChange}
-            rows={2}
-            placeholder="Describe los tipos de residuos cubiertos por el contrato..."
-          />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <InputField
-              label="Cantidad Máxima Anual"
-              name="cantidad_maxima_anual"
-              type="number"
-              step="0.01"
-              value={formData.cantidad_maxima_anual || ''}
-              onChange={handleChange}
-              placeholder="Ej: 1000"
+          <div>
+            <label className="block text-sm font-medium mb-2">Descripción de Residuos</label>
+            <TextArea
+              value={formData.descripcion_residuos}
+              onChange={(value) => setFormData(prev => ({ ...prev, descripcion_residuos: value }))}
+              rows={2}
+              placeholder="Describe los tipos de residuos cubiertos por el contrato..."
             />
-
-            <SelectField
-              label="Unidad"
-              name="unidad_cantidad"
-              value={formData.unidad_cantidad}
-              onChange={handleChange}
-            >
-              <option value="toneladas">Toneladas</option>
-              <option value="kg">Kilogramos</option>
-              <option value="m3">Metros cúbicos</option>
-              <option value="litros">Litros</option>
-            </SelectField>
-
-            <InputField
-              label="Precio Unitario"
-              name="precio_unitario"
-              type="number"
-              step="0.01"
-              value={formData.precio_unitario || ''}
-              onChange={handleChange}
-              placeholder="Ej: 150.00"
-            />
-
-            <SelectField
-              label="Moneda"
-              name="moneda"
-              value={formData.moneda}
-              onChange={handleChange}
-            >
-              <option value="EUR">EUR (€)</option>
-              <option value="USD">USD ($)</option>
-            </SelectField>
           </div>
 
-          <TextArea
-            label="Notas / Observaciones"
-            name="notas"
-            value={formData.notas}
-            onChange={handleChange}
-            rows={2}
-            placeholder="Información adicional del contrato..."
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Cantidad Máxima Anual</label>
+              <Input
+                name="cantidad_maxima_anual"
+                type="number"
+                step={0.01}
+                value={formData.cantidad_maxima_anual || ''}
+                onChange={handleChange}
+                placeholder="Ej: 1000"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Unidad</label>
+              <select
+                name="unidad_cantidad"
+                value={formData.unidad_cantidad}
+                onChange={handleChange}
+                className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
+              >
+                <option value="toneladas">Toneladas</option>
+                <option value="kg">Kilogramos</option>
+                <option value="m3">Metros cúbicos</option>
+                <option value="litros">Litros</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Precio Unitario</label>
+              <Input
+                name="precio_unitario"
+                type="number"
+                step={0.01}
+                value={formData.precio_unitario || ''}
+                onChange={handleChange}
+                placeholder="Ej: 150.00"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Moneda</label>
+              <select
+                name="moneda"
+                value={formData.moneda}
+                onChange={handleChange}
+                className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
+              >
+                <option value="EUR">EUR (€)</option>
+                <option value="USD">USD ($)</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Notas / Observaciones</label>
+            <TextArea
+              value={formData.notas}
+              onChange={(value) => setFormData(prev => ({ ...prev, notas: value }))}
+              rows={2}
+              placeholder="Información adicional del contrato..."
+            />
+          </div>
         </div>
 
         {/* Botones de Acción */}

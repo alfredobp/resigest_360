@@ -14,21 +14,25 @@ export const companyService = {
    * Un usuario solo puede tener una empresa activa
    */
   async getUserCompany(): Promise<Company | null> {
+    // Obtener el usuario autenticado
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
     const { data, error } = await supabase
       .from('companies')
       .select('*')
+      .eq('user_id', user.id)
       .eq('activo', true)
-      .single();
+      .maybeSingle(); // Usa maybeSingle en lugar de single para manejar 0 o 1 resultados
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        // No hay empresa registrada
-        return null;
-      }
       throw new Error(`Error al obtener empresa: ${error.message}`);
     }
 
-    return data as Company;
+    return data as Company | null;
   },
 
   /**
@@ -52,9 +56,16 @@ export const companyService = {
    * Obtener todas las empresas del usuario (incluyendo inactivas)
    */
   async getAll(): Promise<Company[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
     const { data, error } = await supabase
       .from('companies')
       .select('*')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
     if (error) {
