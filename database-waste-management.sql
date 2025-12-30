@@ -379,6 +379,10 @@ ALTER TABLE public.annual_report_lines ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own companies" ON public.companies
     FOR SELECT USING (auth.uid() = companies.user_id);
 
+-- Users can view gestor, transportista, negociante, and agente companies (shared resources)
+CREATE POLICY "Users can view shared companies" ON public.companies
+    FOR SELECT USING (companies.tipo_empresa IN ('gestor', 'transportista', 'negociante', 'agente'));
+
 -- Users can insert their own companies
 CREATE POLICY "Users can insert own companies" ON public.companies
     FOR INSERT WITH CHECK (auth.uid() = companies.user_id);

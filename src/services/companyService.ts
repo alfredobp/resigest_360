@@ -11,7 +11,7 @@ const supabase = createClient();
 export const companyService = {
   /**
    * Obtener la empresa del usuario actual
-   * Un usuario solo puede tener una empresa activa
+   * Un usuario solo puede tener una empresa activa de tipo productor
    */
   async getUserCompany(): Promise<Company | null> {
     // Obtener el usuario autenticado
@@ -25,6 +25,7 @@ export const companyService = {
       .from('companies')
       .select('*')
       .eq('user_id', user.id)
+      .eq('tipo_empresa', 'productor')
       .eq('activo', true)
       .maybeSingle(); // Usa maybeSingle en lugar de single para manejar 0 o 1 resultados
 

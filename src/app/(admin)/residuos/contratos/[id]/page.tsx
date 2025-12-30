@@ -288,7 +288,7 @@ export default function ContractDetailPage() {
 
             <Button
               variant="outline"
-              onClick={() => router.push(`/admin/residuos/contratos/${contract.id}/editar`)}
+              onClick={() => router.push(`/residuos/contratos/${contract.id}/editar`)}
             >
               Editar Contrato
             </Button>

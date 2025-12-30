@@ -10,6 +10,7 @@ import Alert from '@/components/ui/alert/Alert';
 import wasteContractService from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
 import type { Company, WasteContractFormData } from '@/types/wasteManagement';
+import DatePicker from '../form/date-picker';
 
 const TIPOS_CONTRATO = [
   { value: 'tratamiento', label: 'Tratamiento' },
@@ -91,6 +92,13 @@ export default function NuevoContratoModal({
     setGestorData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleDateChange = (field: 'fecha_contrato' | 'fecha_inicio' | 'fecha_fin') => (dates: Date[]) => {
+    if (dates && dates.length > 0) {
+      const dateStr = dates[0].toISOString().split('T')[0];
+      setFormData((prev) => ({ ...prev, [field]: dateStr }));
+    }
+  };
+
   const handleSearchGestor = async () => {
     if (searchQuery.trim().length < 2) return;
 
@@ -145,7 +153,17 @@ export default function NuevoContratoModal({
 
     try {
       setSaving(true);
-      await wasteContractService.create(formData);
+      
+      // Convertir cadenas vacías a undefined para campos de fecha y numéricos
+      const cleanedData = {
+        ...formData,
+        fecha_inicio: formData.fecha_inicio || undefined,
+        fecha_fin: formData.fecha_fin || undefined,
+        cantidad_maxima_anual: formData.cantidad_maxima_anual || undefined,
+        precio_unitario: formData.precio_unitario || undefined,
+      };
+      
+      await wasteContractService.create(cleanedData);
       onSuccess();
       handleClose();
     } catch (err: any) {
@@ -203,33 +221,33 @@ export default function NuevoContratoModal({
 
             <div>
               <label className="block text-sm font-medium mb-2">Fecha del Contrato *</label>
-              <Input
-                name="fecha_contrato"
-                type="date"
-                value={formData.fecha_contrato}
-                onChange={handleChange}
-                required
+              <DatePicker 
+                id="fecha_contrato"
+                mode="single"
+                onChange={handleDateChange('fecha_contrato')}
+                defaultDate={formData.fecha_contrato ? new Date(formData.fecha_contrato) : new Date()}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium mb-2">Fecha de Inicio</label>
-              <Input
-                name="fecha_inicio"
-                type="date"
-                value={formData.fecha_inicio}
-                onChange={handleChange}
+               <DatePicker 
+                id="fecha_inicio"
+                mode="single"
+                onChange={handleDateChange('fecha_inicio')}
+                defaultDate={formData.fecha_inicio ? new Date(formData.fecha_inicio) : undefined}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium mb-2">Fecha de Fin</label>
-              <Input
-                name="fecha_fin"
-                type="date"
-                value={formData.fecha_fin}
-                onChange={handleChange}
+              <DatePicker 
+                id="fecha_fin"
+                mode="single"
+                onChange={handleDateChange('fecha_fin')}
+                defaultDate={formData.fecha_fin ? new Date(formData.fecha_fin) : undefined}
               />
+             
             </div>
 
             <div>
