@@ -152,23 +152,19 @@ export default function MiEmpresaPage() {
     <>
       <PageBreadCrumb
         pageTitle="Mi Empresa"
-        breadcrumbItems={[
-          { name: 'Gestión de Residuos', link: '/admin/residuos' },
-          { name: 'Mi Empresa', link: '/admin/residuos/mi-empresa' },
-        ]}
       />
 
       <div className="max-w-5xl mx-auto">
         {error && (
-          <Alert variant="error" className="mb-6">
-            {error}
-          </Alert>
+          <div className="mb-6">
+            <Alert variant="error" title="Error" message={error} />
+          </div>
         )}
 
         {success && (
-          <Alert variant="success" className="mb-6">
-            {success}
-          </Alert>
+          <div className="mb-6">
+            <Alert variant="success" title="Éxito" message={success} />
+          </div>
         )}
 
         <form onSubmit={handleSubmit}>
@@ -381,8 +377,8 @@ export default function MiEmpresaPage() {
                   Logo de la Empresa
                 </label>
                 <ImageUpload
-                  currentImageUrl={formData.logo_url}
-                  onUploadComplete={handleLogoUpload}
+                  value={formData.logo_url}
+                  onChange={handleLogoUpload}
                   folder="company-logos"
                 />
                 <p className="mt-2 text-sm text-muted">
@@ -390,14 +386,15 @@ export default function MiEmpresaPage() {
                 </p>
               </div>
 
-              <TextArea
-                label="Notas / Observaciones"
-                name="notas"
-                value={formData.notas}
-                onChange={handleChange}
-                rows={4}
-                placeholder="Información adicional sobre la empresa..."
-              />
+              <div>
+                <label className="block text-sm font-medium mb-2">Notas / Observaciones</label>
+                <TextArea
+                  value={formData.notas}
+                  onChange={(value) => setFormData(prev => ({ ...prev, notas: value }))}
+                  rows={4}
+                  placeholder="Información adicional sobre la empresa..."
+                />
+              </div>
             </div>
           </ComponentCard>
 
@@ -418,10 +415,13 @@ export default function MiEmpresaPage() {
         </form>
 
         {!company && (
-          <Alert variant="info" className="mt-6">
-            <strong>Importante:</strong> Debes registrar los datos de tu empresa antes de poder
-            crear contratos de tratamiento de residuos.
-          </Alert>
+          <div className="mt-6">
+            <Alert 
+              variant="info" 
+              title="Importante" 
+              message="Debes registrar los datos de tu empresa antes de poder crear contratos de tratamiento de residuos."
+            />
+          </div>
         )}
       </div>
     </>
