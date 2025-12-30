@@ -119,7 +119,7 @@ export default function ContratosPage() {
             title="Empresa no registrada"
             message="Antes de crear contratos, debes registrar los datos de tu empresa."
             showLink
-            linkHref="/admin/residuos/mi-empresa"
+            linkHref="/residuos/mi-empresa"
             linkText="Ir a Mi Empresa"
           />
         </div>
@@ -272,7 +272,7 @@ export default function ContratosPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => router.push(`/admin/residuos/contratos/${contract.id}`)}
+                      onClick={() => router.push(`/residuos/contratos/${contract.id}`)}
                     >
                       Ver Detalles
                     </Button>

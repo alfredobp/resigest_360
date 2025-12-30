@@ -58,7 +58,7 @@ export default function ContractDetailPage() {
 
     try {
       await wasteContractService.delete(contract.id);
-      router.push('/admin/residuos/contratos');
+      router.push('/residuos/contratos');
     } catch (err: any) {
       setError(`Error al eliminar: ${err.message}`);
     }
@@ -98,7 +98,7 @@ export default function ContractDetailPage() {
         <div className="max-w-4xl mx-auto">
           <Alert variant="error" title="Error" message={error || 'Contrato no encontrado'} />
           <div className="mt-6">
-            <Button onClick={() => router.push('/admin/residuos/contratos')}>
+            <Button onClick={() => router.push('/residuos/contratos')}>
               Volver a Contratos
             </Button>
           </div>
@@ -122,7 +122,7 @@ export default function ContractDetailPage() {
               {STATUS_LABELS[contract.estado]}
             </Badge>
           </div>
-          <Button variant="outline" onClick={() => router.push('/admin/residuos/contratos')}>
+          <Button variant="outline" onClick={() => router.push('/residuos/contratos')}>
             ← Volver
           </Button>
         </div>
