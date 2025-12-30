@@ -1,0 +1,450 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import Modal from '@/components/ui/Modal';
+import InputField from '@/components/form/InputField';
+import TextArea from '@/components/form/TextArea';
+import SelectField from '@/components/form/SelectField';
+import Button from '@/components/ui/Button';
+import Alert from '@/components/ui/Alert';
+import wasteContractService from '@/services/wasteContractService';
+import companyService from '@/services/companyService';
+import type { Company, WasteContractFormData } from '@/types/wasteManagement';
+
+const TIPOS_CONTRATO = [
+  { value: 'tratamiento', label: 'Tratamiento' },
+  { value: 'recogida', label: 'Recogida' },
+  { value: 'transporte', label: 'Transporte' },
+  { value: 'valoracion', label: 'Valoración' },
+  { value: 'eliminacion', label: 'Eliminación' },
+];
+
+interface NuevoContratoModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  myCompany: Company;
+}
+
+export default function NuevoContratoModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  myCompany,
+}: NuevoContratoModalProps) {
+  const [saving, setSaving] = useState(false);
+  const [gestores, setGestores] = useState<Company[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showGestorForm, setShowGestorForm] = useState(false);
+
+  const [formData, setFormData] = useState<WasteContractFormData>({
+    company_id: myCompany.id,
+    gestor_company_id: undefined,
+    numero_contrato: '',
+    fecha_contrato: new Date().toISOString().split('T')[0],
+    fecha_inicio: '',
+    fecha_fin: '',
+    tipo_contrato: 'tratamiento',
+    descripcion_residuos: '',
+    operaciones_tratamiento: [],
+    cantidad_maxima_anual: undefined,
+    unidad_cantidad: 'toneladas',
+    precio_unitario: undefined,
+    moneda: 'EUR',
+    estado: 'borrador',
+    notas: '',
+  });
+
+  const [gestorData, setGestorData] = useState({
+    razon_social: '',
+    cif: '',
+    nima: '',
+    direccion: '',
+    telefono: '',
+  });
+
+  useEffect(() => {
+    if (isOpen) {
+      loadGestores();
+      const numeroContrato = wasteContractService.generateContractNumber(myCompany.id);
+      setFormData((prev) => ({ ...prev, numero_contrato: numeroContrato }));
+    }
+  }, [isOpen, myCompany.id]);
+
+  const loadGestores = async () => {
+    try {
+      const gestoresData = await companyService.getByType('gestor');
+      setGestores(gestoresData);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleGestorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setGestorData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSearchGestor = async () => {
+    if (searchQuery.trim().length < 2) return;
+
+    try {
+      const results = await companyService.search(searchQuery);
+      setGestores(results);
+    } catch (err: any) {
+      setError(`Error al buscar: ${err.message}`);
+    }
+  };
+
+  const handleCreateGestor = async () => {
+    if (!gestorData.razon_social || !gestorData.cif) {
+      setError('La razón social y el CIF son obligatorios');
+      return;
+    }
+
+    try {
+      const newGestor = await companyService.create({
+        razon_social: gestorData.razon_social,
+        cif: gestorData.cif,
+        nima: gestorData.nima,
+        domicilio_social: gestorData.direccion,
+        telefono: gestorData.telefono,
+        tipo_empresa: 'gestor',
+      });
+
+      setGestores((prev) => [newGestor, ...prev]);
+      setFormData((prev) => ({ ...prev, gestor_company_id: newGestor.id }));
+      setShowGestorForm(false);
+      setGestorData({ razon_social: '', cif: '', nima: '', direccion: '', telefono: '' });
+    } catch (err: any) {
+      setError(`Error al crear gestor: ${err.message}`);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!formData.fecha_contrato) {
+      setError('La fecha del contrato es obligatoria');
+      return;
+    }
+
+    if (formData.fecha_inicio && formData.fecha_fin) {
+      if (!wasteContractService.validateDates(formData.fecha_inicio, formData.fecha_fin)) {
+        setError('La fecha de fin debe ser posterior a la fecha de inicio');
+        return;
+      }
+    }
+
+    try {
+      setSaving(true);
+      await wasteContractService.create(formData);
+      onSuccess();
+      handleClose();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleClose = () => {
+    setFormData({
+      company_id: myCompany.id,
+      gestor_company_id: undefined,
+      numero_contrato: '',
+      fecha_contrato: new Date().toISOString().split('T')[0],
+      fecha_inicio: '',
+      fecha_fin: '',
+      tipo_contrato: 'tratamiento',
+      descripcion_residuos: '',
+      operaciones_tratamiento: [],
+      cantidad_maxima_anual: undefined,
+      unidad_cantidad: 'toneladas',
+      precio_unitario: undefined,
+      moneda: 'EUR',
+      estado: 'borrador',
+      notas: '',
+    });
+    setError(null);
+    setShowGestorForm(false);
+    onClose();
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={handleClose} title="Nuevo Contrato de Tratamiento" size="xl">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <Alert variant="error">
+            {error}
+          </Alert>
+        )}
+
+        {/* Datos del Contrato */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-foreground">Datos del Contrato</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <InputField
+              label="Número de Contrato"
+              name="numero_contrato"
+              value={formData.numero_contrato}
+              onChange={handleChange}
+              placeholder="Se genera automáticamente"
+            />
+
+            <InputField
+              label="Fecha del Contrato *"
+              name="fecha_contrato"
+              type="date"
+              value={formData.fecha_contrato}
+              onChange={handleChange}
+              required
+            />
+
+            <InputField
+              label="Fecha de Inicio"
+              name="fecha_inicio"
+              type="date"
+              value={formData.fecha_inicio}
+              onChange={handleChange}
+            />
+
+            <InputField
+              label="Fecha de Fin"
+              name="fecha_fin"
+              type="date"
+              value={formData.fecha_fin}
+              onChange={handleChange}
+            />
+
+            <SelectField
+              label="Tipo de Contrato *"
+              name="tipo_contrato"
+              value={formData.tipo_contrato}
+              onChange={handleChange}
+              required
+            >
+              {TIPOS_CONTRATO.map((tipo) => (
+                <option key={tipo.value} value={tipo.value}>
+                  {tipo.label}
+                </option>
+              ))}
+            </SelectField>
+
+            <SelectField
+              label="Estado"
+              name="estado"
+              value={formData.estado}
+              onChange={handleChange}
+            >
+              <option value="borrador">Borrador</option>
+              <option value="vigente">Vigente</option>
+              <option value="finalizado">Finalizado</option>
+              <option value="cancelado">Cancelado</option>
+            </SelectField>
+          </div>
+        </div>
+
+        {/* Mi Empresa */}
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold text-foreground">Productor / Mi Empresa</h3>
+          <div className="bg-muted/30 p-4 rounded-lg space-y-2 text-sm">
+            <p><strong>Razón Social:</strong> {myCompany.razon_social}</p>
+            <p><strong>CIF:</strong> {myCompany.cif}</p>
+            {myCompany.nima && <p><strong>NIMA:</strong> {myCompany.nima}</p>}
+          </div>
+        </div>
+
+        {/* Gestor / Destinatario */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-foreground">Gestor / Destinatario</h3>
+          
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Buscar Gestor
+            </label>
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar por razón social, CIF o NIMA..."
+                className="flex-1 px-3 py-2 border border-stroke rounded-md text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSearchGestor();
+                  }
+                }}
+              />
+              <Button type="button" size="sm" onClick={handleSearchGestor}>
+                Buscar
+              </Button>
+            </div>
+
+            {gestores.length > 0 && (
+              <SelectField
+                label="Gestor"
+                name="gestor_company_id"
+                value={formData.gestor_company_id || ''}
+                onChange={handleChange}
+              >
+                <option value="">Selecciona un gestor...</option>
+                {gestores.map((gestor) => (
+                  <option key={gestor.id} value={gestor.id}>
+                    {gestor.razon_social} - {gestor.cif}
+                  </option>
+                ))}
+              </SelectField>
+            )}
+          </div>
+
+          <div className="border-t border-stroke pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowGestorForm(!showGestorForm)}
+            >
+              {showGestorForm ? 'Cancelar' : '+ Crear Nuevo Gestor'}
+            </Button>
+
+            {showGestorForm && (
+              <div className="mt-4 p-4 bg-muted/20 rounded-lg space-y-3">
+                <InputField
+                  label="Razón Social *"
+                  name="razon_social"
+                  value={gestorData.razon_social}
+                  onChange={handleGestorChange}
+                  placeholder="Nombre de la empresa gestora"
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <InputField
+                    label="CIF *"
+                    name="cif"
+                    value={gestorData.cif}
+                    onChange={handleGestorChange}
+                    placeholder="B12345678"
+                  />
+                  <InputField
+                    label="NIMA"
+                    name="nima"
+                    value={gestorData.nima}
+                    onChange={handleGestorChange}
+                    placeholder="1234567890AB"
+                  />
+                </div>
+                <InputField
+                  label="Dirección"
+                  name="direccion"
+                  value={gestorData.direccion}
+                  onChange={handleGestorChange}
+                  placeholder="Dirección completa"
+                />
+                <InputField
+                  label="Teléfono"
+                  name="telefono"
+                  value={gestorData.telefono}
+                  onChange={handleGestorChange}
+                  placeholder="954123456"
+                />
+                <Button type="button" size="sm" onClick={handleCreateGestor}>
+                  Crear Gestor
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Residuos y Condiciones */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-foreground">Residuos y Condiciones</h3>
+          
+          <TextArea
+            label="Descripción de Residuos"
+            name="descripcion_residuos"
+            value={formData.descripcion_residuos}
+            onChange={handleChange}
+            rows={2}
+            placeholder="Describe los tipos de residuos cubiertos por el contrato..."
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <InputField
+              label="Cantidad Máxima Anual"
+              name="cantidad_maxima_anual"
+              type="number"
+              step="0.01"
+              value={formData.cantidad_maxima_anual || ''}
+              onChange={handleChange}
+              placeholder="Ej: 1000"
+            />
+
+            <SelectField
+              label="Unidad"
+              name="unidad_cantidad"
+              value={formData.unidad_cantidad}
+              onChange={handleChange}
+            >
+              <option value="toneladas">Toneladas</option>
+              <option value="kg">Kilogramos</option>
+              <option value="m3">Metros cúbicos</option>
+              <option value="litros">Litros</option>
+            </SelectField>
+
+            <InputField
+              label="Precio Unitario"
+              name="precio_unitario"
+              type="number"
+              step="0.01"
+              value={formData.precio_unitario || ''}
+              onChange={handleChange}
+              placeholder="Ej: 150.00"
+            />
+
+            <SelectField
+              label="Moneda"
+              name="moneda"
+              value={formData.moneda}
+              onChange={handleChange}
+            >
+              <option value="EUR">EUR (€)</option>
+              <option value="USD">USD ($)</option>
+            </SelectField>
+          </div>
+
+          <TextArea
+            label="Notas / Observaciones"
+            name="notas"
+            value={formData.notas}
+            onChange={handleChange}
+            rows={2}
+            placeholder="Información adicional del contrato..."
+          />
+        </div>
+
+        {/* Botones de Acción */}
+        <div className="flex justify-end gap-3 pt-4 border-t border-stroke">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleClose}
+            disabled={saving}
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={saving}>
+            {saving ? 'Creando...' : 'Crear Contrato'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}

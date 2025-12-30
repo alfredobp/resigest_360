@@ -17,7 +17,8 @@ import {
   TableIcon,
   UserCircleIcon,
   TaskIcon, MapIcon,
-  MapSettingsIcon
+  MapSettingsIcon,
+  TrashBinIcon
 } from "../icons/index";
 import Logo from "@/components/common/Logo";
 
@@ -54,7 +55,16 @@ path: "/",
     name: "Data library",
     path: "/data",
   },
-
+  {
+    icon: <TrashBinIcon />,
+    name: "Gestión de Residuos",
+    subItems: [
+      { name: "Mi Empresa", path: "/residuos/mi-empresa", pro: false },
+      { name: "Contratos", path: "/residuos/contratos", pro: false },
+      { name: "Documentos de Identificación", path: "/residuos/documentos", pro: false },
+      { name: "Memorias Anuales", path: "/residuos/memorias", pro: false },
+    ],
+  },
   {
     name: "Team",
     icon: <UserCircleIcon />,
