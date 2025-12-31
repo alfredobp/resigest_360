@@ -112,19 +112,19 @@ export default function DetalleMemoriaPage() {
   };
 
   const getEstadoBadge = (estado: EstadoMemoria) => {
-    const variants: Record<EstadoMemoria, any> = {
-      borrador: { variant: 'secondary' as const, icon: Clock, label: 'Borrador' },
-      revision: { variant: 'warning' as const, icon: AlertCircle, label: 'En Revisión' },
-      completada: { variant: 'default' as const, icon: CheckCircle, label: 'Completada' },
-      presentada: { variant: 'success' as const, icon: FileCheck, label: 'Presentada' },
-      archivada: { variant: 'secondary' as const, icon: Archive, label: 'Archivada' },
+    const configs: Record<EstadoMemoria, any> = {
+      borrador: { color: 'light' as const, icon: Clock, label: 'Borrador' },
+      revision: { color: 'warning' as const, icon: AlertCircle, label: 'En Revisión' },
+      completada: { color: 'primary' as const, icon: CheckCircle, label: 'Completada' },
+      presentada: { color: 'success' as const, icon: FileCheck, label: 'Presentada' },
+      archivada: { color: 'dark' as const, icon: Archive, label: 'Archivada' },
     };
 
-    const config = variants[estado];
+    const config = configs[estado];
     const Icon = config.icon;
 
     return (
-      <Badge variant={config.variant} className="flex items-center gap-1">
+      <Badge variant="light" color={config.color} className="flex items-center gap-1">
         <Icon className="h-3 w-3" />
         {config.label}
       </Badge>
@@ -163,10 +163,11 @@ export default function DetalleMemoriaPage() {
   if (!memoria) {
     return (
       <div className="space-y-6">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <div>No se encontró la memoria anual</div>
-        </Alert>
+        <Alert 
+          variant="error" 
+          title="Error" 
+          message="No se encontró la memoria anual"
+        />
         <Button onClick={() => router.back()}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Volver
@@ -199,17 +200,19 @@ export default function DetalleMemoriaPage() {
 
       {/* Alertas */}
       {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <div>{error}</div>
-        </Alert>
+        <Alert 
+          variant="error" 
+          title="Error" 
+          message={error}
+        />
       )}
 
       {success && (
-        <Alert>
-          <CheckCircle className="h-4 w-4" />
-          <div>{success}</div>
-        </Alert>
+        <Alert 
+          variant="success" 
+          title="Éxito" 
+          message={success}
+        />
       )}
 
       {/* Resumen */}

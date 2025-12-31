@@ -123,19 +123,19 @@ export default function MemoriasAnualesPage() {
   };
 
   const getEstadoBadge = (estado: EstadoMemoria) => {
-    const variants: Record<EstadoMemoria, any> = {
-      borrador: { variant: 'secondary' as const, icon: Clock, label: 'Borrador' },
-      revision: { variant: 'warning' as const, icon: AlertCircle, label: 'En Revisión' },
-      completada: { variant: 'default' as const, icon: CheckCircle, label: 'Completada' },
-      presentada: { variant: 'success' as const, icon: FileCheck, label: 'Presentada' },
-      archivada: { variant: 'secondary' as const, icon: Archive, label: 'Archivada' },
+    const configs: Record<EstadoMemoria, any> = {
+      borrador: { color: 'light' as const, icon: Clock, label: 'Borrador' },
+      revision: { color: 'warning' as const, icon: AlertCircle, label: 'En Revisión' },
+      completada: { color: 'primary' as const, icon: CheckCircle, label: 'Completada' },
+      presentada: { color: 'success' as const, icon: FileCheck, label: 'Presentada' },
+      archivada: { color: 'dark' as const, icon: Archive, label: 'Archivada' },
     };
 
-    const config = variants[estado];
+    const config = configs[estado];
     const Icon = config.icon;
 
     return (
-      <Badge variant={config.variant} className="flex items-center gap-1">
+      <Badge variant="light" color={config.color} className="flex items-center gap-1">
         <Icon className="h-3 w-3" />
         {config.label}
       </Badge>

@@ -49,12 +49,12 @@ path: "/",
   {
     icon: <TableIcon />,
     name: "Documentos de Identificación",
-    path: "/residuos/documentos",
+    path: "/residuos/documentos-identificacion",
   },
     {
     icon: <TableIcon />,
     name: "Memorias Anuales",
-    path: "/residuos/memorias",
+    path: "/residuos/memorias-anuales",
   },
 
 ];
