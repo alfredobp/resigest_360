@@ -135,7 +135,7 @@ export default function MemoriasAnualesPage() {
     const Icon = config.icon;
 
     return (
-      <Badge variant="light" color={config.color} className="flex items-center gap-1">
+      <Badge variant="light" color={config.color}>
         <Icon className="h-3 w-3" />
         {config.label}
       </Badge>
