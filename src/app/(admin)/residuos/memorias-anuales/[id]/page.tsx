@@ -217,7 +217,7 @@ export default function DetalleMemoriaPage() {
 
       {/* Resumen */}
       <div className="grid gap-4 md:grid-cols-4">
-        <ComponentCard>
+        <ComponentCard  title={'Movimientos'}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Movimientos</p>
