@@ -52,7 +52,7 @@ export async function createMemoria(data: CreateMemoriaData): Promise<MemoriaAnu
 
   // Calcular totales
   const total_movimientos = documentos.length;
-  const total_toneladas = documentos.reduce((sum, doc) => sum + (doc.cantidad_total || 0), 0);
+  const total_toneladas = documentos.reduce((sum, doc) => sum + (doc.cantidad || 0), 0);
 
   // Calcular resumen por LER
   const resumen_ler = calculateResumenLER(documentos);
