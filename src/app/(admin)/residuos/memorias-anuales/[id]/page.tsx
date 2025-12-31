@@ -304,7 +304,7 @@ export default function DetalleMemoriaPage() {
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                         Código LER
-                      <ComponentCard title="Datos de la Empresa">
+                      </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                         Descripción
                       </th>
