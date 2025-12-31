@@ -217,7 +217,7 @@ export default function DetalleMemoriaPage() {
 
       {/* Resumen */}
       <div className="grid gap-4 md:grid-cols-4">
-        <ComponentCard  title={'Movimientos'}>
+        <ComponentCard title="Movimientos">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Movimientos</p>
@@ -227,7 +227,7 @@ export default function DetalleMemoriaPage() {
           </div>
         </ComponentCard>
 
-        <ComponentCard>
+        <ComponentCard title="Toneladas">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Toneladas</p>
@@ -237,7 +237,7 @@ export default function DetalleMemoriaPage() {
           </div>
         </ComponentCard>
 
-        <ComponentCard>
+        <ComponentCard title="Códigos LER">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Códigos LER</p>
@@ -247,7 +247,7 @@ export default function DetalleMemoriaPage() {
           </div>
         </ComponentCard>
 
-        <ComponentCard>
+        <ComponentCard title="Año">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Año</p>
@@ -304,7 +304,7 @@ export default function DetalleMemoriaPage() {
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                         Código LER
-                      </th>
+                      <ComponentCard title="Datos de la Empresa">
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                         Descripción
                       </th>
