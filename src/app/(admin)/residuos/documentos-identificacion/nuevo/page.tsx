@@ -195,37 +195,43 @@ export default function NuevoDocumentoIdentificacionPage() {
           {/* Datos del Documento */}
           <ComponentCard title="Datos del Documento">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Input
-                id="numero_documento"
-                label="Número de Documento"
-                type="text"
-                value={formData.numero_documento || ''}
-                onChange={(e) => setFormData({ ...formData, numero_documento: e.target.value })}
-                required
-              />
+              <div>
+                <label htmlFor="numero_documento" className="block text-sm font-medium mb-2">Número de Documento</label>
+                <Input
+                  id="numero_documento"
+                  type="text"
+                  value={formData.numero_documento || ''}
+                  onChange={(e) => setFormData({ ...formData, numero_documento: e.target.value })}
+                  required
+                />
+              </div>
 
-              <Input
-                id="fecha_documento"
-                label="Fecha del Documento"
-                type="date"
-                value={formData.fecha_documento}
-                onChange={(e) => setFormData({ ...formData, fecha_documento: e.target.value })}
-                required
-              />
+              <div>
+                <label htmlFor="fecha_documento" className="block text-sm font-medium mb-2">Fecha del Documento</label>
+                <Input
+                  id="fecha_documento"
+                  type="date"
+                  value={formData.fecha_documento}
+                  onChange={(e) => setFormData({ ...formData, fecha_documento: e.target.value })}
+                  required
+                />
+              </div>
 
-              <Select
-                id="contract_id"
-                label="Contrato de Referencia (Opcional)"
-                value={formData.contract_id?.toString() || ''}
-                onChange={(e) => handleContractChange(e.target.value)}
-                options={[
-                  { value: '', label: '-- Seleccionar --' },
-                  ...contracts.map(c => ({
-                    value: c.id.toString(),
-                    label: `${c.numero_contrato || `#${c.id}`} - ${c.gestor_company?.razon_social || 'Sin gestor'}`,
-                  })),
-                ]}
-              />
+              <div>
+                <label htmlFor="contract_id" className="block text-sm font-medium mb-2">Contrato de Referencia (Opcional)</label>
+                <Select
+                  options={[
+                    { value: '', label: '-- Seleccionar --' },
+                    ...contracts.map(c => ({
+                      value: c.id.toString(),
+                      label: `${c.numero_contrato || `#${c.id}`} - ${c.gestor_company?.razon_social || 'Sin gestor'}`,
+                    })),
+                  ]}
+                  defaultValue={formData.contract_id?.toString() || ''}
+                  onChange={(value) => handleContractChange(value)}
+                  placeholder="Selecciona un contrato"
+                />
+              </div>
             </div>
           </ComponentCard>
 
@@ -242,54 +248,64 @@ export default function NuevoDocumentoIdentificacionPage() {
           {/* Gestor/Destinatario */}
           <ComponentCard title="Gestor / Destinatario">
             <div className="space-y-4">
-              <Select
-                id="gestor_select"
-                label="Seleccionar Gestor"
-                value=""
-                onChange={(e) => handleGestorChange(e.target.value)}
-                options={[
-                  { value: '', label: '-- Seleccionar --' },
-                  ...gestores.map(g => ({
-                    value: g.id.toString(),
-                    label: `${g.razon_social} - ${g.cif}`,
-                  })),
-                ]}
-              />
+              <div>
+                <label htmlFor="gestor_select" className="block text-sm font-medium mb-2">Seleccionar Gestor</label>
+                <Select
+                  options={[
+                    { value: '', label: '-- Seleccionar --' },
+                    ...gestores.map(g => ({
+                      value: g.id.toString(),
+                      label: `${g.razon_social} - ${g.cif}`,
+                    })),
+                  ]}
+                  defaultValue=""
+                  onChange={(value) => handleGestorChange(value)}
+                  placeholder="Selecciona un gestor"
+                />
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  id="gestor_razon_social"
-                  label="Razón Social *"
-                  type="text"
-                  value={formData.gestor_razon_social || ''}
-                  onChange={(e) => setFormData({ ...formData, gestor_razon_social: e.target.value })}
-                  required
-                />
+                <div>
+                  <label htmlFor="gestor_razon_social" className="block text-sm font-medium mb-2">Razón Social *</label>
+                  <Input
+                    id="gestor_razon_social"
+                    type="text"
+                    value={formData.gestor_razon_social || ''}
+                    onChange={(e) => setFormData({ ...formData, gestor_razon_social: e.target.value })}
+                    required
+                  />
+                </div>
 
-                <Input
-                  id="gestor_cif"
-                  label="CIF *"
-                  type="text"
-                  value={formData.gestor_cif || ''}
-                  onChange={(e) => setFormData({ ...formData, gestor_cif: e.target.value })}
-                  required
-                />
+                <div>
+                  <label htmlFor="gestor_cif" className="block text-sm font-medium mb-2">CIF *</label>
+                  <Input
+                    id="gestor_cif"
+                    type="text"
+                    value={formData.gestor_cif || ''}
+                    onChange={(e) => setFormData({ ...formData, gestor_cif: e.target.value })}
+                    required
+                  />
+                </div>
 
-                <Input
-                  id="gestor_nima"
-                  label="NIMA"
-                  type="text"
-                  value={formData.gestor_nima || ''}
-                  onChange={(e) => setFormData({ ...formData, gestor_nima: e.target.value })}
-                />
+                <div>
+                  <label htmlFor="gestor_nima" className="block text-sm font-medium mb-2">NIMA</label>
+                  <Input
+                    id="gestor_nima"
+                    type="text"
+                    value={formData.gestor_nima || ''}
+                    onChange={(e) => setFormData({ ...formData, gestor_nima: e.target.value })}
+                  />
+                </div>
 
-                <Input
-                  id="gestor_numero_autorizacion"
-                  label="Nº Autorización"
-                  type="text"
-                  value={formData.gestor_numero_autorizacion || ''}
-                  onChange={(e) => setFormData({ ...formData, gestor_numero_autorizacion: e.target.value })}
-                />
+                <div>
+                  <label htmlFor="gestor_numero_autorizacion" className="block text-sm font-medium mb-2">Nº Autorización</label>
+                  <Input
+                    id="gestor_numero_autorizacion"
+                    type="text"
+                    value={formData.gestor_numero_autorizacion || ''}
+                    onChange={(e) => setFormData({ ...formData, gestor_numero_autorizacion: e.target.value })}
+                  />
+                </div>
               </div>
             </div>
           </ComponentCard>
@@ -297,44 +313,52 @@ export default function NuevoDocumentoIdentificacionPage() {
           {/* Transportista (Opcional) */}
           <ComponentCard title="Transportista (Opcional)">
             <div className="space-y-4">
-              <Select
-                id="transportista_select"
-                label="Seleccionar Transportista"
-                value=""
-                onChange={(e) => handleTransportistaChange(e.target.value)}
-                options={[
-                  { value: '', label: '-- Seleccionar --' },
-                  ...transportistas.map(t => ({
-                    value: t.id.toString(),
-                    label: `${t.razon_social} - ${t.cif}`,
-                  })),
-                ]}
-              />
+              <div>
+                <label htmlFor="transportista_select" className="block text-sm font-medium mb-2">Seleccionar Transportista</label>
+                <Select
+                  options={[
+                    { value: '', label: '-- Seleccionar --' },
+                    ...transportistas.map(t => ({
+                      value: t.id.toString(),
+                      label: `${t.razon_social} - ${t.cif}`,
+                    })),
+                  ]}
+                  defaultValue=""
+                  onChange={(value) => handleTransportistaChange(value)}
+                  placeholder="Selecciona un transportista"
+                />
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Input
-                  id="transportista_razon_social"
-                  label="Razón Social"
-                  type="text"
-                  value={formData.transportista_razon_social || ''}
-                  onChange={(e) => setFormData({ ...formData, transportista_razon_social: e.target.value })}
-                />
+                <div>
+                  <label htmlFor="transportista_razon_social" className="block text-sm font-medium mb-2">Razón Social</label>
+                  <Input
+                    id="transportista_razon_social"
+                    type="text"
+                    value={formData.transportista_razon_social || ''}
+                    onChange={(e) => setFormData({ ...formData, transportista_razon_social: e.target.value })}
+                  />
+                </div>
 
-                <Input
-                  id="transportista_cif"
-                  label="CIF"
-                  type="text"
-                  value={formData.transportista_cif || ''}
-                  onChange={(e) => setFormData({ ...formData, transportista_cif: e.target.value })}
-                />
+                <div>
+                  <label htmlFor="transportista_cif" className="block text-sm font-medium mb-2">CIF</label>
+                  <Input
+                    id="transportista_cif"
+                    type="text"
+                    value={formData.transportista_cif || ''}
+                    onChange={(e) => setFormData({ ...formData, transportista_cif: e.target.value })}
+                  />
+                </div>
 
-                <Input
-                  id="transportista_matricula"
-                  label="Matrícula"
-                  type="text"
-                  value={formData.transportista_matricula || ''}
-                  onChange={(e) => setFormData({ ...formData, transportista_matricula: e.target.value })}
-                />
+                <div>
+                  <label htmlFor="transportista_matricula" className="block text-sm font-medium mb-2">Matrícula</label>
+                  <Input
+                    id="transportista_matricula"
+                    type="text"
+                    value={formData.transportista_matricula || ''}
+                    onChange={(e) => setFormData({ ...formData, transportista_matricula: e.target.value })}
+                  />
+                </div>
               </div>
             </div>
           </ComponentCard>
@@ -342,132 +366,148 @@ export default function NuevoDocumentoIdentificacionPage() {
           {/* Datos del Residuo */}
           <ComponentCard title="Datos del Residuo">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                id="codigo_ler"
-                label="Código LER *"
-                type="text"
-                value={formData.codigo_ler || ''}
-                onChange={(e) => setFormData({ ...formData, codigo_ler: e.target.value })}
-                placeholder="Ej: 160106"
-                required
-              />
-
-              <Select
-                id="peligrosidad"
-                label="Peligrosidad"
-                value={formData.peligrosidad}
-                onChange={(e) => setFormData({ ...formData, peligrosidad: e.target.value as any })}
-                options={[
-                  { value: 'no-peligroso', label: 'No Peligroso' },
-                  { value: 'peligroso', label: 'Peligroso' },
-                ]}
-                required
-              />
-
-              <div className="md:col-span-2">
-                <TextArea
-                  id="descripcion_residuo"
-                  label="Descripción del Residuo *"
-                  value={formData.descripcion_residuo || ''}
-                  onChange={(value) => setFormData({ ...formData, descripcion_residuo: value })}
-                  rows={2}
-                  placeholder="Describe el tipo de residuo..."
+              <div>
+                <label htmlFor="codigo_ler" className="block text-sm font-medium mb-2">Código LER *</label>
+                <Input
+                  id="codigo_ler"
+                  type="text"
+                  value={formData.codigo_ler || ''}
+                  onChange={(e) => setFormData({ ...formData, codigo_ler: e.target.value })}
+                  placeholder="Ej: 160106"
                   required
                 />
               </div>
 
-              <Select
-                id="estado_fisico"
-                label="Estado Físico"
-                value={formData.estado_fisico}
-                onChange={(e) => setFormData({ ...formData, estado_fisico: e.target.value as any })}
-                options={[
-                  { value: 'solido', label: 'Sólido' },
-                  { value: 'liquido', label: 'Líquido' },
-                  { value: 'pastoso', label: 'Pastoso' },
-                  { value: 'gaseoso', label: 'Gaseoso' },
-                ]}
-                required
-              />
+              <div>
+                <label htmlFor="peligrosidad" className="block text-sm font-medium mb-2">Peligrosidad *</label>
+                <Select
+                  options={[
+                    { value: 'no-peligroso', label: 'No Peligroso' },
+                    { value: 'peligroso', label: 'Peligroso' },
+                  ]}
+                  defaultValue={formData.peligrosidad}
+                  onChange={(value) => setFormData({ ...formData, peligrosidad: value as any })}
+                  placeholder="Selecciona una opción"
+                />
+              </div>
 
-              <Input
-                id="operacion_tratamiento"
-                label="Operación de Tratamiento"
-                type="text"
-                value={formData.operacion_tratamiento || ''}
-                onChange={(e) => setFormData({ ...formData, operacion_tratamiento: e.target.value })}
-                placeholder="Ej: R05, D01"
-              />
+              <div className="md:col-span-2">
+                <label htmlFor="descripcion_residuo" className="block text-sm font-medium mb-2">Descripción del Residuo *</label>
+                <TextArea
+                  value={formData.descripcion_residuo || ''}
+                  onChange={(value) => setFormData({ ...formData, descripcion_residuo: value })}
+                  rows={2}
+                  placeholder="Describe el tipo de residuo..."
+                />
+              </div>
+
+              <div>
+                <label htmlFor="estado_fisico" className="block text-sm font-medium mb-2">Estado Físico *</label>
+                <Select
+                  options={[
+                    { value: 'solido', label: 'Sólido' },
+                    { value: 'liquido', label: 'Líquido' },
+                    { value: 'pastoso', label: 'Pastoso' },
+                    { value: 'gaseoso', label: 'Gaseoso' },
+                  ]}
+                  defaultValue={formData.estado_fisico}
+                  onChange={(value) => setFormData({ ...formData, estado_fisico: value as any })}
+                  placeholder="Selecciona una opción"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="operacion_tratamiento" className="block text-sm font-medium mb-2">Operación de Tratamiento</label>
+                <Input
+                  id="operacion_tratamiento"
+                  type="text"
+                  value={formData.operacion_tratamiento || ''}
+                  onChange={(e) => setFormData({ ...formData, operacion_tratamiento: e.target.value })}
+                  placeholder="Ej: R05, D01"
+                />
+              </div>
             </div>
           </ComponentCard>
+div>
+                <label htmlFor="cantidad" className="block text-sm font-medium mb-2">Cantidad *</label>
+                <Input
+                  id="cantidad"
+                  type="number"
+                  step="0.001"
+                  value={formData.cantidad || ''}
+                  onChange={(e) => setFormData({ ...formData, cantidad: parseFloat(e.target.value) })}
+                  required
+                />
+              </div>
 
-          {/* Cantidad */}
-          <ComponentCard title="Cantidad y Envases">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                id="cantidad"
-                label="Cantidad *"
-                type="number"
-                step="0.001"
-                value={formData.cantidad || ''}
-                onChange={(e) => setFormData({ ...formData, cantidad: parseFloat(e.target.value) })}
-                required
-              />
+              <div>
+                <label htmlFor="unidad" className="block text-sm font-medium mb-2">Unidad *</label>
+                <Select
+                  options={[
+                    { value: 'kg', label: 'Kilogramos (kg)' },
+                    { value: 'toneladas', label: 'Toneladas' },
+                    { value: 'litros', label: 'Litros' },
+                    { value: 'm3', label: 'Metros cúbicos (m³)' },
+                    { value: 'unidades', label: 'Unidades' },
+                  ]}
+                  defaultValue={formData.unidad}
+                  onChange={(value) => setFormData({ ...formData, unidad: value as any })}
+                  placeholder="Selecciona una opción"
+                />
+              </div>
 
-              <Select
-                id="unidad"
-                label="Unidad"
-                value={formData.unidad}
-                onChange={(e) => setFormData({ ...formData, unidad: e.target.value as any })}
-                options={[
-                  { value: 'kg', label: 'Kilogramos (kg)' },
-                  { value: 'toneladas', label: 'Toneladas' },
-                  { value: 'litros', label: 'Litros' },
-                  { value: 'm3', label: 'Metros cúbicos (m³)' },
-                  { value: 'unidades', label: 'Unidades' },
-                ]}
-                required
-              />
+              <div>
+                <label htmlFor="numero_envases" className="block text-sm font-medium mb-2">Número de Envases</label>
+                <Input
+                  id="numero_envases"
+                  type="number"
+                  value={formData.numero_envases || ''}
+                  onChange={(e) => setFormData({ ...formData, numero_envases: parseInt(e.target.value) })}
+                />
+              </div>
 
-              <Input
-                id="numero_envases"
-                label="Número de Envases"
-                type="number"
-                value={formData.numero_envases || ''}
-                onChange={(e) => setFormData({ ...formData, numero_envases: parseInt(e.target.value) })}
-              />
-
-              <Input
-                id="tipo_envases"
-                label="Tipo de Envases"
-                type="text"
+              <div>
+                <label htmlFor="tipo_envases" className="block text-sm font-medium mb-2">Tipo de Envases</label>
+                <Input
+                  id="tipo_envases"
+                  type="text"
+                  value={formData.tipo_envases || ''}
+                  onChange={(e) => setFormData({ ...formData, tipo_envases: e.target.value })}
+                  placeholder="Ej: Contenedor 1000L, Big Bag, Bidón"
+                />
+              </div type="text"
                 value={formData.tipo_envases || ''}
                 onChange={(e) => setFormData({ ...formData, tipo_envases: e.target.value })}
                 placeholder="Ej: Contenedor 1000L, Big Bag, Bidón"
-              />
-            </div>
-          </ComponentCard>
+              /div>
+                <label htmlFor="fecha_recogida" className="block text-sm font-medium mb-2">Fecha de Recogida</label>
+                <Input
+                  id="fecha_recogida"
+                  type="date"
+                  value={formData.fecha_recogida || ''}
+                  onChange={(e) => setFormData({ ...formData, fecha_recogida: e.target.value })}
+                />
+              </div>
 
-          {/* Fechas */}
-          <ComponentCard title="Fechas de Recogida y Entrega">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="fecha_entrega" className="block text-sm font-medium mb-2">Fecha de Entrega</label>
+                <Input
+                  id="fecha_entrega"
+                  type="date"
+                  value={formData.fecha_entrega || ''}
+                  onChange={(e) => setFormData({ ...formData, fecha_entrega: e.target.value })}
+                />
+              </div
               <Input
-                id="fecha_recogida"
-                label="Fecha de Recogida"
-                type="date"
-                value={formData.fecha_recogida || ''}
-                onChange={(e) => setFormData({ ...formData, fecha_recogida: e.target.value })}
+             div>
+              <label htmlFor="notas" className="block text-sm font-medium mb-2">Notas</label>
+              <TextArea
+                value={formData.notas || ''}
+                onChange={(value) => setFormData({ ...formData, notas: value })}
+                rows={3}
+                placeholder="Observaciones adicionales..."
               />
-
-              <Input
-                id="fecha_entrega"
-                label="Fecha de Entrega"
-                type="date"
-                value={formData.fecha_entrega || ''}
-                onChange={(e) => setFormData({ ...formData, fecha_entrega: e.target.value })}
-              />
-            </div>
-          </ComponentCard>
+            </divomponentCard>
 
           {/* Notas */}
           <ComponentCard title="Notas y Observaciones">

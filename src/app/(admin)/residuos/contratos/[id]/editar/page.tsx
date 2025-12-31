@@ -227,14 +227,17 @@ export default function EditarContratoPage() {
                 />
               </div>
 
-              <Select
-                id="tipo_contrato"
-                label="Tipo de Contrato"
-                value={formData.tipo_contrato}
-                onChange={(e) => setFormData({ ...formData, tipo_contrato: e.target.value as any })}
-                options={TIPOS_CONTRATO}
-                required
-              />
+              <div>
+                <label htmlFor="tipo_contrato" className="block text-sm font-medium mb-2">
+                  Tipo de Contrato <span className="text-red-500">*</span>
+                </label>
+                <Select
+                  options={TIPOS_CONTRATO}
+                  defaultValue={formData.tipo_contrato}
+                  onChange={(value) => setFormData({ ...formData, tipo_contrato: value as any })}
+                  placeholder="Selecciona una opción"
+                />
+              </div>
 
               <div>
                 <label htmlFor="fecha_contrato" className="block text-sm font-medium mb-2">Fecha del Contrato</label>
@@ -247,19 +250,22 @@ export default function EditarContratoPage() {
                 />
               </div>
 
-              <Select
-                id="estado"
-                label="Estado"
-                value={formData.estado}
-                onChange={(e) => setFormData({ ...formData, estado: e.target.value as any })}
-                options={[
-                  { value: 'borrador', label: 'Borrador' },
-                  { value: 'vigente', label: 'Vigente' },
-                  { value: 'finalizado', label: 'Finalizado' },
-                  { value: 'cancelado', label: 'Cancelado' },
-                ]}
-                required
-              />
+              <div>
+                <label htmlFor="estado" className="block text-sm font-medium mb-2">
+                  Estado <span className="text-red-500">*</span>
+                </label>
+                <Select
+                  options={[
+                    { value: 'borrador', label: 'Borrador' },
+                    { value: 'vigente', label: 'Vigente' },
+                    { value: 'finalizado', label: 'Finalizado' },
+                    { value: 'cancelado', label: 'Cancelado' },
+                  ]}
+                  defaultValue={formData.estado}
+                  onChange={(value) => setFormData({ ...formData, estado: value as any })}
+                  placeholder="Selecciona una opción"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
@@ -301,19 +307,23 @@ export default function EditarContratoPage() {
                     />
                   </div>
 
-                  <Select
-                    id="gestor_company_id"
-                    label="Seleccionar Gestor"
-                    value={formData.gestor_company_id?.toString() || ''}
-                    onChange={(e) => setFormData({ ...formData, gestor_company_id: parseInt(e.target.value) || undefined })}
-                    options={[
-                      { value: '', label: '-- Seleccionar --' },
-                      ...filteredGestores.map((g) => ({
-                        value: g.id.toString(),
-                        label: `${g.razon_social} (${g.cif})${g.nima ? ' - NIMA: ' + g.nima : ''}`,
-                      })),
-                    ]}
-                  />
+                  <div>
+                    <label htmlFor="gestor_company_id" className="block text-sm font-medium mb-2">
+                      Seleccionar Gestor
+                    </label>
+                    <Select
+                      options={[
+                        { value: '', label: '-- Seleccionar --' },
+                        ...filteredGestores.map((g) => ({
+                          value: g.id.toString(),
+                          label: `${g.razon_social} (${g.cif})${g.nima ? ' - NIMA: ' + g.nima : ''}`,
+                        })),
+                      ]}
+                      defaultValue={formData.gestor_company_id?.toString() || ''}
+                      onChange={(value) => setFormData({ ...formData, gestor_company_id: parseInt(value) || undefined })}
+                      placeholder="Selecciona una opción"
+                    />
+                  </div>
 
                   <Button
                     type="button"
@@ -404,14 +414,15 @@ export default function EditarContratoPage() {
           {/* Residuos y Condiciones */}
           <ComponentCard title="Residuos y Condiciones">
             <div className="space-y-4">
-              <TextArea
-                id="descripcion_residuos"
-                label="Descripción de Residuos"
-                value={formData.descripcion_residuos}
-                onChange={(e) => setFormData({ ...formData, descripcion_residuos: e.target.value })}
-                placeholder="Describe los tipos de residuos cubiertos por este contrato..."
-                rows={4}
-              />
+              <div>
+                <label htmlFor="descripcion_residuos" className="block text-sm font-medium mb-2">Descripción de Residuos</label>
+                <TextArea
+                  value={formData.descripcion_residuos}
+                  onChange={(value) => setFormData({ ...formData, descripcion_residuos: value })}
+                  placeholder="Describe los tipos de residuos cubiertos por este contrato..."
+                  rows={4}
+                />
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -425,19 +436,23 @@ export default function EditarContratoPage() {
                   />
                 </div>
 
-                <Select
-                  id="unidad_cantidad"
-                  label="Unidad"
-                  value={formData.unidad_cantidad}
-                  onChange={(e) => setFormData({ ...formData, unidad_cantidad: e.target.value })}
-                  options={[
-                    { value: 'toneladas', label: 'Toneladas' },
-                    { value: 'kg', label: 'Kilogramos' },
-                    { value: 'm3', label: 'Metros cúbicos' },
-                    { value: 'litros', label: 'Litros' },
-                    { value: 'unidades', label: 'Unidades' },
-                  ]}
-                />
+                <div>
+                  <label htmlFor="unidad_cantidad" className="block text-sm font-medium mb-2">
+                    Unidad
+                  </label>
+                  <Select
+                    options={[
+                      { value: 'toneladas', label: 'Toneladas' },
+                      { value: 'kg', label: 'Kilogramos' },
+                      { value: 'm3', label: 'Metros cúbicos' },
+                      { value: 'litros', label: 'Litros' },
+                      { value: 'unidades', label: 'Unidades' },
+                    ]}
+                    defaultValue={formData.unidad_cantidad}
+                    onChange={(value) => setFormData({ ...formData, unidad_cantidad: value })}
+                    placeholder="Selecciona una opción"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -446,38 +461,43 @@ export default function EditarContratoPage() {
                   <Input
                     id="precio_unitario"
                     type="number"
-                    step="0.01"
+                    step={0.01}
                     value={formData.precio_unitario || ''}
                     onChange={(e) => setFormData({ ...formData, precio_unitario: parseFloat(e.target.value) || undefined })}
                     placeholder="50.00"
                   />
                 </div>
 
-                <Select
-                  id="moneda"
-                  label="Moneda"
-                  value={formData.moneda}
-                  onChange={(e) => setFormData({ ...formData, moneda: e.target.value })}
-                  options={[
-                    { value: 'EUR', label: 'EUR (€)' },
-                    { value: 'USD', label: 'USD ($)' },
-                    { value: 'GBP', label: 'GBP (£)' },
-                  ]}
-                />
+                <div>
+                  <label htmlFor="moneda" className="block text-sm font-medium mb-2">
+                    Moneda
+                  </label>
+                  <Select
+                    options={[
+                      { value: 'EUR', label: 'EUR (€)' },
+                      { value: 'USD', label: 'USD ($)' },
+                      { value: 'GBP', label: 'GBP (£)' },
+                    ]}
+                    defaultValue={formData.moneda}
+                    onChange={(value) => setFormData({ ...formData, moneda: value })}
+                    placeholder="Selecciona una opción"
+                  />
+                </div>
               </div>
             </div>
           </ComponentCard>
 
           {/* Notas */}
           <ComponentCard title="Notas y Observaciones">
-            <TextArea
-              id="notas"
-              label="Notas"
-              value={formData.notas}
-              onChange={(e) => setFormData({ ...formData, notas: e.target.value })}
-              placeholder="Observaciones adicionales sobre el contrato..."
-              rows={4}
-            />
+            <div>
+              <label htmlFor="notas" className="block text-sm font-medium mb-2">Notas</label>
+              <TextArea
+                value={formData.notas}
+                onChange={(value) => setFormData({ ...formData, notas: value })}
+                placeholder="Observaciones adicionales sobre el contrato..."
+                rows={4}
+              />
+            </div>
           </ComponentCard>
 
           {/* Botones de Acción */}

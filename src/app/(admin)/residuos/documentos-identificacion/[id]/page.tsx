@@ -318,14 +318,14 @@ export default function DetalleDocumentoIdentificacionPage() {
               <p className="text-sm font-medium text-muted mb-2">Productor</p>
               {document.firmado_productor ? (
                 <div>
-                  <Badge color="success" size="lg">Firmado</Badge>
+                  <Badge color="success" size="md">Firmado</Badge>
                   {document.fecha_firma_productor && (
                     <p className="text-xs text-muted mt-2">{formatDate(document.fecha_firma_productor)}</p>
                   )}
                 </div>
               ) : (
                 <div>
-                  <Badge color="light" size="lg">Pendiente</Badge>
+                  <Badge color="light" size="md">Pendiente</Badge>
                   {document.estado !== 'completado' && document.estado !== 'cancelado' && (
                     <Button size="sm" className="mt-2" onClick={() => handleSign('productor')}>
                       Firmar
@@ -339,14 +339,14 @@ export default function DetalleDocumentoIdentificacionPage() {
               <p className="text-sm font-medium text-muted mb-2">Gestor</p>
               {document.firmado_gestor ? (
                 <div>
-                  <Badge color="success" size="lg">Firmado</Badge>
+                  <Badge color="success" size="md">Firmado</Badge>
                   {document.fecha_firma_gestor && (
                     <p className="text-xs text-muted mt-2">{formatDate(document.fecha_firma_gestor)}</p>
                   )}
                 </div>
               ) : (
                 <div>
-                  <Badge color="light" size="lg">Pendiente</Badge>
+                  <Badge color="light" size="md">Pendiente</Badge>
                   {document.estado !== 'completado' && document.estado !== 'cancelado' && (
                     <Button size="sm" className="mt-2" onClick={() => handleSign('gestor')}>
                       Firmar
@@ -361,14 +361,14 @@ export default function DetalleDocumentoIdentificacionPage() {
                 <p className="text-sm font-medium text-muted mb-2">Transportista</p>
                 {document.firmado_transportista ? (
                   <div>
-                    <Badge color="success" size="lg">Firmado</Badge>
+                    <Badge color="success" size="md">Firmado</Badge>
                     {document.fecha_firma_transportista && (
                       <p className="text-xs text-muted mt-2">{formatDate(document.fecha_firma_transportista)}</p>
                     )}
                   </div>
                 ) : (
                   <div>
-                    <Badge color="light" size="lg">Pendiente</Badge>
+                    <Badge color="light" size="md">Pendiente</Badge>
                     {document.estado !== 'completado' && document.estado !== 'cancelado' && (
                       <Button size="sm" className="mt-2" onClick={() => handleSign('transportista')}>
                         Firmar
