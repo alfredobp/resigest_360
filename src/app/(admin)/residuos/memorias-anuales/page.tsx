@@ -203,7 +203,7 @@ export default function MemoriasAnualesPage() {
       {/* Estadísticas */}
       {stats && (
         <div className="grid gap-4 md:grid-cols-4">
-          <ComponentCard>
+          <ComponentCard title='Total Memorias'>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Memorias</p>
@@ -213,7 +213,7 @@ export default function MemoriasAnualesPage() {
             </div>
           </ComponentCard>
 
-          <ComponentCard>
+          <ComponentCard title='Completadas'>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Completadas</p>
@@ -223,7 +223,7 @@ export default function MemoriasAnualesPage() {
             </div>
           </ComponentCard>
 
-          <ComponentCard>
+          <ComponentCard title='Presentadas'>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Presentadas</p>
@@ -233,7 +233,7 @@ export default function MemoriasAnualesPage() {
             </div>
           </ComponentCard>
 
-          <ComponentCard>
+          <ComponentCard title='Total Toneladas'>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Toneladas</p>
@@ -246,7 +246,7 @@ export default function MemoriasAnualesPage() {
       )}
 
       {/* Filtros */}
-      <ComponentCard>
+      <ComponentCard title="Filtros">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Filtro Estado */}
           <div>
@@ -301,7 +301,7 @@ export default function MemoriasAnualesPage() {
       </ComponentCard>
 
       {/* Lista de Memorias */}
-      <ComponentCard>
+      <ComponentCard title="Listado de Memorias Anuales">
         {filteredMemorias.length === 0 ? (
           <div className="text-center py-12">
             <FileText className="mx-auto h-12 w-12 text-muted-foreground" />

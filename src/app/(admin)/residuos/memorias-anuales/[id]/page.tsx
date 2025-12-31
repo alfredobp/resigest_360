@@ -262,7 +262,7 @@ export default function DetalleMemoriaPage() {
         {/* Información Principal */}
         <div className="lg:col-span-2 space-y-6">
           {/* Datos de la Empresa */}
-          <ComponentCard>
+          <ComponentCard title="Datos de la Empresa">
             <h3 className="text-lg font-semibold mb-4">Datos de la Empresa</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -295,7 +295,7 @@ export default function DetalleMemoriaPage() {
           </ComponentCard>
 
           {/* Resumen por Código LER */}
-          <ComponentCard>
+          <ComponentCard title="Resumen por Código LER">
             <h3 className="text-lg font-semibold mb-4">Resumen por Código LER</h3>
             {memoria.resumen_ler && memoria.resumen_ler.length > 0 ? (
               <div className="overflow-x-auto">
@@ -335,7 +335,7 @@ export default function DetalleMemoriaPage() {
 
           {/* Observaciones */}
           {memoria.observaciones && (
-            <ComponentCard>
+            <ComponentCard title="Observaciones">
               <h3 className="text-lg font-semibold mb-4">Observaciones</h3>
               <p className="text-sm text-gray-700 whitespace-pre-wrap">{memoria.observaciones}</p>
             </ComponentCard>
@@ -345,7 +345,7 @@ export default function DetalleMemoriaPage() {
         {/* Panel Lateral */}
         <div className="space-y-6">
           {/* Acciones */}
-          <ComponentCard>
+          <ComponentCard title="Acciones">
             <h3 className="text-lg font-semibold mb-4">Acciones</h3>
             <div className="space-y-2">
               {/* Generar/Descargar Excel */}
@@ -448,7 +448,7 @@ export default function DetalleMemoriaPage() {
           </ComponentCard>
 
           {/* Información */}
-          <ComponentCard>
+          <ComponentCard title="Información">
             <h3 className="text-lg font-semibold mb-4">Información</h3>
             <div className="space-y-3 text-sm">
               <div>
