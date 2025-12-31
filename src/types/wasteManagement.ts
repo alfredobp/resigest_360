@@ -310,6 +310,198 @@ export interface AnnualReportLine {
 }
 
 // =====================================================
+// MEMORIA ANUAL (Annual Memory/Report)
+// =====================================================
+
+export type TipoMemoria = 
+  | 'productor'           // Memoria Anual de Productores
+  | 'gestor'              // Memoria Anual de Gestores
+  | 'gestor_raee'         // Memoria Anual de Gestores RAEE
+  | 'negociante'          // Memoria Anual de Negociantes
+  | 'transportista'       // Memoria Anual de Transportistas
+  | 'agente';             // Memoria Anual de Agentes
+
+export type EstadoMemoria =
+  | 'borrador'            // En proceso de generación/revisión
+  | 'revision'            // Pendiente de revisión
+  | 'completada'          // Completada y revisada
+  | 'presentada'          // Presentada ante la autoridad
+  | 'archivada';          // Archivada
+
+export interface MemoriaAnual {
+  id: number;
+  user_id: string;
+  company_id: number;
+  
+  // Datos básicos
+  tipo_memoria: TipoMemoria;
+  año: number;
+  numero_memoria: string;        // MA-2024-PROD-001
+  
+  // Datos de la empresa en el momento de la memoria
+  nombre_empresa: string;
+  nif_empresa: string;
+  nombre_centro?: string;
+  municipio_centro?: string;
+  nima?: string;
+  
+  // Datos calculados desde los DI
+  total_movimientos: number;      // Total de movimientos registrados
+  total_toneladas: number;        // Total de toneladas gestionadas
+  fecha_inicio: string;           // 01/01/año
+  fecha_fin: string;              // 31/12/año
+  
+  // Resumen por código LER
+  resumen_ler?: ResumenLER[];
+  
+  // Documentos de identificación incluidos
+  documentos_identificacion_ids: number[];
+  
+  // Estado y control
+  estado: EstadoMemoria;
+  fecha_presentacion?: string;
+  observaciones?: string;
+  
+  // Archivos
+  archivo_excel_url?: string;      // URL del Excel generado
+  archivo_pdf_url?: string;        // URL del PDF si se genera
+  
+  // Metadata
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResumenLER {
+  codigo_ler: string;
+  descripcion: string;
+  cantidad_total: number;
+  numero_movimientos: number;
+}
+
+// =====================================================
+// ENTRADA MEMORIA - Para diferentes tipos de memoria
+// =====================================================
+
+// Memoria Anual de Productores
+export interface EntradaMemoriaProductor {
+  denominacion_proceso: string;
+  codigo_ler: string;
+  descripcion_residuo: string;
+  cantidad_toneladas: number;
+  
+  // Destino del residuo
+  nima_destino?: string;
+  nif_destino: string;
+  razon_social_destino: string;
+  nombre_centro_destino: string;
+  tipo_inscripcion_destino?: string;
+  codigo_operacion_rd: string;
+  codigo_operacion_rd_4cifras?: string;
+  provincia_destino?: string;
+  codigo_provincia_destino?: string;
+  municipio_destino?: string;
+  pais_destino: string;
+  codigo_pais_destino: string;
+  codigo_di?: string;
+}
+
+// Memoria Anual de Gestores - ENTRADAS
+export interface EntradaMemoriaGestorEntrada {
+  codigo_operacion_rd: string;
+  codigo_operacion_rd_4cifras?: string;
+  codigo_proceso_interno?: string;
+  denominacion_proceso_interno?: string;
+  
+  // Identificación del residuo recepcionado
+  codigo_ler: string;
+  descripcion_residuo: string;
+  cantidad_toneladas: number;
+  
+  // Instalación de origen
+  nima_origen?: string;
+  nif_origen: string;
+  razon_social_origen: string;
+  nombre_centro_origen: string;
+  tipo_inscripcion_origen?: string;
+  provincia_origen?: string;
+  codigo_provincia_origen?: string;
+  municipio_origen?: string;
+  pais_origen: string;
+  codigo_pais_origen: string;
+  codigo_di?: string;
+  
+  // Organización de la gestión
+  srap?: boolean;
+  nif_srap?: string;
+  nombre_srap?: string;
+  nima_srap?: string;
+}
+
+// Memoria Anual de Gestores - SALIDAS
+export interface EntradaMemoriaGestorSalida {
+  // Identificación del residuo
+  codigo_ler: string;
+  descripcion_residuo: string;
+  cantidad_toneladas: number;
+  
+  // Destino del residuo
+  nima_destino?: string;
+  nif_destino: string;
+  razon_social_destino: string;
+  nombre_centro_destino: string;
+  tipo_inscripcion_destino?: string;
+  provincia_destino?: string;
+  codigo_provincia_destino?: string;
+  municipio_destino?: string;
+  pais_destino: string;
+  codigo_pais_destino: string;
+  codigo_di?: string;
+  codigo_operacion_rd: string;
+  codigo_operacion_rd_4cifras?: string;
+  
+  // Organización de la gestión
+  srap?: boolean;
+  nif_srap?: string;
+  nombre_srap?: string;
+  nima_srap?: string;
+}
+
+// Memoria Anual de Negociantes, Transportistas, Agentes
+export interface EntradaMemoriaNegocianteTransportistaAgente {
+  // Identificación del residuo
+  codigo_ler: string;
+  descripcion_residuo: string;
+  cantidad_toneladas: number;
+  
+  // Procedencia
+  nima_origen?: string;
+  nif_origen: string;
+  razon_social_origen: string;
+  nombre_centro_origen: string;
+  tipo_inscripcion_origen?: string;
+  provincia_origen?: string;
+  codigo_provincia_origen?: string;
+  municipio_origen?: string;
+  pais_origen: string;
+  codigo_pais_origen: string;
+  
+  // Destino
+  nima_destino?: string;
+  nif_destino: string;
+  razon_social_destino: string;
+  nombre_centro_destino: string;
+  tipo_inscripcion_destino?: string;
+  codigo_operacion_rd_destino: string;
+  codigo_operacion_rd_4cifras_destino?: string;
+  provincia_destino?: string;
+  codigo_provincia_destino?: string;
+  municipio_destino?: string;
+  pais_destino: string;
+  codigo_pais_destino: string;
+  codigo_di?: string;
+}
+
+// =====================================================
 // UTILITY TYPES
 // =====================================================
 

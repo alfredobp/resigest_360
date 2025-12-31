@@ -31,6 +31,7 @@
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "flatpickr": "^4.6.13",
+    "lucide-react": "^0.562.0",
     "maplibre-gl": "^5.15.0",
     "maplibre-gl-measures": "^0.0.19",
     "next": "16.0.10",

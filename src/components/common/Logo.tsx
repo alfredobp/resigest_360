@@ -33,7 +33,7 @@ export default function Logo({ width = 231, height = 99, className = "" }: LogoP
     <path className="azul" d="M95,145 Q115,135 135,145" fill="none" stroke="#007399" strokeWidth="3" />
   </g>
 
-  <text x="180" y="125" font-size="52">
+  <text x="180" y="125" fontSize="52">
     <tspan className="texto-verde">ResiGest</tspan>
     <tspan className="texto-azul">360</tspan>
   </text>
