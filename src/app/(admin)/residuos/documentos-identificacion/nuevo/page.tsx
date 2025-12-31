@@ -428,7 +428,7 @@ export default function NuevoDocumentoIdentificacionPage() {
               </div>
             </div>
           </ComponentCard>
-div>
+<div>
                 <label htmlFor="cantidad" className="block text-sm font-medium mb-2">Cantidad *</label>
                 <Input
                   id="cantidad"
