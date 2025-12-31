@@ -76,24 +76,26 @@ export default function EditarContratoPage() {
       setContract(contractData);
 
       // Llenar formulario con datos del contrato
-      setFormData({
-        company_id: contractData.company_id,
-        gestor_company_id: contractData.gestor_company_id,
-        numero_contrato: contractData.numero_contrato || '',
-        fecha_contrato: contractData.fecha_contrato,
-        fecha_inicio: contractData.fecha_inicio || '',
-        fecha_fin: contractData.fecha_fin || '',
-        tipo_contrato: contractData.tipo_contrato,
-        descripcion_residuos: contractData.descripcion_residuos || '',
-        operaciones_tratamiento: contractData.operaciones_tratamiento || [],
-        cantidad_maxima_anual: contractData.cantidad_maxima_anual,
-        unidad_cantidad: contractData.unidad_cantidad || 'toneladas',
-        precio_unitario: contractData.precio_unitario,
-        moneda: contractData.moneda || 'EUR',
-        estado: contractData.estado,
-        documento_url: contractData.documento_url || '',
-        notas: contractData.notas || '',
-      });
+      if (contractData) {
+        setFormData({
+          company_id: contractData.company_id,
+          gestor_company_id: contractData.gestor_company_id,
+          numero_contrato: contractData.numero_contrato || '',
+          fecha_contrato: contractData.fecha_contrato,
+          fecha_inicio: contractData.fecha_inicio || '',
+          fecha_fin: contractData.fecha_fin || '',
+          tipo_contrato: contractData.tipo_contrato,
+          descripcion_residuos: contractData.descripcion_residuos || '',
+          operaciones_tratamiento: contractData.operaciones_tratamiento || [],
+          cantidad_maxima_anual: contractData.cantidad_maxima_anual,
+          unidad_cantidad: contractData.unidad_cantidad || 'toneladas',
+          precio_unitario: contractData.precio_unitario,
+          moneda: contractData.moneda || 'EUR',
+          estado: contractData.estado,
+          documento_url: contractData.documento_url || '',
+          notas: contractData.notas || '',
+        });
+      }
 
       // Cargar gestores
       const allCompanies = await companyService.getAll();
