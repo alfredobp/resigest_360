@@ -399,7 +399,6 @@ export default function MemoriasAnualesPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleDelete(memoria.id)}
-                            title="Eliminar"
                           >
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
