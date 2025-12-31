@@ -124,7 +124,7 @@ export default function NuevaMemoriaPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={() => router.back()}
           >

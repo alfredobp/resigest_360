@@ -377,7 +377,7 @@ export default function MemoriasAnualesPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
                           onClick={() => router.push(`/residuos/memorias-anuales/${memoria.id}`)}
                           title="Ver detalles"
@@ -387,7 +387,7 @@ export default function MemoriasAnualesPage() {
 
                         {memoria.archivo_excel_url && (
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={() => window.open(memoria.archivo_excel_url, '_blank')}
                             title="Descargar Excel"
@@ -398,7 +398,7 @@ export default function MemoriasAnualesPage() {
 
                         {memoria.estado === 'borrador' && (
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={() => handleDelete(memoria.id)}
                             title="Eliminar"

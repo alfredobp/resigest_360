@@ -437,7 +437,7 @@ export default function DetalleMemoriaPage() {
               {memoria.estado === 'borrador' && (
                 <Button
                   className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
-                  variant="ghost"
+                  variant="outline"
                   onClick={handleDelete}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
