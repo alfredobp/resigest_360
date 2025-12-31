@@ -428,12 +428,16 @@ export default function NuevoDocumentoIdentificacionPage() {
               </div>
             </div>
           </ComponentCard>
-<div>
+
+          {/* Cantidad y Envases */}
+          <ComponentCard title="Cantidad y Envases">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
                 <label htmlFor="cantidad" className="block text-sm font-medium mb-2">Cantidad *</label>
                 <Input
                   id="cantidad"
                   type="number"
-                  step="0.001"
+                  step={0.001}
                   value={formData.cantidad || ''}
                   onChange={(e) => setFormData({ ...formData, cantidad: parseFloat(e.target.value) })}
                   required
@@ -475,11 +479,9 @@ export default function NuevoDocumentoIdentificacionPage() {
                   onChange={(e) => setFormData({ ...formData, tipo_envases: e.target.value })}
                   placeholder="Ej: Contenedor 1000L, Big Bag, Bidón"
                 />
-              </div type="text"
-                value={formData.tipo_envases || ''}
-                onChange={(e) => setFormData({ ...formData, tipo_envases: e.target.value })}
-                placeholder="Ej: Contenedor 1000L, Big Bag, Bidón"
-              /div>
+              </div>
+
+              <div>
                 <label htmlFor="fecha_recogida" className="block text-sm font-medium mb-2">Fecha de Recogida</label>
                 <Input
                   id="fecha_recogida"
@@ -497,9 +499,13 @@ export default function NuevoDocumentoIdentificacionPage() {
                   value={formData.fecha_entrega || ''}
                   onChange={(e) => setFormData({ ...formData, fecha_entrega: e.target.value })}
                 />
-              </div
-              <Input
-             div>
+              </div>
+            </div>
+          </ComponentCard>
+
+          {/* Notas */}
+          <ComponentCard title="Notas y Observaciones">
+            <div>
               <label htmlFor="notas" className="block text-sm font-medium mb-2">Notas</label>
               <TextArea
                 value={formData.notas || ''}
@@ -507,18 +513,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                 rows={3}
                 placeholder="Observaciones adicionales..."
               />
-            </divomponentCard>
-
-          {/* Notas */}
-          <ComponentCard title="Notas y Observaciones">
-            <TextArea
-              id="notas"
-              label="Notas"
-              value={formData.notas || ''}
-              onChange={(value) => setFormData({ ...formData, notas: value })}
-              rows={3}
-              placeholder="Observaciones adicionales..."
-            />
+            </div>
           </ComponentCard>
 
           {/* Botones de Acción */}
