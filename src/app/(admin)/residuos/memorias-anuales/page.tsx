@@ -380,7 +380,6 @@ export default function MemoriasAnualesPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => router.push(`/residuos/memorias-anuales/${memoria.id}`)}
-                          title="Ver detalles"
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
