@@ -389,7 +389,6 @@ export default function MemoriasAnualesPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => window.open(memoria.archivo_excel_url, '_blank')}
-                            title="Descargar Excel"
                           >
                             <Download className="h-4 w-4" />
                           </Button>
