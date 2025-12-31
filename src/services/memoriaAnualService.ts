@@ -13,7 +13,7 @@ import {
   EntradaMemoriaGestorEntrada,
   EntradaMemoriaGestorSalida,
   EntradaMemoriaNegocianteTransportistaAgente,
-  DocumentoIdentificacion
+  IdentificationDocument
 } from '@/types/wasteManagement';
 
 // =====================================================
@@ -245,7 +245,7 @@ export async function generateExcelData(
 
 function generateDataProductor(
   memoria: MemoriaAnual,
-  documentos: DocumentoIdentificacion[]
+  documentos: IdentificationDocument[]
 ): EntradaMemoriaProductor[] {
   return documentos.map(doc => ({
     denominacion_proceso: doc.productor_actividad || 'Producción de residuos',
@@ -276,7 +276,7 @@ function generateDataProductor(
 
 function generateDataGestor(
   memoria: MemoriaAnual,
-  documentos: DocumentoIdentificacion[]
+  documentos: IdentificationDocument[]
 ): {
   entradas: EntradaMemoriaGestorEntrada[];
   salidas: EntradaMemoriaGestorSalida[];
@@ -322,7 +322,7 @@ function generateDataGestor(
 
 function generateDataNegocianteTransportistaAgente(
   memoria: MemoriaAnual,
-  documentos: DocumentoIdentificacion[]
+  documentos: IdentificationDocument[]
 ): EntradaMemoriaNegocianteTransportistaAgente[] {
   return documentos.map(doc => ({
     // Residuo
@@ -458,7 +458,7 @@ async function getDocumentosIdentificacionByYear(
   userId: string,
   companyId: number,
   año: number
-): Promise<DocumentoIdentificacion[]> {
+): Promise<IdentificationDocument[]> {
   const supabase = createClient();
 
   const fecha_inicio = `${año}-01-01`;
@@ -477,7 +477,7 @@ async function getDocumentosIdentificacionByYear(
   return data || [];
 }
 
-function calculateResumenLER(documentos: DocumentoIdentificacion[]): ResumenLER[] {
+function calculateResumenLER(documentos: IdentificationDocument[]): ResumenLER[] {
   const resumenMap = new Map<string, ResumenLER>();
 
   documentos.forEach(doc => {
