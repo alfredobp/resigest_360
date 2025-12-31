@@ -216,14 +216,16 @@ export default function EditarContratoPage() {
           {/* Información General */}
           <ComponentCard title="Información General">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Input
-                id="numero_contrato"
-                label="Número de Contrato"
-                type="text"
-                value={formData.numero_contrato}
-                onChange={(e) => setFormData({ ...formData, numero_contrato: e.target.value })}
-                placeholder="Ej: CONT-2024-001"
-              />
+              <div>
+                <label htmlFor="numero_contrato" className="block text-sm font-medium mb-2">Número de Contrato</label>
+                <Input
+                  id="numero_contrato"
+                  type="text"
+                  value={formData.numero_contrato}
+                  onChange={(e) => setFormData({ ...formData, numero_contrato: e.target.value })}
+                  placeholder="Ej: CONT-2024-001"
+                />
+              </div>
 
               <Select
                 id="tipo_contrato"
@@ -234,14 +236,16 @@ export default function EditarContratoPage() {
                 required
               />
 
-              <Input
-                id="fecha_contrato"
-                label="Fecha del Contrato"
-                type="date"
-                value={formData.fecha_contrato}
-                onChange={(e) => setFormData({ ...formData, fecha_contrato: e.target.value })}
-                required
-              />
+              <div>
+                <label htmlFor="fecha_contrato" className="block text-sm font-medium mb-2">Fecha del Contrato</label>
+                <Input
+                  id="fecha_contrato"
+                  type="date"
+                  value={formData.fecha_contrato}
+                  onChange={(e) => setFormData({ ...formData, fecha_contrato: e.target.value })}
+                  required
+                />
+              </div>
 
               <Select
                 id="estado"
@@ -259,21 +263,25 @@ export default function EditarContratoPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-              <Input
-                id="fecha_inicio"
-                label="Fecha de Inicio (Vigencia)"
-                type="date"
-                value={formData.fecha_inicio}
-                onChange={(e) => setFormData({ ...formData, fecha_inicio: e.target.value })}
-              />
+              <div>
+                <label htmlFor="fecha_inicio" className="block text-sm font-medium mb-2">Fecha de Inicio (Vigencia)</label>
+                <Input
+                  id="fecha_inicio"
+                  type="date"
+                  value={formData.fecha_inicio}
+                  onChange={(e) => setFormData({ ...formData, fecha_inicio: e.target.value })}
+                />
+              </div>
 
-              <Input
-                id="fecha_fin"
-                label="Fecha de Fin (Vigencia)"
-                type="date"
-                value={formData.fecha_fin}
-                onChange={(e) => setFormData({ ...formData, fecha_fin: e.target.value })}
-              />
+              <div>
+                <label htmlFor="fecha_fin" className="block text-sm font-medium mb-2">Fecha de Fin (Vigencia)</label>
+                <Input
+                  id="fecha_fin"
+                  type="date"
+                  value={formData.fecha_fin}
+                  onChange={(e) => setFormData({ ...formData, fecha_fin: e.target.value })}
+                />
+              </div>
             </div>
           </ComponentCard>
 
@@ -282,14 +290,16 @@ export default function EditarContratoPage() {
             {!showGestorForm ? (
               <>
                 <div className="space-y-4">
-                  <Input
-                    id="search_gestor"
-                    label="Buscar Gestor"
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Buscar por razón social o CIF..."
-                  />
+                  <div>
+                    <label htmlFor="search_gestor" className="block text-sm font-medium mb-2">Buscar Gestor</label>
+                    <Input
+                      id="search_gestor"
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Buscar por razón social o CIF..."
+                    />
+                  </div>
 
                   <Select
                     id="gestor_company_id"
@@ -319,47 +329,57 @@ export default function EditarContratoPage() {
                 <h4 className="font-medium text-foreground">Nuevo Gestor</h4>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    id="new_razon_social"
-                    label="Razón Social"
-                    type="text"
-                    value={newGestor.razon_social}
-                    onChange={(e) => setNewGestor({ ...newGestor, razon_social: e.target.value })}
-                    required
-                  />
+                  <div>
+                    <label htmlFor="new_razon_social" className="block text-sm font-medium mb-2">Razón Social</label>
+                    <Input
+                      id="new_razon_social"
+                      type="text"
+                      value={newGestor.razon_social}
+                      onChange={(e) => setNewGestor({ ...newGestor, razon_social: e.target.value })}
+                      required
+                    />
+                  </div>
 
-                  <Input
-                    id="new_cif"
-                    label="CIF"
-                    type="text"
-                    value={newGestor.cif}
-                    onChange={(e) => setNewGestor({ ...newGestor, cif: e.target.value })}
-                    required
-                  />
+                  <div>
+                    <label htmlFor="new_cif" className="block text-sm font-medium mb-2">CIF</label>
+                    <Input
+                      id="new_cif"
+                      type="text"
+                      value={newGestor.cif}
+                      onChange={(e) => setNewGestor({ ...newGestor, cif: e.target.value })}
+                      required
+                    />
+                  </div>
 
-                  <Input
-                    id="new_nima"
-                    label="NIMA"
-                    type="text"
-                    value={newGestor.nima}
-                    onChange={(e) => setNewGestor({ ...newGestor, nima: e.target.value })}
-                  />
+                  <div>
+                    <label htmlFor="new_nima" className="block text-sm font-medium mb-2">NIMA</label>
+                    <Input
+                      id="new_nima"
+                      type="text"
+                      value={newGestor.nima}
+                      onChange={(e) => setNewGestor({ ...newGestor, nima: e.target.value })}
+                    />
+                  </div>
 
-                  <Input
-                    id="new_email"
-                    label="Email"
-                    type="email"
-                    value={newGestor.email}
-                    onChange={(e) => setNewGestor({ ...newGestor, email: e.target.value })}
-                  />
+                  <div>
+                    <label htmlFor="new_email" className="block text-sm font-medium mb-2">Email</label>
+                    <Input
+                      id="new_email"
+                      type="email"
+                      value={newGestor.email}
+                      onChange={(e) => setNewGestor({ ...newGestor, email: e.target.value })}
+                    />
+                  </div>
 
-                  <Input
-                    id="new_telefono"
-                    label="Teléfono"
-                    type="text"
-                    value={newGestor.telefono}
-                    onChange={(e) => setNewGestor({ ...newGestor, telefono: e.target.value })}
-                  />
+                  <div>
+                    <label htmlFor="new_telefono" className="block text-sm font-medium mb-2">Teléfono</label>
+                    <Input
+                      id="new_telefono"
+                      type="text"
+                      value={newGestor.telefono}
+                      onChange={(e) => setNewGestor({ ...newGestor, telefono: e.target.value })}
+                    />
+                  </div>
                 </div>
 
                 <div className="flex gap-2">
@@ -394,14 +414,16 @@ export default function EditarContratoPage() {
               />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Input
-                  id="cantidad_maxima_anual"
-                  label="Cantidad Máxima Anual"
-                  type="number"
-                  value={formData.cantidad_maxima_anual || ''}
-                  onChange={(e) => setFormData({ ...formData, cantidad_maxima_anual: parseFloat(e.target.value) || undefined })}
-                  placeholder="1000"
-                />
+                <div>
+                  <label htmlFor="cantidad_maxima_anual" className="block text-sm font-medium mb-2">Cantidad Máxima Anual</label>
+                  <Input
+                    id="cantidad_maxima_anual"
+                    type="number"
+                    value={formData.cantidad_maxima_anual || ''}
+                    onChange={(e) => setFormData({ ...formData, cantidad_maxima_anual: parseFloat(e.target.value) || undefined })}
+                    placeholder="1000"
+                  />
+                </div>
 
                 <Select
                   id="unidad_cantidad"
@@ -419,15 +441,17 @@ export default function EditarContratoPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Input
-                  id="precio_unitario"
-                  label="Precio Unitario"
-                  type="number"
-                  step="0.01"
-                  value={formData.precio_unitario || ''}
-                  onChange={(e) => setFormData({ ...formData, precio_unitario: parseFloat(e.target.value) || undefined })}
-                  placeholder="50.00"
-                />
+                <div>
+                  <label htmlFor="precio_unitario" className="block text-sm font-medium mb-2">Precio Unitario</label>
+                  <Input
+                    id="precio_unitario"
+                    type="number"
+                    step="0.01"
+                    value={formData.precio_unitario || ''}
+                    onChange={(e) => setFormData({ ...formData, precio_unitario: parseFloat(e.target.value) || undefined })}
+                    placeholder="50.00"
+                  />
+                </div>
 
                 <Select
                   id="moneda"
