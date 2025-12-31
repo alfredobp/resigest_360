@@ -248,7 +248,7 @@ function generateDataProductor(
   documentos: IdentificationDocument[]
 ): EntradaMemoriaProductor[] {
   return documentos.map(doc => ({
-    denominacion_proceso: doc.productor_actividad || 'Producción de residuos',
+    denominacion_proceso: 'Producción de residuos',
     codigo_ler: doc.residuo_codigo_ler || '',
     descripcion_residuo: doc.residuo_descripcion || '',
     cantidad_toneladas: doc.cantidad_total || 0,
