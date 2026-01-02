@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState,useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import LogoReduced from "@/components/common/LogoReduced";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
 import {
@@ -18,7 +19,9 @@ import {
   UserCircleIcon,
   TaskIcon, MapIcon,
   MapSettingsIcon,
-  TrashBinIcon
+  TrashBinIcon,
+   DocsIcon,
+   PaperPlaneIcon
 } from "../icons/index";
 import Logo from "@/components/common/Logo";
 
@@ -36,7 +39,7 @@ const navItems: NavItem[] = [
 path: "/",
   },
   {
-    icon: <HorizontaLDots />,
+    icon: <DocsIcon />,
     name: "Mi Empresa",
    path: "/residuos/mi-empresa"
   },
@@ -47,7 +50,7 @@ path: "/",
   },
  
   {
-    icon: <TableIcon />,
+    icon: <PaperPlaneIcon />,
     name: "Documentos de Identificación",
     path: "/residuos/documentos-identificacion",
   },
@@ -311,12 +314,7 @@ const AppSidebar: React.FC = () => {
              
             </>
           ) : (
-            <Image
-              src="/images/logo/logo-icon.svg"
-              alt="Logo"
-              width={32}
-              height={32}
-            />
+                <LogoReduced width={60} height={60} />
           )}
         </Link>
       </div>

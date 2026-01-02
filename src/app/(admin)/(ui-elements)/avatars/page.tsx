@@ -5,9 +5,9 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Gis DashBoard Avatars | POC Gis",
+  title: "Gis DashBoard Avatars | Resigest360",
   description:
-    "This is Gis DashBoard Avatars page for POC Gis - Gis DashBoard",
+    "This is Gis DashBoard Avatars page for Resigest360 - Gis DashBoard",
 };
 
 export default function AvatarPage() {

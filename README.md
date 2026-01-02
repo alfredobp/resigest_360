@@ -1,16 +1,16 @@
-# POC Gis Next.js - Free Next.js Tailwind Admin Dashboard Template
+# Resigest360 Next.js - Free Next.js Tailwind Admin Dashboard Template
 
-POC Gis is a free and open-source admin dashboard template built on **Next.js and Tailwind CSS** providing developers with everything they need to create a feature-rich and data-driven: back-end, dashboard, or admin panel solution for any sort of web project.
+Resigest360 is a free and open-source admin dashboard template built on **Next.js and Tailwind CSS** providing developers with everything they need to create a feature-rich and data-driven: back-end, dashboard, or admin panel solution for any sort of web project.
 
-![POC Gis - Next.js Dashboard Preview](./banner.png)
+![Resigest360 - Next.js Dashboard Preview](./banner.png)
 
-With POC Gis Next.js, you get access to all the necessary dashboard UI components, elements, and pages required to build a high-quality and complete dashboard or admin panel. Whether you're building a dashboard or admin panel for a complex web application or a simple website.
+With Resigest360 Next.js, you get access to all the necessary dashboard UI components, elements, and pages required to build a high-quality and complete dashboard or admin panel. Whether you're building a dashboard or admin panel for a complex web application or a simple website.
 
-POC Gis utilizes the powerful features of **Next.js 16** and common features of Next.js such as server-side rendering (SSR), static site generation (SSG), and seamless API route integration. Combined with the advancements of **React 19** and the robustness of **TypeScript**, POC Gis is the perfect solution to help get your project up and running quickly.
+Resigest360 utilizes the powerful features of **Next.js 16** and common features of Next.js such as server-side rendering (SSR), static site generation (SSG), and seamless API route integration. Combined with the advancements of **React 19** and the robustness of **TypeScript**, Resigest360 is the perfect solution to help get your project up and running quickly.
 
 ## Overview
 
-POC Gis provides essential UI components and layouts for building feature-rich, data-driven admin dashboards and control panels. It's built on:
+Resigest360 provides essential UI components and layouts for building feature-rich, data-driven admin dashboards and control panels. It's built on:
 
 * Next.js 16.x
 * React 19
@@ -19,30 +19,30 @@ POC Gis provides essential UI components and layouts for building feature-rich, 
 
 ### Quick Links
 
-* [✨ Visit Website](https://POC Gis.com)
-* [📄 Documentation](https://POC Gis.com/docs)
-* [⬇️ Download](https://POC Gis.com/download)
+* [✨ Visit Website](https://Resigest360.com)
+* [📄 Documentation](https://Resigest360.com/docs)
+* [⬇️ Download](https://Resigest360.com/download)
 * [🖌️ Figma Design File (Community Edition)](https://www.figma.com/community/file/1463141366275764364)
-* [⚡ Get PRO Version](https://POC Gis.com/pricing)
+* [⚡ Get PRO Version](https://Resigest360.com/pricing)
 
 ### Demos
 
-* [Free Version](https://nextjs-free-demo.POC Gis.com)
-* [Pro Version](https://nextjs-demo.POC Gis.com)
+* [Free Version](https://nextjs-free-demo.Resigest360.com)
+* [Pro Version](https://nextjs-demo.Resigest360.com)
 
 ### Other Versions
 
-- [Next.js Version](https://github.com/POC Gis/free-nextjs-admin-dashboard)
-- [React.js Version](https://github.com/POC Gis/free-react-tailwind-admin-dashboard)
-- [Vue.js Version](https://github.com/POC Gis/vue-tailwind-admin-dashboard)
-- [Angular Version](https://github.com/POC Gis/free-angular-tailwind-dashboard)
-- [Laravel Version](https://github.com/POC Gis/POC Gis-laravel)
+- [Next.js Version](https://github.com/Resigest360/free-nextjs-admin-dashboard)
+- [React.js Version](https://github.com/Resigest360/free-react-tailwind-admin-dashboard)
+- [Vue.js Version](https://github.com/Resigest360/vue-tailwind-admin-dashboard)
+- [Angular Version](https://github.com/Resigest360/free-angular-tailwind-dashboard)
+- [Laravel Version](https://github.com/Resigest360/Resigest360-laravel)
 
 ## Installation
 
 ### Prerequisites
 
-To get started with POC Gis, ensure you have the following prerequisites installed and set up:
+To get started with Resigest360, ensure you have the following prerequisites installed and set up:
 
 * Node.js 18.x or later (recommended to use Node.js 20.x or later)
 
@@ -51,7 +51,7 @@ To get started with POC Gis, ensure you have the following prerequisites install
 Clone the repository using the following command:
 
 ```bash
-git clone https://github.com/POC Gis/free-nextjs-admin-dashboard.git
+git clone https://github.com/Resigest360/free-nextjs-admin-dashboard.git
 ```
 
 > Windows Users: place the repository near the root of your drive if you face issues while cloning.
@@ -76,7 +76,7 @@ git clone https://github.com/POC Gis/free-nextjs-admin-dashboard.git
 
 ## Components
 
-POC Gis is a pre-designed starting point for building a web-based dashboard using Next.js and Tailwind CSS. The template includes:
+Resigest360 is a pre-designed starting point for building a web-based dashboard using Next.js and Tailwind CSS. The template includes:
 
 * Sophisticated and accessible sidebar
 * Data visualization components
@@ -105,7 +105,7 @@ All components are built with React and styled using Tailwind CSS for easy custo
 * Complete Figma design file
 * Email support
 
-To learn more about pro version features and pricing, visit our [pricing page](https://POC Gis.com/pricing).
+To learn more about pro version features and pricing, visit our [pricing page](https://Resigest360.com/pricing).
 
 ## Changelog
 
@@ -154,7 +154,7 @@ A major update focused on Next.js 16 implementation and comprehensive redesign.
 * Chart components now use ApexCharts for React
 * Authentication flow updated to use Server Actions and middleware
 
-[Read more](https://POC Gis.com/docs/update-logs/nextjs) on this release.
+[Read more](https://Resigest360.com/docs/update-logs/nextjs) on this release.
 
 ### v1.3.4 (July 01, 2024)
 
@@ -185,7 +185,7 @@ A major update focused on Next.js 16 implementation and comprehensive redesign.
 
 ## License
 
-POC Gis Next.js Free Version is released under the MIT License.
+Resigest360 Next.js Free Version is released under the MIT License.
 
 ## Support
 If you find this project helpful, please consider giving it a star on GitHub. Your support helps us continue developing and maintaining this template.

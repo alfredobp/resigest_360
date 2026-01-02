@@ -94,7 +94,7 @@ export default function UserDropdown() {
           <Image
             width={44}
             height={44}
-            src={profile?.avatar_url || "/images/user/owner.jpg"}
+            src={profile?.avatar_url || "/images/user/avatar.png"}
             alt="User avatar"
             className="object-cover w-full h-full"
           />

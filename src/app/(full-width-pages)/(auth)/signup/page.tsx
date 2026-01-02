@@ -2,8 +2,8 @@ import SignUpForm from "@/components/auth/SignUpForm";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Gis DashBoard SignUp Page | POC Gis",
-  description: "This is Gis DashBoard SignUp Page POC Gis Dashboard Template",
+  title: "Gis DashBoard SignUp Page | Resigest360",
+  description: "This is Gis DashBoard SignUp Page Resigest360 Dashboard Template",
   // other metadata
 };
 

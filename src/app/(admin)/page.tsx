@@ -9,8 +9,8 @@ import DemographicCard from "@/components/ecommerce/DemographicCard";
 
 export const metadata: Metadata = {
   title:
-    "Gis DashBoard E-commerce Dashboard | POC Gis",
-  description: "This is Gis DashBoard Home for POC Gis Dashboard Template",
+    "Gis DashBoard E-commerce Dashboard | Resigest360",
+  description: "This is Gis DashBoard Home for Resigest360 Dashboard Template",
 };
 
 export default function Ecommerce() {

@@ -5,9 +5,9 @@ import Link from "next/link";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Gis DashBoard Error 404 | POC Gis",
+  title: "Gis DashBoard Error 404 | Resigest360",
   description:
-    "This is Gis DashBoard Error 404 page for POC Gis - Gis DashBoard",
+    "This is Gis DashBoard Error 404 page for Resigest360 - Gis DashBoard",
 };
 
 export default function Error404() {
@@ -47,7 +47,7 @@ export default function Error404() {
       </div>
       {/* <!-- Footer --> */}
       <p className="absolute text-sm text-center text-gray-500 -translate-x-1/2 bottom-6 left-1/2 dark:text-gray-400">
-        &copy; {new Date().getFullYear()} - POC Gis
+        &copy; {new Date().getFullYear()} - Resigest360
       </p>
     </div>
   );

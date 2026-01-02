@@ -13,6 +13,7 @@ import identificationDocumentService from '@/services/identificationDocumentServ
 import companyService from '@/services/companyService';
 import wasteContractService from '@/services/wasteContractService';
 import type { IdentificationDocument, Company, WasteContract } from '@/types/wasteManagement';
+import DatePicker from '@/components/form/date-picker';
 
 export default function NuevoDocumentoIdentificacionPage() {
   const router = useRouter();
@@ -483,7 +484,7 @@ export default function NuevoDocumentoIdentificacionPage() {
 
               <div>
                 <label htmlFor="fecha_recogida" className="block text-sm font-medium mb-2">Fecha de Recogida</label>
-                <Input
+                <DatePicker
                   id="fecha_recogida"
                   type="date"
                   value={formData.fecha_recogida || ''}
@@ -493,7 +494,7 @@ export default function NuevoDocumentoIdentificacionPage() {
 
               <div>
                 <label htmlFor="fecha_entrega" className="block text-sm font-medium mb-2">Fecha de Entrega</label>
-                <Input
+                <DatePicker
                   id="fecha_entrega"
                   type="date"
                   value={formData.fecha_entrega || ''}

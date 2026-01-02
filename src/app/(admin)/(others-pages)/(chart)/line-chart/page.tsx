@@ -5,9 +5,9 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Gis DashBoard Line Chart | POC Gis",
+  title: "Gis DashBoard Line Chart | Resigest360",
   description:
-    "This is Gis DashBoard Line Chart page for POC Gis - Gis DashBoard",
+    "This is Gis DashBoard Line Chart page for Resigest360 - Gis DashBoard",
 };
 export default function LineChart() {
   return (

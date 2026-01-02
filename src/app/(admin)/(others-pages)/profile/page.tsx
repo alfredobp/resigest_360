@@ -5,9 +5,9 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Gis DashBoard Profile | POC Gis",
+  title: "Gis DashBoard Profile | Resigest360",
   description:
-    "This is Gis DashBoard Profile page for POC Gis - Gis DashBoard",
+    "This is Gis DashBoard Profile page for Resigest360 - Gis DashBoard",
 };
 
 export default function Profile() {

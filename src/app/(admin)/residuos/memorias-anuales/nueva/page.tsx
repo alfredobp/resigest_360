@@ -101,7 +101,7 @@ export default function NuevaMemoriaPage() {
   const getAñosDisponibles = () => {
     const currentYear = new Date().getFullYear();
     const years = [];
-    for (let i = currentYear - 1; i >= currentYear - 10; i--) {
+    for (let i = currentYear; i >= currentYear - 10; i--) {
       years.push(i);
     }
     return years;

@@ -6,9 +6,9 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Gis DashBoard Buttons | POC Gis",
+  title: "Gis DashBoard Buttons | Resigest360",
   description:
-    "This is Gis DashBoard Buttons page for POC Gis - Gis DashBoard",
+    "This is Gis DashBoard Buttons page for Resigest360 - Gis DashBoard",
 };
 
 export default function Buttons() {

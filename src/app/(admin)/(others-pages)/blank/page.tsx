@@ -3,8 +3,8 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Gis DashBoard Blank Page | POC Gis",
-  description: "This is Gis DashBoard Blank Page POC Gis Dashboard Template",
+  title: "Gis DashBoard Blank Page | Resigest360",
+  description: "This is Gis DashBoard Blank Page Resigest360 Dashboard Template",
 };
 
 export default function BlankPage() {

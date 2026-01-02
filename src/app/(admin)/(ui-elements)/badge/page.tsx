@@ -5,9 +5,9 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Gis DashBoard Badge | POC Gis",
+  title: "Gis DashBoard Badge | Resigest360",
   description:
-    "This is Gis DashBoard Badge page for POC Gis - Gis DashBoard",
+    "This is Gis DashBoard Badge page for Resigest360 - Gis DashBoard",
   // other metadata
 };
 
