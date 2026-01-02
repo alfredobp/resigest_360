@@ -402,10 +402,10 @@ export async function getStats(año?: number): Promise<{
 
   memorias.forEach(memoria => {
     // Contar por estado
-    stats.por_estado[memoria.estado] = (stats.por_estado[memoria.estado] || 0) + 1;
+    stats.por_estado[memoria.estado as EstadoMemoria] = (stats.por_estado[memoria.estado as EstadoMemoria] || 0) + 1;
     
     // Contar por tipo
-    stats.por_tipo[memoria.tipo_memoria] = (stats.por_tipo[memoria.tipo_memoria] || 0) + 1;
+    stats.por_tipo[memoria.tipo_memoria as TipoMemoria] = (stats.por_tipo[memoria.tipo_memoria as TipoMemoria] || 0) + 1;
     
     // Sumar toneladas
     stats.total_toneladas += memoria.total_toneladas || 0;
