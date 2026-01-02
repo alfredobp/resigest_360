@@ -487,7 +487,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                 <DatePicker
                   id="fecha_recogida"
                
-                  value={formData.fecha_recogida || ''}
+                  defaultDate={formData.fecha_recogida || ''}
                   onChange={(e) => setFormData({ ...formData, fecha_recogida: e.target.value })}
                 />
               </div>
@@ -497,7 +497,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                 <DatePicker
                   id="fecha_entrega"
                   
-                  value={formData.fecha_entrega || ''}
+                  defaultDate={formData.fecha_entrega || ''}
                   onChange={(e) => setFormData({ ...formData, fecha_entrega: e.target.value })}
                 />
               </div>
