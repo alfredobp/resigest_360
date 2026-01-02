@@ -13,7 +13,7 @@ import {
   EntradaMemoriaGestorEntrada,
   EntradaMemoriaGestorSalida,
   EntradaMemoriaNegocianteTransportistaAgente,
-  DocumentoIdentificacion
+  IdentificationDocument
 } from '@/types/wasteManagement';
 
 // =====================================================
@@ -52,7 +52,7 @@ export async function createMemoria(data: CreateMemoriaData): Promise<MemoriaAnu
 
   // Calcular totales
   const total_movimientos = documentos.length;
-  const total_toneladas = documentos.reduce((sum, doc) => sum + (doc.cantidad_total || 0), 0);
+  const total_toneladas = documentos.reduce((sum, doc) => sum + (doc.cantidad || 0), 0);
 
   // Calcular resumen por LER
   const resumen_ler = calculateResumenLER(documentos);
@@ -245,17 +245,17 @@ export async function generateExcelData(
 
 function generateDataProductor(
   memoria: MemoriaAnual,
-  documentos: DocumentoIdentificacion[]
+  documentos: IdentificationDocument[]
 ): EntradaMemoriaProductor[] {
   return documentos.map(doc => ({
-    denominacion_proceso: doc.productor_actividad || 'Producción de residuos',
-    codigo_ler: doc.residuo_codigo_ler || '',
-    descripcion_residuo: doc.residuo_descripcion || '',
-    cantidad_toneladas: doc.cantidad_total || 0,
+    denominacion_proceso: 'Producción de residuos',
+    codigo_ler: doc.codigo_ler || '',
+    descripcion_residuo: doc.descripcion_residuo || '',
+    cantidad_toneladas: doc.cantidad || 0,
     
     // Destino (Gestor)
     nima_destino: doc.gestor_nima,
-    nif_destino: doc.gestor_nif || '',
+    nif_destino: doc.gestor_cif || '',
     razon_social_destino: doc.gestor_razon_social || '',
     nombre_centro_destino: doc.gestor_direccion || '',
     tipo_inscripcion_destino: 'G01', // Gestor de residuos
@@ -276,7 +276,7 @@ function generateDataProductor(
 
 function generateDataGestor(
   memoria: MemoriaAnual,
-  documentos: DocumentoIdentificacion[]
+  documentos: IdentificationDocument[]
 ): {
   entradas: EntradaMemoriaGestorEntrada[];
   salidas: EntradaMemoriaGestorSalida[];
@@ -288,13 +288,13 @@ function generateDataGestor(
     denominacion_proceso_interno: undefined,
     
     // Residuo recepcionado
-    codigo_ler: doc.residuo_codigo_ler || '',
-    descripcion_residuo: doc.residuo_descripcion || '',
-    cantidad_toneladas: doc.cantidad_total || 0,
+    codigo_ler: doc.codigo_ler || '',
+    descripcion_residuo: doc.descripcion_residuo || '',
+    cantidad_toneladas: doc.cantidad || 0,
     
     // Origen (Productor)
     nima_origen: doc.productor_nima,
-    nif_origen: doc.productor_nif || '',
+    nif_origen: doc.productor_cif || '',
     razon_social_origen: doc.productor_razon_social || '',
     nombre_centro_origen: doc.productor_direccion || '',
     tipo_inscripcion_origen: 'P01', // Productor
@@ -322,17 +322,17 @@ function generateDataGestor(
 
 function generateDataNegocianteTransportistaAgente(
   memoria: MemoriaAnual,
-  documentos: DocumentoIdentificacion[]
+  documentos: IdentificationDocument[]
 ): EntradaMemoriaNegocianteTransportistaAgente[] {
   return documentos.map(doc => ({
     // Residuo
-    codigo_ler: doc.residuo_codigo_ler || '',
-    descripcion_residuo: doc.residuo_descripcion || '',
-    cantidad_toneladas: doc.cantidad_total || 0,
+    codigo_ler: doc.codigo_ler || '',
+    descripcion_residuo: doc.descripcion_residuo || '',
+    cantidad_toneladas: doc.cantidad || 0,
     
     // Procedencia (Productor)
     nima_origen: doc.productor_nima,
-    nif_origen: doc.productor_nif || '',
+    nif_origen: doc.productor_cif || '',
     razon_social_origen: doc.productor_razon_social || '',
     nombre_centro_origen: doc.productor_direccion || '',
     tipo_inscripcion_origen: 'P01',
@@ -344,7 +344,7 @@ function generateDataNegocianteTransportistaAgente(
     
     // Destino (Gestor)
     nima_destino: doc.gestor_nima,
-    nif_destino: doc.gestor_nif || '',
+    nif_destino: doc.gestor_cif || '',
     razon_social_destino: doc.gestor_razon_social || '',
     nombre_centro_destino: doc.gestor_direccion || '',
     tipo_inscripcion_destino: 'G01',
@@ -458,7 +458,7 @@ async function getDocumentosIdentificacionByYear(
   userId: string,
   companyId: number,
   año: number
-): Promise<DocumentoIdentificacion[]> {
+): Promise<IdentificationDocument[]> {
   const supabase = createClient();
 
   const fecha_inicio = `${año}-01-01`;
@@ -477,13 +477,13 @@ async function getDocumentosIdentificacionByYear(
   return data || [];
 }
 
-function calculateResumenLER(documentos: DocumentoIdentificacion[]): ResumenLER[] {
+function calculateResumenLER(documentos: IdentificationDocument[]): ResumenLER[] {
   const resumenMap = new Map<string, ResumenLER>();
 
   documentos.forEach(doc => {
-    const codigo_ler = doc.residuo_codigo_ler || '';
-    const descripcion = doc.residuo_descripcion || '';
-    const cantidad = doc.cantidad_total || 0;
+    const codigo_ler = doc.codigo_ler || '';
+    const descripcion = doc.descripcion_residuo || '';
+    const cantidad = doc.cantidad || 0;
 
     if (resumenMap.has(codigo_ler)) {
       const existing = resumenMap.get(codigo_ler)!;
