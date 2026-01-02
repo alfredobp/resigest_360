@@ -249,13 +249,13 @@ function generateDataProductor(
 ): EntradaMemoriaProductor[] {
   return documentos.map(doc => ({
     denominacion_proceso: 'Producción de residuos',
-    codigo_ler: doc.residuo_codigo_ler || '',
-    descripcion_residuo: doc.residuo_descripcion || '',
-    cantidad_toneladas: doc.cantidad_total || 0,
+    codigo_ler: doc.codigo_ler || '',
+    descripcion_residuo: doc.descripcion_residuo || '',
+    cantidad_toneladas: doc.cantidad || 0,
     
     // Destino (Gestor)
     nima_destino: doc.gestor_nima,
-    nif_destino: doc.gestor_nif || '',
+    nif_destino: doc.gestor_cif || '',
     razon_social_destino: doc.gestor_razon_social || '',
     nombre_centro_destino: doc.gestor_direccion || '',
     tipo_inscripcion_destino: 'G01', // Gestor de residuos
@@ -288,13 +288,13 @@ function generateDataGestor(
     denominacion_proceso_interno: undefined,
     
     // Residuo recepcionado
-    codigo_ler: doc.residuo_codigo_ler || '',
-    descripcion_residuo: doc.residuo_descripcion || '',
-    cantidad_toneladas: doc.cantidad_total || 0,
+    codigo_ler: doc.codigo_ler || '',
+    descripcion_residuo: doc.descripcion_residuo || '',
+    cantidad_toneladas: doc.cantidad || 0,
     
     // Origen (Productor)
     nima_origen: doc.productor_nima,
-    nif_origen: doc.productor_nif || '',
+    nif_origen: doc.productor_cif || '',
     razon_social_origen: doc.productor_razon_social || '',
     nombre_centro_origen: doc.productor_direccion || '',
     tipo_inscripcion_origen: 'P01', // Productor
@@ -326,13 +326,13 @@ function generateDataNegocianteTransportistaAgente(
 ): EntradaMemoriaNegocianteTransportistaAgente[] {
   return documentos.map(doc => ({
     // Residuo
-    codigo_ler: doc.residuo_codigo_ler || '',
-    descripcion_residuo: doc.residuo_descripcion || '',
-    cantidad_toneladas: doc.cantidad_total || 0,
+    codigo_ler: doc.codigo_ler || '',
+    descripcion_residuo: doc.descripcion_residuo || '',
+    cantidad_toneladas: doc.cantidad || 0,
     
     // Procedencia (Productor)
     nima_origen: doc.productor_nima,
-    nif_origen: doc.productor_nif || '',
+    nif_origen: doc.productor_cif || '',
     razon_social_origen: doc.productor_razon_social || '',
     nombre_centro_origen: doc.productor_direccion || '',
     tipo_inscripcion_origen: 'P01',
@@ -344,7 +344,7 @@ function generateDataNegocianteTransportistaAgente(
     
     // Destino (Gestor)
     nima_destino: doc.gestor_nima,
-    nif_destino: doc.gestor_nif || '',
+    nif_destino: doc.gestor_cif || '',
     razon_social_destino: doc.gestor_razon_social || '',
     nombre_centro_destino: doc.gestor_direccion || '',
     tipo_inscripcion_destino: 'G01',
@@ -481,9 +481,9 @@ function calculateResumenLER(documentos: IdentificationDocument[]): ResumenLER[]
   const resumenMap = new Map<string, ResumenLER>();
 
   documentos.forEach(doc => {
-    const codigo_ler = doc.residuo_codigo_ler || '';
-    const descripcion = doc.residuo_descripcion || '';
-    const cantidad = doc.cantidad_total || 0;
+    const codigo_ler = doc.codigo_ler || '';
+    const descripcion = doc.descripcion_residuo || '';
+    const cantidad = doc.cantidad || 0;
 
     if (resumenMap.has(codigo_ler)) {
       const existing = resumenMap.get(codigo_ler)!;
