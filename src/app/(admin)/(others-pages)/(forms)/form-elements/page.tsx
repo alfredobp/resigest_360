@@ -13,9 +13,9 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Gis DashBoard Form Elements | Resigest360",
+  title: "Resigest 360 DashBoard Form Elements | Resigest360",
   description:
-    "This is Gis DashBoard Form Elements page for Resigest360 - Gis DashBoard",
+    "This is Resigest 360 DashBoard Form Elements page for Resigest360 - Resigest 360 DashBoard",
 };
 
 export default function FormElements() {

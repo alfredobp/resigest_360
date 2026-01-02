@@ -8,9 +8,9 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Gis DashBoard Modals | Resigest360",
+  title: "Resigest 360 DashBoard Modals | Resigest360",
   description:
-    "This is Gis DashBoard Modals page for Resigest360 - Gis DashBoard",
+    "This is Resigest 360 DashBoard Modals page for Resigest360 - Resigest 360 DashBoard",
   // other metadata
 };
 

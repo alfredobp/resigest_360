@@ -5,9 +5,9 @@ import Link from "next/link";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Gis DashBoard Error 404 | Resigest360",
+  title: "Resigest 360 DashBoard Error 404 | Resigest360",
   description:
-    "This is Gis DashBoard Error 404 page for Resigest360 - Gis DashBoard",
+    "This is Resigest 360 DashBoard Error 404 page for Resigest360 - Resigest 360 DashBoard",
 };
 
 export default function Error404() {
