@@ -486,7 +486,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                 <label htmlFor="fecha_recogida" className="block text-sm font-medium mb-2">Fecha de Recogida</label>
                 <DatePicker
                   id="fecha_recogida"
-                  type="date"
+               
                   value={formData.fecha_recogida || ''}
                   onChange={(e) => setFormData({ ...formData, fecha_recogida: e.target.value })}
                 />
@@ -496,7 +496,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                 <label htmlFor="fecha_entrega" className="block text-sm font-medium mb-2">Fecha de Entrega</label>
                 <DatePicker
                   id="fecha_entrega"
-                  type="date"
+                  
                   value={formData.fecha_entrega || ''}
                   onChange={(e) => setFormData({ ...formData, fecha_entrega: e.target.value })}
                 />
