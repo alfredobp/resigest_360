@@ -25,8 +25,8 @@ export default function AuthLayout({
                   <Logo width={231} height={99} />
                 </Link>
                 <p className="text-center text-gray-400 dark:text-white/60">
-                 Lorem ipsum dolor sit amet consectetur adipisicing elit. Accusamus, incidunt! Dignissimos esse ipsum exercitationem dicta consequuntur alias fugiat in corrupti expedita, perspiciatis, soluta, voluptatum nam recusandae aliquam cupiditate error nostrum?
-                </p>
+
+La plataforma de gestión de la normativa de gestión de residuos que permite realizar un seguimiento de todas las operaciones y requerimientos normativos.                </p>
               </div>
             </div>
           </div>
