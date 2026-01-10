@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createMemoria, CreateMemoriaData } from '@/services/memoriaAnualService';
 import { companyService } from '@/services/companyService';
-import { Company, TipoMemoria } from '@/types/wasteManagement';
+import productionCenterService from '@/services/productionCenterService';
+import { Company, TipoMemoria, ProductionCenter } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
-import Alert  from '@/components/ui/alert/Alert';
-import  Button  from '@/components/ui/button/Button';
+import Alert from '@/components/ui/alert/Alert';
+import Button from '@/components/ui/button/Button';
 import { AlertCircle, ArrowLeft, Save, FileText } from 'lucide-react';
 
 export default function NuevaMemoriaPage() {
@@ -15,10 +16,12 @@ export default function NuevaMemoriaPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userCompany, setUserCompany] = useState<Company | null>(null);
+  const [productionCenters, setProductionCenters] = useState<ProductionCenter[]>([]);
 
   // Formulario
   const [año, setAño] = useState<number>(new Date().getFullYear() - 1); // Año anterior por defecto
   const [tipoMemoria, setTipoMemoria] = useState<TipoMemoria>('productor');
+  const [productionCenterId, setProductionCenterId] = useState<number | ''>('');
   const [observaciones, setObservaciones] = useState('');
 
   useEffect(() => {
@@ -29,7 +32,7 @@ export default function NuevaMemoriaPage() {
     try {
       const company = await companyService.getUserCompany();
       setUserCompany(company);
-      
+
       // Establecer el tipo de memoria según el tipo de empresa
       if (company) {
         if (company.tipo_empresa === 'productor') {
@@ -43,6 +46,10 @@ export default function NuevaMemoriaPage() {
         } else if (company.tipo_empresa === 'agente') {
           setTipoMemoria('agente');
         }
+
+        // Cargar centros de producción
+        const centers = await productionCenterService.getByCompanyId(company.id);
+        setProductionCenters(centers);
       }
     } catch (err) {
       setError('Error al cargar los datos de la empresa');
@@ -64,6 +71,11 @@ export default function NuevaMemoriaPage() {
       return;
     }
 
+    if (!productionCenterId) {
+      setError('Debes seleccionar un centro de producción');
+      return;
+    }
+
     if (año > new Date().getFullYear()) {
       setError('No puedes generar memorias de años futuros');
       return;
@@ -77,11 +89,12 @@ export default function NuevaMemoriaPage() {
         company_id: userCompany.id,
         tipo_memoria: tipoMemoria,
         año,
+        production_center_id: productionCenterId as number,
         nombre_empresa: userCompany.razon_social,
         nif_empresa: userCompany.cif,
-        nombre_centro: userCompany.nombre_comercial,
+        nombre_centro: productionCenters.find(c => c.id === productionCenterId)?.nombre || userCompany.nombre_comercial,
         municipio_centro: userCompany.municipio_instalacion || userCompany.municipio_social,
-        nima: userCompany.nima,
+        nima: productionCenters.find(c => c.id === productionCenterId)?.nima || userCompany.nima,
         observaciones,
       };
 
@@ -141,9 +154,9 @@ export default function NuevaMemoriaPage() {
 
       {/* Alertas */}
       {error && (
-        <Alert 
-          variant="error" 
-          title="Error" 
+        <Alert
+          variant="error"
+          title="Error"
           message={error}
         />
       )}
@@ -184,9 +197,9 @@ export default function NuevaMemoriaPage() {
                   </div>
                 </div>
               ) : (
-                <Alert 
-                  variant="error" 
-                  title="Error" 
+                <Alert
+                  variant="error"
+                  title="Error"
                   message="No se encontró información de la empresa. Por favor, configura los datos de tu empresa primero."
                 />
               )}
@@ -212,6 +225,29 @@ export default function NuevaMemoriaPage() {
                   </select>
                   <p className="text-sm text-gray-500 mt-1">
                     Selecciona el año para el que quieres generar la memoria anual
+                  </p>
+                </div>
+
+                {/* Centro de Producción */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Centro de Producción <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={productionCenterId}
+                    onChange={(e) => setProductionCenterId(parseInt(e.target.value))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                    required
+                  >
+                    <option value="">-- Seleccionar Centro --</option>
+                    {productionCenters.map(pc => (
+                      <option key={pc.id} value={pc.id}>
+                        {pc.nombre} ({pc.nima})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-sm text-gray-500 mt-1">
+                    La memoria se generará con los documentos de este centro
                   </p>
                 </div>
 

@@ -10,7 +10,9 @@ import Button from '@/components/ui/button/Button';
 import ImageUpload from '@/components/common/ImageUpload';
 import Alert from '@/components/ui/alert/Alert';
 import companyService from '@/services/companyService';
-import type { Company, CompanyFormData } from '@/types/wasteManagement';
+import productionCenterService from '@/services/productionCenterService';
+import type { Company, CompanyFormData, ProductionCenter, ProductionCenterFormData } from '@/types/wasteManagement';
+import { Trash2, Plus, MapPin } from 'lucide-react';
 
 const TIPOS_EMPRESA = [
   { value: 'productor', label: 'Productor' },
@@ -25,8 +27,18 @@ export default function MiEmpresaPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [company, setCompany] = useState<Company | null>(null);
+  const [productionCenters, setProductionCenters] = useState<ProductionCenter[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Estado para el nuevo centro de producción
+  const [showCenterForm, setShowCenterForm] = useState(false);
+  const [centerFormData, setCenterFormData] = useState<ProductionCenterFormData>({
+    nombre: '',
+    direccion: '',
+    nima: '',
+    descripcion: '',
+  });
 
   const [formData, setFormData] = useState<CompanyFormData>({
     razon_social: '',
@@ -81,6 +93,10 @@ export default function MiEmpresaPage() {
           logo_url: data.logo_url || '',
           notas: data.notas || '',
         });
+
+        // Cargar centros de producción
+        const centers = await productionCenterService.getByCompanyId(data.id);
+        setProductionCenters(centers);
       }
     } catch (err: any) {
       setError(err.message);
@@ -134,6 +150,43 @@ export default function MiEmpresaPage() {
       setError(err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAddCenter = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!company) return;
+
+    try {
+      setSaving(true);
+      await productionCenterService.create({
+        ...centerFormData,
+        company_id: company.id,
+      });
+
+      setSuccess('Centro de producción añadido correctamente');
+      setCenterFormData({ nombre: '', direccion: '', nima: '', descripcion: '' });
+      setShowCenterForm(false);
+
+      // Recargar centros
+      const centers = await productionCenterService.getByCompanyId(company.id);
+      setProductionCenters(centers);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteCenter = async (id: number) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar este centro de producción?')) return;
+
+    try {
+      await productionCenterService.delete(id);
+      setSuccess('Centro de producción eliminado');
+      setProductionCenters(prev => prev.filter(c => c.id !== id));
+    } catch (err: any) {
+      setError(err.message);
     }
   };
 
@@ -414,11 +467,118 @@ export default function MiEmpresaPage() {
           </div>
         </form>
 
+        {/* Centros de Producción */}
+        {company && (
+          <div className="mt-8 mb-12">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-foreground">Centros de Producción</h2>
+              <Button
+                onClick={() => setShowCenterForm(!showCenterForm)}
+                variant={showCenterForm ? "outline" : "primary"}
+                className="flex items-center gap-2"
+              >
+                {showCenterForm ? 'Cancelar' : (
+                  <>
+                    <Plus className="w-5 h-5" />
+                    Nuevo Centro
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {showCenterForm && (
+              <ComponentCard title="Agregar Nuevo Centro de Producción" className="mb-6 border-primary/20 bg-primary/5">
+                <form onSubmit={handleAddCenter} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium mb-1">Nombre del Centro *</label>
+                      <Input
+                        value={centerFormData.nombre}
+                        onChange={(e) => setCenterFormData({ ...centerFormData, nombre: e.target.value })}
+                        placeholder="Ej: Planta de Tratamiento Norte"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">NIMA *</label>
+                      <Input
+                        value={centerFormData.nima}
+                        onChange={(e) => setCenterFormData({ ...centerFormData, nima: e.target.value })}
+                        placeholder="Número de Identificación Medioambiental"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Dirección *</label>
+                      <Input
+                        value={centerFormData.direccion}
+                        onChange={(e) => setCenterFormData({ ...centerFormData, direccion: e.target.value })}
+                        placeholder="Calle, número, municipio"
+                        required
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium mb-1">Descripción</label>
+                      <TextArea
+                        value={centerFormData.descripcion || ''}
+                        onChange={(val) => setCenterFormData({ ...centerFormData, descripcion: val })}
+                        placeholder="Breve descripción del centro y sus actividades..."
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={saving}>
+                      {saving ? 'Añadiendo...' : 'Añadir Centro'}
+                    </Button>
+                  </div>
+                </form>
+              </ComponentCard>
+            )}
+
+            {productionCenters.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {productionCenters.map((center) => (
+                  <div key={center.id} className="bg-white dark:bg-dark-1 rounded-xl p-6 border border-stroke dark:border-strokedark shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-start gap-4">
+                        <div className="p-3 bg-primary/10 rounded-lg">
+                          <MapPin className="w-6 h-6 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-lg text-foreground">{center.nombre}</h3>
+                          <p className="text-sm text-primary font-medium mt-1">NIMA: {center.nima}</p>
+                          <p className="text-sm text-muted mt-2">{center.direccion}</p>
+                          {center.descripcion && (
+                            <p className="text-sm text-muted mt-3 italic">"{center.descripcion}"</p>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteCenter(center.id)}
+                        className="text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                        title="Eliminar centro"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-gray-50 dark:bg-dark-2 rounded-xl border border-dashed border-stroke dark:border-strokedark">
+                <p className="text-muted">No hay otros centros de producción registrados.</p>
+                <p className="text-sm text-muted mt-2">Los centros añadidos aquí podrán seleccionarse en los contratos y documentos.</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {!company && (
           <div className="mt-6">
-            <Alert 
-              variant="info" 
-              title="Importante" 
+            <Alert
+              variant="info"
+              title="Importante"
               message="Debes registrar los datos de tu empresa antes de poder crear contratos de tratamiento de residuos."
             />
           </div>

@@ -12,7 +12,8 @@ import Select from '@/components/form/Select';
 import identificationDocumentService from '@/services/identificationDocumentService';
 import companyService from '@/services/companyService';
 import wasteContractService from '@/services/wasteContractService';
-import type { IdentificationDocument, Company, WasteContract } from '@/types/wasteManagement';
+import productionCenterService from '@/services/productionCenterService';
+import type { IdentificationDocument, Company, WasteContract, ProductionCenter } from '@/types/wasteManagement';
 import DatePicker from '@/components/form/date-picker';
 
 export default function NuevoDocumentoIdentificacionPage() {
@@ -21,6 +22,7 @@ export default function NuevoDocumentoIdentificacionPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [myCompany, setMyCompany] = useState<Company | null>(null);
+  const [productionCenters, setProductionCenters] = useState<ProductionCenter[]>([]);
   const [contracts, setContracts] = useState<WasteContract[]>([]);
   const [gestores, setGestores] = useState<Company[]>([]);
   const [transportistas, setTransportistas] = useState<Company[]>([]);
@@ -44,15 +46,19 @@ export default function NuevoDocumentoIdentificacionPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      
+
       // Cargar mi empresa
       const company = await companyService.getUserCompany();
       if (!company) {
         router.push('/residuos/mi-empresa');
         return;
       }
-      
+
       setMyCompany(company);
+
+      // Cargar centros de producción
+      const centers = await productionCenterService.getByCompanyId(company.id);
+      setProductionCenters(centers);
 
       // Pre-rellenar datos del productor
       setFormData(prev => ({
@@ -60,12 +66,6 @@ export default function NuevoDocumentoIdentificacionPage() {
         company_id: company.id,
         productor_razon_social: company.razon_social,
         productor_cif: company.cif,
-        productor_nima: company.nima || '',
-        productor_direccion: company.domicilio_social || '',
-        productor_codigo_postal: company.codigo_postal_social || '',
-        productor_municipio: company.municipio_social || '',
-        productor_provincia: company.provincia_social || '',
-        productor_telefono: company.telefono || '',
         numero_documento: identificationDocumentService.generateDocumentNumber(company.nima || company.cif),
       }));
 
@@ -139,6 +139,10 @@ export default function NuevoDocumentoIdentificacionPage() {
     setError(null);
 
     // Validaciones
+    if (!formData.production_center_id) {
+      setError('Debes seleccionar un centro de producción');
+      return;
+    }
     if (!formData.gestor_razon_social || !formData.gestor_cif) {
       setError('Los datos del gestor son obligatorios');
       return;
@@ -215,6 +219,35 @@ export default function NuevoDocumentoIdentificacionPage() {
                   value={formData.fecha_documento}
                   onChange={(e) => setFormData({ ...formData, fecha_documento: e.target.value })}
                   required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="production_center_id" className="block text-sm font-medium mb-2">Centro de Producción *</label>
+                <Select
+                  options={[
+                    { value: '', label: '-- Seleccionar Centro --' },
+                    ...productionCenters.map(pc => ({
+                      value: pc.id.toString(),
+                      label: `${pc.nombre} (${pc.nima})`,
+                    })),
+                  ]}
+                  defaultValue={formData.production_center_id?.toString() || ''}
+                  onChange={(value) => {
+                    const center = productionCenters.find(c => c.id === parseInt(value));
+                    if (center) {
+                      setFormData({
+                        ...formData,
+                        production_center_id: center.id,
+                        productor_nima: center.nima,
+                        productor_direccion: center.direccion,
+                        // El resto de campos se pueden mantener de la empresa o dejar vacíos
+                      });
+                    } else {
+                      setFormData({ ...formData, production_center_id: undefined });
+                    }
+                  }}
+                  placeholder="Selecciona el origen del residuo"
                 />
               </div>
 

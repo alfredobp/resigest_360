@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { 
-  getMemoriaById, 
+import {
+  getMemoriaById,
   updateEstado,
   deleteMemoria,
   generateExcelData
@@ -11,8 +11,8 @@ import {
 import { MemoriaAnual, EstadoMemoria, ResumenLER } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
-import  Badge  from '@/components/ui/badge/Badge';
-import  Button from '@/components/ui/button/Button';
+import Badge from '@/components/ui/badge/Badge';
+import Button from '@/components/ui/button/Button';
 import {
   ArrowLeft,
   FileText,
@@ -95,13 +95,13 @@ export default function DetalleMemoriaPage() {
     try {
       setProcessingExcel(true);
       const excelData = await generateExcelData(memoria.id);
-      
+
       // Aquí se debería generar el archivo Excel real
       // Por ahora solo mostramos un mensaje de éxito
       setSuccess('Datos de Excel generados correctamente. La funcionalidad de exportación se implementará próximamente.');
-      
+
       console.log('Excel Data:', excelData);
-      
+
       setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
       setError('Error al generar el Excel');
@@ -163,9 +163,9 @@ export default function DetalleMemoriaPage() {
   if (!memoria) {
     return (
       <div className="space-y-6">
-        <Alert 
-          variant="error" 
-          title="Error" 
+        <Alert
+          variant="error"
+          title="Error"
           message="No se encontró la memoria anual"
         />
         <Button onClick={() => router.back()}>
@@ -200,17 +200,17 @@ export default function DetalleMemoriaPage() {
 
       {/* Alertas */}
       {error && (
-        <Alert 
-          variant="error" 
-          title="Error" 
+        <Alert
+          variant="error"
+          title="Error"
           message={error}
         />
       )}
 
       {success && (
-        <Alert 
-          variant="success" 
-          title="Éxito" 
+        <Alert
+          variant="success"
+          title="Éxito"
           message={success}
         />
       )}
@@ -281,8 +281,8 @@ export default function DetalleMemoriaPage() {
               )}
               {memoria.nombre_centro && (
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Nombre del Centro</label>
-                  <p className="text-sm">{memoria.nombre_centro}</p>
+                  <label className="text-sm font-medium text-gray-500">Centro de Producción</label>
+                  <p className="text-sm font-bold text-primary">{memoria.nombre_centro}</p>
                 </div>
               )}
               {memoria.municipio_centro && (
@@ -455,7 +455,7 @@ export default function DetalleMemoriaPage() {
                 <label className="font-medium text-gray-500">Período</label>
                 <p>{formatDate(memoria.fecha_inicio)} - {formatDate(memoria.fecha_fin)}</p>
               </div>
-              
+
               {memoria.fecha_presentacion && (
                 <div>
                   <label className="font-medium text-gray-500">Fecha de Presentación</label>

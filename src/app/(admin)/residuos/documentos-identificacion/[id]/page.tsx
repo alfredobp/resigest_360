@@ -180,9 +180,16 @@ export default function DetalleDocumentoIdentificacionPage() {
               <p className="text-foreground">{document.productor_cif}</p>
             </div>
 
+            {document.production_center && (
+              <div>
+                <label className="block text-sm font-medium text-muted mb-1">Centro de Producción</label>
+                <p className="text-primary font-bold">{document.production_center.nombre}</p>
+              </div>
+            )}
+
             {document.productor_nima && (
               <div>
-                <label className="block text-sm font-medium text-muted mb-1">NIMA</label>
+                <label className="block text-sm font-medium text-muted mb-1">NIMA de Producción</label>
                 <p className="text-foreground">{document.productor_nima}</p>
               </div>
             )}

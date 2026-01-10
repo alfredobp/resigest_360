@@ -2,13 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  getAllMemorias, 
-  deleteMemoria, 
+import {
+  getAllMemorias,
+  deleteMemoria,
   updateEstado,
-  getStats 
+  getStats
 } from '@/services/memoriaAnualService';
-import { MemoriaAnual, EstadoMemoria, TipoMemoria } from '@/types/wasteManagement';
+import productionCenterService from '@/services/productionCenterService';
+import companyService from '@/services/companyService';
+import { createClient } from '@/lib/supabase/client';
+import { MemoriaAnual, EstadoMemoria, TipoMemoria, ProductionCenter } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
 import Badge from '@/components/ui/badge/Badge';
@@ -31,6 +34,7 @@ export default function MemoriasAnualesPage() {
   const router = useRouter();
   const [memorias, setMemorias] = useState<MemoriaAnual[]>([]);
   const [filteredMemorias, setFilteredMemorias] = useState<MemoriaAnual[]>([]);
+  const [productionCenters, setProductionCenters] = useState<ProductionCenter[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -39,6 +43,7 @@ export default function MemoriasAnualesPage() {
   const [filtroEstado, setFiltroEstado] = useState<string>('todas');
   const [filtroTipo, setFiltroTipo] = useState<string>('todas');
   const [filtroAño, setFiltroAño] = useState<string>('todos');
+  const [filtroCentro, setFiltroCentro] = useState<string>('todos');
 
   // Estadísticas
   const [stats, setStats] = useState<any>(null);
@@ -50,13 +55,20 @@ export default function MemoriasAnualesPage() {
 
   useEffect(() => {
     filterMemorias();
-  }, [memorias, filtroEstado, filtroTipo, filtroAño]);
+  }, [memorias, filtroEstado, filtroTipo, filtroAño, filtroCentro]);
 
   const loadMemorias = async () => {
     try {
       setLoading(true);
       const data = await getAllMemorias();
       setMemorias(data);
+
+      // Cargar centros para filtros
+      const company = await companyService.getUserCompany();
+      if (company) {
+        const centersData = await productionCenterService.getByCompanyId(company.id);
+        setProductionCenters(centersData);
+      }
     } catch (err) {
       setError('Error al cargar las memorias anuales');
       console.error(err);
@@ -87,6 +99,10 @@ export default function MemoriasAnualesPage() {
 
     if (filtroAño !== 'todos') {
       filtered = filtered.filter(m => m.año === parseInt(filtroAño));
+    }
+
+    if (filtroCentro !== 'todos') {
+      filtered = filtered.filter(m => m.production_center_id === parseInt(filtroCentro));
     }
 
     setFilteredMemorias(filtered);
@@ -185,17 +201,17 @@ export default function MemoriasAnualesPage() {
 
       {/* Alertas */}
       {error && (
-        <Alert 
-          variant="error" 
-          title="Error" 
+        <Alert
+          variant="error"
+          title="Error"
           message={error}
         />
       )}
 
       {success && (
-        <Alert 
-          variant="success" 
-          title="Éxito" 
+        <Alert
+          variant="success"
+          title="Éxito"
           message={success}
         />
       )}
@@ -297,6 +313,21 @@ export default function MemoriasAnualesPage() {
               ))}
             </select>
           </div>
+
+          {/* Filtro Centro */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Centro de Producción</label>
+            <select
+              value={filtroCentro}
+              onChange={(e) => setFiltroCentro(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="todos">Todos los centros</option>
+              {productionCenters.map(pc => (
+                <option key={pc.id} value={pc.id}>{pc.nombre}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </ComponentCard>
 
@@ -362,6 +393,9 @@ export default function MemoriasAnualesPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
                         {memoria.nombre_empresa}
+                      </div>
+                      <div className="text-sm text-primary font-medium">
+                        {memoria.production_center?.nombre || 'General'}
                       </div>
                       <div className="text-sm text-gray-500">{memoria.nif_empresa}</div>
                     </td>

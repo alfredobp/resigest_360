@@ -11,6 +11,8 @@ import NuevoContratoModal from '@/components/residuos/NuevoContratoModal';
 import wasteContractService from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
 import type { WasteContract, Company } from '@/types/wasteManagement';
+import { generateContractPDF } from '@/lib/pdfUtils';
+import jsPDF from 'jspdf';
 
 const STATUS_COLORS = {
   borrador: 'info',
@@ -27,6 +29,10 @@ const STATUS_LABELS = {
 };
 
 export default function ContratosPage() {
+    const handleDownloadPDF = (contract: WasteContract) => {
+      const doc = generateContractPDF(contract);
+      doc.save(`contrato_${contract.numero_contrato || contract.id}.pdf`);
+    };
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [contracts, setContracts] = useState<WasteContract[]>([]);
@@ -109,19 +115,14 @@ export default function ContratosPage() {
   if (!hasCompany) {
     return (
       <>
-        <PageBreadCrumb
-          pageTitle="Contratos de Tratamiento"
-        />
-
-        <div className="max-w-4xl mx-auto">
-          <Alert 
-            variant="warning" 
-            title="Empresa no registrada"
-            message="Antes de crear contratos, debes registrar los datos de tu empresa."
-            showLink
-            linkHref="/residuos/mi-empresa"
-            linkText="Ir a Mi Empresa"
-          />
+        <PageBreadCrumb pageTitle="Contratos de Residuos" />
+        <div className="max-w-6xl mx-auto">
+          <Alert variant="error" title="Configuración Pendiente" message="Necesitas configurar tu empresa antes de gestionar contratos." />
+          <div className="mt-4">
+            <Button onClick={() => router.push('/residuos/mi-empresa')}>
+              Configurar Empresa
+            </Button>
+          </div>
         </div>
       </>
     );
@@ -129,27 +130,22 @@ export default function ContratosPage() {
 
   return (
     <>
-      <PageBreadCrumb
-        pageTitle="Contratos de Tratamiento"
-      />
+      <PageBreadCrumb pageTitle="Contratos de Residuos" />
 
-      <div className="space-y-6">
-        {error && (
-          <Alert variant="error" title="Error" message={error} />
-        )}
-
-        {/* Acciones Principales */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-foreground">Contratos de Tratamiento</h2>
-            <p className="text-muted mt-1">
-              Gestiona los contratos de tratamiento de residuos con gestores
-            </p>
-          </div>
-          <Button onClick={() => setShowNewContractModal(true)}>
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-foreground">
+            Contratos de Gestión de Residuos
+          </h2>
+          <Button variant="outline" onClick={() => setShowNewContractModal(true)}>
             + Nuevo Contrato
           </Button>
         </div>
+
+        {error && (
+          <Alert variant="error" title="Error" message={error} />
+        )}
 
         {/* Filtros */}
         <ComponentCard title="Filtros">
@@ -275,6 +271,14 @@ export default function ContratosPage() {
                       onClick={() => router.push(`/residuos/contratos/${contract.id}`)}
                     >
                       Ver Detalles
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDownloadPDF(contract)}
+                    >
+                      Descargar PDF
                     </Button>
 
                     {contract.estado === 'borrador' && (

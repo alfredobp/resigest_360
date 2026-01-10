@@ -4,9 +4,9 @@
 // =====================================================
 
 import { createClient } from '@/lib/supabase/client';
-import { 
-  MemoriaAnual, 
-  EstadoMemoria, 
+import {
+  MemoriaAnual,
+  EstadoMemoria,
   TipoMemoria,
   ResumenLER,
   EntradaMemoriaProductor,
@@ -29,12 +29,13 @@ export interface CreateMemoriaData {
   nombre_centro?: string;
   municipio_centro?: string;
   nima?: string;
+  production_center_id: number;
   observaciones?: string;
 }
 
 export async function createMemoria(data: CreateMemoriaData): Promise<MemoriaAnual | null> {
   const supabase = createClient();
-  
+
   // Obtener el usuario actual
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay usuario autenticado');
@@ -46,8 +47,13 @@ export async function createMemoria(data: CreateMemoriaData): Promise<MemoriaAnu
   const fecha_inicio = `${data.año}-01-01`;
   const fecha_fin = `${data.año}-12-31`;
 
-  // Obtener documentos de identificación del año
-  const documentos = await getDocumentosIdentificacionByYear(user.id, data.company_id, data.año);
+  // Obtener documentos de identificación del año y centro
+  const documentos = await getDocumentosIdentificacionByYear(
+    user.id,
+    data.company_id,
+    data.año,
+    data.production_center_id
+  );
   const documentos_ids = documentos.map(d => d.id);
 
   // Calcular totales
@@ -62,6 +68,7 @@ export async function createMemoria(data: CreateMemoriaData): Promise<MemoriaAnu
     company_id: data.company_id,
     tipo_memoria: data.tipo_memoria,
     año: data.año,
+    production_center_id: data.production_center_id,
     numero_memoria,
     nombre_empresa: data.nombre_empresa,
     nif_empresa: data.nif_empresa,
@@ -98,13 +105,13 @@ export async function createMemoria(data: CreateMemoriaData): Promise<MemoriaAnu
 
 export async function getAllMemorias(): Promise<MemoriaAnual[]> {
   const supabase = createClient();
-  
+
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay usuario autenticado');
 
   const { data, error } = await supabase
     .from('memorias_anuales')
-    .select('*')
+    .select('*, production_center:production_centers(*)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
@@ -122,7 +129,7 @@ export async function getAllMemorias(): Promise<MemoriaAnual[]> {
 
 export async function getMemoriaById(id: number): Promise<MemoriaAnual | null> {
   const supabase = createClient();
-  
+
   const { data, error } = await supabase
     .from('memorias_anuales')
     .select('*')
@@ -142,7 +149,7 @@ export async function getMemoriaById(id: number): Promise<MemoriaAnual | null> {
 // =====================================================
 
 export async function updateMemoria(
-  id: number, 
+  id: number,
   updates: Partial<MemoriaAnual>
 ): Promise<MemoriaAnual | null> {
   const supabase = createClient();
@@ -174,7 +181,7 @@ export async function updateEstado(
   estado: EstadoMemoria
 ): Promise<MemoriaAnual | null> {
   const updates: Partial<MemoriaAnual> = { estado };
-  
+
   // Si se marca como presentada, guardar la fecha
   if (estado === 'presentada') {
     updates.fecha_presentacion = new Date().toISOString();
@@ -252,7 +259,7 @@ function generateDataProductor(
     codigo_ler: doc.codigo_ler || '',
     descripcion_residuo: doc.descripcion_residuo || '',
     cantidad_toneladas: doc.cantidad || 0,
-    
+
     // Destino (Gestor)
     nima_destino: doc.gestor_nima,
     nif_destino: doc.gestor_cif || '',
@@ -286,12 +293,12 @@ function generateDataGestor(
     codigo_operacion_rd_4cifras: doc.operacion_tratamiento?.substring(0, 4),
     codigo_proceso_interno: undefined,
     denominacion_proceso_interno: undefined,
-    
+
     // Residuo recepcionado
     codigo_ler: doc.codigo_ler || '',
     descripcion_residuo: doc.descripcion_residuo || '',
     cantidad_toneladas: doc.cantidad || 0,
-    
+
     // Origen (Productor)
     nima_origen: doc.productor_nima,
     nif_origen: doc.productor_cif || '',
@@ -304,7 +311,7 @@ function generateDataGestor(
     pais_origen: 'España',
     codigo_pais_origen: '108',
     codigo_di: doc.numero_documento,
-    
+
     // SRAP
     srap: false,
   }));
@@ -329,7 +336,7 @@ function generateDataNegocianteTransportistaAgente(
     codigo_ler: doc.codigo_ler || '',
     descripcion_residuo: doc.descripcion_residuo || '',
     cantidad_toneladas: doc.cantidad || 0,
-    
+
     // Procedencia (Productor)
     nima_origen: doc.productor_nima,
     nif_origen: doc.productor_cif || '',
@@ -341,7 +348,7 @@ function generateDataNegocianteTransportistaAgente(
     municipio_origen: doc.productor_municipio,
     pais_origen: 'España',
     codigo_pais_origen: '108',
-    
+
     // Destino (Gestor)
     nima_destino: doc.gestor_nima,
     nif_destino: doc.gestor_cif || '',
@@ -370,7 +377,7 @@ export async function getStats(año?: number): Promise<{
   total_toneladas: number;
 }> {
   const supabase = createClient();
-  
+
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay usuario autenticado');
 
@@ -403,10 +410,10 @@ export async function getStats(año?: number): Promise<{
   memorias.forEach(memoria => {
     // Contar por estado
     stats.por_estado[memoria.estado as EstadoMemoria] = (stats.por_estado[memoria.estado as EstadoMemoria] || 0) + 1;
-    
+
     // Contar por tipo
     stats.por_tipo[memoria.tipo_memoria as TipoMemoria] = (stats.por_tipo[memoria.tipo_memoria as TipoMemoria] || 0) + 1;
-    
+
     // Sumar toneladas
     stats.total_toneladas += memoria.total_toneladas || 0;
   });
@@ -457,7 +464,8 @@ async function generateNumeroMemoria(tipo: TipoMemoria, año: number): Promise<s
 async function getDocumentosIdentificacionByYear(
   userId: string,
   companyId: number,
-  año: number
+  año: number,
+  productionCenterId: number
 ): Promise<IdentificationDocument[]> {
   const supabase = createClient();
 
@@ -469,6 +477,7 @@ async function getDocumentosIdentificacionByYear(
     .select('*')
     .eq('user_id', userId)
     .eq('company_id', companyId)
+    .eq('production_center_id', productionCenterId)
     .gte('fecha_documento', fecha_inicio)
     .lte('fecha_documento', fecha_fin)
     .eq('estado', 'completado');

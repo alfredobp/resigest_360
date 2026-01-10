@@ -11,44 +11,71 @@
 export interface Company {
   id: number;
   user_id: string;
-  
+
   // Datos básicos
   razon_social: string;
   nombre_comercial?: string;
   cif: string;
-  
+
   // Números de registro
   nima?: string;
   numero_inscripcion?: string;
-  
+
   // Domicilio social
   domicilio_social?: string;
   codigo_postal_social?: string;
   municipio_social?: string;
   provincia_social?: string;
-  
+
   // Domicilio instalación
   domicilio_instalacion?: string;
   codigo_postal_instalacion?: string;
   municipio_instalacion?: string;
   provincia_instalacion?: string;
-  
+
   // Contacto
   telefono?: string;
   email?: string;
   persona_contacto?: string;
-  
+
   // Clasificación
   tipo_empresa: 'productor' | 'gestor' | 'transportista' | 'negociante' | 'agente';
-  
+
   // Logo
   logo_url?: string;
-  
+
   // Metadata
   notas?: string;
   activo: boolean;
   created_at: string;
   updated_at: string;
+
+  // Relaciones
+  production_centers?: ProductionCenter[];
+}
+
+export interface ProductionCenter {
+  id: number;
+  company_id: number;
+  user_id: string;
+
+  nombre: string;
+  direccion: string;
+  nima: string;
+  descripcion?: string;
+
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductionCenterFormData {
+  company_id?: number;
+  nombre: string;
+  direccion: string;
+  nima: string;
+  descripcion?: string;
+  activo?: boolean;
 }
 
 export interface CompanyFormData {
@@ -98,44 +125,44 @@ export interface WasteType {
 export interface WasteContract {
   id: number;
   user_id: string;
-  
+
   // Referencias a empresas
   company_id: number;
   gestor_company_id?: number;
-  
+
   // Datos del contrato
   numero_contrato?: string;
   fecha_contrato: string;
   fecha_inicio?: string;
   fecha_fin?: string;
-  
+
   // Tipo
   tipo_contrato: 'tratamiento' | 'recogida' | 'transporte' | 'valoracion' | 'eliminacion';
-  
+
   // Residuos
   waste_type_ids?: number[];
   descripcion_residuos?: string;
-  
+
   // Operaciones
   operaciones_tratamiento?: string[];
-  
+
   // Condiciones
   cantidad_maxima_anual?: number;
   unidad_cantidad?: string;
   precio_unitario?: number;
   moneda?: string;
-  
+
   // Estado
   estado: 'borrador' | 'vigente' | 'finalizado' | 'cancelado';
-  
+
   // Documentación
   documento_url?: string;
-  
+
   // Metadata
   notas?: string;
   created_at: string;
   updated_at: string;
-  
+
   // Relaciones (populated)
   company?: Company;
   gestor_company?: Company;
@@ -171,11 +198,12 @@ export interface IdentificationDocument {
   user_id: string;
   contract_id?: number;
   company_id: number;
-  
+  production_center_id?: number;
+
   numero_documento: string;
   fecha_documento: string;
   tipo_notificacion: 'sin-notificacion' | 'con-notificacion-previa';
-  
+
   // Productor
   productor_razon_social: string;
   productor_cif: string;
@@ -185,7 +213,7 @@ export interface IdentificationDocument {
   productor_municipio?: string;
   productor_provincia?: string;
   productor_telefono?: string;
-  
+
   // Gestor
   gestor_razon_social: string;
   gestor_cif: string;
@@ -196,34 +224,34 @@ export interface IdentificationDocument {
   gestor_municipio?: string;
   gestor_provincia?: string;
   gestor_telefono?: string;
-  
+
   // Transportista
   transportista_razon_social?: string;
   transportista_cif?: string;
   transportista_matricula?: string;
   transportista_telefono?: string;
-  
+
   // Residuo
   waste_type_id?: number;
   codigo_ler: string;
   descripcion_residuo: string;
   estado_fisico: 'solido' | 'liquido' | 'pastoso' | 'gaseoso';
   peligrosidad: 'no-peligroso' | 'peligroso';
-  
+
   // Cantidad
   cantidad: number;
   unidad: 'kg' | 'toneladas' | 'litros' | 'm3' | 'unidades';
   numero_envases?: number;
   tipo_envases?: string;
-  
+
   // Tratamiento
   operacion_tratamiento?: string;
   descripcion_tratamiento?: string;
-  
+
   // Fechas
   fecha_recogida?: string;
   fecha_entrega?: string;
-  
+
   // Firmas
   firmado_productor: boolean;
   firmado_gestor: boolean;
@@ -231,20 +259,21 @@ export interface IdentificationDocument {
   fecha_firma_productor?: string;
   fecha_firma_gestor?: string;
   fecha_firma_transportista?: string;
-  
+
   // Documentación
   documento_url?: string;
-  
+
   // Estado
   estado: 'borrador' | 'pendiente-firma' | 'completado' | 'cancelado';
-  
+
   // Metadata
   notas?: string;
   created_at: string;
   updated_at: string;
-  
+
   // Relaciones
   company?: Company;
+  production_center?: ProductionCenter;
   contract?: WasteContract;
   waste_type?: WasteType;
 }
@@ -257,55 +286,57 @@ export interface AnnualReport {
   id: number;
   user_id: string;
   company_id: number;
-  
+  production_center_id?: number;
+
   anio: number;
   tipo_memoria: 'productor' | 'gestor' | 'negociante' | 'agente' | 'transportista';
-  
+
   fecha_inicio: string;
   fecha_fin: string;
-  
+
   estado: 'borrador' | 'generado' | 'presentado' | 'validado';
-  
+
   total_residuos_generados?: number;
   total_residuos_gestionados?: number;
   unidad?: string;
-  
+
   documento_excel_url?: string;
   documento_pdf_url?: string;
-  
+
   fecha_presentacion?: string;
   numero_registro_sira?: string;
   sira_presentado: boolean;
-  
+
   notas?: string;
   created_at: string;
   updated_at: string;
-  
+
   // Relaciones
   company?: Company;
+  production_center?: ProductionCenter;
   lines?: AnnualReportLine[];
 }
 
 export interface AnnualReportLine {
   id: number;
   annual_report_id: number;
-  
+
   identification_document_ids?: number[];
-  
+
   codigo_ler: string;
   descripcion_residuo: string;
-  
+
   origen_razon_social?: string;
   origen_nima?: string;
   destino_razon_social?: string;
   destino_nima?: string;
-  
+
   cantidad_total: number;
   unidad: string;
   numero_operaciones?: number;
-  
+
   operacion_tratamiento?: string;
-  
+
   created_at: string;
   updated_at: string;
 }
@@ -314,7 +345,7 @@ export interface AnnualReportLine {
 // MEMORIA ANUAL (Annual Memory/Report)
 // =====================================================
 
-export type TipoMemoria = 
+export type TipoMemoria =
   | 'productor'           // Memoria Anual de Productores
   | 'gestor'              // Memoria Anual de Gestores
   | 'gestor_raee'         // Memoria Anual de Gestores RAEE
@@ -333,43 +364,47 @@ export interface MemoriaAnual {
   id: number;
   user_id: string;
   company_id: number;
-  
+  production_center_id?: number;
+
   // Datos básicos
   tipo_memoria: TipoMemoria;
   año: number;
   numero_memoria: string;        // MA-2024-PROD-001
-  
+
   // Datos de la empresa en el momento de la memoria
   nombre_empresa: string;
   nif_empresa: string;
   nombre_centro?: string;
   municipio_centro?: string;
   nima?: string;
-  
+
   // Datos calculados desde los DI
   total_movimientos: number;      // Total de movimientos registrados
   total_toneladas: number;        // Total de toneladas gestionadas
   fecha_inicio: string;           // 01/01/año
   fecha_fin: string;              // 31/12/año
-  
+
   // Resumen por código LER
   resumen_ler?: ResumenLER[];
-  
+
   // Documentos de identificación incluidos
   documentos_identificacion_ids: number[];
-  
+
   // Estado y control
   estado: EstadoMemoria;
   fecha_presentacion?: string;
   observaciones?: string;
-  
+
   // Archivos
   archivo_excel_url?: string;      // URL del Excel generado
   archivo_pdf_url?: string;        // URL del PDF si se genera
-  
+
   // Metadata
   created_at: string;
   updated_at: string;
+
+  // Relaciones
+  production_center?: ProductionCenter;
 }
 
 export interface ResumenLER {
@@ -389,7 +424,7 @@ export interface EntradaMemoriaProductor {
   codigo_ler: string;
   descripcion_residuo: string;
   cantidad_toneladas: number;
-  
+
   // Destino del residuo
   nima_destino?: string;
   nif_destino: string;
@@ -412,12 +447,12 @@ export interface EntradaMemoriaGestorEntrada {
   codigo_operacion_rd_4cifras?: string;
   codigo_proceso_interno?: string;
   denominacion_proceso_interno?: string;
-  
+
   // Identificación del residuo recepcionado
   codigo_ler: string;
   descripcion_residuo: string;
   cantidad_toneladas: number;
-  
+
   // Instalación de origen
   nima_origen?: string;
   nif_origen: string;
@@ -430,7 +465,7 @@ export interface EntradaMemoriaGestorEntrada {
   pais_origen: string;
   codigo_pais_origen: string;
   codigo_di?: string;
-  
+
   // Organización de la gestión
   srap?: boolean;
   nif_srap?: string;
@@ -444,7 +479,7 @@ export interface EntradaMemoriaGestorSalida {
   codigo_ler: string;
   descripcion_residuo: string;
   cantidad_toneladas: number;
-  
+
   // Destino del residuo
   nima_destino?: string;
   nif_destino: string;
@@ -459,7 +494,7 @@ export interface EntradaMemoriaGestorSalida {
   codigo_di?: string;
   codigo_operacion_rd: string;
   codigo_operacion_rd_4cifras?: string;
-  
+
   // Organización de la gestión
   srap?: boolean;
   nif_srap?: string;
@@ -473,7 +508,7 @@ export interface EntradaMemoriaNegocianteTransportistaAgente {
   codigo_ler: string;
   descripcion_residuo: string;
   cantidad_toneladas: number;
-  
+
   // Procedencia
   nima_origen?: string;
   nif_origen: string;
@@ -485,7 +520,7 @@ export interface EntradaMemoriaNegocianteTransportistaAgente {
   municipio_origen?: string;
   pais_origen: string;
   codigo_pais_origen: string;
-  
+
   // Destino
   nima_destino?: string;
   nif_destino: string;

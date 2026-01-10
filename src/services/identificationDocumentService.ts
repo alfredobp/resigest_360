@@ -24,7 +24,7 @@ export const identificationDocumentService = {
    */
   async getAll(): Promise<IdentificationDocument[]> {
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) {
       throw new Error('Usuario no autenticado');
     }
@@ -34,6 +34,7 @@ export const identificationDocumentService = {
       .select(`
         *,
         company:companies!identification_documents_company_id_fkey(*),
+        production_center:production_centers(*),
         contract:waste_contracts(*),
         waste_type:waste_types(*)
       `)
@@ -56,6 +57,7 @@ export const identificationDocumentService = {
       .select(`
         *,
         company:companies!identification_documents_company_id_fkey(*),
+        production_center:production_centers(*),
         contract:waste_contracts(*),
         waste_type:waste_types(*)
       `)
@@ -96,7 +98,7 @@ export const identificationDocumentService = {
    */
   async create(documentData: Partial<IdentificationDocument>): Promise<IdentificationDocument> {
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) {
       throw new Error('Usuario no autenticado');
     }
@@ -110,6 +112,7 @@ export const identificationDocumentService = {
       .select(`
         *,
         company:companies!identification_documents_company_id_fkey(*),
+        production_center:production_centers(*),
         contract:waste_contracts(*),
         waste_type:waste_types(*)
       `)
@@ -177,9 +180,9 @@ export const identificationDocumentService = {
     role: 'productor' | 'gestor' | 'transportista'
   ): Promise<IdentificationDocument> {
     const today = new Date().toISOString().split('T')[0];
-    
+
     const updateData: Partial<IdentificationDocument> = {};
-    
+
     if (role === 'productor') {
       updateData.firmado_productor = true;
       updateData.fecha_firma_productor = today;
@@ -205,7 +208,7 @@ export const identificationDocumentService = {
     cancelados: number;
   }> {
     const documents = await this.getAll();
-    
+
     return {
       total: documents.length,
       borradores: documents.filter(d => d.estado === 'borrador').length,

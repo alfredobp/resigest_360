@@ -9,7 +9,8 @@ import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import identificationDocumentService from '@/services/identificationDocumentService';
 import companyService from '@/services/companyService';
-import type { IdentificationDocument, Company } from '@/types/wasteManagement';
+import productionCenterService from '@/services/productionCenterService';
+import type { IdentificationDocument, Company, ProductionCenter } from '@/types/wasteManagement';
 
 const STATUS_COLORS = {
   borrador: 'info',
@@ -31,8 +32,10 @@ export default function DocumentosIdentificacionPage() {
   const [documents, setDocuments] = useState<IdentificationDocument[]>([]);
   const [hasCompany, setHasCompany] = useState(false);
   const [myCompany, setMyCompany] = useState<Company | null>(null);
+  const [productionCenters, setProductionCenters] = useState<ProductionCenter[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterCenter, setFilterCenter] = useState<string>('all');
 
   useEffect(() => {
     loadData();
@@ -41,13 +44,17 @@ export default function DocumentosIdentificacionPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      
+
       // Verificar si el usuario tiene empresa registrada
       const company = await companyService.getUserCompany();
       setHasCompany(!!company);
       setMyCompany(company);
 
       if (company) {
+        // Cargar centros de producción
+        const centersData = await productionCenterService.getByCompanyId(company.id);
+        setProductionCenters(centersData);
+
         // Cargar documentos
         const data = await identificationDocumentService.getAll();
         setDocuments(data);
@@ -84,9 +91,11 @@ export default function DocumentosIdentificacionPage() {
     }
   };
 
-  const filteredDocuments = filterStatus === 'all' 
-    ? documents 
-    : documents.filter(d => d.estado === filterStatus);
+  const filteredDocuments = documents.filter(d => {
+    const matchStatus = filterStatus === 'all' || d.estado === filterStatus;
+    const matchCenter = filterCenter === 'all' || d.production_center_id === parseInt(filterCenter);
+    return matchStatus && matchCenter;
+  });
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-ES', {
@@ -113,8 +122,8 @@ export default function DocumentosIdentificacionPage() {
         <PageBreadCrumb pageTitle="Documentos de Identificación" />
 
         <div className="max-w-4xl mx-auto">
-          <Alert 
-            variant="warning" 
+          <Alert
+            variant="warning"
             title="Empresa no registrada"
             message="Antes de crear documentos de identificación, debes registrar los datos de tu empresa."
             showLink
@@ -179,6 +188,20 @@ export default function DocumentosIdentificacionPage() {
             >
               Completados ({documents.filter(d => d.estado === 'completado').length})
             </Button>
+          </div>
+
+          <div className="mt-4 pt-4 border-t flex flex-wrap items-center gap-4">
+            <label className="text-sm font-medium">Filtrar por Centro:</label>
+            <select
+              value={filterCenter}
+              onChange={(e) => setFilterCenter(e.target.value)}
+              className="text-sm border border-stroke dark:border-strokedark bg-transparent rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="all">Todos los centros</option>
+              {productionCenters.map(pc => (
+                <option key={pc.id} value={pc.id}>{pc.nombre}</option>
+              ))}
+            </select>
           </div>
         </ComponentCard>
 
@@ -248,6 +271,13 @@ export default function DocumentosIdentificacionPage() {
                             <span className="font-medium text-foreground">Gestor:</span>{' '}
                             {doc.gestor_razon_social}
                           </p>
+
+                          {doc.production_center && (
+                            <p>
+                              <span className="font-medium text-foreground">Centro de Origen:</span>{' '}
+                              <span className="text-primary font-medium">{doc.production_center.nombre}</span>
+                            </p>
+                          )}
 
                           {doc.fecha_recogida && (
                             <p>
