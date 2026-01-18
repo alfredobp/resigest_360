@@ -9,7 +9,8 @@ import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import wasteContractService from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
-import type { Company, WasteContractFormData } from '@/types/wasteManagement';
+import wasteTypeService from '@/services/wasteTypeService';
+import type { Company, WasteContractFormData, WasteType } from '@/types/wasteManagement';
 import DatePicker from '../form/date-picker';
 
 const TIPOS_CONTRATO = [
@@ -38,6 +39,7 @@ export default function NuevoContratoModal({
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showGestorForm, setShowGestorForm] = useState(false);
+  const [wasteTypes, setWasteTypes] = useState<WasteType[]>([]);
 
   const [formData, setFormData] = useState<WasteContractFormData>({
     company_id: myCompany.id,
@@ -68,10 +70,20 @@ export default function NuevoContratoModal({
   useEffect(() => {
     if (isOpen) {
       loadGestores();
+      loadWasteTypes();
       const numeroContrato = wasteContractService.generateContractNumber(myCompany.id);
       setFormData((prev) => ({ ...prev, numero_contrato: numeroContrato }));
     }
   }, [isOpen, myCompany.id]);
+
+  const loadWasteTypes = async () => {
+    try {
+      const data = await wasteTypeService.getAll();
+      setWasteTypes(data);
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
 
   const loadGestores = async () => {
     try {
@@ -153,7 +165,7 @@ export default function NuevoContratoModal({
 
     try {
       setSaving(true);
-      
+
       // Convertir cadenas vacías a undefined para campos de fecha y numéricos
       const cleanedData = {
         ...formData,
@@ -162,7 +174,7 @@ export default function NuevoContratoModal({
         cantidad_maxima_anual: formData.cantidad_maxima_anual || undefined,
         precio_unitario: formData.precio_unitario || undefined,
       };
-      
+
       await wasteContractService.create(cleanedData);
       onSuccess();
       handleClose();
@@ -199,7 +211,7 @@ export default function NuevoContratoModal({
   return (
     <Modal isOpen={isOpen} onClose={handleClose} className="max-w-5xl max-h-[90vh] overflow-y-auto p-8">
       <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Nuevo Contrato de Tratamiento</h2>
-      
+
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
           <Alert variant="error" title="Error" message={error} />
@@ -221,7 +233,7 @@ export default function NuevoContratoModal({
 
             <div>
               <label className="block text-sm font-medium mb-2">Fecha del Contrato *</label>
-              <DatePicker 
+              <DatePicker
                 id="fecha_contrato"
                 mode="single"
                 onChange={handleDateChange('fecha_contrato')}
@@ -231,7 +243,7 @@ export default function NuevoContratoModal({
 
             <div>
               <label className="block text-sm font-medium mb-2">Fecha de Inicio</label>
-               <DatePicker 
+              <DatePicker
                 id="fecha_inicio"
                 mode="single"
                 onChange={handleDateChange('fecha_inicio')}
@@ -241,13 +253,13 @@ export default function NuevoContratoModal({
 
             <div>
               <label className="block text-sm font-medium mb-2">Fecha de Fin</label>
-              <DatePicker 
+              <DatePicker
                 id="fecha_fin"
                 mode="single"
                 onChange={handleDateChange('fecha_fin')}
                 defaultDate={formData.fecha_fin ? new Date(formData.fecha_fin) : undefined}
               />
-             
+
             </div>
 
             <div>
@@ -297,7 +309,7 @@ export default function NuevoContratoModal({
         {/* Gestor / Destinatario */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-foreground">Gestor / Destinatario</h3>
-          
+
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">
               Buscar Gestor
@@ -411,13 +423,41 @@ export default function NuevoContratoModal({
         {/* Residuos y Condiciones */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-foreground">Residuos y Condiciones</h3>
-          
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Seleccionar Código LER (Opcional)</label>
+            <Select
+              options={[
+                { value: '', label: '-- Seleccionar Código LER --' },
+                ...wasteTypes.map(wt => ({
+                  value: wt.id.toString(),
+                  label: `${wt.codigo_ler} - ${wt.descripcion.substring(0, 50)}...`,
+                })),
+              ]}
+              defaultValue={''}
+              onChange={(value) => {
+                const wt = wasteTypes.find(w => w.id === parseInt(value));
+                if (wt) {
+                  setFormData(prev => {
+                    const currentDesc = prev.descripcion_residuos ? prev.descripcion_residuos + '\n' : '';
+                    return {
+                      ...prev,
+                      descripcion_residuos: currentDesc + `${wt.codigo_ler} - ${wt.descripcion}`,
+                      waste_type_ids: [...(prev.waste_type_ids || []), wt.id]
+                    };
+                  });
+                }
+              }}
+              placeholder="Añadir residuo de la lista oficial"
+            />
+          </div>
+
           <div>
             <label className="block text-sm font-medium mb-2">Descripción de Residuos</label>
             <TextArea
               value={formData.descripcion_residuos}
               onChange={(value) => setFormData(prev => ({ ...prev, descripcion_residuos: value }))}
-              rows={2}
+              rows={3}
               placeholder="Describe los tipos de residuos cubiertos por el contrato..."
             />
           </div>

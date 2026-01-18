@@ -258,45 +258,65 @@ export default function DetalleDocumentoIdentificacionPage() {
           </ComponentCard>
         )}
 
-        {/* Residuo */}
-        <ComponentCard title="Datos del Residuo">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Código LER</label>
-              <p className="text-foreground font-mono text-lg">{document.codigo_ler}</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Peligrosidad</label>
-              <Badge color={document.peligrosidad === 'peligroso' ? 'error' : 'success'}>
-                {document.peligrosidad === 'peligroso' ? 'Peligroso' : 'No Peligroso'}
-              </Badge>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-muted mb-1">Descripción</label>
-              <p className="text-foreground">{document.descripcion_residuo}</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Estado Físico</label>
-              <p className="text-foreground capitalize">{document.estado_fisico}</p>
-            </div>
-
-            {document.operacion_tratamiento && (
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">Operación de Tratamiento</label>
-                <p className="text-foreground">{document.operacion_tratamiento}</p>
-              </div>
-            )}
+        {/* Residuos (Múltiples) */}
+        <ComponentCard title="Residuos en el Documento">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs uppercase bg-muted/50 text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3">Código LER</th>
+                  <th className="px-4 py-3">Descripción</th>
+                  <th className="px-4 py-3 text-right">Cantidad</th>
+                  <th className="px-4 py-3">Peligrosidad</th>
+                  <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3">Op. Tratamiento</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-muted/20">
+                {(document.items && document.items.length > 0) ? (
+                  document.items.map((item, index) => (
+                    <tr key={index} className="hover:bg-muted/10 transition-colors">
+                      <td className="px-4 py-3 font-mono font-bold">{item.codigo_ler}</td>
+                      <td className="px-4 py-3 max-w-xs">{item.descripcion_residuo}</td>
+                      <td className="px-4 py-3 text-right font-semibold">
+                        {item.cantidad} {item.unidad}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge color={item.peligrosidad === 'peligroso' ? 'error' : 'success'}>
+                          {item.peligrosidad === 'peligroso' ? 'Peligroso' : 'No Peligroso'}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 capitalize">{item.estado_fisico}</td>
+                      <td className="px-4 py-3 font-mono">{item.operacion_tratamiento || '-'}</td>
+                    </tr>
+                  ))
+                ) : (
+                  // Mostrar el residuo principal por compatibilidad si no hay items
+                  <tr className="hover:bg-muted/10 transition-colors">
+                    <td className="px-4 py-3 font-mono font-bold">{document.codigo_ler}</td>
+                    <td className="px-4 py-3 max-w-xs">{document.descripcion_residuo}</td>
+                    <td className="px-4 py-3 text-right font-semibold">
+                      {document.cantidad} {document.unidad}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge color={document.peligrosidad === 'peligroso' ? 'error' : 'success'}>
+                        {document.peligrosidad === 'peligroso' ? 'Peligroso' : 'No Peligroso'}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 capitalize">{document.estado_fisico}</td>
+                    <td className="px-4 py-3 font-mono">{document.operacion_tratamiento || '-'}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </ComponentCard>
 
-        {/* Cantidad */}
-        <ComponentCard title="Cantidad y Envases">
+        {/* Cantidad Total y Envases */}
+        <ComponentCard title="Información Adicional">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-muted mb-1">Cantidad</label>
+              <label className="block text-sm font-medium text-muted mb-1">Cantidad Agregada</label>
               <p className="text-foreground text-2xl font-bold">
                 {document.cantidad} {document.unidad}
               </p>
@@ -304,7 +324,7 @@ export default function DetalleDocumentoIdentificacionPage() {
 
             {document.numero_envases && (
               <div>
-                <label className="block text-sm font-medium text-muted mb-1">Número de Envases</label>
+                <label className="block text-sm font-medium text-muted mb-1">Número de Envases Totales</label>
                 <p className="text-foreground">{document.numero_envases}</p>
               </div>
             )}

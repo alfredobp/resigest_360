@@ -254,27 +254,46 @@ function generateDataProductor(
   memoria: MemoriaAnual,
   documentos: IdentificationDocument[]
 ): EntradaMemoriaProductor[] {
-  return documentos.map(doc => ({
-    denominacion_proceso: 'Producción de residuos',
-    codigo_ler: doc.codigo_ler || '',
-    descripcion_residuo: doc.descripcion_residuo || '',
-    cantidad_toneladas: doc.cantidad || 0,
+  const entradas: EntradaMemoriaProductor[] = [];
 
-    // Destino (Gestor)
-    nima_destino: doc.gestor_nima,
-    nif_destino: doc.gestor_cif || '',
-    razon_social_destino: doc.gestor_razon_social || '',
-    nombre_centro_destino: doc.gestor_direccion || '',
-    tipo_inscripcion_destino: 'G01', // Gestor de residuos
-    codigo_operacion_rd: doc.operacion_tratamiento || '',
-    codigo_operacion_rd_4cifras: doc.operacion_tratamiento?.substring(0, 4),
-    provincia_destino: doc.gestor_provincia,
-    codigo_provincia_destino: undefined,
-    municipio_destino: doc.gestor_municipio,
-    pais_destino: 'España',
-    codigo_pais_destino: '108',
-    codigo_di: doc.numero_documento,
-  }));
+  documentos.forEach(doc => {
+    // Si tiene items, los usamos. Si no, usamos los datos principales por compatibilidad.
+    const items = (doc.items && doc.items.length > 0)
+      ? doc.items
+      : [{
+        codigo_ler: doc.codigo_ler,
+        descripcion_residuo: doc.descripcion_residuo,
+        cantidad: doc.cantidad,
+        unidad: doc.unidad,
+        operacion_tratamiento: doc.operacion_tratamiento
+      }];
+
+    items.forEach(item => {
+      entradas.push({
+        denominacion_proceso: 'Producción de residuos',
+        codigo_ler: item.codigo_ler || '',
+        descripcion_residuo: item.descripcion_residuo || '',
+        cantidad_toneladas: item.cantidad || 0,
+
+        // Destino (Gestor)
+        nima_destino: doc.gestor_nima,
+        nif_destino: doc.gestor_cif || '',
+        razon_social_destino: doc.gestor_razon_social || '',
+        nombre_centro_destino: doc.gestor_direccion || '',
+        tipo_inscripcion_destino: 'G01',
+        codigo_operacion_rd: item.operacion_tratamiento || '',
+        codigo_operacion_rd_4cifras: item.operacion_tratamiento?.substring(0, 4),
+        provincia_destino: doc.gestor_provincia,
+        codigo_provincia_destino: undefined,
+        municipio_destino: doc.gestor_municipio,
+        pais_destino: 'España',
+        codigo_pais_destino: '108',
+        codigo_di: doc.numero_documento,
+      });
+    });
+  });
+
+  return entradas;
 }
 
 // =====================================================
@@ -490,22 +509,33 @@ function calculateResumenLER(documentos: IdentificationDocument[]): ResumenLER[]
   const resumenMap = new Map<string, ResumenLER>();
 
   documentos.forEach(doc => {
-    const codigo_ler = doc.codigo_ler || '';
-    const descripcion = doc.descripcion_residuo || '';
-    const cantidad = doc.cantidad || 0;
+    // Procesar cada item si existen, si no el principal
+    const items = (doc.items && doc.items.length > 0)
+      ? doc.items
+      : [{
+        codigo_ler: doc.codigo_ler,
+        descripcion_residuo: doc.descripcion_residuo,
+        cantidad: doc.cantidad
+      }];
 
-    if (resumenMap.has(codigo_ler)) {
-      const existing = resumenMap.get(codigo_ler)!;
-      existing.cantidad_total += cantidad;
-      existing.numero_movimientos += 1;
-    } else {
-      resumenMap.set(codigo_ler, {
-        codigo_ler,
-        descripcion,
-        cantidad_total: cantidad,
-        numero_movimientos: 1,
-      });
-    }
+    items.forEach(item => {
+      const codigo_ler = item.codigo_ler || '';
+      const descripcion = item.descripcion_residuo || '';
+      const cantidad = item.cantidad || 0;
+
+      if (resumenMap.has(codigo_ler)) {
+        const existing = resumenMap.get(codigo_ler)!;
+        existing.cantidad_total += cantidad;
+        existing.numero_movimientos += 1;
+      } else {
+        resumenMap.set(codigo_ler, {
+          codigo_ler,
+          descripcion,
+          cantidad_total: cantidad,
+          numero_movimientos: 1,
+        });
+      }
+    });
   });
 
   return Array.from(resumenMap.values());

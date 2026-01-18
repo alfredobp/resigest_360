@@ -13,8 +13,10 @@ import identificationDocumentService from '@/services/identificationDocumentServ
 import companyService from '@/services/companyService';
 import wasteContractService from '@/services/wasteContractService';
 import productionCenterService from '@/services/productionCenterService';
-import type { IdentificationDocument, Company, WasteContract, ProductionCenter } from '@/types/wasteManagement';
+import wasteTypeService from '@/services/wasteTypeService';
+import type { IdentificationDocument, Company, WasteContract, ProductionCenter, WasteType, IdentificationDocumentItem } from '@/types/wasteManagement';
 import DatePicker from '@/components/form/date-picker';
+import { Plus, Trash2 } from 'lucide-react';
 
 export default function NuevoDocumentoIdentificacionPage() {
   const router = useRouter();
@@ -26,6 +28,7 @@ export default function NuevoDocumentoIdentificacionPage() {
   const [contracts, setContracts] = useState<WasteContract[]>([]);
   const [gestores, setGestores] = useState<Company[]>([]);
   const [transportistas, setTransportistas] = useState<Company[]>([]);
+  const [wasteTypes, setWasteTypes] = useState<WasteType[]>([]);
 
   const [formData, setFormData] = useState<Partial<IdentificationDocument>>({
     tipo_notificacion: 'sin-notificacion',
@@ -37,6 +40,13 @@ export default function NuevoDocumentoIdentificacionPage() {
     firmado_productor: false,
     firmado_gestor: false,
     firmado_transportista: false,
+    items: [],
+  });
+
+  const [currentItem, setCurrentItem] = useState<Partial<IdentificationDocumentItem>>({
+    unidad: 'kg',
+    estado_fisico: 'solido',
+    peligrosidad: 'no-peligroso',
   });
 
   useEffect(() => {
@@ -78,6 +88,10 @@ export default function NuevoDocumentoIdentificacionPage() {
       const transportistasData = await companyService.getByType('transportista');
       setGestores(gestoresData);
       setTransportistas(transportistasData);
+
+      // Cargar tipos de residuos (LER)
+      const wasteTypesData = await wasteTypeService.getAll();
+      setWasteTypes(wasteTypesData);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -134,6 +148,74 @@ export default function NuevoDocumentoIdentificacionPage() {
     }
   };
 
+  const addResidue = () => {
+    if (!currentItem.codigo_ler || !currentItem.cantidad) {
+      alert('Completa el código LER y la cantidad');
+      return;
+    }
+
+    const newItem: IdentificationDocumentItem = {
+      codigo_ler: currentItem.codigo_ler!,
+      descripcion_residuo: currentItem.descripcion_residuo || '',
+      cantidad: currentItem.cantidad!,
+      unidad: currentItem.unidad as any || 'kg',
+      peligrosidad: currentItem.peligrosidad as any || 'no-peligroso',
+      estado_fisico: currentItem.estado_fisico as any || 'solido',
+      operacion_tratamiento: currentItem.operacion_tratamiento,
+      waste_type_id: currentItem.waste_type_id,
+      numero_envases: currentItem.numero_envases,
+      tipo_envases: currentItem.tipo_envases,
+    };
+
+    setFormData(prev => {
+      const currentItems = prev.items || [];
+      const newItems = [...currentItems, newItem];
+
+      return {
+        ...prev,
+        items: newItems,
+        // Poblar campos principales con el primer item por compatibilidad
+        ...(currentItems.length === 0 ? {
+          codigo_ler: newItem.codigo_ler,
+          descripcion_residuo: newItem.descripcion_residuo,
+          cantidad: newItem.cantidad,
+          unidad: newItem.unidad,
+          peligrosidad: newItem.peligrosidad,
+          estado_fisico: newItem.estado_fisico,
+          waste_type_id: newItem.waste_type_id,
+          operacion_tratamiento: newItem.operacion_tratamiento,
+        } : {})
+      };
+    });
+
+    setCurrentItem({
+      unidad: 'kg',
+      estado_fisico: 'solido',
+      peligrosidad: 'no-peligroso',
+    });
+  };
+
+  const removeResidue = (index: number) => {
+    setFormData(prev => {
+      const newItems = prev.items?.filter((_, i) => i !== index) || [];
+      return {
+        ...prev,
+        items: newItems,
+        // Si borramos el primero, actualizar los campos principales con el nuevo primero si existe
+        ...(index === 0 ? {
+          codigo_ler: newItems[0]?.codigo_ler || '',
+          descripcion_residuo: newItems[0]?.descripcion_residuo || '',
+          cantidad: newItems[0]?.cantidad || 0,
+          unidad: newItems[0]?.unidad || 'kg',
+          peligrosidad: newItems[0]?.peligrosidad || 'no-peligroso',
+          estado_fisico: newItems[0]?.estado_fisico || 'solido',
+          waste_type_id: newItems[0]?.waste_type_id,
+          operacion_tratamiento: newItems[0]?.operacion_tratamiento,
+        } : {})
+      };
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -148,13 +230,8 @@ export default function NuevoDocumentoIdentificacionPage() {
       return;
     }
 
-    if (!formData.codigo_ler || !formData.descripcion_residuo) {
-      setError('Los datos del residuo son obligatorios');
-      return;
-    }
-
-    if (!formData.cantidad || formData.cantidad <= 0) {
-      setError('La cantidad debe ser mayor que 0');
+    if (!formData.items || formData.items.length === 0) {
+      setError('Debes añadir al menos un residuo al documento');
       return;
     }
 
@@ -397,126 +474,152 @@ export default function NuevoDocumentoIdentificacionPage() {
             </div>
           </ComponentCard>
 
-          {/* Datos del Residuo */}
-          <ComponentCard title="Datos del Residuo">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="codigo_ler" className="block text-sm font-medium mb-2">Código LER *</label>
-                <Input
-                  id="codigo_ler"
-                  type="text"
-                  value={formData.codigo_ler || ''}
-                  onChange={(e) => setFormData({ ...formData, codigo_ler: e.target.value })}
-                  placeholder="Ej: 160106"
-                  required
-                />
+          {/* Sección de Residuos (Múltiples) */}
+          <ComponentCard title="Residuos en este Documento">
+            <div className="space-y-6">
+              {/* Selector de nuevo residuo */}
+              <div className="bg-muted/30 p-4 rounded-xl border border-dashed border-muted-foreground/30">
+                <h4 className="text-sm font-semibold mb-4 text-primary">Añadir Residuo</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium mb-1">Código LER *</label>
+                    <Select
+                      options={[
+                        { value: '', label: '-- Seleccionar LER --' },
+                        ...wasteTypes.map(wt => ({
+                          value: wt.id.toString(),
+                          label: `${wt.codigo_ler} - ${wt.descripcion.substring(0, 40)}...`,
+                        })),
+                      ]}
+                      defaultValue={wasteTypes.find(wt => wt.codigo_ler === currentItem.codigo_ler)?.id.toString() || ''}
+                      onChange={(value) => {
+                        const wt = wasteTypes.find(w => w.id === parseInt(value));
+                        if (wt) {
+                          setCurrentItem({
+                            ...currentItem,
+                            waste_type_id: wt.id,
+                            codigo_ler: wt.codigo_ler,
+                            descripcion_residuo: wt.descripcion,
+                            peligrosidad: wt.categoria,
+                            estado_fisico: wt.estado,
+                            operacion_tratamiento: wt.operaciones_permitidas?.[0] || '',
+                          });
+                        }
+                      }}
+                      placeholder="Busca el residuo..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium mb-1">Cantidad *</label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        step={0.001}
+                        value={currentItem.cantidad || ''}
+                        onChange={(e) => setCurrentItem({ ...currentItem, cantidad: parseFloat(e.target.value) })}
+                        placeholder="0.000"
+                        className="flex-1"
+                      />
+                      <select
+                        value={currentItem.unidad || 'kg'}
+                        onChange={(e) => setCurrentItem({ ...currentItem, unidad: e.target.value as any })}
+                        className="w-24 h-11 text-sm rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-900"
+                      >
+                        <option value="kg">kg</option>
+                        <option value="toneladas">t</option>
+                        <option value="litros">L</option>
+                        <option value="m3">m³</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      onClick={addResidue}
+                      className="w-full"
+                      variant="primary"
+                    >
+                      <Plus className="w-4 h-4 mr-2" /> Añadir a la Lista
+                    </Button>
+                  </div>
+                </div>
+
+                {currentItem.codigo_ler && (
+                  <div className="mt-3 text-xs text-muted-foreground p-2 bg-white/50 dark:bg-black/20 rounded border border-muted/20">
+                    <p><strong>Descripción:</strong> {currentItem.descripcion_residuo}</p>
+                    <div className="flex gap-4 mt-1">
+                      <span><strong>Peligrosidad:</strong> {currentItem.peligrosidad}</span>
+                      <span><strong>Estado:</strong> {currentItem.estado_fisico}</span>
+                      <span><strong>Op. Tratamiento:</strong> {currentItem.operacion_tratamiento}</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label htmlFor="peligrosidad" className="block text-sm font-medium mb-2">Peligrosidad *</label>
-                <Select
-                  options={[
-                    { value: 'no-peligroso', label: 'No Peligroso' },
-                    { value: 'peligroso', label: 'Peligroso' },
-                  ]}
-                  defaultValue={formData.peligrosidad}
-                  onChange={(value) => setFormData({ ...formData, peligrosidad: value as any })}
-                  placeholder="Selecciona una opción"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label htmlFor="descripcion_residuo" className="block text-sm font-medium mb-2">Descripción del Residuo *</label>
-                <TextArea
-                  value={formData.descripcion_residuo || ''}
-                  onChange={(value) => setFormData({ ...formData, descripcion_residuo: value })}
-                  rows={2}
-                  placeholder="Describe el tipo de residuo..."
-                />
-              </div>
-
-              <div>
-                <label htmlFor="estado_fisico" className="block text-sm font-medium mb-2">Estado Físico *</label>
-                <Select
-                  options={[
-                    { value: 'solido', label: 'Sólido' },
-                    { value: 'liquido', label: 'Líquido' },
-                    { value: 'pastoso', label: 'Pastoso' },
-                    { value: 'gaseoso', label: 'Gaseoso' },
-                  ]}
-                  defaultValue={formData.estado_fisico}
-                  onChange={(value) => setFormData({ ...formData, estado_fisico: value as any })}
-                  placeholder="Selecciona una opción"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="operacion_tratamiento" className="block text-sm font-medium mb-2">Operación de Tratamiento</label>
-                <Input
-                  id="operacion_tratamiento"
-                  type="text"
-                  value={formData.operacion_tratamiento || ''}
-                  onChange={(e) => setFormData({ ...formData, operacion_tratamiento: e.target.value })}
-                  placeholder="Ej: R05, D01"
-                />
+              {/* Lista de residuos añadidos */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs uppercase bg-muted/50 text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3">Residuo (LER)</th>
+                      <th className="px-4 py-3 text-right">Cantidad</th>
+                      <th className="px-4 py-3">Peligrosidad</th>
+                      <th className="px-4 py-3">Op. Tratamiento</th>
+                      <th className="px-4 py-3">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-muted/20">
+                    {formData.items && formData.items.length > 0 ? (
+                      formData.items.map((item, index) => (
+                        <tr key={index} className="hover:bg-muted/10 transition-colors">
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-foreground">{item.codigo_ler}</p>
+                            <p className="text-xs text-muted-foreground truncate max-w-xs">{item.descripcion_residuo}</p>
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold">
+                            {item.cantidad} {item.unidad}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${item.peligrosidad === 'peligroso'
+                              ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                              : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                              }`}>
+                              {item.peligrosidad}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">{item.operacion_tratamiento || '-'}</td>
+                          <td className="px-4 py-3">
+                            <button
+                              type="button"
+                              onClick={() => removeResidue(index)}
+                              className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              title="Eliminar residuo"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground italic">
+                          No has añadido ningún residuo todavía. Utiliza el formulario superior.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </ComponentCard>
 
-          {/* Cantidad y Envases */}
-          <ComponentCard title="Cantidad y Envases">
+          {/* Fechas y Otros Datos */}
+          <ComponentCard title="Fechas y Logística">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="cantidad" className="block text-sm font-medium mb-2">Cantidad *</label>
-                <Input
-                  id="cantidad"
-                  type="number"
-                  step={0.001}
-                  value={formData.cantidad || ''}
-                  onChange={(e) => setFormData({ ...formData, cantidad: parseFloat(e.target.value) })}
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="unidad" className="block text-sm font-medium mb-2">Unidad *</label>
-                <Select
-                  options={[
-                    { value: 'kg', label: 'Kilogramos (kg)' },
-                    { value: 'toneladas', label: 'Toneladas' },
-                    { value: 'litros', label: 'Litros' },
-                    { value: 'm3', label: 'Metros cúbicos (m³)' },
-                    { value: 'unidades', label: 'Unidades' },
-                  ]}
-                  defaultValue={formData.unidad}
-                  onChange={(value) => setFormData({ ...formData, unidad: value as any })}
-                  placeholder="Selecciona una opción"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="numero_envases" className="block text-sm font-medium mb-2">Número de Envases</label>
-                <Input
-                  id="numero_envases"
-                  type="number"
-                  value={formData.numero_envases || ''}
-                  onChange={(e) => setFormData({ ...formData, numero_envases: parseInt(e.target.value) })}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="tipo_envases" className="block text-sm font-medium mb-2">Tipo de Envases</label>
-                <Input
-                  id="tipo_envases"
-                  type="text"
-                  value={formData.tipo_envases || ''}
-                  onChange={(e) => setFormData({ ...formData, tipo_envases: e.target.value })}
-                  placeholder="Ej: Contenedor 1000L, Big Bag, Bidón"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="fecha_recogida" className="block text-sm font-medium mb-2">Fecha de Recogida</label>
+                <label htmlFor="fecha_recogida" className="block text-sm font-medium mb-2">Fecha de RecogidaEstimada</label>
                 <DatePicker
                   id="fecha_recogida"
                   defaultDate={formData.fecha_recogida || ''}
@@ -525,7 +628,7 @@ export default function NuevoDocumentoIdentificacionPage() {
               </div>
 
               <div>
-                <label htmlFor="fecha_entrega" className="block text-sm font-medium mb-2">Fecha de Entrega</label>
+                <label htmlFor="fecha_entrega" className="block text-sm font-medium mb-2">Fecha de Entrega Estimada</label>
                 <DatePicker
                   id="fecha_entrega"
                   defaultDate={formData.fecha_entrega || ''}
