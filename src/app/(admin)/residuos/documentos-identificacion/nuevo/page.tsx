@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { siraValidationSchema } from '@/lib/validations/sira'; // IMPORT AÑADIDO
+import { z } from 'zod'; // IMPORT AÑADIDO
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
@@ -22,6 +24,7 @@ export default function NuevoDocumentoIdentificacionPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({}); // ESTADO AÑADIDO
   const [myCompany, setMyCompany] = useState<Company | null>(null);
   const [productionCenters, setProductionCenters] = useState<ProductionCenter[]>([]);
   const [contracts, setContracts] = useState<WasteContract[]>([]);
@@ -144,26 +147,37 @@ export default function NuevoDocumentoIdentificacionPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setValidationErrors({});
 
-    // Validaciones
-    if (!formData.production_center_id) {
-      setError('Debes seleccionar un centro de producción');
-      return;
-    }
-    if (!formData.gestor_razon_social || !formData.gestor_cif) {
-      setError('Los datos del gestor son obligatorios');
+    // VALIDACIÓN CON ZOD para SIRA
+    const validationResult = siraValidationSchema.safeParse(formData);
+
+    if (!validationResult.success) {
+      // Extraemos los errores
+      const formattedErrors: Record<string, string> = {};
+      let firstErrorMessage = '';
+
+      validationResult.error.issues.forEach((err: z.ZodIssue) => {
+        // Guardamos el primer mensaje para mostrarlo arriba, incluyendo qué campo es
+        if (!firstErrorMessage) {
+          const fieldName = err.path[0] || 'Desconocido';
+          // Mapeo amigable de nombres técnicos a humanos si quieres, o directo
+          firstErrorMessage = `${err.message} (Campo: ${fieldName})`;
+        }
+        if (err.path[0]) {
+          formattedErrors[err.path[0].toString()] = err.message;
+        }
+      });
+
+      setValidationErrors(formattedErrors);
+      setError(`Error de validación: ${firstErrorMessage}`);
+      // Hacemos scroll arriba si hay error
+      window.scrollTo(0, 0);
       return;
     }
 
-    if (!formData.codigo_ler || !formData.descripcion_residuo) {
-      setError('Los datos del residuo son obligatorios');
-      return;
-    }
-
-    if (!formData.cantidad || formData.cantidad <= 0) {
-      setError('La cantidad debe ser mayor que 0');
-      return;
-    }
+    // Datos validados y listos
+    const dataToSubmit = validationResult.data;
 
     try {
       setSaving(true);
@@ -203,7 +217,7 @@ export default function NuevoDocumentoIdentificacionPage() {
           <Alert variant="error" title="Error" message={error} />
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6" noValidate>
           {/* Datos del Documento */}
           <ComponentCard title="Datos del Documento">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -248,13 +262,14 @@ export default function NuevoDocumentoIdentificacionPage() {
                         production_center_id: center.id,
                         productor_nima: center.nima,
                         productor_direccion: center.direccion,
-                        // El resto de campos se pueden mantener de la empresa o dejar vacíos
                       });
                     } else {
                       setFormData({ ...formData, production_center_id: undefined });
                     }
                   }}
                   placeholder="Selecciona el origen del residuo"
+                  error={!!validationErrors.production_center_id}
+                  hint={validationErrors.production_center_id}
                 />
               </div>
 
@@ -276,13 +291,70 @@ export default function NuevoDocumentoIdentificacionPage() {
             </div>
           </ComponentCard>
 
-          {/* Productor (Pre-rellenado) */}
           <ComponentCard title="Productor / Origen">
-            <div className="bg-muted/30 p-4 rounded-lg space-y-2 text-sm">
-              <p><strong>Razón Social:</strong> {formData.productor_razon_social}</p>
-              <p><strong>CIF:</strong> {formData.productor_cif}</p>
-              {formData.productor_nima && <p><strong>NIMA:</strong> {formData.productor_nima}</p>}
-              {formData.productor_direccion && <p><strong>Dirección:</strong> {formData.productor_direccion}</p>}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Razón Social</label>
+                <Input value={formData.productor_razon_social || ''} disabled className="bg-muted" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">CIF</label>
+                <Input value={formData.productor_cif || ''} disabled className="bg-muted" />
+              </div>
+
+              <div>
+                <label htmlFor="productor_nima" className="block text-sm font-medium mb-2">NIMA *</label>
+                <Input
+                  id="productor_nima"
+                  value={formData.productor_nima || ''}
+                  onChange={(e) => setFormData({ ...formData, productor_nima: e.target.value })}
+                  error={!!validationErrors.productor_nima}
+                  hint={validationErrors.productor_nima}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="productor_direccion" className="block text-sm font-medium mb-2">Dirección *</label>
+                <Input
+                  id="productor_direccion"
+                  value={formData.productor_direccion || ''}
+                  onChange={(e) => setFormData({ ...formData, productor_direccion: e.target.value })}
+                  placeholder="Calle, número..."
+                  error={!!validationErrors.productor_direccion}
+                  hint={validationErrors.productor_direccion}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="productor_municipio" className="block text-sm font-medium mb-2">Municipio *</label>
+                <Input
+                  id="productor_municipio"
+                  value={formData.productor_municipio || ''}
+                  onChange={(e) => setFormData({ ...formData, productor_municipio: e.target.value })}
+                  error={!!validationErrors.productor_municipio}
+                  hint={validationErrors.productor_municipio}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="productor_provincia" className="block text-sm font-medium mb-2">Provincia *</label>
+                <Input
+                  id="productor_provincia"
+                  value={formData.productor_provincia || ''}
+                  onChange={(e) => setFormData({ ...formData, productor_provincia: e.target.value })}
+                  error={!!validationErrors.productor_provincia}
+                  hint={validationErrors.productor_provincia}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="productor_codigo_postal" className="block text-sm font-medium mb-2">Código Postal</label>
+                <Input
+                  id="productor_codigo_postal"
+                  value={formData.productor_codigo_postal || ''}
+                  onChange={(e) => setFormData({ ...formData, productor_codigo_postal: e.target.value })}
+                />
+              </div>
             </div>
           </ComponentCard>
 
@@ -325,6 +397,8 @@ export default function NuevoDocumentoIdentificacionPage() {
                     value={formData.gestor_cif || ''}
                     onChange={(e) => setFormData({ ...formData, gestor_cif: e.target.value })}
                     required
+                    error={!!validationErrors.gestor_cif}
+                    hint={validationErrors.gestor_cif}
                   />
                 </div>
 
@@ -345,6 +419,49 @@ export default function NuevoDocumentoIdentificacionPage() {
                     type="text"
                     value={formData.gestor_numero_autorizacion || ''}
                     onChange={(e) => setFormData({ ...formData, gestor_numero_autorizacion: e.target.value })}
+                  />
+                </div>
+
+                {/* Campos de Dirección del Gestor (Requeridos SIRA) */}
+                <div>
+                  <label htmlFor="gestor_direccion" className="block text-sm font-medium mb-2">Dirección *</label>
+                  <Input
+                    id="gestor_direccion"
+                    value={formData.gestor_direccion || ''}
+                    onChange={(e) => setFormData({ ...formData, gestor_direccion: e.target.value })}
+                    error={!!validationErrors.gestor_direccion}
+                    hint={validationErrors.gestor_direccion}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="gestor_municipio" className="block text-sm font-medium mb-2">Municipio *</label>
+                  <Input
+                    id="gestor_municipio"
+                    value={formData.gestor_municipio || ''}
+                    onChange={(e) => setFormData({ ...formData, gestor_municipio: e.target.value })}
+                    error={!!validationErrors.gestor_municipio}
+                    hint={validationErrors.gestor_municipio}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="gestor_provincia" className="block text-sm font-medium mb-2">Provincia *</label>
+                  <Input
+                    id="gestor_provincia"
+                    value={formData.gestor_provincia || ''}
+                    onChange={(e) => setFormData({ ...formData, gestor_provincia: e.target.value })}
+                    error={!!validationErrors.gestor_provincia}
+                    hint={validationErrors.gestor_provincia}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="gestor_codigo_postal" className="block text-sm font-medium mb-2">CP</label>
+                  <Input
+                    id="gestor_codigo_postal"
+                    value={formData.gestor_codigo_postal || ''}
+                    onChange={(e) => setFormData({ ...formData, gestor_codigo_postal: e.target.value })}
                   />
                 </div>
               </div>
@@ -401,6 +518,70 @@ export default function NuevoDocumentoIdentificacionPage() {
                   />
                 </div>
               </div>
+
+              {/* Datos adicionales de dirección requeridos por SIRA */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 bg-muted/10 p-4 border rounded-md">
+                <div className="md:col-span-2 flex items-center gap-2 mb-2">
+                  <span className="text-xs font-bold uppercase text-primary/80 tracking-wider">Datos para SIRA (Requeridos)</span>
+                  <div className="h-px flex-1 bg-border"></div>
+                </div>
+
+                <div>
+                  <label htmlFor="transportista_nima" className="block text-sm font-medium mb-2">NIMA Transportista *</label>
+                  <Input
+                    id="transportista_nima"
+                    type="text"
+                    value={formData.transportista_nima || ''}
+                    onChange={(e) => setFormData({ ...formData, transportista_nima: e.target.value })}
+                    placeholder="NIMA..."
+                    error={!!validationErrors.transportista_nima}
+                    hint={validationErrors.transportista_nima}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="transportista_direccion" className="block text-sm font-medium mb-2">Dirección</label>
+                  <Input
+                    id="transportista_direccion"
+                    type="text"
+                    value={formData.transportista_direccion || ''}
+                    onChange={(e) => setFormData({ ...formData, transportista_direccion: e.target.value })}
+                    placeholder="Calle y número"
+                    error={!!validationErrors.transportista_direccion}
+                    hint={validationErrors.transportista_direccion}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="transportista_municipio" className="block text-sm font-medium mb-2">Municipio</label>
+                  <Input
+                    id="transportista_municipio"
+                    type="text"
+                    value={formData.transportista_municipio || ''}
+                    onChange={(e) => setFormData({ ...formData, transportista_municipio: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="transportista_provincia" className="block text-sm font-medium mb-2">Provincia</label>
+                  <Input
+                    id="transportista_provincia"
+                    type="text"
+                    value={formData.transportista_provincia || ''}
+                    onChange={(e) => setFormData({ ...formData, transportista_provincia: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="transportista_codigo_postal" className="block text-sm font-medium mb-2">CP</label>
+                  <Input
+                    id="transportista_codigo_postal"
+                    type="text"
+                    value={formData.transportista_codigo_postal || ''}
+                    onChange={(e) => setFormData({ ...formData, transportista_codigo_postal: e.target.value })}
+                  />
+                </div>
+              </div>
             </div>
           </ComponentCard>
 
@@ -433,6 +614,8 @@ export default function NuevoDocumentoIdentificacionPage() {
                     }
                   }}
                   placeholder="Selecciona según la lista europea"
+                  error={!!validationErrors.codigo_ler}
+                  hint={validationErrors.codigo_ler}
                 />
               </div>
 
@@ -499,6 +682,8 @@ export default function NuevoDocumentoIdentificacionPage() {
                   value={formData.cantidad || ''}
                   onChange={(e) => setFormData({ ...formData, cantidad: parseFloat(e.target.value) })}
                   required
+                  error={!!validationErrors.cantidad}
+                  hint={validationErrors.cantidad}
                 />
               </div>
 
@@ -515,6 +700,8 @@ export default function NuevoDocumentoIdentificacionPage() {
                   defaultValue={formData.unidad}
                   onChange={(value) => setFormData({ ...formData, unidad: value as any })}
                   placeholder="Selecciona una opción"
+                  error={!!validationErrors.unidad}
+                  hint={validationErrors.unidad}
                 />
               </div>
 

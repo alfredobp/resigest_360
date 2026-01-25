@@ -238,7 +238,12 @@ export interface IdentificationDocument {
   // Transportista
   transportista_razon_social?: string;
   transportista_cif?: string;
+  transportista_nima?: string;
   transportista_matricula?: string;
+  transportista_direccion?: string;
+  transportista_codigo_postal?: string;
+  transportista_municipio?: string;
+  transportista_provincia?: string;
   transportista_telefono?: string;
 
   // Residuo
