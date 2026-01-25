@@ -95,32 +95,53 @@ export function generateContractPDF(contract: WasteContract) {
   }
 
   // Columna Derecha / Siguiente: Gestor
-  if (contract.gestor_company) {
+  const gestorData = contract.treatment_manager || contract.gestor_company;
+
+  if (gestorData) {
     yPos = drawSectionHeader('DATOS DEL GESTOR (DESTINATARIO)', yPos);
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text('Razón Social:', 25, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(contract.gestor_company.razon_social, 60, yPos);
+    doc.text(gestorData.razon_social, 60, yPos);
     yPos += 7;
 
     doc.setFont('helvetica', 'bold');
     doc.text('CIF / NIF:', 25, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(contract.gestor_company.cif || '-', 60, yPos);
+    doc.text(gestorData.cif || '-', 60, yPos);
     yPos += 7;
 
     doc.setFont('helvetica', 'bold');
     doc.text('NIMA:', 25, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(contract.gestor_company.nima || '-', 60, yPos);
+    doc.text(gestorData.nima || '-', 60, yPos);
     yPos += 7;
+
+    if ('numero_autorizacion' in gestorData && gestorData.numero_autorizacion) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Nº Autorización:', 25, yPos);
+      doc.setFont('helvetica', 'normal');
+      doc.text(gestorData.numero_autorizacion, 60, yPos);
+      yPos += 7;
+    } else if ('numero_inscripcion' in gestorData && gestorData.numero_inscripcion) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Nº Inscripción:', 25, yPos);
+      doc.setFont('helvetica', 'normal');
+      doc.text(gestorData.numero_inscripcion, 60, yPos);
+      yPos += 7;
+    }
 
     doc.setFont('helvetica', 'bold');
     doc.text('Domicilio:', 25, yPos);
     doc.setFont('helvetica', 'normal');
-    const dirGestor = doc.splitTextToSize(`${contract.gestor_company.domicilio_social || '-'}, ${contract.gestor_company.municipio_social || ''}`, 120);
+
+    // Support both 'direccion' (TreatmentManager) and 'domicilio_social' (Company)
+    const address = 'direccion' in gestorData ? gestorData.direccion : gestorData.domicilio_social;
+    const municipio = 'municipio' in gestorData ? gestorData.municipio : gestorData.municipio_social;
+
+    const dirGestor = doc.splitTextToSize(`${address || '-'}, ${municipio || ''}`, 120);
     doc.text(dirGestor, 60, yPos);
     yPos += (dirGestor.length * 5) + 5;
   }

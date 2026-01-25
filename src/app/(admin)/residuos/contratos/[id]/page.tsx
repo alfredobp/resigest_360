@@ -197,7 +197,30 @@ export default function ContractDetailPage() {
             {/* Gestor */}
             <div>
               <h4 className="font-semibold text-foreground mb-3">Gestor</h4>
-              {contract.gestor_company ? (
+              {contract.treatment_manager ? (
+                <div className="space-y-2 text-sm">
+                  <p>
+                    <span className="text-muted">Razón Social:</span>{' '}
+                    <span className="text-foreground">{contract.treatment_manager.razon_social}</span>
+                  </p>
+                  <p>
+                    <span className="text-muted">CIF:</span>{' '}
+                    <span className="text-foreground">{contract.treatment_manager.cif}</span>
+                  </p>
+                  {contract.treatment_manager.nima && (
+                    <p>
+                      <span className="text-muted">NIMA:</span>{' '}
+                      <span className="text-foreground">{contract.treatment_manager.nima}</span>
+                    </p>
+                  )}
+                  {contract.treatment_manager.numero_autorizacion && (
+                    <p>
+                      <span className="text-muted">Autorización:</span>{' '}
+                      <span className="text-foreground">{contract.treatment_manager.numero_autorizacion}</span>
+                    </p>
+                  )}
+                </div>
+              ) : contract.gestor_company ? (
                 <div className="space-y-2 text-sm">
                   <p>
                     <span className="text-muted">Razón Social:</span>{' '}

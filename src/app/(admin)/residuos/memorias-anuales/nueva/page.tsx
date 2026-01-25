@@ -85,6 +85,8 @@ export default function NuevaMemoriaPage() {
       setLoading(true);
       setError(null);
 
+      const selectedCenter = productionCenters.find(c => c.id === productionCenterId);
+
       const data: CreateMemoriaData = {
         company_id: userCompany.id,
         tipo_memoria: tipoMemoria,
@@ -92,9 +94,9 @@ export default function NuevaMemoriaPage() {
         production_center_id: productionCenterId as number,
         nombre_empresa: userCompany.razon_social,
         nif_empresa: userCompany.cif,
-        nombre_centro: productionCenters.find(c => c.id === productionCenterId)?.nombre || userCompany.nombre_comercial,
-        municipio_centro: userCompany.municipio_instalacion || userCompany.municipio_social,
-        nima: productionCenters.find(c => c.id === productionCenterId)?.nima || userCompany.nima,
+        nombre_centro: selectedCenter?.nombre || userCompany.nombre_comercial,
+        municipio_centro: selectedCenter?.municipio || userCompany.municipio_instalacion || userCompany.municipio_social,
+        nima: selectedCenter?.nima || userCompany.nima,
         observaciones,
       };
 

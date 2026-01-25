@@ -37,6 +37,9 @@ export default function MiEmpresaPage() {
     nombre: '',
     direccion: '',
     nima: '',
+    municipio: '',
+    provincia: '',
+    codigo_postal: '',
     descripcion: '',
   });
 
@@ -171,7 +174,7 @@ export default function MiEmpresaPage() {
       });
 
       setSuccess('Centro de producción añadido correctamente');
-      setCenterFormData({ nombre: '', direccion: '', nima: '', descripcion: '' });
+      setCenterFormData({ nombre: '', direccion: '', nima: '', municipio: '', provincia: '', codigo_postal: '', descripcion: '' });
       setShowCenterForm(false);
 
       // Recargar centros
@@ -573,8 +576,34 @@ export default function MiEmpresaPage() {
                       <Input
                         value={centerFormData.direccion}
                         onChange={(e) => setCenterFormData({ ...centerFormData, direccion: e.target.value })}
-                        placeholder="Calle, número, municipio"
+                        placeholder="Calle, número..."
                         required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Municipio *</label>
+                      <Input
+                        value={centerFormData.municipio}
+                        onChange={(e) => setCenterFormData({ ...centerFormData, municipio: e.target.value })}
+                        placeholder="Ej: Sevilla"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Provincia *</label>
+                      <Input
+                        value={centerFormData.provincia}
+                        onChange={(e) => setCenterFormData({ ...centerFormData, provincia: e.target.value })}
+                        placeholder="Ej: Sevilla"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Código Postal</label>
+                      <Input
+                        value={centerFormData.codigo_postal}
+                        onChange={(e) => setCenterFormData({ ...centerFormData, codigo_postal: e.target.value })}
+                        placeholder="Ej: 41001"
                       />
                     </div>
                     <div className="md:col-span-2">
@@ -608,7 +637,12 @@ export default function MiEmpresaPage() {
                         <div>
                           <h3 className="font-bold text-lg text-foreground">{center.nombre}</h3>
                           <p className="text-sm text-primary font-medium mt-1">NIMA: {center.nima}</p>
-                          <p className="text-sm text-muted mt-2">{center.direccion}</p>
+                          <p className="text-sm text-muted mt-2">
+                            {center.direccion}
+                            {(center.municipio || center.provincia) && (
+                              <>, {[center.municipio, center.provincia].filter(Boolean).join(', ')}</>
+                            )}
+                          </p>
                           {center.descripcion && (
                             <p className="text-sm text-muted mt-3 italic">"{center.descripcion}"</p>
                           )}

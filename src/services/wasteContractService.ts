@@ -18,7 +18,8 @@ export const wasteContractService = {
       .select(`
         *,
         company:companies!waste_contracts_company_id_fkey(*),
-        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*)
+        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
+        treatment_manager:treatment_managers(*)
       `)
       .order('fecha_contrato', { ascending: false });
 
@@ -38,7 +39,8 @@ export const wasteContractService = {
       .select(`
         *,
         company:companies!waste_contracts_company_id_fkey(*),
-        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*)
+        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
+        treatment_manager:treatment_managers(*)
       `)
       .eq('id', id)
       .single();
@@ -59,7 +61,8 @@ export const wasteContractService = {
       .select(`
         *,
         company:companies!waste_contracts_company_id_fkey(*),
-        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*)
+        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
+        treatment_manager:treatment_managers(*)
       `)
       .eq('estado', estado)
       .order('fecha_contrato', { ascending: false });
@@ -87,7 +90,8 @@ export const wasteContractService = {
       .select(`
         *,
         company:companies!waste_contracts_company_id_fkey(*),
-        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*)
+        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
+        treatment_manager:treatment_managers(*)
       `)
       .eq('company_id', companyId)
       .order('fecha_contrato', { ascending: false });
@@ -108,7 +112,8 @@ export const wasteContractService = {
       .select(`
         *,
         company:companies!waste_contracts_company_id_fkey(*),
-        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*)
+        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
+        treatment_manager:treatment_managers(*)
       `)
       .or(`numero_contrato.ilike.%${query}%,descripcion_residuos.ilike.%${query}%`)
       .order('fecha_contrato', { ascending: false })
@@ -142,7 +147,8 @@ export const wasteContractService = {
       .select(`
         *,
         company:companies!waste_contracts_company_id_fkey(*),
-        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*)
+        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
+        treatment_manager:treatment_managers(*)
       `)
       .single();
 
@@ -164,7 +170,8 @@ export const wasteContractService = {
       .select(`
         *,
         company:companies!waste_contracts_company_id_fkey(*),
-        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*)
+        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
+        treatment_manager:treatment_managers(*)
       `)
       .single();
 
@@ -274,19 +281,19 @@ export const wasteContractService = {
    */
   isCurrentlyActive(contract: WasteContract): boolean {
     if (contract.estado !== 'vigente') return false;
-    
+
     const now = new Date();
-    
+
     if (contract.fecha_inicio) {
       const inicio = new Date(contract.fecha_inicio);
       if (now < inicio) return false;
     }
-    
+
     if (contract.fecha_fin) {
       const fin = new Date(contract.fecha_fin);
       if (now > fin) return false;
     }
-    
+
     return true;
   },
 
@@ -303,7 +310,8 @@ export const wasteContractService = {
       .select(`
         *,
         company:companies!waste_contracts_company_id_fkey(*),
-        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*)
+        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
+        treatment_manager:treatment_managers(*)
       `)
       .eq('estado', 'vigente')
       .lte('fecha_fin', thirtyDaysFromNow.toISOString())

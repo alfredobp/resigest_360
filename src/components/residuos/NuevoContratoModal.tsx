@@ -10,7 +10,8 @@ import Alert from '@/components/ui/alert/Alert';
 import wasteContractService from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
 import wasteTypeService from '@/services/wasteTypeService';
-import type { Company, WasteContractFormData, WasteType } from '@/types/wasteManagement';
+import treatmentManagerService from '@/services/treatmentManagerService';
+import type { Company, WasteContractFormData, WasteType, TreatmentManager } from '@/types/wasteManagement';
 import DatePicker from '../form/date-picker';
 
 const TIPOS_CONTRATO = [
@@ -36,6 +37,7 @@ export default function NuevoContratoModal({
 }: NuevoContratoModalProps) {
   const [saving, setSaving] = useState(false);
   const [gestores, setGestores] = useState<Company[]>([]);
+  const [internalGestores, setInternalGestores] = useState<TreatmentManager[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showGestorForm, setShowGestorForm] = useState(false);
@@ -87,8 +89,12 @@ export default function NuevoContratoModal({
 
   const loadGestores = async () => {
     try {
-      const gestoresData = await companyService.getByType('gestor');
+      const [gestoresData, internalData] = await Promise.all([
+        companyService.getByType('gestor'),
+        treatmentManagerService.getAll()
+      ]);
       setGestores(gestoresData);
+      setInternalGestores(internalData);
     } catch (err: any) {
       setError(err.message);
     }
@@ -310,9 +316,51 @@ export default function NuevoContratoModal({
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-foreground">Gestor / Destinatario</h3>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Mis Gestores Internos</label>
+              <select
+                name="treatment_manager_id"
+                value={formData.treatment_manager_id || ''}
+                onChange={(e) => {
+                  const id = e.target.value ? parseInt(e.target.value) : undefined;
+                  setFormData(prev => ({ ...prev, treatment_manager_id: id, gestor_company_id: undefined }));
+                }}
+                className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
+              >
+                <option value="">Selecciona uno de tus gestores...</option>
+                {internalGestores.map((gestor) => (
+                  <option key={gestor.id} value={gestor.id}>
+                    {gestor.nombre} ({gestor.razon_social})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Gestores Públicos</label>
+              <select
+                name="gestor_company_id"
+                value={formData.gestor_company_id || ''}
+                onChange={(e) => {
+                  const id = e.target.value ? parseInt(e.target.value) : undefined;
+                  setFormData(prev => ({ ...prev, gestor_company_id: id, treatment_manager_id: undefined }));
+                }}
+                className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
+              >
+                <option value="">Selecciona un gestor público...</option>
+                {gestores.map((gestor) => (
+                  <option key={gestor.id} value={gestor.id}>
+                    {gestor.razon_social} - {gestor.cif}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              Buscar Gestor
+            <label className="block text-sm font-medium text-foreground mb-2 mt-4">
+              O buscar otro Gestor Público
             </label>
             <div className="flex gap-2 mb-3">
               <input

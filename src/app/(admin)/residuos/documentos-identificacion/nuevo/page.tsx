@@ -16,7 +16,9 @@ import companyService from '@/services/companyService';
 import wasteContractService from '@/services/wasteContractService';
 import productionCenterService from '@/services/productionCenterService';
 import wasteTypeService from '@/services/wasteTypeService';
-import type { IdentificationDocument, Company, WasteContract, ProductionCenter, WasteType } from '@/types/wasteManagement';
+import treatmentManagerService from '@/services/treatmentManagerService';
+import carrierService from '@/services/carrierService';
+import type { IdentificationDocument, Company, WasteContract, ProductionCenter, WasteType, TreatmentManager, Carrier } from '@/types/wasteManagement';
 import DatePicker from '@/components/form/date-picker';
 
 export default function NuevoDocumentoIdentificacionPage() {
@@ -24,12 +26,14 @@ export default function NuevoDocumentoIdentificacionPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({}); // ESTADO AÑADIDO
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [myCompany, setMyCompany] = useState<Company | null>(null);
   const [productionCenters, setProductionCenters] = useState<ProductionCenter[]>([]);
   const [contracts, setContracts] = useState<WasteContract[]>([]);
   const [gestores, setGestores] = useState<Company[]>([]);
+  const [internalGestores, setInternalGestores] = useState<TreatmentManager[]>([]);
   const [transportistas, setTransportistas] = useState<Company[]>([]);
+  const [internalCarriers, setInternalCarriers] = useState<Carrier[]>([]);
   const [wasteTypes, setWasteTypes] = useState<WasteType[]>([]);
 
   const [formData, setFormData] = useState<Partial<IdentificationDocument>>({
@@ -79,10 +83,16 @@ export default function NuevoDocumentoIdentificacionPage() {
       setContracts(contractsData);
 
       // Cargar gestores y transportistas
-      const gestoresData = await companyService.getByType('gestor');
-      const transportistasData = await companyService.getByType('transportista');
+      const [gestoresData, internalData, transportistasData, internalCarriersData] = await Promise.all([
+        companyService.getByType('gestor'),
+        treatmentManagerService.getAll(),
+        companyService.getByType('transportista'),
+        carrierService.getAll()
+      ]);
       setGestores(gestoresData);
+      setInternalGestores(internalData);
       setTransportistas(transportistasData);
+      setInternalCarriers(internalCarriersData);
 
       // Cargar tipos de residuos (LER)
       const wasteTypesData = await wasteTypeService.getAll();
@@ -96,7 +106,23 @@ export default function NuevoDocumentoIdentificacionPage() {
 
   const handleContractChange = (contractId: string) => {
     const contract = contracts.find(c => c.id === parseInt(contractId));
-    if (contract && contract.gestor_company) {
+    if (!contract) return;
+
+    if (contract.treatment_manager) {
+      setFormData(prev => ({
+        ...prev,
+        contract_id: contract.id,
+        gestor_razon_social: contract.treatment_manager!.razon_social,
+        gestor_cif: contract.treatment_manager!.cif,
+        gestor_nima: contract.treatment_manager!.nima || '',
+        gestor_numero_autorizacion: contract.treatment_manager!.numero_autorizacion || '',
+        gestor_direccion: contract.treatment_manager!.direccion || '',
+        gestor_codigo_postal: contract.treatment_manager!.codigo_postal || '',
+        gestor_municipio: contract.treatment_manager!.municipio || '',
+        gestor_provincia: contract.treatment_manager!.provincia || '',
+        gestor_telefono: contract.treatment_manager!.telefono || '',
+      }));
+    } else if (contract.gestor_company) {
       setFormData(prev => ({
         ...prev,
         contract_id: contract.id,
@@ -131,6 +157,24 @@ export default function NuevoDocumentoIdentificacionPage() {
     }
   };
 
+  const handleInternalGestorChange = (gestorId: string) => {
+    const gestor = internalGestores.find(g => g.id === parseInt(gestorId));
+    if (gestor) {
+      setFormData(prev => ({
+        ...prev,
+        gestor_razon_social: gestor.razon_social,
+        gestor_cif: gestor.cif,
+        gestor_nima: gestor.nima || '',
+        gestor_numero_autorizacion: gestor.numero_autorizacion || '',
+        gestor_direccion: gestor.direccion || '',
+        gestor_codigo_postal: gestor.codigo_postal || '',
+        gestor_municipio: gestor.municipio || '',
+        gestor_provincia: gestor.provincia || '',
+        gestor_telefono: gestor.telefono || '',
+      }));
+    }
+  };
+
   const handleTransportistaChange = (transportistaId: string) => {
     const transportista = transportistas.find(t => t.id === parseInt(transportistaId));
     if (transportista) {
@@ -143,6 +187,23 @@ export default function NuevoDocumentoIdentificacionPage() {
     }
   };
 
+  const handleInternalCarrierChange = (carrierId: string) => {
+    const carrier = internalCarriers.find(c => c.id === parseInt(carrierId));
+    if (carrier) {
+      setFormData(prev => ({
+        ...prev,
+        transportista_razon_social: carrier.razon_social,
+        transportista_cif: carrier.cif,
+        transportista_nima: carrier.nima || '',
+        transportista_matricula: carrier.matricula || '',
+        transportista_direccion: carrier.direccion || '',
+        transportista_codigo_postal: carrier.codigo_postal || '',
+        transportista_municipio: carrier.municipio || '',
+        transportista_provincia: carrier.provincia || '',
+        transportista_telefono: carrier.telefono || '',
+      }));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -262,6 +323,9 @@ export default function NuevoDocumentoIdentificacionPage() {
                         production_center_id: center.id,
                         productor_nima: center.nima,
                         productor_direccion: center.direccion,
+                        productor_municipio: center.municipio || '',
+                        productor_provincia: center.provincia || '',
+                        productor_codigo_postal: center.codigo_postal || '',
                       });
                     } else {
                       setFormData({ ...formData, production_center_id: undefined });
@@ -361,20 +425,37 @@ export default function NuevoDocumentoIdentificacionPage() {
           {/* Gestor/Destinatario */}
           <ComponentCard title="Gestor / Destinatario">
             <div className="space-y-4">
-              <div>
-                <label htmlFor="gestor_select" className="block text-sm font-medium mb-2">Seleccionar Gestor</label>
-                <Select
-                  options={[
-                    { value: '', label: '-- Seleccionar --' },
-                    ...gestores.map(g => ({
-                      value: g.id.toString(),
-                      label: `${g.razon_social} - ${g.cif}`,
-                    })),
-                  ]}
-                  defaultValue=""
-                  onChange={(value) => handleGestorChange(value)}
-                  placeholder="Selecciona un gestor"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="internal_gestor_select" className="block text-sm font-medium mb-2">Mis Gestores Internos</label>
+                  <Select
+                    options={[
+                      { value: '', label: '-- Seleccionar --' },
+                      ...internalGestores.map(g => ({
+                        value: g.id.toString(),
+                        label: `${g.nombre} (${g.razon_social})`,
+                      })),
+                    ]}
+                    defaultValue=""
+                    onChange={(value) => handleInternalGestorChange(value)}
+                    placeholder="Selecciona uno de tus gestores"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="gestor_select" className="block text-sm font-medium mb-2">Gestores Públicos</label>
+                  <Select
+                    options={[
+                      { value: '', label: '-- Seleccionar --' },
+                      ...gestores.map(g => ({
+                        value: g.id.toString(),
+                        label: `${g.razon_social} - ${g.cif}`,
+                      })),
+                    ]}
+                    defaultValue=""
+                    onChange={(value) => handleGestorChange(value)}
+                    placeholder="Selecciona un gestor público"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -471,20 +552,37 @@ export default function NuevoDocumentoIdentificacionPage() {
           {/* Transportista (Opcional) */}
           <ComponentCard title="Transportista (Opcional)">
             <div className="space-y-4">
-              <div>
-                <label htmlFor="transportista_select" className="block text-sm font-medium mb-2">Seleccionar Transportista</label>
-                <Select
-                  options={[
-                    { value: '', label: '-- Seleccionar --' },
-                    ...transportistas.map(t => ({
-                      value: t.id.toString(),
-                      label: `${t.razon_social} - ${t.cif}`,
-                    })),
-                  ]}
-                  defaultValue=""
-                  onChange={(value) => handleTransportistaChange(value)}
-                  placeholder="Selecciona un transportista"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="internal_carrier_select" className="block text-sm font-medium mb-2">Mis Transportistas Internos</label>
+                  <Select
+                    options={[
+                      { value: '', label: '-- Seleccionar --' },
+                      ...internalCarriers.map(c => ({
+                        value: c.id.toString(),
+                        label: `${c.razon_social} - ${c.cif}${c.matricula ? ` (${c.matricula})` : ''}`,
+                      })),
+                    ]}
+                    defaultValue=""
+                    onChange={(value) => handleInternalCarrierChange(value)}
+                    placeholder="Selecciona uno de tus transportistas"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="transportista_select" className="block text-sm font-medium mb-2">Transportistas Públicos</label>
+                  <Select
+                    options={[
+                      { value: '', label: '-- Seleccionar --' },
+                      ...transportistas.map(t => ({
+                        value: t.id.toString(),
+                        label: `${t.razon_social} - ${t.cif}`,
+                      })),
+                    ]}
+                    defaultValue=""
+                    onChange={(value) => handleTransportistaChange(value)}
+                    placeholder="Selecciona un transportista público"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

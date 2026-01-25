@@ -4,6 +4,104 @@
 // =====================================================
 
 // =====================================================
+// TREATMENT MANAGER (Gestor de Tratamiento)
+// =====================================================
+
+export interface TreatmentManager {
+  id: number;
+  user_id: string;
+
+  // Datos básicos
+  nombre: string;
+  razon_social: string;
+  cif: string;
+  nima?: string;
+  numero_autorizacion?: string;
+
+  // Domicilio
+  direccion?: string;
+  codigo_postal?: string;
+  municipio?: string;
+  provincia?: string;
+
+  // Contacto
+  telefono?: string;
+  email?: string;
+  persona_contacto?: string;
+
+  // Metadata
+  notas?: string;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TreatmentManagerFormData {
+  nombre: string;
+  razon_social: string;
+  cif: string;
+  nima?: string;
+  numero_autorizacion?: string;
+  direccion?: string;
+  codigo_postal?: string;
+  municipio?: string;
+  provincia?: string;
+  telefono?: string;
+  email?: string;
+  persona_contacto?: string;
+  notas?: string;
+  activo?: boolean;
+}
+
+export interface Carrier {
+  id: number;
+  user_id: string;
+
+  // Datos básicos
+  razon_social: string;
+  cif: string;
+  nima?: string;
+  numero_autorizacion?: string;
+
+  // Vehículo
+  matricula?: string;
+
+  // Domicilio
+  direccion?: string;
+  codigo_postal?: string;
+  municipio?: string;
+  provincia?: string;
+
+  // Contacto
+  telefono?: string;
+  email?: string;
+  persona_contacto?: string;
+
+  // Metadata
+  notas?: string;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CarrierFormData {
+  razon_social: string;
+  cif: string;
+  nima?: string;
+  numero_autorizacion?: string;
+  matricula?: string;
+  direccion?: string;
+  codigo_postal?: string;
+  municipio?: string;
+  provincia?: string;
+  telefono?: string;
+  email?: string;
+  persona_contacto?: string;
+  notas?: string;
+  activo?: boolean;
+}
+
+// =====================================================
 // COMPANY (Empresa) 
 
 // =====================================================
@@ -67,6 +165,9 @@ export interface ProductionCenter {
   nombre: string;
   direccion: string;
   nima: string;
+  municipio?: string;
+  provincia?: string;
+  codigo_postal?: string;
   descripcion?: string;
 
   activo: boolean;
@@ -79,6 +180,9 @@ export interface ProductionCenterFormData {
   nombre: string;
   direccion: string;
   nima: string;
+  municipio?: string;
+  provincia?: string;
+  codigo_postal?: string;
   descripcion?: string;
   activo?: boolean;
 }
@@ -176,12 +280,14 @@ export interface WasteContract {
   // Relaciones (populated)
   company?: Company;
   gestor_company?: Company;
+  treatment_manager?: TreatmentManager;
   waste_types?: WasteType[];
 }
 
 export interface WasteContractFormData {
   company_id: number;
   gestor_company_id?: number;
+  treatment_manager_id?: number;
   numero_contrato?: string;
   fecha_contrato: string;
   fecha_inicio?: string;

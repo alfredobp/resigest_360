@@ -1,0 +1,232 @@
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:e3l="e3l://esir2014">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <e3l:sendWasteDCS>
+         <wasteDCS 
+    xmlns:wassup="e3l://eterproject.org/3.0/wasteSupport"
+    xmlns:common="e3l://eterproject.org/3.0/common"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    DCSCode="78398938398320260907308"
+    DCSPhase="R"
+    DCSYear="2026"
+    DCSDate="2026-01-25"
+    DCSStartDate="2026-01-25"
+    DCSRegional="S"
+    DCSSendtoOriginOrDestinationAuthority="N">
+
+    <!-- 1. Operador del Traslado -->
+    
+    <DCSTransferOperatorData>
+        <entityId>
+            <nationalId>b72294069</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        
+        <entityName>
+            <reason>
+                <reasonName>Método Ambiental Consultores, S.L.</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="783989383983" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+            
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="CL" vialDescription="Calle"/>
+                <address>Calle Cruz de la Degollada 13, 1º b</address>
+                <CP>00000</CP>
+                <municipality municipalityCode="00000" municipalityName="Desconocido"/>
+                <province provinceCode="11" provinceName="Cádiz"/>
+            </spanishAddress>
+        </centerAddress>
+            
+        <centerContact>
+            <phone>617984325</phone>
+            <mail>alfredobape@gmail.com</mail>
+        </centerContact>
+            
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>783989383983</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>A01</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteTransferOperatorType operatorTypeCode="P01"/>
+        
+    </DCSTransferOperatorData>
+
+    <!-- 2. Productor -->
+    
+    <DCSProducerData>
+        <entityId>
+            <nationalId>b72294069</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        
+        <entityName>
+            <reason>
+                <reasonName>Método Ambiental Consultores, S.L.</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="536262627" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+            
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="CL" vialDescription="Calle"/>
+                <address>CALLE CRUZ DE LA DEGOLLADA, 13, 1º B</address>
+                <CP>11510</CP>
+                <municipality municipalityCode="00000" municipalityName="Rota"/>
+                <province provinceCode="11" provinceName="CADIZ"/>
+            </spanishAddress>
+        </centerAddress>
+            
+        <centerContact>
+            <phone>999999999</phone>
+            <mail>pendiente@email.com</mail>
+        </centerContact>
+            
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>536262627</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>A01</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteProducerType producerTypeCode="P01"/>
+        
+    </DCSProducerData>
+
+    <!-- 3. Destinatario -->
+    
+    <DCSAdresseeData>
+        <entityId>
+            <nationalId>b765252525</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        
+        <entityName>
+            <reason>
+                <reasonName>Recuperaciones nepe</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="3234444" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+            
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="CL" vialDescription="Calle"/>
+                <address>Calle de la Victoria</address>
+                <CP>11540</CP>
+                <municipality municipalityCode="00000" municipalityName="sanlúcar"/>
+                <province provinceCode="11" provinceName="Cádiz"/>
+            </spanishAddress>
+        </centerAddress>
+            
+        <centerContact>
+            <phone>999999999</phone>
+            <mail>pendiente@email.com</mail>
+        </centerContact>
+            
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>3234444</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>A01</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteManagerType managerTypeCode="G01"/>
+        
+    </DCSAdresseeData>
+    
+    <!-- 4. Datos del Residuo (Incluye Transportista) -->
+    
+    <DCSResidueData>
+        <DCSProducerResidueIdentification LERCode="17 02 02" xsi:type="wassup:dangerousResidueType">
+            
+        <residueBag>
+             <bagProcess internalIdProcessCode="99"/>
+             <bagResidueId residueCode="999" residueDescription="Vidrio"/>
+        </residueBag>
+            
+        <residueTables xsi:type="wassup:tablesNoDangerousType">
+            <table2>R05</table2>
+        </residueTables>
+        </DCSProducerResidueIdentification>
+        
+        <DCSAdresseeResidueIdentification LERCode="17 02 02" xsi:type="wassup:dangerousResidueType">
+            
+        <residueBag>
+             <bagProcess internalIdProcessCode="99"/>
+             <bagResidueId residueCode="999" residueDescription="Vidrio"/>
+        </residueBag>
+            
+        <residueTables xsi:type="wassup:tablesNoDangerousType">
+            <table2>R05</table2>
+        </residueTables>
+        </DCSAdresseeResidueIdentification>
+        
+        
+        <DCSOtherResidueData>
+            <DCSNT>PENDIENTE-NT</DCSNT>
+            <DCSClearWeight>34</DCSClearWeight>
+            <DCSTransportCharacteristics>Sin características especiales</DCSTransportCharacteristics>
+        </DCSOtherResidueData>
+        
+        <DCSTransporterData>
+            <entityId>
+                <nationalId>3232</nationalId>
+            </entityId>
+            <entityFJ entityFJCode="J" />
+            <entityName>
+                <reason>
+                    <reasonName>Translusan</reasonName>
+                    <reasonAssociation associationCode="99" associationDescription="Otra"/>
+                </reason>
+            </entityName>
+            <entityCenter>
+                <centerID centerCode="652416182" />
+                <centerEconomicActivity>S/D</centerEconomicActivity>
+                <centerAddress>
+                    <spanishAddress>
+                        <vial vialCode="CL" vialDescription="Calle"/>
+                        <address>CALLE CRUZ DE LA DEGOLLADA, 13, 1º B</address>
+                        <CP>11510</CP>
+                        <municipality municipalityCode="00000" municipalityName="Cadiz"/>
+                        <province provinceCode="11" provinceName="CADIZ"/>
+                    </spanishAddress>
+                </centerAddress>
+                <centerContact>
+                    <phone>999999999</phone>
+                    <mail>transporte@pendiente.com</mail>
+                </centerContact>
+                <wasteCenterAuthorization>
+                    <authorizationId>
+                         <authorizationIdFree>652416182</authorizationIdFree>
+                    </authorizationId>
+                    <authorizationCode>A01</authorizationCode>
+                </wasteCenterAuthorization>
+            </entityCenter>
+
+            <wasteTransporterType trasporterTypeCode="T01" transporterTypeDescription="Transportista de residuos"/>
+            <DCSTransportWay transportWayCode="01" transportWayDescription="Carretera"/>
+        </DCSTransporterData>
+    </DCSResidueData>
+
+</wasteDCS>
+      </e3l:sendWasteDCS>
+   </soapenv:Body>
+</soapenv:Envelope>
