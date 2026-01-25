@@ -60,6 +60,9 @@ export default function MiEmpresaPage() {
     tipo_empresa: 'productor',
     logo_url: '',
     notas: '',
+    sira_usuario: '',
+    sira_password: '',
+    sira_activo: false,
   });
 
   useEffect(() => {
@@ -92,6 +95,9 @@ export default function MiEmpresaPage() {
           tipo_empresa: data.tipo_empresa,
           logo_url: data.logo_url || '',
           notas: data.notas || '',
+          sira_usuario: data.sira_usuario || '',
+          sira_password: data.sira_password || '',
+          sira_activo: data.sira_activo || false,
         });
 
         // Cargar centros de producción
@@ -419,6 +425,60 @@ export default function MiEmpresaPage() {
                   placeholder="Nombre y apellidos del responsable"
                 />
               </div>
+            </div>
+          </ComponentCard>
+
+          {/* Configuración SIRA (Junta de Andalucía) */}
+          <ComponentCard title="Configuración SIRA (Junta de Andalucía)" className="mt-6 border-blue-200 bg-blue-50/30 dark:border-blue-900/30">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="font-semibold text-blue-800 dark:text-blue-300">Conexión con el Web Service</h4>
+                  <p className="text-sm text-blue-600/70 dark:text-blue-400/70">
+                    Configura las credenciales para el envío directo de DI a la plataforma SIRA.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted">Desactivado</span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={formData.sira_activo}
+                      onChange={(e) => setFormData(prev => ({ ...prev, sira_activo: e.target.checked }))}
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                  </label>
+                  <span className="text-xs font-medium uppercase tracking-wider text-primary">Activado</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Usuario WS (CIF o NIMA)</label>
+                  <Input
+                    name="sira_usuario"
+                    value={formData.sira_usuario}
+                    onChange={handleChange}
+                    placeholder="Usuario asignado en SIRA"
+                    className="bg-white dark:bg-dark"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Contraseña WS</label>
+                  <Input
+                    name="sira_password"
+                    type="password"
+                    value={formData.sira_password}
+                    onChange={handleChange}
+                    placeholder="••••••••"
+                    className="bg-white dark:bg-dark"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-2 italic">
+                * Las credenciales se utilizan exclusivamente para la comunicación cifrada con los servidores de la Junta de Andalucía.
+              </p>
             </div>
           </ComponentCard>
 

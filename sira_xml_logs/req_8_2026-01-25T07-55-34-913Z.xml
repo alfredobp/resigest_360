@@ -1,0 +1,233 @@
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:e3l="e3l://esir2014">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <e3l:sendWasteDCS>
+         <wasteDCS 
+    xmlns:wassup="e3l://eterproject.org/3.0/wasteSupport"
+    xmlns:common="e3l://eterproject.org/3.0/common"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    DCSCode="4334420261361926"
+    DCSPhase="R"
+    DCSYear="2026"
+    DCSDate="2026-01-25"
+    DCSStartDate="2026-01-04"
+    DCSRegional="S"
+    DCSSendtoOriginOrDestinationAuthority="N">
+
+    <!-- 1. Operador del Traslado -->
+    
+    <DCSTransferOperatorData>
+        <entityId>
+            <nationalId>4343443</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        
+        <entityName>
+            <reason>
+                <reasonName>Método Ambiental Consultores, S.L.</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="43344" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+            
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="CL" vialDescription="Calle"/>
+                <address>Dirección Desconocida</address>
+                <CP>00000</CP>
+                <municipality municipalityCode="00000" municipalityName="Desconocido"/>
+                <province provinceCode="00" provinceName="Desconocida"/>
+            </spanishAddress>
+        </centerAddress>
+            
+        <centerContact>
+            <phone>999999999</phone>
+            <mail>pendiente@ejemplo.com</mail>
+        </centerContact>
+            
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>43344</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>A01</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteTransferOperatorType operatorTypeCode="P01"/>
+        
+    </DCSTransferOperatorData>
+
+    <!-- 2. Productor -->
+    
+    <DCSProducerData>
+        <entityId>
+            <nationalId>4343443</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        
+        <entityName>
+            <reason>
+                <reasonName>Método Ambiental Consultores, S.L.</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="433434" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+            
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="CL" vialDescription="Calle"/>
+                <address>Dirección Desconocida</address>
+                <CP>00000</CP>
+                <municipality municipalityCode="00000" municipalityName="Desconocido"/>
+                <province provinceCode="00" provinceName="Desconocida"/>
+            </spanishAddress>
+        </centerAddress>
+            
+        <centerContact>
+            <phone>999999999</phone>
+            <mail>pendiente@ejemplo.com</mail>
+        </centerContact>
+            
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>433434</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>A01</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteProducerType producerTypeCode="P01"/>
+        
+    </DCSProducerData>
+
+    <!-- 3. Destinatario -->
+    
+    <DCSAdresseeData>
+        <entityId>
+            <nationalId>2222</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        
+        <entityName>
+            <reason>
+                <reasonName>23</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="2222" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+            
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="CL" vialDescription="Calle"/>
+                <address>Dirección Desconocida</address>
+                <CP>00000</CP>
+                <municipality municipalityCode="00000" municipalityName="Desconocido"/>
+                <province provinceCode="00" provinceName="Desconocida"/>
+            </spanishAddress>
+        </centerAddress>
+            
+        <centerContact>
+            <phone>999999999</phone>
+            <mail>pendiente@ejemplo.com</mail>
+        </centerContact>
+            
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>2222</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>A01</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteManagerType managerTypeCode="G01"/>
+        
+    </DCSAdresseeData>
+    
+    <!-- 4. Datos del Residuo (Incluye Transportista) -->
+    
+    <DCSResidueData>
+        <DCSProducerResidueIdentification LERCode="17 02 04*" xsi:type="wassup:dangerousResidueType">
+            
+        <residueBag>
+             <bagProcess internalIdProcessCode="99"/>
+             <bagResidueId residueCode="999" residueDescription="Residuo Genérico"/>
+        </residueBag>
+            
+        <residueTables xsi:type="wassup:tablesDangerousType">
+            <table2>R13</table2>
+        </residueTables>
+        </DCSProducerResidueIdentification>
+        
+        <DCSAdresseeResidueIdentification LERCode="17 02 04*" xsi:type="wassup:dangerousResidueType">
+            
+        <residueBag>
+             <bagProcess internalIdProcessCode="99"/>
+             <bagResidueId residueCode="999" residueDescription="Residuo Genérico"/>
+        </residueBag>
+            
+        <residueTables xsi:type="wassup:tablesDangerousType">
+            <table2>R13</table2>
+        </residueTables>
+        </DCSAdresseeResidueIdentification>
+        
+        
+        <DCSOtherResidueData>
+            <DCSNT>PENDIENTE-NT</DCSNT>
+            <DCSClearWeight>34</DCSClearWeight>
+            <DCSTransportCharacteristics>Sin características especiales</DCSTransportCharacteristics>
+        </DCSOtherResidueData>
+        
+        <DCSTransporterData>
+            <entityId>
+                <nationalId>A00000000</nationalId>
+            </entityId>
+            <entityFJ entityFJCode="J" />
+            <entityName>
+                <reason>
+                    <reasonName>Transportista Genérico</reasonName>
+                    <reasonAssociation associationCode="99" associationDescription="Otra"/>
+                </reason>
+            </entityName>
+            <entityCenter>
+                <centerID centerCode="NIMA-TRANS" />
+                <centerEconomicActivity>S/D</centerEconomicActivity>
+                <centerAddress>
+                    <spanishAddress>
+                        <vial vialCode="CL" vialDescription="Calle"/>
+                        <address>Dirección Transportista</address>
+                        <CP>00000</CP>
+                        <municipality municipalityCode="00000" municipalityName="Desconocido"/>
+                        <province provinceCode="00" provinceName="Desconocida"/>
+                    </spanishAddress>
+                </centerAddress>
+                <centerContact>
+                    <phone>999999999</phone>
+                    <mail>transporte@ejemplo.com</mail>
+                </centerContact>
+                <wasteCenterAuthorization>
+                    <authorizationId>
+                         <authorizationIdFree>NIMA-TRANS</authorizationIdFree>
+                    </authorizationId>
+                    <authorizationCode>A01</authorizationCode>
+                </wasteCenterAuthorization>
+            </entityCenter>
+
+            <wasteTransporterType trasporterTypeCode="T01" transporterTypeDescription="Transportista de residuos"/>
+            
+            <DCSTransportWay transportWayCode="01" transportWayDescription="Carretera"/>
+        </DCSTransporterData>
+    </DCSResidueData>
+
+</wasteDCS>
+      </e3l:sendWasteDCS>
+   </soapenv:Body>
+</soapenv:Envelope>

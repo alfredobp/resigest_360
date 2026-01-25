@@ -50,6 +50,11 @@ export interface Company {
   created_at: string;
   updated_at: string;
 
+  // Integración SIRA
+  sira_usuario?: string;
+  sira_password?: string;
+  sira_activo?: boolean;
+
   // Relaciones
   production_centers?: ProductionCenter[];
 }
@@ -99,6 +104,11 @@ export interface CompanyFormData {
   logo_url?: string;
   notas?: string;
   activo?: boolean;
+
+  // Integración SIRA
+  sira_usuario?: string;
+  sira_password?: string;
+  sira_activo?: boolean;
 }
 
 // =====================================================

@@ -8,6 +8,7 @@ import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import identificationDocumentService from '@/services/identificationDocumentService';
+import siraService from '@/services/siraService';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import type { IdentificationDocument, Company, ProductionCenter } from '@/types/wasteManagement';
@@ -79,15 +80,23 @@ export default function DocumentosIdentificacionPage() {
     }
   };
 
-  const handleChangeStatus = async (
-    id: number,
-    newStatus: 'borrador' | 'pendiente-firma' | 'completado' | 'cancelado'
-  ) => {
+  const handleSendToSira = async (id: number) => {
+    if (!confirm('¿Deseas enviar este documento a SIRA (Junta de Andalucía)?')) {
+      return;
+    }
+
     try {
-      await identificationDocumentService.updateStatus(id, newStatus);
-      await loadData();
+      setLoading(true);
+      const result = await siraService.sendDI(id);
+
+      if (result.success) {
+        alert(`Documento enviado con éxito a SIRA.\nID de Registro: ${result.siraId}`);
+        await loadData();
+      }
     } catch (err: any) {
-      alert(`Error al cambiar estado: ${err.message}`);
+      alert(`Error al enviar a SIRA: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -302,11 +311,11 @@ export default function DocumentosIdentificacionPage() {
 
                     {doc.estado === 'borrador' && (
                       <Button
-                        variant="outline"
+                        variant="primary"
                         size="sm"
-                        onClick={() => handleChangeStatus(doc.id, 'pendiente-firma')}
+                        onClick={() => handleSendToSira(doc.id)}
                       >
-                        Enviar a Firma
+                        Enviar a SIRA
                       </Button>
                     )}
 
