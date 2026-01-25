@@ -138,8 +138,8 @@ export function generateContractPDF(contract: WasteContract) {
     doc.setFont('helvetica', 'normal');
 
     // Support both 'direccion' (TreatmentManager) and 'domicilio_social' (Company)
-    const address = 'direccion' in gestorData ? gestorData.direccion : gestorData.domicilio_social;
-    const municipio = 'municipio' in gestorData ? gestorData.municipio : gestorData.municipio_social;
+    const address = contract.treatment_manager?.direccion || contract.gestor_company?.domicilio_social;
+    const municipio = contract.treatment_manager?.municipio || contract.gestor_company?.municipio_social;
 
     const dirGestor = doc.splitTextToSize(`${address || '-'}, ${municipio || ''}`, 120);
     doc.text(dirGestor, 60, yPos);
