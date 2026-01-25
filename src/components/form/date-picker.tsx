@@ -1,10 +1,14 @@
 import { useEffect } from 'react';
 import flatpickr from 'flatpickr';
+import { Spanish } from 'flatpickr/dist/l10n/es.js';
 import 'flatpickr/dist/flatpickr.css';
 import Label from './Label';
 import { CalenderIcon } from '../../icons';
 import Hook = flatpickr.Options.Hook;
 import DateOption = flatpickr.Options.DateOption;
+
+// Configurar el idioma español por defecto
+flatpickr.localize(Spanish);
 
 type PropsType = {
   id: string;
