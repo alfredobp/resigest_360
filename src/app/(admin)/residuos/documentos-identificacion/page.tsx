@@ -80,6 +80,18 @@ export default function DocumentosIdentificacionPage() {
     }
   };
 
+  const handleChangeStatus = async (id: number, newStatus: 'borrador' | 'pendiente-firma' | 'completado' | 'cancelado') => {
+    try {
+      setLoading(true);
+      await identificationDocumentService.updateStatus(id, newStatus);
+      await loadData();
+    } catch (err: any) {
+      alert(`Error al cambiar estado: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSendToSira = async (id: number) => {
     if (!confirm('¿Deseas enviar este documento a SIRA (Junta de Andalucía)?')) {
       return;
@@ -314,6 +326,8 @@ export default function DocumentosIdentificacionPage() {
                         variant="primary"
                         size="sm"
                         onClick={() => handleSendToSira(doc.id)}
+                        disabled={!myCompany?.sira_usuario || !myCompany?.sira_password}
+                        className={!myCompany?.sira_usuario || !myCompany?.sira_password ? 'opacity-50 cursor-not-allowed' : ''}
                       >
                         Enviar a SIRA
                       </Button>

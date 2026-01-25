@@ -8,7 +8,9 @@ import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import identificationDocumentService from '@/services/identificationDocumentService';
-import type { IdentificationDocument } from '@/types/wasteManagement';
+import siraService from '@/services/siraService';
+import companyService from '@/services/companyService';
+import type { IdentificationDocument, Company } from '@/types/wasteManagement';
 
 const STATUS_COLORS = {
   borrador: 'info',
@@ -31,19 +33,30 @@ export default function DetalleDocumentoIdentificacionPage() {
 
   const [loading, setLoading] = useState(true);
   const [document, setDocument] = useState<IdentificationDocument | null>(null);
+  const [myCompany, setMyCompany] = useState<Company | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [sendingSira, setSendingSira] = useState(false);
 
   useEffect(() => {
     if (id) {
-      loadDocument();
+      loadData();
     }
   }, [id]);
 
-  const loadDocument = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const data = await identificationDocumentService.getById(parseInt(id));
-      setDocument(data);
+      setError(null);
+
+      // 1. Cargar Documento
+      const docData = await identificationDocumentService.getById(parseInt(id));
+      setDocument(docData);
+
+      // 2. Cargar Mi Empresa (para credenciales SIRA frescas)
+      const compData = await companyService.getUserCompany();
+      setMyCompany(compData);
+
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -69,7 +82,7 @@ export default function DetalleDocumentoIdentificacionPage() {
 
     try {
       await identificationDocumentService.updateStatus(document.id, newStatus);
-      await loadDocument();
+      await loadData();
     } catch (err: any) {
       setError(`Error al cambiar estado: ${err.message}`);
     }
@@ -80,9 +93,32 @@ export default function DetalleDocumentoIdentificacionPage() {
 
     try {
       await identificationDocumentService.signDocument(document.id, role);
-      await loadDocument();
+      await loadData();
     } catch (err: any) {
       setError(`Error al firmar: ${err.message}`);
+    }
+  };
+
+  const handleSendSira = async () => {
+    if (!document) return;
+
+    try {
+      setSendingSira(true);
+      setError(null);
+      setSuccess(null);
+
+      const result = await siraService.sendDI(document.id);
+
+      if (result.success) {
+        setSuccess(result.message);
+        await loadData(); // Recargar para ver notas/cambio de estado
+      } else {
+        setError(result.message);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al conectar con SIRA');
+    } finally {
+      setSendingSira(false);
     }
   };
 
@@ -139,6 +175,7 @@ export default function DetalleDocumentoIdentificacionPage() {
         </div>
 
         {error && <Alert variant="error" title="Error" message={error} />}
+        {success && <Alert variant="success" title="Éxito" message={success} />}
 
         {/* Información General */}
         <ComponentCard title="Información General">
@@ -408,6 +445,16 @@ export default function DetalleDocumentoIdentificacionPage() {
               </>
             )}
 
+            {/* BOTÓN SIRA */}
+
+            <Button
+              variant="primary"
+              disabled={sendingSira || !myCompany?.sira_usuario || !myCompany?.sira_password}
+              onClick={handleSendSira}
+            >
+              {sendingSira ? 'Enviando a SIRA...' : 'Enviar a SIRA'}
+            </Button>
+
             {(document.estado === 'completado' || document.estado === 'cancelado') && (
               <Button variant="outline" onClick={() => handleChangeStatus('borrador')}>
                 Reabrir Documento
@@ -420,6 +467,12 @@ export default function DetalleDocumentoIdentificacionPage() {
               </Button>
             )}
           </div>
+
+          {!myCompany?.sira_usuario && (
+            <p className="mt-3 text-xs text-error-500 italic">
+              * Debes configurar las credenciales de SIRA en 'Mi Empresa' para habilitar el envío.
+            </p>
+          )}
         </ComponentCard>
 
         {/* Fechas de Sistema */}

@@ -145,16 +145,18 @@ const generateEntityBlock = (
 const generateOperatorBlock = (doc: any): string => {
   // El operador suele ser el productor si él genera el documento
   // Si doc.company (usuario logueado) tiene datos, usamos esos.
+  const compData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
+
   return generateEntityBlock(
     'DCSTransferOperatorData',
     {
-      cif: doc.company?.cif || doc.productor_cif,
-      name: doc.company?.razon_social || doc.productor_razon_social,
-      nima: doc.company?.nima || doc.productor_nima,
-      address: doc.company?.domicilio_instalacion || doc.productor_direccion,
-      province: doc.company?.provincia_instalacion || doc.productor_provincia,
-      phone: doc.company?.telefono || doc.productor_telefono,
-      email: doc.company?.email
+      cif: compData?.cif || doc.productor_cif,
+      name: compData?.razon_social || doc.productor_razon_social,
+      nima: compData?.nima || doc.productor_nima,
+      address: compData?.domicilio_instalacion || doc.productor_direccion,
+      province: compData?.provincia_instalacion || doc.productor_provincia,
+      phone: compData?.telefono || doc.productor_telefono,
+      email: compData?.email
     },
     'wasteTransferOperatorType',
     'operatorTypeCode',

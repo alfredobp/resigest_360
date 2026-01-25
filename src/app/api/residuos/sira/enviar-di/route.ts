@@ -23,20 +23,30 @@ export async function POST(req: NextRequest) {
             .from('identification_documents')
             .select(`
         *,
-        company:companies!identification_documents_company_id_fkey(*),
+        company:companies(*),
         production_center:production_centers(*)
       `)
             .eq('id', documentId)
             .single();
 
         if (docError || !doc) {
+            console.error('DI Not Found:', docError);
             return NextResponse.json({ error: 'Documento no encontrado' }, { status: 404 });
         }
 
-        // 2. Obtener credenciales de SIRA de la empresa
-        const { sira_usuario, sira_password, sira_activo } = doc.company || {};
+        // 2. Obtener credenciales de SIRA de la empresa (manejar objeto o array si el join es ambiguo)
+        const companyData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
+        const { sira_usuario, sira_password, sira_activo } = companyData || {};
+
+        console.log(`🔐 Intentando envío SIRA para DI ${doc.numero_documento}`);
+        console.log(`📍 Empresa: ${doc.productor_razon_social} (ID: ${doc.company_id})`);
 
         if (!sira_usuario || !sira_password) {
+            console.warn('❌ SIRA: Credenciales incompletas en la base de datos:', {
+                hasUser: !!sira_usuario,
+                hasPass: !!sira_password,
+                companyId: doc.company_id
+            });
             return NextResponse.json({
                 error: 'Credenciales de SIRA no configuradas para esta empresa. Por favor, configúralas en Mi Empresa.'
             }, { status: 400 });

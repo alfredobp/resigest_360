@@ -162,7 +162,7 @@ export default function NuevoDocumentoIdentificacionPage() {
         if (!firstErrorMessage) {
           const fieldName = err.path[0] || 'Desconocido';
           // Mapeo amigable de nombres técnicos a humanos si quieres, o directo
-          firstErrorMessage = `${err.message} (Campo: ${fieldName})`;
+          firstErrorMessage = `${err.message} (Campo: ${String(fieldName)})`;
         }
         if (err.path[0]) {
           formattedErrors[err.path[0].toString()] = err.message;
