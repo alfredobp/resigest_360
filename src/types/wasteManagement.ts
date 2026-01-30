@@ -34,6 +34,9 @@ export interface TreatmentManager {
   activo: boolean;
   created_at: string;
   updated_at: string;
+
+  // Integración Holded
+  holded_contact_id?: string;
 }
 
 export interface TreatmentManagerFormData {
@@ -51,6 +54,7 @@ export interface TreatmentManagerFormData {
   persona_contacto?: string;
   notas?: string;
   activo?: boolean;
+  holded_contact_id?: string;
 }
 
 export interface Carrier {
@@ -82,6 +86,9 @@ export interface Carrier {
   activo: boolean;
   created_at: string;
   updated_at: string;
+
+  // Integración Holded
+  holded_contact_id?: string;
 }
 
 export interface CarrierFormData {
@@ -99,6 +106,7 @@ export interface CarrierFormData {
   persona_contacto?: string;
   notas?: string;
   activo?: boolean;
+  holded_contact_id?: string;
 }
 
 // =====================================================
@@ -152,6 +160,9 @@ export interface Company {
   sira_usuario?: string;
   sira_password?: string;
   sira_activo?: boolean;
+
+  // Integración Holded
+  holded_api_key?: string;
 
   // Relaciones
   production_centers?: ProductionCenter[];
@@ -213,6 +224,9 @@ export interface CompanyFormData {
   sira_usuario?: string;
   sira_password?: string;
   sira_activo?: boolean;
+
+  // Integración Holded
+  holded_api_key?: string;
 }
 
 // =====================================================

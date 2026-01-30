@@ -66,6 +66,7 @@ export default function MiEmpresaPage() {
     sira_usuario: '',
     sira_password: '',
     sira_activo: false,
+    holded_api_key: '',
   });
 
   useEffect(() => {
@@ -101,6 +102,7 @@ export default function MiEmpresaPage() {
           sira_usuario: data.sira_usuario || '',
           sira_password: data.sira_password || '',
           sira_activo: data.sira_activo || false,
+          holded_api_key: data.holded_api_key || '',
         });
 
         // Cargar centros de producción
@@ -481,6 +483,32 @@ export default function MiEmpresaPage() {
               </div>
               <p className="text-[10px] text-muted-foreground mt-2 italic">
                 * Las credenciales se utilizan exclusivamente para la comunicación cifrada con los servidores de la Junta de Andalucía.
+              </p>
+            </div>
+          </ComponentCard>
+
+          {/* Configuración Holded */}
+          <ComponentCard title="Integración con Holded" className="mt-6 border-orange-200 bg-orange-50/30 dark:border-orange-900/30">
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-semibold text-orange-800 dark:text-orange-300">Clave de API de Holded</h4>
+                <p className="text-sm text-orange-600/70 dark:text-orange-400/70 mb-4">
+                  Sincroniza tus contactos (gestores y transportistas) y automatiza la creación de facturas.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">API Key</label>
+                <Input
+                  name="holded_api_key"
+                  value={formData.holded_api_key}
+                  onChange={handleChange}
+                  placeholder="Introduce tu API Key de Holded"
+                  className="bg-white dark:bg-dark"
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-2 italic">
+                * Tu API Key se almacena de forma segura y se utiliza solo para las integraciones autorizadas.
               </p>
             </div>
           </ComponentCard>
