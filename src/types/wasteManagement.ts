@@ -291,6 +291,7 @@ export interface WasteContract {
   fecha_firma_gestor?: string;
 
   // Metadata
+  signing_token?: string;
   notas?: string;
   created_at: string;
   updated_at: string;

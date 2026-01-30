@@ -110,6 +110,18 @@ export default function ContractDetailPage() {
     }
   };
 
+  const handleCopyPublicLink = () => {
+    if (!contract?.signing_token) {
+      alert('Este contrato no tiene un token de firma asignado.');
+      return;
+    }
+    const baseUrl = window.location.origin;
+    const publicUrl = `${baseUrl}/public/sign-contract/${contract.signing_token}`;
+
+    navigator.clipboard.writeText(publicUrl);
+    alert('Enlace de firma pública copiado al portapapeles.');
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
@@ -398,6 +410,14 @@ export default function ContractDetailPage() {
               onClick={handleDownloadPDF}
             >
               Descargar PDF
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={handleCopyPublicLink}
+              className="text-primary hover:bg-primary/5"
+            >
+              Copiar Enlace Público
             </Button>
 
             {!contract.firma_productor_url && (

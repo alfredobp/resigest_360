@@ -160,6 +160,28 @@ export const wasteContractService = {
   },
 
   /**
+   * Obtener contrato por token de firma pública
+   */
+  async getBySigningToken(token: string): Promise<WasteContract | null> {
+    const { data, error } = await supabase
+      .from('waste_contracts')
+      .select(`
+        *,
+        company:companies!waste_contracts_company_id_fkey(*),
+        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
+        treatment_manager:treatment_managers(*)
+      `)
+      .eq('signing_token', token)
+      .single();
+
+    if (error) {
+      throw new Error(`Error al obtener contrato por token: ${error.message}`);
+    }
+
+    return data as WasteContract;
+  },
+
+  /**
    * Actualizar contrato existente
    */
   async update(id: number, contractData: Partial<WasteContractFormData>): Promise<WasteContract> {
@@ -380,6 +402,79 @@ export const wasteContractService = {
     }
 
     return this.update(id, updateData);
+  },
+
+  /**
+   * Firmar contrato digitalmente usando un token público
+   */
+  async signContractByToken(
+    token: string,
+    signatureBase64: string,
+    role: 'productor' | 'gestor'
+  ): Promise<WasteContract> {
+    // 1. Obtener el contrato por token para saber el ID
+    const contract = await this.getBySigningToken(token);
+    if (!contract) {
+      throw new Error('Contrato no encontrado o token inválido');
+    }
+
+    // 2. Procesar la firma (mismo proceso que signContract pero sin auth check)
+    const base64Data = signatureBase64.split(',')[1];
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'image/png' });
+
+    const fileName = `signature-public-${role}-${contract.id}-${Date.now()}.png`;
+    const filePath = `contracts/${contract.id}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('images')
+      .upload(filePath, blob, {
+        contentType: 'image/png',
+        upsert: true
+      });
+
+    if (uploadError) {
+      throw new Error(`Error al subir firma: ${uploadError.message}`);
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('images')
+      .getPublicUrl(filePath);
+
+    // 3. Actualizar registro del contrato usando el token (ya que el usuario no está autenticado)
+    const now = new Date().toISOString();
+    const updateData: any = {};
+
+    if (role === 'productor') {
+      updateData.firma_productor_url = publicUrl;
+      updateData.fecha_firma_productor = now;
+    } else {
+      updateData.firma_gestor_url = publicUrl;
+      updateData.fecha_firma_gestor = now;
+    }
+
+    const { data, error: updateError } = await supabase
+      .from('waste_contracts')
+      .update(updateData)
+      .eq('signing_token', token)
+      .select(`
+        *,
+        company:companies!waste_contracts_company_id_fkey(*),
+        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
+        treatment_manager:treatment_managers(*)
+      `)
+      .single();
+
+    if (updateError) {
+      throw new Error(`Error al actualizar firma: ${updateError.message}`);
+    }
+
+    return data as WasteContract;
   },
 };
 

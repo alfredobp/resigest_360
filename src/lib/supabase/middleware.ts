@@ -56,7 +56,8 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/signup') &&
     !request.nextUrl.pathname.startsWith('/error-404') &&
     !request.nextUrl.pathname.startsWith('/auth/') &&
-    !request.nextUrl.pathname.startsWith('/map/') // Public map viewer
+    !request.nextUrl.pathname.startsWith('/map/') && // Public map viewer
+    !request.nextUrl.pathname.startsWith('/public/') // Public signature and other public pages
   ) {
     // Store the original URL to redirect back after login
     const redirectUrl = request.url
