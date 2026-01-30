@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import Badge from "../ui/badge/Badge";
+import Link from "next/link";
 
 interface RecentActivityProps {
     activities: any[];
@@ -19,14 +20,17 @@ export default function RecentActivities({ activities }: RecentActivityProps) {
                 ) : (
                     activities.map((item) => (
                         <div key={item.id} className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-gray-800 last:border-0 last:pb-0">
-                            <div className="flex flex-col">
+                            <Link
+                                href={`/residuos/documentos-identificacion/${item.id}`}
+                                className="flex flex-col hover:opacity-70 transition-opacity"
+                            >
                                 <span className="text-sm font-medium text-gray-800 dark:text-white/90">
                                     DI: {item.numero_documento}
                                 </span>
                                 <span className="text-xs text-gray-500 dark:text-gray-400">
                                     {item.productor_razon_social} → {item.gestor_razon_social}
                                 </span>
-                            </div>
+                            </Link>
                             <div className="flex flex-col items-end">
                                 <Badge color={
                                     item.estado === 'completado' ? 'success' :

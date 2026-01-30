@@ -2,6 +2,7 @@
 import React from "react";
 import Badge from "../ui/badge/Badge";
 import { BoxIconLine, GroupIcon, TaskIcon, CalenderIcon } from "@/icons";
+import Link from "next/link";
 
 interface DashboardMetricsProps {
     stats: {
@@ -17,7 +18,7 @@ export const DashboardMetrics: React.FC<DashboardMetricsProps> = ({ stats }) => 
     return (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 md:gap-6">
             {/* Proveedores */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+            <Link href="/residuos/gestores" className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-center w-12 h-12 bg-blue-50 rounded-xl dark:bg-blue-900/20">
                     <GroupIcon className="text-blue-600 size-6 dark:text-blue-400" />
                 </div>
@@ -30,10 +31,10 @@ export const DashboardMetrics: React.FC<DashboardMetricsProps> = ({ stats }) => 
                     </div>
                     <span className="text-xs text-gray-400 uppercase">Gestores + Transp.</span>
                 </div>
-            </div>
+            </Link>
 
             {/* DIs Emitidos */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+            <Link href="/residuos/documentos-identificacion" className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-center w-12 h-12 bg-orange-50 rounded-xl dark:bg-orange-900/20">
                     <TaskIcon className="text-orange-600 size-6 dark:text-orange-400" />
                 </div>
@@ -46,10 +47,10 @@ export const DashboardMetrics: React.FC<DashboardMetricsProps> = ({ stats }) => 
                     </div>
                     <Badge color="success">+2 hoy</Badge>
                 </div>
-            </div>
+            </Link>
 
             {/* Residuos Totales */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+            <Link href="/residuos/documentos-identificacion" className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-center w-12 h-12 bg-green-50 rounded-xl dark:bg-green-900/20">
                     <BoxIconLine className="text-green-600 size-6 dark:text-green-400" />
                 </div>
@@ -62,7 +63,7 @@ export const DashboardMetrics: React.FC<DashboardMetricsProps> = ({ stats }) => 
                     </div>
                     <span className="text-xs text-gray-400">Toneladas</span>
                 </div>
-            </div>
+            </Link>
 
             {/* Próximos Vencimientos (Placeholder) */}
             <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
