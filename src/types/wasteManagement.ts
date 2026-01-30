@@ -283,8 +283,12 @@ export interface WasteContract {
   // Estado
   estado: 'borrador' | 'vigente' | 'finalizado' | 'cancelado';
 
-  // Documentación
+  // Documentación y Firmas
   documento_url?: string;
+  firma_productor_url?: string;
+  fecha_firma_productor?: string;
+  firma_gestor_url?: string;
+  fecha_firma_gestor?: string;
 
   // Metadata
   notas?: string;
@@ -316,6 +320,10 @@ export interface WasteContractFormData {
   moneda?: string;
   estado?: 'borrador' | 'vigente' | 'finalizado' | 'cancelado';
   documento_url?: string;
+  firma_productor_url?: string;
+  fecha_firma_productor?: string;
+  firma_gestor_url?: string;
+  fecha_firma_gestor?: string;
   notas?: string;
 }
 

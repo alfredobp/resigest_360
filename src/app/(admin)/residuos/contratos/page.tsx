@@ -29,10 +29,15 @@ const STATUS_LABELS = {
 };
 
 export default function ContratosPage() {
-    const handleDownloadPDF = (contract: WasteContract) => {
-      const doc = generateContractPDF(contract);
+  const handleDownloadPDF = async (contract: WasteContract) => {
+    try {
+      const doc = await generateContractPDF(contract);
       doc.save(`contrato_${contract.numero_contrato || contract.id}.pdf`);
-    };
+    } catch (err) {
+      console.error('Error al descargar PDF:', err);
+      alert('Hubo un error al generar el PDF. Por favor, inténtelo de nuevo.');
+    }
+  };
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [contracts, setContracts] = useState<WasteContract[]>([]);
@@ -49,7 +54,7 @@ export default function ContratosPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      
+
       // Verificar si el usuario tiene empresa registrada
       const company = await companyService.getUserCompany();
       setHasCompany(!!company);
@@ -89,8 +94,8 @@ export default function ContratosPage() {
     }
   };
 
-  const filteredContracts = filterStatus === 'all' 
-    ? contracts 
+  const filteredContracts = filterStatus === 'all'
+    ? contracts
     : contracts.filter(c => c.estado === filterStatus);
 
   const formatDate = (dateString: string) => {
@@ -234,7 +239,7 @@ export default function ContratosPage() {
                               {contract.gestor_company.razon_social}
                             </p>
                           )}
-                          
+
                           <p>
                             <span className="font-medium text-foreground">Tipo:</span>{' '}
                             {contract.tipo_contrato}

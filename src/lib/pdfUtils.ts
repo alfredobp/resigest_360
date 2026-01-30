@@ -1,7 +1,26 @@
 import jsPDF from 'jspdf';
 import type { WasteContract } from '@/types/wasteManagement';
 
-export function generateContractPDF(contract: WasteContract) {
+/**
+ * Carga una imagen desde una URL y la devuelve como Base64 para jsPDF
+ */
+async function loadImageAsBase64(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error('Error cargando imagen para PDF:', error);
+    return null;
+  }
+}
+
+export async function generateContractPDF(contract: WasteContract) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -207,30 +226,51 @@ export function generateContractPDF(contract: WasteContract) {
 
   // --- FIRMAS ---
   // Asegurar que las firmas queden al final o en nueva página
-  if (yPos > pageHeight - 60) {
+  if (yPos > pageHeight - 70) {
     doc.addPage();
     yPos = 30;
   } else {
-    yPos = pageHeight - 60;
+    yPos = pageHeight - 70;
   }
 
   doc.setDrawColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
   doc.setLineWidth(0.5);
 
   // Firma Productor
+  if (contract.firma_productor_url) {
+    const signatureBase64 = await loadImageAsBase64(contract.firma_productor_url);
+    if (signatureBase64) {
+      doc.addImage(signatureBase64, 'PNG', 25, yPos - 25, 60, 20);
+    }
+  }
   doc.line(25, yPos, 85, yPos);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.text('POR EL PRODUCTOR', 25, yPos + 5);
   doc.setFont('helvetica', 'normal');
-  doc.text('Sello y Firma', 25, yPos + 10);
+  doc.text('Firmado digitalmente', 25, yPos + 10);
+  if (contract.fecha_firma_productor) {
+    doc.setFontSize(7);
+    doc.text(`Fecha: ${new Date(contract.fecha_firma_productor).toLocaleString('es-ES')}`, 25, yPos + 15);
+  }
 
   // Firma Gestor
+  if (contract.firma_gestor_url) {
+    const signatureBase64 = await loadImageAsBase64(contract.firma_gestor_url);
+    if (signatureBase64) {
+      doc.addImage(signatureBase64, 'PNG', pageWidth - 85, yPos - 25, 60, 20);
+    }
+  }
   doc.line(pageWidth - 85, yPos, pageWidth - 25, yPos);
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
   doc.text('POR EL GESTOR AUTORIZADO', pageWidth - 85, yPos + 5);
   doc.setFont('helvetica', 'normal');
-  doc.text('Sello y Firma', pageWidth - 85, yPos + 10);
+  doc.text('Firmado digitalmente', pageWidth - 85, yPos + 10);
+  if (contract.fecha_firma_gestor) {
+    doc.setFontSize(7);
+    doc.text(`Fecha: ${new Date(contract.fecha_firma_gestor).toLocaleString('es-ES')}`, pageWidth - 85, yPos + 15);
+  }
 
   // --- PIE DE PÁGINA ---
   const totalPages = doc.getNumberOfPages();

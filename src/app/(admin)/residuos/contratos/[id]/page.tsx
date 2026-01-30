@@ -9,6 +9,8 @@ import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import wasteContractService from '@/services/wasteContractService';
 import type { WasteContract } from '@/types/wasteManagement';
+import SignatureModal from '@/components/ui/signature/SignatureModal';
+import { generateContractPDF } from '@/lib/pdfUtils';
 
 const STATUS_COLORS = {
   borrador: 'info',
@@ -32,6 +34,8 @@ export default function ContractDetailPage() {
   const [loading, setLoading] = useState(true);
   const [contract, setContract] = useState<WasteContract | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [signingRole, setSigningRole] = useState<'productor' | 'gestor'>('productor');
 
   useEffect(() => {
     if (id) {
@@ -72,6 +76,37 @@ export default function ContractDetailPage() {
       await loadContract();
     } catch (err: any) {
       setError(`Error al cambiar estado: ${err.message}`);
+    }
+  };
+
+  const handleOpenSignature = (role: 'productor' | 'gestor' = 'productor') => {
+    setSigningRole(role);
+    setIsSignatureModalOpen(true);
+  };
+
+  const handleSaveSignature = async (signatureBase64: string) => {
+    if (!contract) return;
+    try {
+      setLoading(true);
+      await wasteContractService.signContract(contract.id, signatureBase64, signingRole);
+      await loadContract();
+    } catch (err: any) {
+      setError(`Error al guardar firma: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!contract) return;
+    try {
+      setLoading(true);
+      const doc = await generateContractPDF(contract);
+      doc.save(`contrato_${contract.numero_contrato || contract.id}.pdf`);
+    } catch (err: any) {
+      setError(`Error al descargar PDF: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -283,6 +318,41 @@ export default function ContractDetailPage() {
           </div>
         </ComponentCard>
 
+        {/* Firmas */}
+        {(contract.firma_productor_url || contract.firma_gestor_url) && (
+          <ComponentCard title="Firmas del Contrato">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {contract.firma_productor_url && (
+                <div className="flex flex-col items-center p-4 border rounded-xl bg-gray-50 dark:bg-gray-800/50">
+                  <span className="text-sm font-medium text-muted mb-4">Firma del Productor</span>
+                  <img
+                    src={contract.firma_productor_url}
+                    alt="Firma Productor"
+                    className="max-h-32 object-contain bg-white rounded shadow-sm p-2"
+                  />
+                  <span className="text-[10px] text-gray-400 mt-4 italic">
+                    Firmado el: {contract.fecha_firma_productor ? formatDate(contract.fecha_firma_productor) : '-'}
+                  </span>
+                </div>
+              )}
+
+              {contract.firma_gestor_url && (
+                <div className="flex flex-col items-center p-4 border rounded-xl bg-gray-50 dark:bg-gray-800/50">
+                  <span className="text-sm font-medium text-muted mb-4">Firma del Gestor</span>
+                  <img
+                    src={contract.firma_gestor_url}
+                    alt="Firma Gestor"
+                    className="max-h-32 object-contain bg-white rounded shadow-sm p-2"
+                  />
+                  <span className="text-[10px] text-gray-400 mt-4 italic">
+                    Firmado el: {contract.fecha_firma_gestor ? formatDate(contract.fecha_firma_gestor) : '-'}
+                  </span>
+                </div>
+              )}
+            </div>
+          </ComponentCard>
+        )}
+
         {/* Acciones */}
         <ComponentCard title="Acciones">
           <div className="flex flex-wrap gap-3">
@@ -316,9 +386,31 @@ export default function ContractDetailPage() {
               Editar Contrato
             </Button>
 
-            <Button variant="outline" onClick={handleDelete}>
+            <Button
+              variant="outline"
+              onClick={handleDelete}
+            >
               Eliminar Contrato
             </Button>
+
+            <Button
+              variant="outline"
+              onClick={handleDownloadPDF}
+            >
+              Descargar PDF
+            </Button>
+
+            {!contract.firma_productor_url && (
+              <Button onClick={() => handleOpenSignature('productor')}>
+                Firmar como Productor
+              </Button>
+            )}
+
+            {!contract.firma_gestor_url && (
+              <Button onClick={() => handleOpenSignature('gestor')}>
+                Firmar como Gestor
+              </Button>
+            )}
           </div>
         </ComponentCard>
 
@@ -336,6 +428,14 @@ export default function ContractDetailPage() {
           </div>
         </ComponentCard>
       </div>
+
+      <SignatureModal
+        isOpen={isSignatureModalOpen}
+        onClose={() => setIsSignatureModalOpen(false)}
+        onSave={handleSaveSignature}
+        title={`Firmar Contrato como ${signingRole === 'productor' ? 'Productor' : 'Gestor'}`}
+        description="Al pulsar en 'Confirmar Firma' se guardará su firma digital en el documento."
+      />
     </>
   );
 }

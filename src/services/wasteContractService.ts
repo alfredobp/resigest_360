@@ -238,7 +238,7 @@ export const wasteContractService = {
     const filePath = `contracts/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
-      .from('documents')
+      .from('images')
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false,
@@ -249,7 +249,7 @@ export const wasteContractService = {
     }
 
     const { data: { publicUrl } } = supabase.storage
-      .from('documents')
+      .from('images')
       .getPublicUrl(filePath);
 
     // Actualizar contrato con la URL del documento
@@ -323,6 +323,63 @@ export const wasteContractService = {
     }
 
     return data as WasteContract[];
+  },
+  /**
+   * Firmar contrato digitalmente
+   */
+  async signContract(
+    id: number,
+    signatureBase64: string,
+    role: 'productor' | 'gestor'
+  ): Promise<WasteContract> {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    // 1. Convertir Base64 a Blob
+    const base64Data = signatureBase64.split(',')[1];
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'image/png' });
+
+    // 2. Subir a Supabase Storage (busquet 'signatures' o similar)
+    const fileName = `signature-${role}-${id}-${Date.now()}.png`;
+    const filePath = `contracts/${id}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('images') // Reutilizamos el bucket de imagenes por ahora
+      .upload(filePath, blob, {
+        contentType: 'image/png',
+        upsert: true
+      });
+
+    if (uploadError) {
+      throw new Error(`Error al subir firma: ${uploadError.message}`);
+    }
+
+    // 3. Obtener URL pública
+    const { data: { publicUrl } } = supabase.storage
+      .from('images')
+      .getPublicUrl(filePath);
+
+    // 4. Actualizar registro del contrato
+    const now = new Date().toISOString();
+    const updateData: any = {};
+
+    if (role === 'productor') {
+      updateData.firma_productor_url = publicUrl;
+      updateData.fecha_firma_productor = now;
+    } else {
+      updateData.firma_gestor_url = publicUrl;
+      updateData.fecha_firma_gestor = now;
+    }
+
+    return this.update(id, updateData);
   },
 };
 
