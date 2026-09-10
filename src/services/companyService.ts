@@ -25,9 +25,10 @@ export const companyService = {
       .from('companies')
       .select('*')
       .eq('user_id', user.id)
-      .eq('tipo_empresa', 'productor')
       .eq('activo', true)
-      .maybeSingle(); // Usa maybeSingle en lugar de single para manejar 0 o 1 resultados
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (error) {
       throw new Error(`Error al obtener empresa: ${error.message}`);
@@ -120,6 +121,17 @@ export const companyService = {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) {
       throw new Error('Usuario no autenticado');
+    }
+
+    // Verificar si ya existe una empresa vinculada al usuario o con el mismo CIF
+    const { data: existing } = await supabase
+      .from('companies')
+      .select('id')
+      .or(`user_id.eq.${userData.user.id},cif.eq.${companyData.cif.trim()}`)
+      .maybeSingle();
+
+    if (existing?.id) {
+      return this.update(existing.id, companyData);
     }
 
     const { data, error } = await supabase
@@ -225,19 +237,25 @@ export const companyService = {
   },
 
   /**
-   * Validar CIF (formato básico español)
+   * Validar CIF / NIF / NIE (formato oficial español)
    */
   validateCIF(cif: string): boolean {
-    const cifRegex = /^[A-Z]\d{8}$/;
-    return cifRegex.test(cif);
+    if (!cif) return false;
+    const clean = cif.trim().toUpperCase();
+    const nifRegex = /^[0-9]{8}[A-Z]$/;
+    const nieRegex = /^[XYZ][0-9]{7}[A-Z]$/;
+    const cifRegex = /^[ABCDEFGHJNPQRSUVW][0-9]{7}[0-9A-J]$/;
+    return nifRegex.test(clean) || nieRegex.test(clean) || cifRegex.test(clean);
   },
 
   /**
-   * Validar NIMA (12 caracteres alfanuméricos)
+   * Validar NIMA (10 dígitos o 10-12 caracteres alfanuméricos)
    */
   validateNIMA(nima: string): boolean {
-    const nimaRegex = /^[A-Z0-9]{12}$/;
-    return nimaRegex.test(nima);
+    if (!nima) return false;
+    const clean = nima.trim().toUpperCase();
+    const nimaRegex = /^[A-Z0-9]{10,12}$/;
+    return nimaRegex.test(clean);
   },
 };
 

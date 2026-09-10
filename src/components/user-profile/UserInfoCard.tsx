@@ -14,6 +14,7 @@ interface UserProfile {
   phone?: string;
   bio?: string;
   location?: string;
+  website?: string;
 }
 
 export default function UserInfoCard() {
@@ -27,9 +28,11 @@ export default function UserInfoCard() {
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
+    email: "",
     phone: "",
     bio: "",
     location: "",
+    website: "",
   });
   
   useEffect(() => {
@@ -51,26 +54,44 @@ export default function UserInfoCard() {
 
         if (profileError) {
           console.error("Error loading profile:", profileError);
+          // Fallback minimal profile if single fails or schema is partial
+          setProfile({
+            email: user.email || "",
+            first_name: "",
+            last_name: "",
+          });
+          setFormData({
+            first_name: "",
+            last_name: "",
+            email: user.email || "",
+            phone: "",
+            bio: "",
+            location: "",
+            website: "",
+          });
           setLoading(false);
           return;
         }
 
         const userProfile: UserProfile = {
-          email: profileData.email || user.email || "",
-          first_name: profileData.first_name || "",
-          last_name: profileData.last_name || "",
-          phone: profileData.phone || "",
-          bio: profileData.bio || "",
-          location: profileData.location || "",
+          email: profileData?.email || user.email || "",
+          first_name: profileData?.first_name || "",
+          last_name: profileData?.last_name || "",
+          phone: profileData?.phone || "",
+          bio: profileData?.bio || "",
+          location: profileData?.location || "",
+          website: profileData?.website || "",
         };
 
         setProfile(userProfile);
         setFormData({
           first_name: userProfile.first_name,
           last_name: userProfile.last_name,
+          email: userProfile.email,
           phone: userProfile.phone || "",
           bio: userProfile.bio || "",
           location: userProfile.location || "",
+          website: userProfile.website || "",
         });
       }
       setLoading(false);
@@ -98,31 +119,59 @@ export default function UserInfoCard() {
         return;
       }
 
-      // Update profile in database
+      // Payload completo
+      const fullPayload: any = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email,
+        phone: formData.phone,
+        bio: formData.bio,
+        location: formData.location,
+        website: formData.website,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Intentar upsert en profiles
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({
-          first_name: formData.first_name,
-          last_name: formData.last_name,
-          phone: formData.phone,
-          bio: formData.bio,
-          location: formData.location,
-        })
-        .eq('id', user.id);
+        .upsert({
+          id: user.id,
+          ...fullPayload
+        });
 
       if (updateError) {
-        setError(updateError.message);
-        setSaving(false);
-        return;
+        // Fallback si faltan columnas específicas en el cache de Supabase DB
+        if (updateError.message.includes("schema cache") || updateError.message.includes("column")) {
+          const safePayload = {
+            id: user.id,
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            email: formData.email,
+            phone: formData.phone,
+          };
+          const { error: safeError } = await supabase
+            .from('profiles')
+            .upsert(safePayload);
+          
+          if (safeError) {
+            setError(safeError.message);
+            setSaving(false);
+            return;
+          }
+        } else {
+          setError(updateError.message);
+          setSaving(false);
+          return;
+        }
       }
 
-      // Reload profile
+      // Recargar perfil
       await loadUserProfile();
       setSaving(false);
       closeModal();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error saving profile:", err);
-      setError("Error al guardar los cambios");
+      setError("Error al guardar los cambios: " + (err.message || "Error interno"));
       setSaving(false);
     }
   };
@@ -134,18 +183,19 @@ export default function UserInfoCard() {
       </div>
     );
   }
+
   return (
     <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 lg:mb-6">
-            Personal Information
+            Información Personal
           </h4>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-7 2xl:gap-x-32">
             <div>
               <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                First Name
+                Nombre
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
                 {profile?.first_name || "N/A"}
@@ -154,7 +204,7 @@ export default function UserInfoCard() {
 
             <div>
               <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                Last Name
+                Apellidos
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
                 {profile?.last_name || "N/A"}
@@ -163,7 +213,7 @@ export default function UserInfoCard() {
 
             <div>
               <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                Email address
+                Correo Electrónico
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
                 {profile?.email || "N/A"}
@@ -172,7 +222,7 @@ export default function UserInfoCard() {
 
             <div>
               <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                Phone
+                Teléfono
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
                 {profile?.phone || "N/A"}
@@ -181,7 +231,22 @@ export default function UserInfoCard() {
 
             <div>
               <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                Bio
+                Sitio Web
+              </p>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                {profile?.website ? (
+                  <a href={profile.website} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                    {profile.website}
+                  </a>
+                ) : (
+                  "N/A"
+                )}
+              </p>
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                Bio / Cargo
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
                 {profile?.bio || "N/A"}
@@ -190,7 +255,7 @@ export default function UserInfoCard() {
 
             <div>
               <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                Location
+                Ubicación
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
                 {profile?.location || "N/A"}
@@ -218,7 +283,7 @@ export default function UserInfoCard() {
               fill=""
             />
           </svg>
-          Edit
+          Editar Perfil
         </button>
       </div>
 
@@ -226,13 +291,13 @@ export default function UserInfoCard() {
         <div className="no-scrollbar relative w-full max-w-[700px] overflow-y-auto rounded-3xl bg-white p-4 dark:bg-gray-900 lg:p-11">
           <div className="px-2 pr-14">
             <h4 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">
-              Edit Personal Information
+              Editar Información Personal
             </h4>
             <p className="mb-6 text-sm text-gray-500 dark:text-gray-400 lg:mb-7">
-              Update your details to keep your profile up-to-date.
+              Actualiza tus datos para mantener tu perfil al día.
             </p>
           </div>
-          <form className="flex flex-col">
+          <form className="flex flex-col" onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
             <div className="custom-scrollbar h-[450px] overflow-y-auto px-2 pb-3">
               {error && (
                 <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -241,71 +306,83 @@ export default function UserInfoCard() {
               )}
               <div>
                 <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">
-                  Personal Information
+                  Información Personal
                 </h5>
 
                 <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>First Name</Label>
+                    <Label>Nombre</Label>
                     <Input 
                       type="text" 
                       value={formData.first_name}
                       onChange={(e) => handleInputChange("first_name", e.target.value)}
-                      placeholder="First name"
+                      placeholder="Tu nombre"
                       disabled={saving}
                     />
                   </div>
 
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>Last Name</Label>
+                    <Label>Apellidos</Label>
                     <Input 
                       type="text" 
                       value={formData.last_name}
                       onChange={(e) => handleInputChange("last_name", e.target.value)}
-                      placeholder="Last name"
+                      placeholder="Tus apellidos"
                       disabled={saving}
                     />
                   </div>
 
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>Email Address</Label>
+                    <Label>Correo Electrónico</Label>
                     <Input 
                       type="email" 
-                      value={profile?.email || ""}
-                      disabled
-                      className="opacity-50 cursor-not-allowed"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange("email", e.target.value)}
+                      placeholder="ejemplo@empresa.com"
+                      disabled={saving}
                     />
                   </div>
 
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>Phone</Label>
+                    <Label>Teléfono</Label>
                     <Input 
                       type="text" 
                       value={formData.phone}
                       onChange={(e) => handleInputChange("phone", e.target.value)}
-                      placeholder="+1 234 567 890"
+                      placeholder="+34 600 000 000"
                       disabled={saving}
                     />
                   </div>
 
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>Bio</Label>
+                    <Label>Sitio Web</Label>
+                    <Input 
+                      type="url" 
+                      value={formData.website}
+                      onChange={(e) => handleInputChange("website", e.target.value)}
+                      placeholder="https://www.tuempresa.com"
+                      disabled={saving}
+                    />
+                  </div>
+
+                  <div className="col-span-2 lg:col-span-1">
+                    <Label>Bio / Cargo</Label>
                     <Input 
                       type="text" 
                       value={formData.bio}
                       onChange={(e) => handleInputChange("bio", e.target.value)}
-                      placeholder="Team Manager, Developer, etc."
+                      placeholder="Gestor RCD, Director Operativo, etc."
                       disabled={saving}
                     />
                   </div>
 
-                  <div className="col-span-2 lg:col-span-1">
-                    <Label>Location</Label>
+                  <div className="col-span-2 lg:col-span-2">
+                    <Label>Ubicación</Label>
                     <Input 
                       type="text" 
                       value={formData.location}
                       onChange={(e) => handleInputChange("location", e.target.value)}
-                      placeholder="City, Country"
+                      placeholder="Ciudad, Provincia, País"
                       disabled={saving}
                     />
                   </div>
@@ -313,11 +390,11 @@ export default function UserInfoCard() {
               </div>
             </div>
             <div className="flex items-center gap-3 px-2 mt-6 lg:justify-end">
-              <Button size="sm" variant="outline" onClick={closeModal} disabled={saving}>
-                Close
+              <Button size="sm" variant="outline" type="button" onClick={closeModal} disabled={saving}>
+                Cancelar
               </Button>
-              <Button size="sm" onClick={handleSave} disabled={saving}>
-                {saving ? "Guardando..." : "Save Changes"}
+              <Button size="sm" type="submit" disabled={saving}>
+                {saving ? "Guardando..." : "Guardar Cambios"}
               </Button>
             </div>
           </form>

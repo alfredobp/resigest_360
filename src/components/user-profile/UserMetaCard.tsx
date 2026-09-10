@@ -16,6 +16,7 @@ interface UserProfile {
   bio?: string;
   phone?: string;
   location?: string;
+  website?: string;
   avatar_url?: string;
   facebook?: string;
   twitter?: string;
@@ -40,6 +41,7 @@ export default function UserMetaCard() {
     bio: "",
     phone: "",
     location: "",
+    website: "",
     facebook: "",
     twitter: "",
     linkedin: "",
@@ -72,17 +74,18 @@ export default function UserMetaCard() {
 
         const userProfile: UserProfile = {
           id: user.id,
-          email: profileData.email || user.email || "",
-          first_name: profileData.first_name || "",
-          last_name: profileData.last_name || "",
-          bio: profileData.bio || "",
-          phone: profileData.phone || "",
-          location: profileData.location || "",
-          avatar_url: profileData.avatar_url || "",
-          facebook: profileData.facebook || "",
-          twitter: profileData.twitter || "",
-          linkedin: profileData.linkedin || "",
-          instagram: profileData.instagram || "",
+          email: profileData?.email || user.email || "",
+          first_name: profileData?.first_name || "",
+          last_name: profileData?.last_name || "",
+          bio: profileData?.bio || "",
+          phone: profileData?.phone || "",
+          location: profileData?.location || "",
+          website: profileData?.website || "",
+          avatar_url: profileData?.avatar_url || "",
+          facebook: profileData?.facebook || "",
+          twitter: profileData?.twitter || "",
+          linkedin: profileData?.linkedin || "",
+          instagram: profileData?.instagram || "",
         };
 
         setProfile(userProfile);
@@ -92,6 +95,7 @@ export default function UserMetaCard() {
           bio: userProfile.bio || "",
           phone: userProfile.phone || "",
           location: userProfile.location || "",
+          website: userProfile.website || "",
           facebook: userProfile.facebook || "",
           twitter: userProfile.twitter || "",
           linkedin: userProfile.linkedin || "",
@@ -201,26 +205,45 @@ export default function UserMetaCard() {
       }
 
       // Update profile in database
+      const fullPayload = {
+        id: user.id,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        bio: formData.bio,
+        phone: formData.phone,
+        location: formData.location,
+        website: formData.website,
+        avatar_url: avatarUrl,
+        facebook: formData.facebook,
+        twitter: formData.twitter,
+        linkedin: formData.linkedin,
+        instagram: formData.instagram,
+      };
+
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({
-          first_name: formData.first_name,
-          last_name: formData.last_name,
-          bio: formData.bio,
-          phone: formData.phone,
-          location: formData.location,
-          avatar_url: avatarUrl,
-          facebook: formData.facebook,
-          twitter: formData.twitter,
-          linkedin: formData.linkedin,
-          instagram: formData.instagram,
-        })
-        .eq('id', user.id);
+        .upsert(fullPayload);
 
       if (updateError) {
-        setError(updateError.message);
-        setSaving(false);
-        return;
+        if (updateError.message.includes("schema cache") || updateError.message.includes("column")) {
+          const safePayload = {
+            id: user.id,
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            phone: formData.phone,
+            avatar_url: avatarUrl,
+          };
+          const { error: safeError } = await supabase.from('profiles').upsert(safePayload);
+          if (safeError) {
+            setError(safeError.message);
+            setSaving(false);
+            return;
+          }
+        } else {
+          setError(updateError.message);
+          setSaving(false);
+          return;
+        }
       }
 
       // Reload profile

@@ -12,7 +12,7 @@ import Alert from '@/components/ui/alert/Alert';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import type { Company, CompanyFormData, ProductionCenter, ProductionCenterFormData } from '@/types/wasteManagement';
-import { Trash2, Plus, MapPin } from 'lucide-react';
+import { Trash2, Plus, MapPin, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 const TIPOS_EMPRESA = [
   { value: 'productor', label: 'Productor' },
@@ -257,7 +257,20 @@ export default function MiEmpresaPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">CIF *</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium">CIF / NIF *</label>
+                  {formData.cif.trim() !== '' && (
+                    companyService.validateCIF(formData.cif) ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> CIF Válido
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs text-red-500 font-medium">
+                        <AlertCircle className="w-3.5 h-3.5" /> Formato incorrecto (Ej: B12345678)
+                      </span>
+                    )
+                  )}
+                </div>
                 <Input
                   name="cif"
                   value={formData.cif}
@@ -268,12 +281,25 @@ export default function MiEmpresaPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">NIMA</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium">NIMA</label>
+                  {formData.nima.trim() !== '' && (
+                    companyService.validateNIMA(formData.nima) ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> NIMA Válido ({formData.nima.trim().length} car.)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium">
+                        <AlertCircle className="w-3.5 h-3.5" /> NIMA incompleto ({formData.nima.trim().length}/10 car.)
+                      </span>
+                    )
+                  )}
+                </div>
                 <Input
                   name="nima"
                   value={formData.nima}
                   onChange={handleChange}
-                  placeholder="Ej: 1234567890AB"
+                  placeholder="Ej: 4100012345 (10 dígitos)"
                 />
               </div>
 
@@ -436,6 +462,19 @@ export default function MiEmpresaPage() {
           {/* Configuración SIRA (Junta de Andalucía) */}
           <ComponentCard title="Configuración SIRA (Junta de Andalucía)" className="mt-6 border-blue-200 bg-blue-50/30 dark:border-blue-900/30">
             <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-blue-100/60 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs leading-relaxed space-y-2">
+                <div className="flex items-center gap-2 font-semibold text-sm text-blue-900 dark:text-blue-100">
+                  <Info className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  ¿Qué es la conexión SIRA y cómo funciona?
+                </div>
+                <p>
+                  <strong>SIRA</strong> (Sistema de Información de Residuos de Andalucía) es la plataforma oficial de la Junta de Andalucía para la tramitación de traslados de residuos.
+                </p>
+                <p>
+                  Al activar la integración e introducir tus credenciales del Servicio Web (Usuario WS y Contraseña WS), <strong>Resigest 360</strong> enviará los Documentos de Identificación (DI) firmados directamente a la Consejería mediante protocolo cifrado E3L. Obtendrás el <strong>ID de Registro SIRA</strong> oficial en segundos sin necesidad de subidas manuales.
+                </p>
+              </div>
+
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h4 className="font-semibold text-blue-800 dark:text-blue-300">Conexión con el Web Service</h4>
