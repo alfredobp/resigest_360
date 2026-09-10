@@ -283,14 +283,14 @@ export default function MiEmpresaPage() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium">NIMA</label>
-                  {formData.nima.trim() !== '' && (
-                    companyService.validateNIMA(formData.nima) ? (
+                  {(formData.nima || '').trim() !== '' && (
+                    companyService.validateNIMA(formData.nima || '') ? (
                       <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> NIMA Válido ({formData.nima.trim().length} car.)
+                        <CheckCircle2 className="w-3.5 h-3.5" /> NIMA Válido ({(formData.nima || '').trim().length} car.)
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium">
-                        <AlertCircle className="w-3.5 h-3.5" /> NIMA incompleto ({formData.nima.trim().length}/10 car.)
+                        <AlertCircle className="w-3.5 h-3.5" /> NIMA incompleto ({(formData.nima || '').trim().length}/10 car.)
                       </span>
                     )
                   )}

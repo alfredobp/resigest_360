@@ -1,9 +1,8 @@
 "use client";
 import React from "react";
 import Badge from "../ui/badge/Badge";
-import { BoxIconLine, GroupIcon, TaskIcon, CalenderIcon } from "@/icons";
+import { BoxIconLine, GroupIcon, TaskIcon, CalenderIcon, BoxCubeIcon } from "@/icons";
 import Link from "next/link";
-import { Truck } from "lucide-react";
 
 interface DashboardMetricsProps {
     stats: {
@@ -37,7 +36,7 @@ export const DashboardMetrics: React.FC<DashboardMetricsProps> = ({ stats }) => 
             {/* Transportistas */}
             <Link href="/residuos/transportistas" className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-center w-12 h-12 bg-indigo-50 rounded-xl dark:bg-indigo-900/20">
-                    <Truck className="text-indigo-600 size-6 dark:text-indigo-400" />
+                    <BoxCubeIcon className="text-indigo-600 size-6 dark:text-indigo-400" />
                 </div>
                 <div className="flex items-end justify-between mt-5">
                     <div>
