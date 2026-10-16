@@ -21,7 +21,8 @@ import {
   MapSettingsIcon,
   TrashBinIcon,
   DocsIcon,
-  PaperPlaneIcon
+  PaperPlaneIcon,
+  DollarLineIcon
 } from "../icons/index";
 import Logo from "@/components/common/Logo";
 
@@ -44,12 +45,17 @@ const navItems: NavItem[] = [
     path: "/residuos/mi-empresa"
   },
   {
+    icon: <UserCircleIcon />,
+    name: "Empresas y Contactos",
+    path: "/residuos/empresas"
+  },
+  {
     icon: <HorizontaLDots />,
     name: "Contratos",
     path: "/residuos/contratos"
   },
   {
-    icon: <UserCircleIcon />,
+    icon: <TaskIcon />,
     name: "Gestores",
     path: "/residuos/gestores",
   },
@@ -63,6 +69,16 @@ const navItems: NavItem[] = [
     icon: <PaperPlaneIcon />,
     name: "Documentos de Identificación",
     path: "/residuos/documentos-identificacion",
+  },
+  {
+    icon: <DollarLineIcon />,
+    name: "Operaciones Comerciales",
+    path: "/residuos/operaciones",
+  },
+  {
+    icon: <ListIcon />,
+    name: "Archivo Cronológico",
+    path: "/residuos/archivo-cronologico",
   },
   {
     icon: <TableIcon />,

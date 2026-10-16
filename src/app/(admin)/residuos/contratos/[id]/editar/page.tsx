@@ -9,9 +9,24 @@ import Alert from '@/components/ui/alert/Alert';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
 import Select from '@/components/form/Select';
-import wasteContractService from '@/services/wasteContractService';
+import wasteContractService, { validateContractActivation } from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
-import type { WasteContract, Company, WasteContractFormData } from '@/types/wasteManagement';
+import wasteTypeService from '@/services/wasteTypeService';
+import treatmentManagerService from '@/services/treatmentManagerService';
+import productionCenterService from '@/services/productionCenterService';
+import authorizationService, { type AuthorizedScopeResult } from '@/services/authorizationService';
+import type {
+  WasteContract,
+  Company,
+  CompanyRole,
+  CompanyFormData,
+  WasteContractFormData,
+  WasteType,
+  TreatmentManager,
+  ProductionCenter,
+  ContractWasteCodeFormData,
+} from '@/types/wasteManagement';
+import { Plus, Trash2, ShieldCheck, MapPin, Building2 } from 'lucide-react';
 
 const TIPOS_CONTRATO = [
   { value: 'tratamiento', label: 'Tratamiento' },
@@ -19,6 +34,20 @@ const TIPOS_CONTRATO = [
   { value: 'transporte', label: 'Transporte' },
   { value: 'valoracion', label: 'Valoración' },
   { value: 'eliminacion', label: 'Eliminación' },
+];
+
+const OPERACIONES_FRECUENTES = [
+  { code: 'R01', desc: 'Utilización principal como combustible' },
+  { code: 'R03', desc: 'Reciclado/recuperación de sustancias orgánicas' },
+  { code: 'R04', desc: 'Reciclado/recuperación de metales' },
+  { code: 'R05', desc: 'Reciclado/recuperación de otras materias inorgánicas' },
+  { code: 'R12', desc: 'Intercambio de residuos' },
+  { code: 'R13', desc: 'Almacenamiento en espera de valorización' },
+  { code: 'D01', desc: 'Depósito sobre el suelo o en su interior (vertedero)' },
+  { code: 'D08', desc: 'Tratamiento biológico no especificado en otros apartados' },
+  { code: 'D09', desc: 'Tratamiento físico-químico no especificado' },
+  { code: 'D14', desc: 'Reenvasado previo a eliminación' },
+  { code: 'D15', desc: 'Almacenamiento en espera de eliminación' },
 ];
 
 export default function EditarContratoPage() {
@@ -30,13 +59,26 @@ export default function EditarContratoPage() {
   const [saving, setSaving] = useState(false);
   const [contract, setContract] = useState<WasteContract | null>(null);
   const [gestores, setGestores] = useState<Company[]>([]);
+  const [internalGestores, setInternalGestores] = useState<TreatmentManager[]>([]);
+  const [wasteTypes, setWasteTypes] = useState<WasteType[]>([]);
+  const [producerCenters, setProducerCenters] = useState<ProductionCenter[]>([]);
+  const [gestorCenters, setGestorCenters] = useState<ProductionCenter[]>([]);
+  const [destAuthScope, setDestAuthScope] = useState<AuthorizedScopeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showGestorForm, setShowGestorForm] = useState(false);
 
+  const [contractWasteCodes, setContractWasteCodes] = useState<ContractWasteCodeFormData[]>([
+    { codigo_ler: '', descripcion_ler: '', operacion_tratamiento: 'R13' },
+  ]);
+
   const [formData, setFormData] = useState<WasteContractFormData>({
     company_id: 0,
     gestor_company_id: undefined,
+    treatment_manager_id: undefined,
+    producer_center_id: undefined,
+    gestor_center_id: undefined,
+    environmental_authorization_id: undefined,
     numero_contrato: '',
     fecha_contrato: new Date().toISOString().split('T')[0],
     fecha_inicio: '',
@@ -67,19 +109,68 @@ export default function EditarContratoPage() {
     }
   }, [id]);
 
+  // Cargar centros del productor cuando cambie formData.company_id
+  useEffect(() => {
+    if (formData.company_id) {
+      productionCenterService.getByCompanyId(formData.company_id)
+        .then(setProducerCenters)
+        .catch((err) => console.error('Error al cargar centros del productor:', err));
+    }
+  }, [formData.company_id]);
+
+  // Cargar centros del gestor y autorización cuando cambie el gestor
+  useEffect(() => {
+    const gestorId = formData.gestor_company_id;
+    if (gestorId) {
+      productionCenterService.getByCompanyId(gestorId)
+        .then(setGestorCenters)
+        .catch((err) => console.error('Error al cargar centros del gestor:', err));
+
+      authorizationService.getAuthorizedScope(gestorId)
+        .then((res) => {
+          setDestAuthScope(res);
+          if (res.authorizations.length > 0 && !formData.environmental_authorization_id) {
+            setFormData(prev => ({
+              ...prev,
+              environmental_authorization_id: res.authorizations[0].id,
+            }));
+          }
+        })
+        .catch((err) => console.error('Error al comprobar autorizaciones del gestor:', err));
+    } else {
+      setGestorCenters([]);
+      setDestAuthScope(null);
+    }
+  }, [formData.gestor_company_id]);
+
   const loadData = async () => {
     try {
       setLoading(true);
       
-      // Cargar contrato
       const contractData = await wasteContractService.getById(parseInt(id));
       setContract(contractData);
 
-      // Llenar formulario con datos del contrato
+      const [allCompanies, legacyGestores, wastes] = await Promise.all([
+        companyService.getAll(),
+        treatmentManagerService.getAll().catch(() => []),
+        wasteTypeService.getAll().catch(() => []),
+      ]);
+
+      const gestorCompanies = allCompanies.filter(
+        c => c.tipo_empresa === 'gestor' || (c.roles && c.roles.includes('gestor'))
+      );
+      setGestores(gestorCompanies);
+      setInternalGestores(legacyGestores);
+      setWasteTypes(wastes);
+
       if (contractData) {
         setFormData({
           company_id: contractData.company_id,
-          gestor_company_id: contractData.gestor_company_id,
+          gestor_company_id: contractData.gestor_company_id || undefined,
+          treatment_manager_id: contractData.treatment_manager_id || undefined,
+          producer_center_id: contractData.producer_center_id || undefined,
+          gestor_center_id: contractData.gestor_center_id || undefined,
+          environmental_authorization_id: contractData.environmental_authorization_id || undefined,
           numero_contrato: contractData.numero_contrato || '',
           fecha_contrato: contractData.fecha_contrato,
           fecha_inicio: contractData.fecha_inicio || '',
@@ -95,16 +186,60 @@ export default function EditarContratoPage() {
           documento_url: contractData.documento_url || '',
           notas: contractData.notas || '',
         });
-      }
 
-      // Cargar gestores
-      const allCompanies = await companyService.getAll();
-      setGestores(allCompanies.filter((c) => c.tipo_empresa === 'gestor'));
+        if (contractData.contract_waste_codes && contractData.contract_waste_codes.length > 0) {
+          setContractWasteCodes(contractData.contract_waste_codes.map(c => ({
+            codigo_ler: c.codigo_ler,
+            descripcion_ler: c.descripcion_ler || '',
+            operacion_tratamiento: c.operacion_tratamiento,
+            cantidad_estimada_anual: c.cantidad_estimada_anual || undefined,
+            tarifa_gestion: c.tarifa_gestion || undefined,
+            tipo_precio: c.tipo_precio || 'por_tonelada',
+          })));
+        } else if (contractData.codigos_ler && contractData.codigos_ler.length > 0) {
+          setContractWasteCodes(contractData.codigos_ler.map((ler, i) => ({
+            codigo_ler: ler,
+            descripcion_ler: '',
+            operacion_tratamiento: contractData.operaciones_tratamiento?.[i] || contractData.operaciones_tratamiento?.[0] || 'R13',
+          })));
+        }
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAddWasteCodeRow = () => {
+    setContractWasteCodes(prev => [
+      ...prev,
+      { codigo_ler: '', descripcion_ler: '', operacion_tratamiento: 'R13' },
+    ]);
+  };
+
+  const handleRemoveWasteCodeRow = (idx: number) => {
+    setContractWasteCodes(prev => {
+      const copy = [...prev];
+      copy.splice(idx, 1);
+      return copy.length > 0 ? copy : [{ codigo_ler: '', descripcion_ler: '', operacion_tratamiento: 'R13' }];
+    });
+  };
+
+  const handleWasteRowChange = (idx: number, field: keyof ContractWasteCodeFormData, val: any) => {
+    setContractWasteCodes(prev => {
+      const copy = [...prev];
+      const updated = { ...copy[idx], [field]: val };
+
+      if (field === 'codigo_ler' && val) {
+        const found = wasteTypes.find(w => w.codigo_ler.trim() === val.trim());
+        if (found && !updated.descripcion_ler) {
+          updated.descripcion_ler = found.descripcion;
+        }
+      }
+      copy[idx] = updated;
+      return copy;
+    });
   };
 
   const handleSaveNewGestor = async () => {
@@ -114,9 +249,10 @@ export default function EditarContratoPage() {
     }
 
     try {
-      const gestorData = {
+      const gestorData: CompanyFormData = {
         ...newGestor,
-        tipo_empresa: 'gestor' as const,
+        tipo_empresa: 'gestor',
+        roles: ['gestor' as CompanyRole],
         activo: true,
       };
 
@@ -125,9 +261,11 @@ export default function EditarContratoPage() {
       setShowGestorForm(false);
       setNewGestor({ razon_social: '', cif: '', nima: '', email: '', telefono: '' });
       
-      // Recargar gestores
       const allCompanies = await companyService.getAll();
-      setGestores(allCompanies.filter((c) => c.tipo_empresa === 'gestor'));
+      const gestorCompanies = allCompanies.filter(
+        c => c.tipo_empresa === 'gestor' || (c.roles && c.roles.includes('gestor'))
+      );
+      setGestores(gestorCompanies);
     } catch (err: any) {
       alert(`Error al crear gestor: ${err.message}`);
     }
@@ -141,11 +279,16 @@ export default function EditarContratoPage() {
       return;
     }
 
+    const validWasteCodes = contractWasteCodes.filter(c => !!c.codigo_ler.trim());
+    if (formData.estado === 'vigente' && validWasteCodes.length === 0) {
+      setError('Para guardar como vigente, debe especificar al menos un residuo LER y su operación de tratamiento.');
+      return;
+    }
+
     try {
       setSaving(true);
       setError(null);
 
-      // Convertir cadenas vacías a undefined para campos de fecha y numéricos
       const cleanedData = {
         ...formData,
         fecha_inicio: formData.fecha_inicio || undefined,
@@ -153,7 +296,28 @@ export default function EditarContratoPage() {
         cantidad_maxima_anual: formData.cantidad_maxima_anual || undefined,
         precio_unitario: formData.precio_unitario || undefined,
         gestor_company_id: formData.gestor_company_id || undefined,
+        treatment_manager_id: formData.treatment_manager_id || undefined,
+        producer_center_id: formData.producer_center_id || undefined,
+        gestor_center_id: formData.gestor_center_id || undefined,
+        environmental_authorization_id: formData.environmental_authorization_id || undefined,
+        codigos_ler: validWasteCodes.map(c => c.codigo_ler.trim()),
+        operaciones_tratamiento: Array.from(new Set(validWasteCodes.map(c => c.operacion_tratamiento.trim()).filter(Boolean))),
+        contractWasteCodes: validWasteCodes,
       };
+
+      if (formData.estado === 'vigente') {
+        const val = validateContractActivation({
+          ...cleanedData,
+          company: contract?.company,
+          treatment_manager: contract?.treatment_manager,
+          gestor_company: contract?.gestor_company,
+        });
+        if (!val.valid) {
+          setError(`No se puede guardar como vigente: ${val.errors.join('; ')}`);
+          setSaving(false);
+          return;
+        }
+      }
 
       await wasteContractService.update(parseInt(id), cleanedData);
       router.push(`/residuos/contratos/${id}`);
@@ -291,142 +455,282 @@ export default function EditarContratoPage() {
             </div>
           </ComponentCard>
 
-          {/* Empresa Gestora */}
-          <ComponentCard title="Empresa Gestora">
-            {!showGestorForm ? (
-              <>
-                <div className="space-y-4">
-                  <div>
-                    <label htmlFor="search_gestor" className="block text-sm font-medium mb-2">Buscar Gestor</label>
-                    <Input
-                      id="search_gestor"
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Buscar por razón social o CIF..."
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="gestor_company_id" className="block text-sm font-medium mb-2">
-                      Seleccionar Gestor
-                    </label>
-                    <Select
-                      options={[
-                        { value: '', label: '-- Seleccionar --' },
-                        ...filteredGestores.map((g) => ({
-                          value: g.id.toString(),
-                          label: `${g.razon_social} (${g.cif})${g.nima ? ' - NIMA: ' + g.nima : ''}`,
-                        })),
-                      ]}
-                      defaultValue={formData.gestor_company_id?.toString() || ''}
-                      onChange={(value) => setFormData({ ...formData, gestor_company_id: parseInt(value) || undefined })}
-                      placeholder="Selecciona una opción"
-                    />
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setShowGestorForm(true)}
-                  >
-                    + Crear Nuevo Gestor
-                  </Button>
+          {/* Partes e Instalaciones */}
+          <ComponentCard title="Partes del Contrato e Instalaciones">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Origen (Productor) */}
+              <div className="space-y-4 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30">
+                <div className="flex items-center gap-2 text-foreground font-semibold">
+                  <Building2 className="w-4 h-4 text-primary" />
+                  <h4>Origen: Empresa Productora</h4>
                 </div>
-              </>
-            ) : (
-              <div className="space-y-4">
-                <h4 className="font-medium text-foreground">Nuevo Gestor</h4>
+                {contract?.company && (
+                  <p className="text-sm font-medium text-foreground">
+                    {contract.company.razon_social} ({contract.company.cif})
+                  </p>
+                )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="new_razon_social" className="block text-sm font-medium mb-2">Razón Social</label>
-                    <Input
-                      id="new_razon_social"
-                      type="text"
-                      value={newGestor.razon_social}
-                      onChange={(e) => setNewGestor({ ...newGestor, razon_social: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="new_cif" className="block text-sm font-medium mb-2">CIF</label>
-                    <Input
-                      id="new_cif"
-                      type="text"
-                      value={newGestor.cif}
-                      onChange={(e) => setNewGestor({ ...newGestor, cif: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="new_nima" className="block text-sm font-medium mb-2">NIMA</label>
-                    <Input
-                      id="new_nima"
-                      type="text"
-                      value={newGestor.nima}
-                      onChange={(e) => setNewGestor({ ...newGestor, nima: e.target.value })}
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="new_email" className="block text-sm font-medium mb-2">Email</label>
-                    <Input
-                      id="new_email"
-                      type="email"
-                      value={newGestor.email}
-                      onChange={(e) => setNewGestor({ ...newGestor, email: e.target.value })}
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="new_telefono" className="block text-sm font-medium mb-2">Teléfono</label>
-                    <Input
-                      id="new_telefono"
-                      type="text"
-                      value={newGestor.telefono}
-                      onChange={(e) => setNewGestor({ ...newGestor, telefono: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button type="button" onClick={handleSaveNewGestor}>
-                    Guardar Gestor
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setShowGestorForm(false);
-                      setNewGestor({ razon_social: '', cif: '', nima: '', email: '', telefono: '' });
-                    }}
-                  >
-                    Cancelar
-                  </Button>
+                <div>
+                  <label htmlFor="producer_center_id" className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
+                    Centro Productor de Origen
+                  </label>
+                  <Select
+                    options={[
+                      { value: '', label: '-- Centro general / Sede principal --' },
+                      ...producerCenters.map(c => ({
+                        value: c.id.toString(),
+                        label: `${c.nombre} (${c.municipio || ''}${c.nima ? ' - NIMA: ' + c.nima : ''})`,
+                      })),
+                    ]}
+                    defaultValue={formData.producer_center_id?.toString() || ''}
+                    onChange={(val) => setFormData({ ...formData, producer_center_id: val ? parseInt(val) : undefined })}
+                  />
+                  <p className="text-[11px] text-muted mt-1">
+                    Instalación origen desde la que se generan los residuos objeto del contrato.
+                  </p>
                 </div>
               </div>
-            )}
+
+              {/* Destino (Gestor) */}
+              <div className="space-y-4 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30">
+                <div className="flex items-center gap-2 text-foreground font-semibold">
+                  <Building2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <h4>Destino: Gestor de Tratamiento</h4>
+                </div>
+
+                {!showGestorForm ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label htmlFor="search_gestor" className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1">
+                        Buscar Gestor
+                      </label>
+                      <Input
+                        id="search_gestor"
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Buscar por nombre o CIF..."
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="gestor_company_id" className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1">
+                        Seleccionar Gestor Autorizado
+                      </label>
+                      <Select
+                        options={[
+                          { value: '', label: '-- Seleccionar Gestor --' },
+                          ...filteredGestores.map((g) => ({
+                            value: g.id.toString(),
+                            label: `${g.razon_social} (${g.cif})${g.nima ? ' - NIMA: ' + g.nima : ''}`,
+                          })),
+                        ]}
+                        defaultValue={formData.gestor_company_id?.toString() || ''}
+                        onChange={(value) => setFormData({ ...formData, gestor_company_id: parseInt(value) || undefined })}
+                      />
+                    </div>
+
+                    {/* Instalación de Destino */}
+                    <div>
+                      <label htmlFor="gestor_center_id" className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1">
+                        Instalación de Tratamiento (Destino)
+                      </label>
+                      <Select
+                        options={[
+                          { value: '', label: '-- Instalación general / Sede principal --' },
+                          ...gestorCenters.map(c => ({
+                            value: c.id.toString(),
+                            label: `${c.nombre} (${c.municipio || ''}${c.nima ? ' - NIMA: ' + c.nima : ''})`,
+                          })),
+                        ]}
+                        defaultValue={formData.gestor_center_id?.toString() || ''}
+                        onChange={(val) => setFormData({ ...formData, gestor_center_id: val ? parseInt(val) : undefined })}
+                      />
+                    </div>
+
+                    {destAuthScope && (
+                      <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300">
+                        <div className="flex items-center gap-1.5 font-semibold">
+                          <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                          <span>Autorizaciones del Gestor</span>
+                        </div>
+                        <p className="mt-1">
+                          {destAuthScope.authorizations.length > 0
+                            ? `Autorización: ${destAuthScope.authorizations[0].numero_autorizacion} (${destAuthScope.authorizations[0].es_indefinida ? 'Indefinida' : destAuthScope.authorizations[0].fecha_vencimiento || 'Vigente'})`
+                            : 'Gestor sin autorización ambiental registrada'}
+                        </p>
+                      </div>
+                    )}
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowGestorForm(true)}
+                    >
+                      + Crear Nuevo Gestor
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <h5 className="text-xs font-bold uppercase tracking-wider text-foreground">Nuevo Gestor</h5>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        type="text"
+                        placeholder="Razón Social *"
+                        value={newGestor.razon_social}
+                        onChange={(e) => setNewGestor({ ...newGestor, razon_social: e.target.value })}
+                      />
+                      <Input
+                        type="text"
+                        placeholder="CIF *"
+                        value={newGestor.cif}
+                        onChange={(e) => setNewGestor({ ...newGestor, cif: e.target.value })}
+                      />
+                      <Input
+                        type="text"
+                        placeholder="NIMA"
+                        value={newGestor.nima}
+                        onChange={(e) => setNewGestor({ ...newGestor, nima: e.target.value })}
+                      />
+                      <Input
+                        type="email"
+                        placeholder="Email"
+                        value={newGestor.email}
+                        onChange={(e) => setNewGestor({ ...newGestor, email: e.target.value })}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="button" size="sm" onClick={handleSaveNewGestor}>Guardar</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => setShowGestorForm(false)}>Cancelar</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </ComponentCard>
 
-          {/* Residuos y Condiciones */}
-          <ComponentCard title="Residuos y Condiciones">
+          {/* Residuos Autorizados y Operaciones (Matriz LER + R/D) */}
+          <ComponentCard
+            title="Matriz de Residuos Autorizados y Condiciones Económicas"
+            desc="Especifique cada código LER amparado por el contrato con su correspondiente operación de tratamiento (R/D) autorizada."
+          >
             <div className="space-y-4">
-              <div>
-                <label htmlFor="descripcion_residuos" className="block text-sm font-medium mb-2">Descripción de Residuos</label>
+              <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800 text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-900/50 text-xs font-semibold text-muted uppercase">
+                    <tr>
+                      <th className="px-3 py-2.5 text-left w-48">Código LER *</th>
+                      <th className="px-3 py-2.5 text-left">Denominación / Residuo</th>
+                      <th className="px-3 py-2.5 text-left w-36">Operación *</th>
+                      <th className="px-3 py-2.5 text-left w-32">Cant. Anual (t)</th>
+                      <th className="px-3 py-2.5 text-left w-32">Precio (€/t)</th>
+                      <th className="px-3 py-2.5 text-center w-12"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
+                    {contractWasteCodes.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
+                        <td className="p-2">
+                          <input
+                            type="text"
+                            list="waste-types-list"
+                            value={row.codigo_ler}
+                            onChange={(e) => handleWasteRowChange(idx, 'codigo_ler', e.target.value)}
+                            placeholder="Ej: 15 01 01"
+                            className="w-full text-xs font-mono font-semibold rounded-md border border-gray-300 dark:border-gray-700 bg-transparent px-2.5 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input
+                            type="text"
+                            value={row.descripcion_ler}
+                            onChange={(e) => handleWasteRowChange(idx, 'descripcion_ler', e.target.value)}
+                            placeholder="Descripción del residuo"
+                            className="w-full text-xs rounded-md border border-gray-300 dark:border-gray-700 bg-transparent px-2.5 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <select
+                            value={row.operacion_tratamiento}
+                            onChange={(e) => handleWasteRowChange(idx, 'operacion_tratamiento', e.target.value)}
+                            className="w-full text-xs font-mono font-bold rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          >
+                            {OPERACIONES_FRECUENTES.map(op => (
+                              <option key={op.code} value={op.code}>{op.code} - {op.desc.slice(0, 24)}...</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="p-2">
+                          <input
+                            type="number"
+                            step="any"
+                            value={row.cantidad_estimada_anual || ''}
+                            onChange={(e) => handleWasteRowChange(idx, 'cantidad_estimada_anual', parseFloat(e.target.value) || undefined)}
+                            placeholder="0.00"
+                            className="w-full text-xs rounded-md border border-gray-300 dark:border-gray-700 bg-transparent px-2 py-1.5 text-foreground text-right focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={row.tarifa_gestion || ''}
+                            onChange={(e) => handleWasteRowChange(idx, 'tarifa_gestion', parseFloat(e.target.value) || undefined)}
+                            placeholder="0.00"
+                            className="w-full text-xs rounded-md border border-gray-300 dark:border-gray-700 bg-transparent px-2 py-1.5 text-foreground text-right focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </td>
+                        <td className="p-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveWasteCodeRow(idx)}
+                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                            title="Eliminar fila"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddWasteCodeRow}
+                  className="flex items-center gap-1.5 text-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Añadir Residuo / Operación LER
+                </Button>
+                <datalist id="waste-types-list">
+                  {wasteTypes.map(w => (
+                    <option key={w.id} value={w.codigo_ler}>{w.descripcion}</option>
+                  ))}
+                </datalist>
+              </div>
+
+              {/* Observaciones generales */}
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-800">
+                <label htmlFor="descripcion_residuos" className="block text-sm font-medium mb-2">
+                  Descripción o Condiciones Especiales
+                </label>
                 <TextArea
                   value={formData.descripcion_residuos}
                   onChange={(value) => setFormData({ ...formData, descripcion_residuos: value })}
-                  placeholder="Describe los tipos de residuos cubiertos por este contrato..."
-                  rows={4}
+                  placeholder="Detalles sobre entregas, acondicionamiento de bultos, etc..."
+                  rows={3}
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="cantidad_maxima_anual" className="block text-sm font-medium mb-2">Cantidad Máxima Anual</label>
+                  <label htmlFor="cantidad_maxima_anual" className="block text-sm font-medium mb-2">Cantidad Máxima Anual Global</label>
                   <Input
                     id="cantidad_maxima_anual"
                     type="number"
@@ -437,27 +741,7 @@ export default function EditarContratoPage() {
                 </div>
 
                 <div>
-                  <label htmlFor="unidad_cantidad" className="block text-sm font-medium mb-2">
-                    Unidad
-                  </label>
-                  <Select
-                    options={[
-                      { value: 'toneladas', label: 'Toneladas' },
-                      { value: 'kg', label: 'Kilogramos' },
-                      { value: 'm3', label: 'Metros cúbicos' },
-                      { value: 'litros', label: 'Litros' },
-                      { value: 'unidades', label: 'Unidades' },
-                    ]}
-                    defaultValue={formData.unidad_cantidad}
-                    onChange={(value) => setFormData({ ...formData, unidad_cantidad: value })}
-                    placeholder="Selecciona una opción"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="precio_unitario" className="block text-sm font-medium mb-2">Precio Unitario</label>
+                  <label htmlFor="precio_unitario" className="block text-sm font-medium mb-2">Precio Unitario Global (€)</label>
                   <Input
                     id="precio_unitario"
                     type="number"
@@ -465,22 +749,6 @@ export default function EditarContratoPage() {
                     value={formData.precio_unitario || ''}
                     onChange={(e) => setFormData({ ...formData, precio_unitario: parseFloat(e.target.value) || undefined })}
                     placeholder="50.00"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="moneda" className="block text-sm font-medium mb-2">
-                    Moneda
-                  </label>
-                  <Select
-                    options={[
-                      { value: 'EUR', label: 'EUR (€)' },
-                      { value: 'USD', label: 'USD ($)' },
-                      { value: 'GBP', label: 'GBP (£)' },
-                    ]}
-                    defaultValue={formData.moneda}
-                    onChange={(value) => setFormData({ ...formData, moneda: value })}
-                    placeholder="Selecciona una opción"
                   />
                 </div>
               </div>
@@ -495,7 +763,7 @@ export default function EditarContratoPage() {
                 value={formData.notas}
                 onChange={(value) => setFormData({ ...formData, notas: value })}
                 placeholder="Observaciones adicionales sobre el contrato..."
-                rows={4}
+                rows={3}
               />
             </div>
           </ComponentCard>

@@ -10,23 +10,36 @@ const supabase = createClient();
 
 export const companyService = {
   /**
-   * Obtener la empresa del usuario actual
-   * Un usuario solo puede tener una empresa activa de tipo productor
+   * Obtener la empresa del usuario actual (empresa propia)
    */
   async getUserCompany(): Promise<Company | null> {
-    // Obtener el usuario autenticado
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
       throw new Error('Usuario no autenticado');
     }
 
+    // Priorizar empresa marcada explícitamente como propia
+    const { data: myComp, error: myCompErr } = await supabase
+      .from('companies')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_my_company', true)
+      .eq('activo', true)
+      .limit(1)
+      .maybeSingle();
+
+    if (!myCompErr && myComp) {
+      return myComp as Company;
+    }
+
+    // Fallback: buscar la primera empresa creada de tipo productor o negociante
     const { data, error } = await supabase
       .from('companies')
       .select('*')
       .eq('user_id', user.id)
       .eq('activo', true)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
 
@@ -43,7 +56,7 @@ export const companyService = {
   async getById(id: number): Promise<Company | null> {
     const { data, error } = await supabase
       .from('companies')
-      .select('*')
+      .select('*, production_centers(*)')
       .eq('id', id)
       .single();
 
@@ -52,6 +65,30 @@ export const companyService = {
     }
 
     return data as Company;
+  },
+
+  /**
+   * Obtener todos los contactos y empresas colaboradoras del usuario
+   */
+  async getAllContacts(): Promise<Company[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    const { data, error } = await supabase
+      .from('companies')
+      .select('*, production_centers(*)')
+      .eq('user_id', user.id)
+      .eq('activo', true)
+      .order('razon_social', { ascending: true });
+
+    if (error) {
+      throw new Error(`Error al obtener empresas: ${error.message}`);
+    }
+
+    return data as Company[];
   },
 
   /**
@@ -78,34 +115,61 @@ export const companyService = {
   },
 
   /**
-   * Obtener empresas por tipo (para seleccionar gestores, transportistas, etc.)
+   * Obtener empresas filtradas por rol específico (gestor, transportista, cliente, etc.)
    */
-  async getByType(tipo: string): Promise<Company[]> {
+  async getByRole(role: string): Promise<Company[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Intentar consulta con soporte de array roles o tipo_empresa legado
     const { data, error } = await supabase
       .from('companies')
-      .select('*')
-      .eq('tipo_empresa', tipo)
+      .select('*, production_centers(*)')
       .eq('activo', true)
       .order('razon_social', { ascending: true });
 
     if (error) {
-      throw new Error(`Error al obtener empresas: ${error.message}`);
+      throw new Error(`Error al obtener empresas por rol: ${error.message}`);
     }
 
-    return data as Company[];
+    if (!data) return [];
+
+    // Filtrar aquellas que desempeñan el rol (bien en roles array o en tipo_empresa legado)
+    return (data as Company[]).filter((c) => {
+      const hasInRoles = Array.isArray(c.roles) && c.roles.includes(role as any);
+      const isTipo = c.tipo_empresa === role;
+      const isOwner = user ? c.user_id === user.id : true;
+      return (hasInRoles || isTipo) && isOwner;
+    });
   },
 
   /**
-   * Buscar empresas por texto (razón social, CIF, NIMA)
+   * Obtener empresas por tipo (para seleccionar gestores, transportistas, etc.)
+   */
+  async getByType(tipo: string): Promise<Company[]> {
+    return this.getByRole(tipo);
+  },
+
+  /**
+   * Buscar empresas por texto (razón social, CIF, NIMA, autorización)
    */
   async search(query: string): Promise<Company[]> {
-    const { data, error } = await supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    const cleanQuery = query.trim();
+    if (!cleanQuery) return this.getAllContacts();
+
+    let req = supabase
       .from('companies')
-      .select('*')
-      .or(`razon_social.ilike.%${query}%,cif.ilike.%${query}%,nima.ilike.%${query}%`)
+      .select('*, production_centers(*)')
+      .or(`razon_social.ilike.%${cleanQuery}%,cif.ilike.%${cleanQuery}%,nima.ilike.%${cleanQuery}%,numero_autorizacion.ilike.%${cleanQuery}%`)
       .eq('activo', true)
       .order('razon_social', { ascending: true })
-      .limit(10);
+      .limit(30);
+
+    if (user) {
+      req = req.eq('user_id', user.id);
+    }
+
+    const { data, error } = await req;
 
     if (error) {
       throw new Error(`Error al buscar empresas: ${error.message}`);
@@ -115,7 +179,7 @@ export const companyService = {
   },
 
   /**
-   * Crear nueva empresa
+   * Crear nueva empresa o contacto
    */
   async create(companyData: CompanyFormData): Promise<Company> {
     const { data: userData } = await supabase.auth.getUser();
@@ -123,15 +187,29 @@ export const companyService = {
       throw new Error('Usuario no autenticado');
     }
 
-    // Verificar si ya existe una empresa vinculada al usuario o con el mismo CIF
+    // Normalizar roles
+    const roles = companyData.roles && companyData.roles.length > 0 
+      ? companyData.roles 
+      : (companyData.tipo_empresa ? [companyData.tipo_empresa] : ['productor']);
+
+    const primaryType = roles[0] || companyData.tipo_empresa || 'productor';
+
+    // Comprobar si ya existe una empresa con ese CIF para este usuario
     const { data: existing } = await supabase
       .from('companies')
-      .select('id')
-      .or(`user_id.eq.${userData.user.id},cif.eq.${companyData.cif.trim()}`)
+      .select('id, roles')
+      .eq('user_id', userData.user.id)
+      .eq('cif', companyData.cif.trim())
       .maybeSingle();
 
     if (existing?.id) {
-      return this.update(existing.id, companyData);
+      // Unificar roles si ya existía la empresa
+      const existingRoles = Array.isArray(existing.roles) ? existing.roles : [];
+      const mergedRoles = Array.from(new Set([...existingRoles, ...roles]));
+      return this.update(existing.id, {
+        ...companyData,
+        roles: mergedRoles as any,
+      });
     }
 
     const { data, error } = await supabase
@@ -139,6 +217,9 @@ export const companyService = {
       .insert({
         ...companyData,
         user_id: userData.user.id,
+        tipo_empresa: primaryType,
+        roles: roles,
+        is_my_company: companyData.is_my_company ?? false,
         activo: companyData.activo ?? true,
       })
       .select()

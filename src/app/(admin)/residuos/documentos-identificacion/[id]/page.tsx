@@ -7,24 +7,52 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
-import identificationDocumentService from '@/services/identificationDocumentService';
+import { Modal } from '@/components/ui/modal';
+import Input from '@/components/form/input/InputField';
+import TextArea from '@/components/form/input/TextArea';
+import identificationDocumentService, { getTrackingStatusMeta } from '@/services/identificationDocumentService';
 import siraService from '@/services/siraService';
 import companyService from '@/services/companyService';
-import type { IdentificationDocument, Company } from '@/types/wasteManagement';
+import { generateIdentificationDocumentPDF } from '@/lib/pdfUtils';
+import type {
+  IdentificationDocument,
+  Company,
+  RecordDeparturePayload,
+  RecordReceptionPayload,
+  CompleteTreatmentPayload,
+  ResultadoRecepcion,
+  TipoIncidencia,
+} from '@/types/wasteManagement';
+import {
+  Truck,
+  Scale,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  FileDown,
+  Building2,
+  MapPin,
+  Calendar,
+  Clock,
+  ArrowRight,
+  ShieldCheck,
+  ShieldAlert,
+  HelpCircle,
+} from 'lucide-react';
 
-const STATUS_COLORS = {
-  borrador: 'info',
-  'pendiente-firma': 'warning',
-  completado: 'success',
-  cancelado: 'error',
-} as const;
-
-const STATUS_LABELS = {
-  borrador: 'Borrador',
-  'pendiente-firma': 'Pendiente Firma',
-  completado: 'Completado',
-  cancelado: 'Cancelado',
-};
+const OPERACIONES_TRATAMIENTO = [
+  { code: 'R01', desc: 'Utilización principal como combustible' },
+  { code: 'R03', desc: 'Reciclado/recuperación de sustancias orgánicas' },
+  { code: 'R04', desc: 'Reciclado/recuperación de metales' },
+  { code: 'R05', desc: 'Reciclado/recuperación de otras materias inorgánicas' },
+  { code: 'R12', desc: 'Intercambio de residuos' },
+  { code: 'R13', desc: 'Almacenamiento en espera de valorización' },
+  { code: 'D01', desc: 'Depósito sobre el suelo o en su interior (vertedero)' },
+  { code: 'D08', desc: 'Tratamiento biológico no especificado' },
+  { code: 'D09', desc: 'Tratamiento físico-químico no especificado' },
+  { code: 'D14', desc: 'Reenvasado previo a eliminación' },
+  { code: 'D15', desc: 'Almacenamiento en espera de eliminación' },
+];
 
 export default function DetalleDocumentoIdentificacionPage() {
   const router = useRouter();
@@ -37,6 +65,44 @@ export default function DetalleDocumentoIdentificacionPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [sendingSira, setSendingSira] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  // Estados de modales
+  const [isDepartureModalOpen, setIsDepartureModalOpen] = useState(false);
+  const [isReceptionModalOpen, setIsReceptionModalOpen] = useState(false);
+  const [isTreatmentModalOpen, setIsTreatmentModalOpen] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState(false);
+
+  // Formularios de modales
+  const [departureForm, setDepartureForm] = useState<RecordDeparturePayload>({
+    fecha_salida: new Date().toISOString().slice(0, 16),
+    transportista_razon_social: '',
+    transportista_cif: '',
+    transportista_matricula: '',
+    nombre_transportista: '',
+    dni_transportista: '',
+    peso_origen_kg: undefined,
+  });
+
+  const [receptionForm, setReceptionForm] = useState<RecordReceptionPayload>({
+    fecha_llegada_destino: new Date().toISOString().slice(0, 16),
+    peso_destino_kg: 0,
+    numero_albaran_gestor: '',
+    ticket_pesada_url: '',
+    resultado_recepcion: 'aceptado',
+    tipo_incidencia: 'discrepancia_peso',
+    motivo_incidencia: '',
+    cantidad_rechazada_kg: undefined,
+    nombre_gestor: '',
+    dni_gestor: '',
+  });
+
+  const [treatmentForm, setTreatmentForm] = useState<CompleteTreatmentPayload>({
+    operacion_tratamiento: 'R13',
+    fecha_tratamiento: new Date().toISOString().slice(0, 16),
+    descripcion_tratamiento: '',
+    notas: '',
+  });
 
   useEffect(() => {
     if (id) {
@@ -49,18 +115,122 @@ export default function DetalleDocumentoIdentificacionPage() {
       setLoading(true);
       setError(null);
 
-      // 1. Cargar Documento
       const docData = await identificationDocumentService.getById(parseInt(id));
       setDocument(docData);
 
-      // 2. Cargar Mi Empresa (para credenciales SIRA frescas)
+      // Prellenar formularios
+      const pesoOrigenDefault = docData.peso_origen_kg || (docData.unidad === 'toneladas' ? docData.cantidad * 1000 : docData.cantidad) || 0;
+      setDepartureForm({
+        fecha_salida: docData.fecha_salida ? docData.fecha_salida.slice(0, 16) : new Date().toISOString().slice(0, 16),
+        transportista_razon_social: docData.transportista_razon_social || '',
+        transportista_cif: docData.transportista_cif || '',
+        transportista_matricula: docData.transportista_matricula || '',
+        nombre_transportista: docData.nombre_transportista || '',
+        dni_transportista: docData.dni_transportista || '',
+        peso_origen_kg: pesoOrigenDefault,
+      });
+
+      setReceptionForm({
+        fecha_llegada_destino: docData.fecha_llegada_destino ? docData.fecha_llegada_destino.slice(0, 16) : new Date().toISOString().slice(0, 16),
+        peso_destino_kg: docData.peso_destino_kg || pesoOrigenDefault,
+        numero_albaran_gestor: docData.numero_albaran_gestor || '',
+        ticket_pesada_url: docData.ticket_pesada_url || '',
+        resultado_recepcion: (docData.resultado_recepcion as ResultadoRecepcion) || 'aceptado',
+        tipo_incidencia: docData.tipo_incidencia || 'discrepancia_peso',
+        motivo_incidencia: docData.motivo_incidencia || '',
+        cantidad_rechazada_kg: docData.cantidad_rechazada_kg || undefined,
+        nombre_gestor: docData.nombre_gestor || '',
+        dni_gestor: docData.dni_gestor || '',
+      });
+
+      setTreatmentForm({
+        operacion_tratamiento: docData.operacion_tratamiento || 'R13',
+        fecha_tratamiento: docData.fecha_tratamiento ? docData.fecha_tratamiento.slice(0, 16) : new Date().toISOString().slice(0, 16),
+        descripcion_tratamiento: docData.descripcion_tratamiento || '',
+        notas: docData.notas || '',
+      });
+
       const compData = await companyService.getUserCompany();
       setMyCompany(compData);
-
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!document) return;
+    try {
+      setDownloading(true);
+      setError(null);
+      const doc = await generateIdentificationDocumentPDF(document);
+      doc.save(`DI_${document.numero_documento}.pdf`);
+      setSuccess('PDF oficial generado y descargado correctamente.');
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (err: any) {
+      setError(`Error al generar PDF: ${err.message || 'Error desconocido'}`);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleStartTransit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!document) return;
+
+    try {
+      setSubmittingAction(true);
+      setError(null);
+      await identificationDocumentService.recordDeparture(document.id, departureForm);
+      setIsDepartureModalOpen(false);
+      setSuccess('Salida registrada. El traslado se encuentra En Tránsito.');
+      await loadData();
+    } catch (err: any) {
+      setError(`Error al registrar salida: ${err.message}`);
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
+  const handleRecordReception = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!document) return;
+
+    if (!receptionForm.peso_destino_kg || receptionForm.peso_destino_kg <= 0) {
+      alert('Debe introducir un peso neto verificado en báscula de destino mayor a 0 kg.');
+      return;
+    }
+
+    try {
+      setSubmittingAction(true);
+      setError(null);
+      await identificationDocumentService.recordReception(document.id, receptionForm);
+      setIsReceptionModalOpen(false);
+      setSuccess('Recepción y pesaje en báscula registrados correctamente.');
+      await loadData();
+    } catch (err: any) {
+      setError(`Error al registrar recepción: ${err.message}`);
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
+  const handleCompleteTreatment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!document) return;
+
+    try {
+      setSubmittingAction(true);
+      setError(null);
+      await identificationDocumentService.completeTreatment(document.id, treatmentForm);
+      setIsTreatmentModalOpen(false);
+      setSuccess('Operación de tratamiento certificada. Traslado cerrado exitosamente.');
+      await loadData();
+    } catch (err: any) {
+      setError(`Error al certificar tratamiento: ${err.message}`);
+    } finally {
+      setSubmittingAction(false);
     }
   };
 
@@ -77,28 +247,6 @@ export default function DetalleDocumentoIdentificacionPage() {
     }
   };
 
-  const handleChangeStatus = async (newStatus: 'borrador' | 'pendiente-firma' | 'completado' | 'cancelado') => {
-    if (!document) return;
-
-    try {
-      await identificationDocumentService.updateStatus(document.id, newStatus);
-      await loadData();
-    } catch (err: any) {
-      setError(`Error al cambiar estado: ${err.message}`);
-    }
-  };
-
-  const handleSign = async (role: 'productor' | 'gestor' | 'transportista') => {
-    if (!document) return;
-
-    try {
-      await identificationDocumentService.signDocument(document.id, role);
-      await loadData();
-    } catch (err: any) {
-      setError(`Error al firmar: ${err.message}`);
-    }
-  };
-
   const handleSendSira = async () => {
     if (!document) return;
 
@@ -108,10 +256,9 @@ export default function DetalleDocumentoIdentificacionPage() {
       setSuccess(null);
 
       const result = await siraService.sendDI(document.id);
-
       if (result.success) {
         setSuccess(result.message);
-        await loadData(); // Recargar para ver notas/cambio de estado
+        await loadData();
       } else {
         setError(result.message);
       }
@@ -122,11 +269,23 @@ export default function DetalleDocumentoIdentificacionPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+    });
+  };
+
+  const formatDateTime = (dateString?: string) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleString('es-ES', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
@@ -154,341 +313,785 @@ export default function DetalleDocumentoIdentificacionPage() {
     );
   }
 
+  const tracking = getTrackingStatusMeta(document);
+  const pesoOrigenCalc = document.peso_origen_kg || (document.unidad === 'toneladas' ? document.cantidad * 1000 : document.cantidad) || 0;
+
   return (
     <>
       <PageBreadCrumb pageTitle={`DI ${document.numero_documento}`} />
 
       <div className="max-w-5xl mx-auto space-y-6">
-        {/* Header */}
+        {/* Header con Estados y Botón Volver */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold text-foreground">
-              DI {document.numero_documento}
-            </h2>
-            <Badge color={STATUS_COLORS[document.estado]} size="md">
-              {STATUS_LABELS[document.estado]}
-            </Badge>
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold text-foreground">
+                DI {document.numero_documento}
+              </h2>
+              <Badge color={tracking.badgeColor} size="md">
+                {tracking.label}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted">
+              Régimen de traslados RD 553/2020 — {document.tipo_notificacion === 'con-notificacion-previa' ? 'Con Notificación Previa' : 'Sin Notificación'}
+            </p>
           </div>
-          <Button variant="outline" onClick={() => router.push('/residuos/documentos-identificacion')}>
-            ← Volver
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleDownloadPDF}
+              disabled={downloading}
+              className="flex items-center gap-1.5"
+            >
+              <FileDown className="w-4 h-4" />
+              <span>{downloading ? 'Generando...' : 'Descargar PDF Oficial'}</span>
+            </Button>
+            <Button variant="outline" onClick={() => router.push('/residuos/documentos-identificacion')}>
+              ← Volver
+            </Button>
+          </div>
         </div>
 
         {error && <Alert variant="error" title="Error" message={error} />}
         {success && <Alert variant="success" title="Éxito" message={success} />}
 
-        {/* Información General */}
-        <ComponentCard title="Información General">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Número de Documento</label>
-              <p className="text-foreground">{document.numero_documento}</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Fecha del Documento</label>
-              <p className="text-foreground">{formatDate(document.fecha_documento)}</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Tipo de Notificación</label>
-              <p className="text-foreground capitalize">{document.tipo_notificacion.replace('-', ' ')}</p>
-            </div>
-
-            {document.fecha_recogida && (
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">Fecha de Recogida</label>
-                <p className="text-foreground">{formatDate(document.fecha_recogida)}</p>
-              </div>
-            )}
-          </div>
-        </ComponentCard>
-
-        {/* Productor */}
-        <ComponentCard title="Productor / Origen">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Razón Social</label>
-              <p className="text-foreground">{document.productor_razon_social}</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">CIF</label>
-              <p className="text-foreground">{document.productor_cif}</p>
-            </div>
-
-            {document.production_center && (
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">Centro de Producción</label>
-                <p className="text-primary font-bold">{document.production_center.nombre}</p>
-              </div>
-            )}
-
-            {document.productor_nima && (
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">NIMA de Producción</label>
-                <p className="text-foreground">{document.productor_nima}</p>
-              </div>
-            )}
-
-            {document.productor_direccion && (
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-muted mb-1">Dirección</label>
-                <p className="text-foreground">{document.productor_direccion}</p>
-              </div>
-            )}
-          </div>
-        </ComponentCard>
-
-        {/* Gestor */}
-        <ComponentCard title="Gestor / Destinatario">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Razón Social</label>
-              <p className="text-foreground">{document.gestor_razon_social}</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">CIF</label>
-              <p className="text-foreground">{document.gestor_cif}</p>
-            </div>
-
-            {document.gestor_nima && (
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">NIMA</label>
-                <p className="text-foreground">{document.gestor_nima}</p>
-              </div>
-            )}
-
-            {document.gestor_numero_autorizacion && (
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">Nº Autorización</label>
-                <p className="text-foreground">{document.gestor_numero_autorizacion}</p>
-              </div>
-            )}
-          </div>
-        </ComponentCard>
-
-        {/* Transportista */}
-        {document.transportista_razon_social && (
-          <ComponentCard title="Transportista">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">Razón Social</label>
-                <p className="text-foreground">{document.transportista_razon_social}</p>
-              </div>
-
-              {document.transportista_cif && (
+        {/* PIPELINE / STEPPER VISUAL RD 553/2020 */}
+        <ComponentCard title="Ciclo de Vida del Traslado (RD 553/2020)">
+          <div className="py-2">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {/* Paso 1: Registrado / Salida */}
+              <div className={`p-3 rounded-xl border flex flex-col justify-between ${tracking.step >= 1 ? 'bg-primary/5 border-primary/30' : 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-800 opacity-60'}`}>
                 <div>
-                  <label className="block text-sm font-medium text-muted mb-1">CIF</label>
-                  <p className="text-foreground">{document.transportista_cif}</p>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 1</span>
+                    {tracking.step > 1 ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    ) : (
+                      <Clock className="w-4 h-4 text-primary" />
+                    )}
+                  </div>
+                  <p className="text-xs font-semibold text-foreground">Registrado / Origen</p>
+                  <p className="text-[11px] text-muted mt-1">{formatDate(document.fecha_documento)}</p>
                 </div>
-              )}
+              </div>
 
-              {document.transportista_matricula && (
+              {/* Paso 2: En Tránsito */}
+              <div className={`p-3 rounded-xl border flex flex-col justify-between ${tracking.step >= 2 ? 'bg-primary/5 border-primary/30' : 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-800 opacity-60'}`}>
                 <div>
-                  <label className="block text-sm font-medium text-muted mb-1">Matrícula</label>
-                  <p className="text-foreground">{document.transportista_matricula}</p>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 2</span>
+                    {tracking.step > 2 ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    ) : tracking.step === 2 ? (
+                      <Truck className="w-4 h-4 text-blue-600 animate-pulse" />
+                    ) : (
+                      <Truck className="w-4 h-4 text-gray-400" />
+                    )}
+                  </div>
+                  <p className="text-xs font-semibold text-foreground">En Tránsito</p>
+                  <p className="text-[11px] text-muted mt-1">{document.fecha_salida ? formatDateTime(document.fecha_salida) : 'Pendiente salida'}</p>
                 </div>
+              </div>
+
+              {/* Paso 3: Recepcionado en Báscula */}
+              <div className={`p-3 rounded-xl border flex flex-col justify-between ${tracking.step >= 3 ? 'bg-primary/5 border-primary/30' : 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-800 opacity-60'}`}>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 3</span>
+                    {tracking.step > 3 ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    ) : tracking.step === 3 ? (
+                      <Scale className="w-4 h-4 text-amber-600" />
+                    ) : (
+                      <Scale className="w-4 h-4 text-gray-400" />
+                    )}
+                  </div>
+                  <p className="text-xs font-semibold text-foreground">Pesaje en Báscula</p>
+                  <p className="text-[11px] text-muted mt-1">{document.peso_destino_kg ? `${document.peso_destino_kg} kg` : 'Pendiente pesaje'}</p>
+                </div>
+              </div>
+
+              {/* Paso 4: Dictamen / Aceptación */}
+              <div className={`p-3 rounded-xl border flex flex-col justify-between ${tracking.step >= 4 ? (document.resultado_recepcion?.includes('rechazado') ? 'bg-red-500/10 border-red-500/30' : 'bg-primary/5 border-primary/30') : 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-800 opacity-60'}`}>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 4</span>
+                    {document.resultado_recepcion?.includes('rechazado') ? (
+                      <XCircle className="w-4 h-4 text-red-500" />
+                    ) : tracking.step >= 4 ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    ) : (
+                      <Clock className="w-4 h-4 text-gray-400" />
+                    )}
+                  </div>
+                  <p className="text-xs font-semibold text-foreground">Dictamen Gestor</p>
+                  <p className="text-[11px] text-muted mt-1">{document.resultado_recepcion ? document.resultado_recepcion.replace('_', ' ').toUpperCase() : 'Pendiente'}</p>
+                </div>
+              </div>
+
+              {/* Paso 5: Tratamiento y Cierre */}
+              <div className={`p-3 rounded-xl border flex flex-col justify-between ${tracking.step === 5 ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-800 opacity-60'}`}>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 5</span>
+                    {tracking.step === 5 ? (
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    ) : (
+                      <Clock className="w-4 h-4 text-gray-400" />
+                    )}
+                  </div>
+                  <p className="text-xs font-semibold text-foreground">Tratado y Cerrado</p>
+                  <p className="text-[11px] text-muted mt-1">{document.fecha_tratamiento ? formatDate(document.fecha_tratamiento) : 'Pendiente operación'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ComponentCard>
+
+        {/* TARJETA DE CONTROL DE BÁSCULA Y PESAJE */}
+        <ComponentCard
+          title="Control de Báscula y Pesaje de Destino"
+          desc="Comparativa entre el peso estimado en origen y el peso neto verificado en báscula receptora según el art. 6 del RD 553/2020."
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Peso Origen */}
+              <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted block mb-1">
+                  1. Peso Declarado en Origen
+                </span>
+                <p className="text-2xl font-bold font-mono text-foreground">
+                  {pesoOrigenCalc.toLocaleString('es-ES')} <span className="text-sm font-normal text-muted">kg</span>
+                </p>
+                <p className="text-[11px] text-muted mt-1">
+                  Cantidad declarada: {document.cantidad} {document.unidad}
+                </p>
+              </div>
+
+              {/* Peso Destino */}
+              <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted block mb-1">
+                  2. Peso Neto en Báscula Destino
+                </span>
+                {document.peso_destino_kg ? (
+                  <div>
+                    <p className="text-2xl font-bold font-mono text-foreground">
+                      {document.peso_destino_kg.toLocaleString('es-ES')} <span className="text-sm font-normal text-muted">kg</span>
+                    </p>
+                    <p className="text-[11px] text-muted mt-1">
+                      {document.numero_albaran_gestor ? `Albarán gestor: ${document.numero_albaran_gestor}` : 'Registrado en planta'}
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-lg font-semibold text-muted italic">Pendiente de pesaje</p>
+                    <p className="text-[11px] text-muted mt-1">Requiere pesada en báscula del gestor</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Discrepancia */}
+              <div className={`p-4 rounded-xl border ${tracking.hasDiscrepancy ? 'bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300' : 'bg-gray-50/50 dark:bg-gray-900/30 border-gray-200 dark:border-gray-800'}`}>
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted block mb-1">
+                  3. Diferencia y Tolerancia
+                </span>
+                {document.peso_destino_kg ? (
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className={`text-2xl font-bold font-mono ${tracking.hasDiscrepancy ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                        {(document.diferencia_peso_kg || 0) > 0 ? '+' : ''}{(document.diferencia_peso_kg || 0).toLocaleString('es-ES')} <span className="text-sm font-normal">kg</span>
+                      </p>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white/70 dark:bg-black/30">
+                        {(document.porcentaje_discrepancia || 0) > 0 ? '+' : ''}{document.porcentaje_discrepancia || 0}%
+                      </span>
+                    </div>
+                    <p className="text-[11px] mt-1">
+                      {tracking.hasDiscrepancy ? '⚠️ Desviación superior al margen habitual (5%)' : '✓ Dentro de márgenes de tolerancia'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted italic">Se calculará al recibir pesada</p>
+                )}
+              </div>
+            </div>
+
+            {/* Aviso de Discrepancia Normativa */}
+            {tracking.hasDiscrepancy && (
+              <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold">Atención: Discrepancia de báscula detectada ({tracking.discrepancyMessage})</p>
+                  <p className="opacity-90 mt-0.5">
+                    Según el RD 553/2020, las discrepancias relevantes entre el peso declarado por el remitente y el pesado por el gestor deben quedar justificadas documentalmente en el DI.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </ComponentCard>
+
+        {/* TARJETA DE ALERTA DE INCIDENCIA / RECHAZO */}
+        {document.motivo_incidencia && (
+          <ComponentCard title="Registro de Incidencia / Rechazo en Destino">
+            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-900 dark:text-red-200 space-y-2">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-red-600" />
+                <h4 className="font-bold text-sm uppercase tracking-wide">
+                  {document.resultado_recepcion === 'rechazado_total' ? 'Rechazo Total del Traslado' : 'Rechazo Parcial o Incidencia Notificada'}
+                </h4>
+              </div>
+              <p className="text-xs font-semibold">Tipo: {document.tipo_incidencia || 'No tipificada'}</p>
+              <p className="text-xs bg-white/60 dark:bg-black/30 p-3 rounded-lg font-mono">
+                {document.motivo_incidencia}
+              </p>
+              {document.cantidad_rechazada_kg && (
+                <p className="text-xs font-semibold">
+                  Cantidad rechazada devuelta a origen: <span className="font-mono">{document.cantidad_rechazada_kg} kg</span>
+                </p>
               )}
             </div>
           </ComponentCard>
         )}
 
-        {/* Residuo */}
-        <ComponentCard title="Datos del Residuo">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Código LER</label>
-              <p className="text-foreground font-mono text-lg">{document.codigo_ler}</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Peligrosidad</label>
-              <Badge color={document.peligrosidad === 'peligroso' ? 'error' : 'success'}>
-                {document.peligrosidad === 'peligroso' ? 'Peligroso' : 'No Peligroso'}
-              </Badge>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-muted mb-1">Descripción</label>
-              <p className="text-foreground">{document.descripcion_residuo}</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Estado Físico</label>
-              <p className="text-foreground capitalize">{document.estado_fisico}</p>
-            </div>
-
-            {document.operacion_tratamiento && (
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">Operación de Tratamiento</label>
-                <p className="text-foreground">{document.operacion_tratamiento}</p>
-              </div>
-            )}
-          </div>
-        </ComponentCard>
-
-        {/* Cantidad y Envases */}
-        <ComponentCard title="Cantidad y Envases">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Cantidad</label>
-              <p className="text-foreground text-2xl font-bold">
-                {document.cantidad} {document.unidad}
+        {/* Partes del Traslado (Productor, Gestor, Transportista) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Productor */}
+          <ComponentCard title="Productor / Origen">
+            <div className="space-y-2 text-xs">
+              <p>
+                <span className="text-muted">Razón Social:</span>{' '}
+                <span className="text-foreground font-semibold block">{document.productor_razon_social}</span>
               </p>
+              <p>
+                <span className="text-muted">CIF:</span>{' '}
+                <span className="text-foreground font-mono">{document.productor_cif}</span>
+              </p>
+              {document.production_center && (
+                <p>
+                  <span className="text-muted">Centro:</span>{' '}
+                  <span className="text-primary font-semibold">{document.production_center.nombre}</span>
+                </p>
+              )}
+              {document.productor_nima && (
+                <p>
+                  <span className="text-muted">NIMA:</span>{' '}
+                  <span className="text-foreground font-mono">{document.productor_nima}</span>
+                </p>
+              )}
+              {document.productor_direccion && (
+                <p className="text-muted pt-1 border-t border-gray-100 dark:border-gray-800">
+                  {document.productor_direccion}, {document.productor_municipio} ({document.productor_provincia})
+                </p>
+              )}
+            </div>
+          </ComponentCard>
+
+          {/* Transportista */}
+          <ComponentCard title="Transportista">
+            <div className="space-y-2 text-xs">
+              <p>
+                <span className="text-muted">Razón Social:</span>{' '}
+                <span className="text-foreground font-semibold block">
+                  {document.transportista_razon_social || 'Transporte propio / S/D'}
+                </span>
+              </p>
+              {document.transportista_cif && (
+                <p>
+                  <span className="text-muted">CIF:</span>{' '}
+                  <span className="text-foreground font-mono">{document.transportista_cif}</span>
+                </p>
+              )}
+              {document.transportista_matricula && (
+                <p>
+                  <span className="text-muted">Matrícula:</span>{' '}
+                  <span className="px-2 py-0.5 rounded font-mono font-bold bg-gray-100 dark:bg-gray-800 text-foreground border border-gray-300 dark:border-gray-700">
+                    {document.transportista_matricula}
+                  </span>
+                </p>
+              )}
+              {document.fecha_salida && (
+                <p className="pt-1 border-t border-gray-100 dark:border-gray-800 text-muted">
+                  Salida: <span className="text-foreground font-medium">{formatDateTime(document.fecha_salida)}</span>
+                </p>
+              )}
+            </div>
+          </ComponentCard>
+
+          {/* Gestor */}
+          <ComponentCard title="Gestor / Destino">
+            <div className="space-y-2 text-xs">
+              <p>
+                <span className="text-muted">Razón Social:</span>{' '}
+                <span className="text-foreground font-semibold block">{document.gestor_razon_social}</span>
+              </p>
+              <p>
+                <span className="text-muted">CIF:</span>{' '}
+                <span className="text-foreground font-mono">{document.gestor_cif}</span>
+              </p>
+              {document.gestor_nima && (
+                <p>
+                  <span className="text-muted">NIMA:</span>{' '}
+                  <span className="text-foreground font-mono">{document.gestor_nima}</span>
+                </p>
+              )}
+              {document.gestor_numero_autorizacion && (
+                <p>
+                  <span className="text-muted">Autorización:</span>{' '}
+                  <span className="text-foreground font-mono font-medium">{document.gestor_numero_autorizacion}</span>
+                </p>
+              )}
+              {document.gestor_direccion && (
+                <p className="text-muted pt-1 border-t border-gray-100 dark:border-gray-800">
+                  {document.gestor_direccion}, {document.gestor_municipio} ({document.gestor_provincia})
+                </p>
+              )}
+            </div>
+          </ComponentCard>
+        </div>
+
+        {/* Caracterización del Residuo */}
+        <ComponentCard title="Caracterización del Residuo y Tratamiento">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1">Código LER</label>
+              <div className="flex items-center gap-2">
+                <span className="text-xl font-mono font-bold text-foreground">{document.codigo_ler}</span>
+                {document.codigo_ler.includes('*') || document.peligrosidad === 'peligroso' ? (
+                  <span className="px-2 py-0.5 text-xs font-bold rounded bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                    PELIGROSO (*)
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                    No Peligroso
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-foreground mt-2">{document.descripcion_residuo}</p>
             </div>
 
-            {document.numero_envases && (
+            <div className="space-y-3 text-sm">
               <div>
-                <label className="block text-sm font-medium text-muted mb-1">Número de Envases</label>
-                <p className="text-foreground">{document.numero_envases}</p>
+                <span className="text-muted text-xs font-semibold uppercase tracking-wider block">Estado Físico</span>
+                <p className="text-foreground capitalize">{document.estado_fisico || 'Sólido'}</p>
               </div>
-            )}
 
-            {document.tipo_envases && (
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-muted mb-1">Tipo de Envases</label>
-                <p className="text-foreground">{document.tipo_envases}</p>
+              <div>
+                <span className="text-muted text-xs font-semibold uppercase tracking-wider block">Operación de Tratamiento Prevista/Ejecutada</span>
+                <span className="inline-block px-2.5 py-1 text-xs font-mono font-bold rounded bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 mt-1">
+                  {document.operacion_tratamiento || 'R13'}
+                </span>
               </div>
-            )}
+
+              {document.tipo_envases && (
+                <div>
+                  <span className="text-muted text-xs font-semibold uppercase tracking-wider block">Envases</span>
+                  <p className="text-foreground">{document.numero_envases || 1} ({document.tipo_envases})</p>
+                </div>
+              )}
+            </div>
           </div>
         </ComponentCard>
 
-        {/* Firmas */}
-        <ComponentCard title="Firmas">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center p-4 border rounded-lg">
-              <p className="text-sm font-medium text-muted mb-2">Productor</p>
-              {document.firmado_productor ? (
-                <div>
-                  <Badge color="success" size="md">Firmado</Badge>
-                  {document.fecha_firma_productor && (
-                    <p className="text-xs text-muted mt-2">{formatDate(document.fecha_firma_productor)}</p>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <Badge color="light" size="md">Pendiente</Badge>
-                  {document.estado !== 'completado' && document.estado !== 'cancelado' && (
-                    <Button size="sm" className="mt-2" onClick={() => handleSign('productor')}>
-                      Firmar
-                    </Button>
-                  )}
-                </div>
-              )}
+        {/* Firmas de las Partes */}
+        <ComponentCard title="Firmas y Conformidades de las Partes">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            {/* Productor */}
+            <div className={`p-4 rounded-xl border flex flex-col justify-between ${document.firmado_productor ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-800'}`}>
+              <div>
+                <span className="font-semibold text-muted block mb-1">1. Productor / Remitente</span>
+                {document.firmado_productor ? (
+                  <div className="space-y-1">
+                    <Badge color="success">✓ Firmado en Salida</Badge>
+                    <p className="text-[11px] text-muted mt-2">{formatDateTime(document.fecha_firma_productor)}</p>
+                  </div>
+                ) : (
+                  <Badge color="light">Pendiente de firma</Badge>
+                )}
+              </div>
             </div>
 
-            <div className="text-center p-4 border rounded-lg">
-              <p className="text-sm font-medium text-muted mb-2">Gestor</p>
-              {document.firmado_gestor ? (
-                <div>
-                  <Badge color="success" size="md">Firmado</Badge>
-                  {document.fecha_firma_gestor && (
-                    <p className="text-xs text-muted mt-2">{formatDate(document.fecha_firma_gestor)}</p>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <Badge color="light" size="md">Pendiente</Badge>
-                  {document.estado !== 'completado' && document.estado !== 'cancelado' && (
-                    <Button size="sm" className="mt-2" onClick={() => handleSign('gestor')}>
-                      Firmar
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {document.transportista_razon_social && (
-              <div className="text-center p-4 border rounded-lg">
-                <p className="text-sm font-medium text-muted mb-2">Transportista</p>
+            {/* Transportista */}
+            <div className={`p-4 rounded-xl border flex flex-col justify-between ${document.firmado_transportista ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-800'}`}>
+              <div>
+                <span className="font-semibold text-muted block mb-1">2. Transportista (En Carga)</span>
                 {document.firmado_transportista ? (
-                  <div>
-                    <Badge color="success" size="md">Firmado</Badge>
-                    {document.fecha_firma_transportista && (
-                      <p className="text-xs text-muted mt-2">{formatDate(document.fecha_firma_transportista)}</p>
+                  <div className="space-y-1">
+                    <Badge color="success">✓ Conforme en Carga</Badge>
+                    <p className="text-[11px] text-muted mt-2">{formatDateTime(document.fecha_firma_transportista)}</p>
+                    {document.nombre_transportista && (
+                      <p className="text-[11px] text-foreground font-medium">{document.nombre_transportista}</p>
                     )}
                   </div>
                 ) : (
-                  <div>
-                    <Badge color="light" size="md">Pendiente</Badge>
-                    {document.estado !== 'completado' && document.estado !== 'cancelado' && (
-                      <Button size="sm" className="mt-2" onClick={() => handleSign('transportista')}>
-                        Firmar
-                      </Button>
-                    )}
-                  </div>
+                  <Badge color="light">Pendiente en recogida</Badge>
                 )}
               </div>
-            )}
+            </div>
+
+            {/* Gestor */}
+            <div className={`p-4 rounded-xl border flex flex-col justify-between ${document.firmado_gestor ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-800'}`}>
+              <div>
+                <span className="font-semibold text-muted block mb-1">3. Gestor Destinatario</span>
+                {document.firmado_gestor ? (
+                  <div className="space-y-1">
+                    <Badge color="success">✓ Recepcionado y Pesado</Badge>
+                    <p className="text-[11px] text-muted mt-2">{formatDateTime(document.fecha_firma_gestor)}</p>
+                    {document.nombre_gestor && (
+                      <p className="text-[11px] text-foreground font-medium">{document.nombre_gestor}</p>
+                    )}
+                  </div>
+                ) : (
+                  <Badge color="light">Pendiente en báscula</Badge>
+                )}
+              </div>
+            </div>
           </div>
         </ComponentCard>
 
-        {/* Acciones */}
-        <ComponentCard title="Acciones">
-          <div className="flex flex-wrap gap-3">
-            {document.estado === 'borrador' && (
-              <Button onClick={() => handleChangeStatus('pendiente-firma')}>
-                Enviar a Firma
-              </Button>
-            )}
-
-            {document.estado === 'pendiente-firma' && (
-              <>
-                <Button onClick={() => handleChangeStatus('completado')}>
-                  Marcar como Completado
+        {/* PANEL DE ACCIONES OPERATIVAS RD 553/2020 */}
+        <ComponentCard title="Acciones y Operativa del Traslado">
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-3">
+              {/* Acción 1: Iniciar Salida */}
+              {(!document.estado_traslado || document.estado_traslado === 'borrador') && (
+                <Button onClick={() => setIsDepartureModalOpen(true)} className="flex items-center gap-1.5">
+                  <Truck className="w-4 h-4" />
+                  <span>Iniciar Traslado (Firma Salida)</span>
                 </Button>
-                <Button variant="outline" onClick={() => handleChangeStatus('borrador')}>
-                  Volver a Borrador
+              )}
+
+              {/* Acción 2: Registrar Recepción y Báscula */}
+              {(document.estado_traslado === 'en_transito' || document.estado_traslado === 'recepcionado') && (
+                <Button onClick={() => setIsReceptionModalOpen(true)} className="flex items-center gap-1.5">
+                  <Scale className="w-4 h-4" />
+                  <span>Registrar Recepción en Báscula</span>
                 </Button>
-              </>
-            )}
+              )}
 
-            {/* BOTÓN SIRA */}
+              {/* Acción 3: Certificar Tratamiento y Cierre */}
+              {(document.estado_traslado === 'aceptado' || document.estado_traslado === 'rechazado_parcial') && (
+                <Button onClick={() => setIsTreatmentModalOpen(true)} className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Certificar Tratamiento y Cierre</span>
+                </Button>
+              )}
 
-            <Button
-              variant="primary"
-              disabled={sendingSira || !myCompany?.sira_usuario || !myCompany?.sira_password}
-              onClick={handleSendSira}
-            >
-              {sendingSira ? 'Enviando a SIRA...' : 'Enviar a SIRA'}
-            </Button>
-
-            {(document.estado === 'completado' || document.estado === 'cancelado') && (
-              <Button variant="outline" onClick={() => handleChangeStatus('borrador')}>
-                Reabrir Documento
+              {/* Descargar PDF */}
+              <Button
+                variant="outline"
+                onClick={handleDownloadPDF}
+                disabled={downloading}
+                className="flex items-center gap-1.5"
+              >
+                <FileDown className="w-4 h-4" />
+                <span>{downloading ? 'Generando PDF...' : 'Descargar PDF Oficial (RD 553/2020)'}</span>
               </Button>
-            )}
 
-            {document.estado === 'borrador' && (
-              <Button variant="outline" onClick={handleDelete}>
-                Eliminar Documento
+              {/* Enviar a SIRA */}
+              <Button
+                variant="primary"
+                disabled={sendingSira || !myCompany?.sira_usuario || !myCompany?.sira_password}
+                onClick={handleSendSira}
+              >
+                {sendingSira ? 'Enviando a SIRA...' : 'Enviar a SIRA'}
               </Button>
+
+              {/* Eliminar (solo en borrador) */}
+              {(!document.estado_traslado || document.estado_traslado === 'borrador') && (
+                <Button variant="outline" onClick={handleDelete} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20">
+                  Eliminar DI
+                </Button>
+              )}
+            </div>
+
+            {!myCompany?.sira_usuario && (
+              <p className="text-xs text-error-500 italic">
+                * Para remitir telemáticamente a la administración configure sus credenciales de SIRA en 'Mi Empresa'.
+              </p>
             )}
-          </div>
-
-          {!myCompany?.sira_usuario && (
-            <p className="mt-3 text-xs text-error-500 italic">
-              * Debes configurar las credenciales de SIRA en 'Mi Empresa' para habilitar el envío.
-            </p>
-          )}
-        </ComponentCard>
-
-        {/* Fechas de Sistema */}
-        <ComponentCard title="Información del Sistema">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Creado</label>
-              <p className="text-foreground">{formatDate(document.created_at)}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Última Modificación</label>
-              <p className="text-foreground">{formatDate(document.updated_at)}</p>
-            </div>
           </div>
         </ComponentCard>
       </div>
+
+      {/* MODAL 1: INICIAR TRASLADO / SALIDA */}
+      <Modal isOpen={isDepartureModalOpen} onClose={() => setIsDepartureModalOpen(false)} className="max-w-lg p-6">
+        <form onSubmit={handleStartTransit} className="space-y-4">
+          <div className="flex items-center gap-2 border-b pb-3 border-gray-200 dark:border-gray-800">
+            <Truck className="w-5 h-5 text-primary" />
+            <h3 className="text-lg font-bold text-foreground">Iniciar Traslado / Registro de Salida</h3>
+          </div>
+          <p className="text-xs text-muted">
+            Registre la salida efectiva del centro productor con los datos del transportista y matrícula (art. 6 RD 553/2020).
+          </p>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-muted uppercase mb-1">Fecha y Hora de Salida *</label>
+              <Input
+                type="datetime-local"
+                value={departureForm.fecha_salida}
+                onChange={(e) => setDepartureForm({ ...departureForm, fecha_salida: e.target.value })}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-muted uppercase mb-1">Peso Estimado en Origen (kg)</label>
+              <Input
+                type="number"
+                step="any"
+                value={departureForm.peso_origen_kg || ''}
+                onChange={(e) => setDepartureForm({ ...departureForm, peso_origen_kg: parseFloat(e.target.value) || undefined })}
+                placeholder="Ej: 1500"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-muted uppercase mb-1">Empresa Transportista</label>
+                <Input
+                  type="text"
+                  value={departureForm.transportista_razon_social || ''}
+                  onChange={(e) => setDepartureForm({ ...departureForm, transportista_razon_social: e.target.value })}
+                  placeholder="Transportes S.L."
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted uppercase mb-1">Matrícula Vehículo *</label>
+                <Input
+                  type="text"
+                  value={departureForm.transportista_matricula || ''}
+                  onChange={(e) => setDepartureForm({ ...departureForm, transportista_matricula: e.target.value })}
+                  placeholder="1234-BBB"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-muted uppercase mb-1">Nombre Conductor</label>
+                <Input
+                  type="text"
+                  value={departureForm.nombre_transportista || ''}
+                  onChange={(e) => setDepartureForm({ ...departureForm, nombre_transportista: e.target.value })}
+                  placeholder="Nombre y Apellidos"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted uppercase mb-1">DNI/NIF Conductor</label>
+                <Input
+                  type="text"
+                  value={departureForm.dni_transportista || ''}
+                  onChange={(e) => setDepartureForm({ ...departureForm, dni_transportista: e.target.value })}
+                  placeholder="12345678X"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-gray-200 dark:border-gray-800">
+            <Button type="button" variant="outline" onClick={() => setIsDepartureModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={submittingAction}>
+              {submittingAction ? 'Guardando...' : 'Confirmar Salida'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL 2: RECEPCIÓN EN BÁSCULA Y DICTAMEN GESTOR */}
+      <Modal isOpen={isReceptionModalOpen} onClose={() => setIsReceptionModalOpen(false)} className="max-w-xl p-6">
+        <form onSubmit={handleRecordReception} className="space-y-4">
+          <div className="flex items-center gap-2 border-b pb-3 border-gray-200 dark:border-gray-800">
+            <Scale className="w-5 h-5 text-emerald-600" />
+            <h3 className="text-lg font-bold text-foreground">Recepción en Báscula y Dictamen de Destino</h3>
+          </div>
+          <p className="text-xs text-muted">
+            Introduzca los datos de pesaje neto y veredicto de conformidad según el pesaje de entrada en planta.
+          </p>
+
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-muted uppercase mb-1">Peso Neto Báscula (kg) *</label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={receptionForm.peso_destino_kg || ''}
+                  onChange={(e) => setReceptionForm({ ...receptionForm, peso_destino_kg: parseFloat(e.target.value) || 0 })}
+                  placeholder="Ej: 1480"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted uppercase mb-1">Nº Albarán / Ticket Gestor</label>
+                <Input
+                  type="text"
+                  value={receptionForm.numero_albaran_gestor || ''}
+                  onChange={(e) => setReceptionForm({ ...receptionForm, numero_albaran_gestor: e.target.value })}
+                  placeholder="ALB-2026-99"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-muted uppercase mb-1">Fecha y Hora Recepción *</label>
+                <Input
+                  type="datetime-local"
+                  value={receptionForm.fecha_llegada_destino}
+                  onChange={(e) => setReceptionForm({ ...receptionForm, fecha_llegada_destino: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted uppercase mb-1">Dictamen de Recepción *</label>
+                <select
+                  value={receptionForm.resultado_recepcion}
+                  onChange={(e) => setReceptionForm({ ...receptionForm, resultado_recepcion: e.target.value as ResultadoRecepcion })}
+                  className="w-full text-xs font-semibold rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary h-10"
+                >
+                  <option value="aceptado">✅ Aceptado Conforme</option>
+                  <option value="rechazado_parcial">⚠️ Aceptado Parcial (Rechazo de parte)</option>
+                  <option value="rechazado_total">❌ Rechazo Total (Devolución a origen)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Campos condicionales si hay rechazo o incidencia */}
+            {receptionForm.resultado_recepcion !== 'aceptado' && (
+              <div className="p-3 rounded-lg border border-red-500/30 bg-red-500/10 space-y-3">
+                <p className="text-xs font-bold text-red-700 dark:text-red-300">Detalles del Rechazo / Incidencia</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-muted mb-1">Tipo de Incidencia</label>
+                    <select
+                      value={receptionForm.tipo_incidencia}
+                      onChange={(e) => setReceptionForm({ ...receptionForm, tipo_incidencia: e.target.value })}
+                      className="w-full text-xs rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1.5 text-foreground"
+                    >
+                      <option value="discrepancia_peso">Discrepancia grave de peso</option>
+                      <option value="residuo_no_conforme">Residuo no conforme con autorización</option>
+                      <option value="etiquetado_incorrecto">Etiquetado o envasado incorrecto</option>
+                      <option value="envase_deteriorado">Envase deteriorado o fuga</option>
+                      <option value="otro">Otro motivo</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted mb-1">Cantidad Rechazada (kg)</label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={receptionForm.cantidad_rechazada_kg || ''}
+                      onChange={(e) => setReceptionForm({ ...receptionForm, cantidad_rechazada_kg: parseFloat(e.target.value) || undefined })}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-muted mb-1">Motivo / Justificación *</label>
+                  <TextArea
+                    value={receptionForm.motivo_incidencia || ''}
+                    onChange={(val) => setReceptionForm({ ...receptionForm, motivo_incidencia: val })}
+                    placeholder="Detalle la causa técnica del rechazo..."
+                    rows={2}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-muted uppercase mb-1">Nombre Receptor Gestor</label>
+                <Input
+                  type="text"
+                  value={receptionForm.nombre_gestor || ''}
+                  onChange={(e) => setReceptionForm({ ...receptionForm, nombre_gestor: e.target.value })}
+                  placeholder="Operador báscula"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted uppercase mb-1">DNI/NIF Receptor</label>
+                <Input
+                  type="text"
+                  value={receptionForm.dni_gestor || ''}
+                  onChange={(e) => setReceptionForm({ ...receptionForm, dni_gestor: e.target.value })}
+                  placeholder="87654321Z"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-gray-200 dark:border-gray-800">
+            <Button type="button" variant="outline" onClick={() => setIsReceptionModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={submittingAction}>
+              {submittingAction ? 'Guardando...' : 'Confirmar Recepción'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL 3: CERTIFICAR TRATAMIENTO Y CIERRE */}
+      <Modal isOpen={isTreatmentModalOpen} onClose={() => setIsTreatmentModalOpen(false)} className="max-w-lg p-6">
+        <form onSubmit={handleCompleteTreatment} className="space-y-4">
+          <div className="flex items-center gap-2 border-b pb-3 border-gray-200 dark:border-gray-800">
+            <ShieldCheck className="w-5 h-5 text-emerald-600" />
+            <h3 className="text-lg font-bold text-foreground">Certificación de Tratamiento y Cierre de DI</h3>
+          </div>
+          <p className="text-xs text-muted">
+            Certifique la ejecución de la operación de valorización o eliminación (código R o D) para cerrar el ciclo del traslado.
+          </p>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-muted uppercase mb-1">Operación de Tratamiento Realizada *</label>
+              <select
+                value={treatmentForm.operacion_tratamiento}
+                onChange={(e) => setTreatmentForm({ ...treatmentForm, operacion_tratamiento: e.target.value })}
+                className="w-full text-xs font-mono font-bold rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary h-10"
+              >
+                {OPERACIONES_TRATAMIENTO.map(op => (
+                  <option key={op.code} value={op.code}>{op.code} - {op.desc}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-muted uppercase mb-1">Fecha de Tratamiento *</label>
+              <Input
+                type="datetime-local"
+                value={treatmentForm.fecha_tratamiento}
+                onChange={(e) => setTreatmentForm({ ...treatmentForm, fecha_tratamiento: e.target.value })}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-muted uppercase mb-1">Descripción del Proceso / Notas de Cierre</label>
+              <TextArea
+                value={treatmentForm.descripcion_tratamiento || ''}
+                onChange={(val) => setTreatmentForm({ ...treatmentForm, descripcion_tratamiento: val })}
+                placeholder="Detalle sobre el proceso de reciclaje, valorización o inertización realizado..."
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-gray-200 dark:border-gray-800">
+            <Button type="button" variant="outline" onClick={() => setIsTreatmentModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={submittingAction}>
+              {submittingAction ? 'Guardando...' : 'Cerrar Traslado y Certificar'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </>
   );
 }

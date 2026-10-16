@@ -8,7 +8,7 @@ import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import NuevoContratoModal from '@/components/residuos/NuevoContratoModal';
-import wasteContractService from '@/services/wasteContractService';
+import wasteContractService, { getContractEffectiveStatus } from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
 import type { WasteContract, Company } from '@/types/wasteManagement';
 import { generateContractPDF } from '@/lib/pdfUtils';
@@ -17,6 +17,7 @@ import jsPDF from 'jspdf';
 const STATUS_COLORS = {
   borrador: 'info',
   vigente: 'success',
+  caducado: 'warning',
   finalizado: 'light',
   cancelado: 'error',
 } as const;
@@ -24,28 +25,39 @@ const STATUS_COLORS = {
 const STATUS_LABELS = {
   borrador: 'Borrador',
   vigente: 'Vigente',
+  caducado: 'Caducado',
   finalizado: 'Finalizado',
   cancelado: 'Cancelado',
 };
 
 export default function ContratosPage() {
-  const handleDownloadPDF = async (contract: WasteContract) => {
-    try {
-      const doc = await generateContractPDF(contract);
-      doc.save(`contrato_${contract.numero_contrato || contract.id}.pdf`);
-    } catch (err) {
-      console.error('Error al descargar PDF:', err);
-      alert('Hubo un error al generar el PDF. Por favor, inténtelo de nuevo.');
-    }
-  };
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [contracts, setContracts] = useState<WasteContract[]>([]);
   const [hasCompany, setHasCompany] = useState(false);
   const [myCompany, setMyCompany] = useState<Company | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [showNewContractModal, setShowNewContractModal] = useState(false);
+
+  const handleDownloadPDF = async (contract: WasteContract) => {
+    try {
+      setDownloadingId(contract.id);
+      setError(null);
+      setSuccessMessage(null);
+      const doc = await generateContractPDF(contract);
+      doc.save(`contrato_${contract.numero_contrato || contract.id}.pdf`);
+      setSuccessMessage(`PDF del contrato ${contract.numero_contrato || `#${contract.id}`} generado y descargado correctamente.`);
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (err: any) {
+      console.error('Error al descargar PDF:', err);
+      setError(`Hubo un error al generar el PDF: ${err.message || 'Error desconocido'}`);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -86,6 +98,28 @@ export default function ContratosPage() {
   };
 
   const handleChangeStatus = async (id: number, newStatus: 'borrador' | 'vigente' | 'finalizado' | 'cancelado') => {
+    if (newStatus === 'vigente') {
+      const contract = contracts.find(c => c.id === id);
+      if (contract) {
+        const hasProducer = Boolean(contract.company_id || contract.company);
+        const hasGestor = Boolean(contract.treatment_manager || contract.gestor_company || contract.gestor_company_id);
+        if (!hasProducer || !hasGestor) {
+          alert('No es posible activar el contrato: Debe tener asignado obligatoriamente tanto el Productor como el Gestor.');
+          return;
+        }
+        if (!contract.fecha_fin) {
+          alert('No es posible activar el contrato: Debe especificarse una fecha de finalización.');
+          return;
+        }
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (new Date(contract.fecha_fin) < today) {
+          alert(`No es posible activar el contrato: La fecha de finalización (${new Date(contract.fecha_fin).toLocaleDateString('es-ES')}) ya ha vencido. Actualice las fechas antes de activarlo.`);
+          return;
+        }
+      }
+    }
+
     try {
       await wasteContractService.updateStatus(id, newStatus);
       await loadData();
@@ -94,9 +128,13 @@ export default function ContratosPage() {
     }
   };
 
-  const filteredContracts = filterStatus === 'all'
-    ? contracts
-    : contracts.filter(c => c.estado === filterStatus);
+  const filteredContracts = contracts.filter(c => {
+    const effective = getContractEffectiveStatus(c);
+    if (filterStatus === 'all') return true;
+    if (filterStatus === 'caducado') return effective.status === 'caducado';
+    if (filterStatus === 'vigente') return effective.status === 'vigente';
+    return c.estado === filterStatus;
+  });
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-ES', {
@@ -152,6 +190,10 @@ export default function ContratosPage() {
           <Alert variant="error" title="Error" message={error} />
         )}
 
+        {successMessage && (
+          <Alert variant="success" title="Éxito" message={successMessage} />
+        )}
+
         {/* Filtros */}
         <ComponentCard title="Filtros">
           <div className="flex flex-wrap gap-2">
@@ -167,7 +209,14 @@ export default function ContratosPage() {
               size="sm"
               onClick={() => setFilterStatus('vigente')}
             >
-              Vigentes ({contracts.filter(c => c.estado === 'vigente').length})
+              Vigentes ({contracts.filter(c => getContractEffectiveStatus(c).status === 'vigente').length})
+            </Button>
+            <Button
+              variant={filterStatus === 'caducado' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => setFilterStatus('caducado')}
+            >
+              Caducados ({contracts.filter(c => getContractEffectiveStatus(c).status === 'caducado').length})
             </Button>
             <Button
               variant={filterStatus === 'borrador' ? 'primary' : 'outline'}
@@ -217,107 +266,124 @@ export default function ContratosPage() {
           </ComponentCard>
         ) : (
           <div className="grid grid-cols-1 gap-6">
-            {filteredContracts.map((contract) => (
-              <ComponentCard key={contract.id} title="">
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-foreground">
-                            {contract.numero_contrato || `Contrato #${contract.id}`}
-                          </h3>
-                          <Badge color={STATUS_COLORS[contract.estado]}>
-                            {STATUS_LABELS[contract.estado]}
-                          </Badge>
-                        </div>
+            {filteredContracts.map((contract) => {
+              const effective = getContractEffectiveStatus(contract);
+              const gestorName = contract.treatment_manager?.razon_social || contract.gestor_company?.razon_social;
+              const productorName = contract.company?.razon_social || myCompany?.razon_social;
 
-                        <div className="space-y-2 text-sm text-muted">
-                          {contract.gestor_company && (
+              return (
+                <ComponentCard key={contract.id} title="">
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-semibold text-foreground">
+                              {contract.numero_contrato || `Contrato #${contract.id}`}
+                            </h3>
+                            <Badge color={STATUS_COLORS[effective.status]}>
+                              {effective.label}
+                            </Badge>
+                          </div>
+
+                          <div className="space-y-2 text-sm text-muted">
                             <p>
-                              <span className="font-medium text-foreground">Gestor:</span>{' '}
-                              {contract.gestor_company.razon_social}
+                              <span className="font-medium text-foreground">Productor:</span>{' '}
+                              {productorName || 'No disponible'}
                             </p>
-                          )}
 
-                          <p>
-                            <span className="font-medium text-foreground">Tipo:</span>{' '}
-                            {contract.tipo_contrato}
-                          </p>
+                            {gestorName ? (
+                              <p>
+                                <span className="font-medium text-foreground">Gestor:</span>{' '}
+                                {gestorName}
+                              </p>
+                            ) : (
+                              <p className="text-amber-600 dark:text-amber-400 font-medium">
+                                ⚠️ Sin gestor asignado
+                              </p>
+                            )}
 
-                          <p>
-                            <span className="font-medium text-foreground">Fecha contrato:</span>{' '}
-                            {formatDate(contract.fecha_contrato)}
-                          </p>
-
-                          {contract.fecha_inicio && contract.fecha_fin && (
                             <p>
-                              <span className="font-medium text-foreground">Vigencia:</span>{' '}
-                              {formatDate(contract.fecha_inicio)} - {formatDate(contract.fecha_fin)}
+                              <span className="font-medium text-foreground">Tipo:</span>{' '}
+                              {contract.tipo_contrato}
                             </p>
-                          )}
 
-                          {contract.descripcion_residuos && (
                             <p>
-                              <span className="font-medium text-foreground">Residuos:</span>{' '}
-                              {contract.descripcion_residuos}
+                              <span className="font-medium text-foreground">Fecha contrato:</span>{' '}
+                              {formatDate(contract.fecha_contrato)}
                             </p>
-                          )}
+
+                            {contract.fecha_inicio && contract.fecha_fin && (
+                              <p className={effective.isExpired ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>
+                                <span className="font-medium text-foreground">Vigencia:</span>{' '}
+                                {formatDate(contract.fecha_inicio)} - {formatDate(contract.fecha_fin)}
+                                {effective.isExpired && ' (Vencido)'}
+                              </p>
+                            )}
+
+                            {contract.descripcion_residuos && (
+                              <p>
+                                <span className="font-medium text-foreground">Residuos:</span>{' '}
+                                {contract.descripcion_residuos}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Acciones */}
-                  <div className="flex flex-col gap-2 min-w-[140px]">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => router.push(`/residuos/contratos/${contract.id}`)}
-                    >
-                      Ver Detalles
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDownloadPDF(contract)}
-                    >
-                      Descargar PDF
-                    </Button>
-
-                    {contract.estado === 'borrador' && (
+                    {/* Acciones */}
+                    <div className="flex flex-col gap-2 min-w-[140px]">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleChangeStatus(contract.id, 'vigente')}
+                        onClick={() => router.push(`/residuos/contratos/${contract.id}`)}
                       >
-                        Activar
+                        Ver Detalles
                       </Button>
-                    )}
 
-                    {contract.estado === 'vigente' && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleChangeStatus(contract.id, 'finalizado')}
+                        onClick={() => handleDownloadPDF(contract)}
+                        disabled={downloadingId === contract.id}
                       >
-                        Finalizar
+                        {downloadingId === contract.id ? 'Generando PDF...' : 'Descargar PDF'}
                       </Button>
-                    )}
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDelete(contract.id)}
-                      className="text-red-600 hover:bg-red-50"
-                    >
-                      Eliminar
-                    </Button>
+                      {contract.estado === 'borrador' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleChangeStatus(contract.id, 'vigente')}
+                        >
+                          Activar
+                        </Button>
+                      )}
+
+                      {contract.estado === 'vigente' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleChangeStatus(contract.id, 'finalizado')}
+                        >
+                          Finalizar
+                        </Button>
+                      )}
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDelete(contract.id)}
+                        className="text-red-600 hover:bg-red-50"
+                      >
+                        Eliminar
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </ComponentCard>
-            ))}
+                </ComponentCard>
+              );
+            })}
           </div>
         )}
 

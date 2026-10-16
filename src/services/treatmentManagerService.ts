@@ -30,10 +30,60 @@ export const treatmentManagerService = {
             .order('nombre', { ascending: true });
 
         if (error) {
-            throw new Error(`Error al obtener gestores: ${error.message}`);
+            console.error('Error al obtener gestores de treatment_managers:', error);
         }
 
-        return data as TreatmentManager[];
+        const list: TreatmentManager[] = (data as TreatmentManager[]) || [];
+
+        // Integrar empresas con rol 'gestor' del Directorio Unificado
+        try {
+            const { data: unifiedCompanies } = await supabase
+                .from('companies')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('activo', true);
+
+            if (unifiedCompanies && unifiedCompanies.length > 0) {
+                const existingCifs = new Set(list.map((g) => g.cif?.toUpperCase().trim()).filter(Boolean));
+
+                for (const comp of unifiedCompanies) {
+                    const roles: string[] = Array.isArray(comp.roles) ? comp.roles : (comp.tipo_empresa ? [comp.tipo_empresa] : []);
+                    const isGestor = roles.includes('gestor') || comp.tipo_empresa === 'gestor';
+
+                    if (isGestor) {
+                        const normCif = comp.cif?.toUpperCase().trim();
+                        if (!normCif || !existingCifs.has(normCif)) {
+                            list.push({
+                                id: comp.id,
+                                user_id: comp.user_id,
+                                nombre: comp.nombre_comercial || comp.razon_social,
+                                razon_social: comp.razon_social,
+                                cif: comp.cif,
+                                nima: comp.nima,
+                                numero_autorizacion: comp.numero_autorizacion,
+                                direccion: comp.domicilio_social || comp.direccion,
+                                codigo_postal: comp.codigo_postal_social || comp.codigo_postal,
+                                municipio: comp.municipio_social || comp.municipio,
+                                provincia: comp.provincia_social || comp.provincia,
+                                telefono: comp.telefono,
+                                email: comp.email,
+                                persona_contacto: comp.persona_contacto,
+                                notas: comp.notas,
+                                activo: comp.activo ?? true,
+                                created_at: comp.created_at,
+                                updated_at: comp.updated_at,
+                                holded_contact_id: comp.holded_contact_id,
+                            });
+                            if (normCif) existingCifs.add(normCif);
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Nota: compatibilidad con tabla companies unificada:', e);
+        }
+
+        return list;
     },
 
     /**

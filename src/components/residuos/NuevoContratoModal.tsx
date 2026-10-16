@@ -7,11 +7,20 @@ import TextArea from '@/components/form/input/TextArea';
 import Select from '@/components/form/Select';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
-import wasteContractService from '@/services/wasteContractService';
+import wasteContractService, { validateContractActivation } from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
 import wasteTypeService from '@/services/wasteTypeService';
 import treatmentManagerService from '@/services/treatmentManagerService';
-import type { Company, WasteContractFormData, WasteType, TreatmentManager } from '@/types/wasteManagement';
+import productionCenterService from '@/services/productionCenterService';
+import authorizationService, { type AuthorizedScopeResult } from '@/services/authorizationService';
+import type {
+  Company,
+  WasteContractFormData,
+  WasteType,
+  TreatmentManager,
+  ProductionCenter,
+  ContractWasteCodeFormData,
+} from '@/types/wasteManagement';
 import DatePicker from '../form/date-picker';
 
 const TIPOS_CONTRATO = [
@@ -42,10 +51,19 @@ export default function NuevoContratoModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [showGestorForm, setShowGestorForm] = useState(false);
   const [wasteTypes, setWasteTypes] = useState<WasteType[]>([]);
+  const [producerCenters, setProducerCenters] = useState<ProductionCenter[]>([]);
+  const [gestorCenters, setGestorCenters] = useState<ProductionCenter[]>([]);
+  const [destAuthScope, setDestAuthScope] = useState<AuthorizedScopeResult | null>(null);
+
+  const [contractWasteCodes, setContractWasteCodes] = useState<ContractWasteCodeFormData[]>([
+    { codigo_ler: '', descripcion_ler: '', operacion_tratamiento: 'R13' },
+  ]);
 
   const [formData, setFormData] = useState<WasteContractFormData>({
     company_id: myCompany.id,
     gestor_company_id: undefined,
+    producer_center_id: undefined,
+    gestor_center_id: undefined,
     numero_contrato: '',
     fecha_contrato: new Date().toISOString().split('T')[0],
     fecha_inicio: '',
@@ -73,10 +91,20 @@ export default function NuevoContratoModal({
     if (isOpen) {
       loadGestores();
       loadWasteTypes();
+      loadProducerCenters();
       const numeroContrato = wasteContractService.generateContractNumber(myCompany.id);
       setFormData((prev) => ({ ...prev, numero_contrato: numeroContrato }));
     }
   }, [isOpen, myCompany.id]);
+
+  const loadProducerCenters = async () => {
+    try {
+      const centers = await productionCenterService.getByCompanyId(myCompany.id);
+      setProducerCenters(centers);
+    } catch (e) {
+      console.error('Error cargando centros del productor:', e);
+    }
+  };
 
   const loadWasteTypes = async () => {
     try {
@@ -91,7 +119,7 @@ export default function NuevoContratoModal({
     try {
       const [gestoresData, internalData] = await Promise.all([
         companyService.getByType('gestor'),
-        treatmentManagerService.getAll()
+        treatmentManagerService.getAll(),
       ]);
       setGestores(gestoresData);
       setInternalGestores(internalData);
@@ -99,6 +127,22 @@ export default function NuevoContratoModal({
       setError(err.message);
     }
   };
+
+  useEffect(() => {
+    if (formData.gestor_company_id) {
+      productionCenterService
+        .getByCompanyId(formData.gestor_company_id)
+        .then(setGestorCenters)
+        .catch(console.error);
+      authorizationService
+        .getAuthorizedScope(formData.gestor_company_id, formData.gestor_center_id, formData.fecha_inicio)
+        .then(setDestAuthScope)
+        .catch(console.error);
+    } else {
+      setGestorCenters([]);
+      setDestAuthScope(null);
+    }
+  }, [formData.gestor_company_id, formData.gestor_center_id, formData.fecha_inicio]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -158,13 +202,40 @@ export default function NuevoContratoModal({
     setError(null);
 
     if (!formData.fecha_contrato) {
-      setError('La fecha del contrato es obligatoria');
+      setError('La fecha del contrato es obligatoria.');
       return;
     }
 
     if (formData.fecha_inicio && formData.fecha_fin) {
       if (!wasteContractService.validateDates(formData.fecha_inicio, formData.fecha_fin)) {
-        setError('La fecha de fin debe ser posterior a la fecha de inicio');
+        setError('La fecha de fin debe ser posterior a la fecha de inicio.');
+        return;
+      }
+    }
+
+    // Filtrar residuos válidos
+    const validWasteCodes = contractWasteCodes
+      .filter((wc) => wc.codigo_ler.trim().length > 0)
+      .map((wc) => ({
+        ...wc,
+        codigo_ler: wc.codigo_ler.trim(),
+        operacion_tratamiento: wc.operacion_tratamiento.trim().toUpperCase(),
+      }));
+
+    // Validación estricta si se pretende crear en estado Vigente (Bloque 3)
+    if (formData.estado === 'vigente') {
+      const tempContract: any = {
+        ...formData,
+        contract_waste_codes: validWasteCodes,
+        codigos_ler: validWasteCodes.map((c) => c.codigo_ler),
+        operaciones_tratamiento: validWasteCodes.map((c) => c.operacion_tratamiento),
+      };
+
+      const validation = validateContractActivation(tempContract);
+      if (!validation.canActivate) {
+        setError(
+          `No se puede activar el contrato directamente como Vigente: ${validation.errors.join(' ')}. Puedes guardarlo como "Borrador" mientras completas los requisitos.`
+        );
         return;
       }
     }
@@ -179,6 +250,7 @@ export default function NuevoContratoModal({
         fecha_fin: formData.fecha_fin || undefined,
         cantidad_maxima_anual: formData.cantidad_maxima_anual || undefined,
         precio_unitario: formData.precio_unitario || undefined,
+        contract_waste_codes: validWasteCodes,
       };
 
       await wasteContractService.create(cleanedData);
@@ -309,6 +381,32 @@ export default function NuevoContratoModal({
             <p><strong>Razón Social:</strong> {myCompany.razon_social}</p>
             <p><strong>CIF:</strong> {myCompany.cif}</p>
             {myCompany.nima && <p><strong>NIMA:</strong> {myCompany.nima}</p>}
+
+            {producerCenters.length > 0 && (
+              <div className="pt-2 border-t border-stroke dark:border-strokedark mt-2">
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Instalación / Centro de Origen del Residuo
+                </label>
+                <select
+                  name="producer_center_id"
+                  value={formData.producer_center_id || ''}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      producer_center_id: e.target.value ? Number(e.target.value) : undefined,
+                    }))
+                  }
+                  className="h-10 w-full rounded-lg border border-stroke bg-white dark:bg-dark px-3 text-sm shadow-xs focus:border-primary"
+                >
+                  <option value="">🏢 Sede / Instalación Principal</option>
+                  {producerCenters.map((center) => (
+                    <option key={center.id} value={center.id}>
+                      📍 {center.nombre} ({center.municipio || 'S/D'}) - NIMA: {center.nima}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </div>
 
@@ -324,7 +422,7 @@ export default function NuevoContratoModal({
                 value={formData.treatment_manager_id || ''}
                 onChange={(e) => {
                   const id = e.target.value ? parseInt(e.target.value) : undefined;
-                  setFormData(prev => ({ ...prev, treatment_manager_id: id, gestor_company_id: undefined }));
+                  setFormData(prev => ({ ...prev, treatment_manager_id: id, gestor_company_id: undefined, gestor_center_id: undefined }));
                 }}
                 className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
               >
@@ -344,7 +442,7 @@ export default function NuevoContratoModal({
                 value={formData.gestor_company_id || ''}
                 onChange={(e) => {
                   const id = e.target.value ? parseInt(e.target.value) : undefined;
-                  setFormData(prev => ({ ...prev, gestor_company_id: id, treatment_manager_id: undefined }));
+                  setFormData(prev => ({ ...prev, gestor_company_id: id, treatment_manager_id: undefined, gestor_center_id: undefined }));
                 }}
                 className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
               >
@@ -357,6 +455,43 @@ export default function NuevoContratoModal({
               </select>
             </div>
           </div>
+
+          {gestorCenters.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Instalación / Centro de Destino del Gestor
+              </label>
+              <select
+                name="gestor_center_id"
+                value={formData.gestor_center_id || ''}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    gestor_center_id: e.target.value ? Number(e.target.value) : undefined,
+                  }))
+                }
+                className="h-10 w-full rounded-lg border border-stroke bg-white dark:bg-dark px-3 text-sm shadow-xs focus:border-primary"
+              >
+                <option value="">🏢 Sede / Planta Principal del Gestor</option>
+                {gestorCenters.map((center) => (
+                  <option key={center.id} value={center.id}>
+                    📍 {center.nombre} ({center.municipio || 'S/D'}) - NIMA: {center.nima}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && (
+            <div className="p-3 bg-brand-50/70 dark:bg-brand-950/20 border border-brand-200 dark:border-brand-800 rounded-xl">
+              <p className="text-xs font-bold text-brand-950 dark:text-brand-200 flex items-center gap-1.5">
+                <span>📜</span> Autorización Ambiental Vigente: {destAuthScope.authorizations[0].numero_autorizacion}
+              </p>
+              <p className="text-xs text-brand-700 dark:text-brand-400 mt-0.5">
+                {destAuthScope.authorizations[0].titulo} — Vigencia: {destAuthScope.authorizations[0].es_indefinida ? 'Indefinida' : destAuthScope.authorizations[0].fecha_vencimiento}
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-2 mt-4">
@@ -468,51 +603,130 @@ export default function NuevoContratoModal({
           </div>
         </div>
 
-        {/* Residuos y Condiciones */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-foreground">Residuos y Condiciones</h3>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Seleccionar Código LER (Opcional)</label>
-            <Select
-              options={[
-                { value: '', label: '-- Seleccionar Código LER --' },
-                ...wasteTypes.map(wt => ({
-                  value: wt.id.toString(),
-                  label: `${wt.codigo_ler} - ${wt.descripcion.substring(0, 50)}...`,
-                })),
-              ]}
-              defaultValue={''}
-              onChange={(value) => {
-                const wt = wasteTypes.find(w => w.id === parseInt(value));
-                if (wt) {
-                  setFormData(prev => {
-                    const currentDesc = prev.descripcion_residuos ? prev.descripcion_residuos + '\n' : '';
-                    return {
-                      ...prev,
-                      descripcion_residuos: currentDesc + `${wt.codigo_ler} - ${wt.descripcion}`,
-                      waste_type_ids: [...(prev.waste_type_ids || []), wt.id]
-                    };
-                  });
-                }
-              }}
-              placeholder="Añadir residuo de la lista oficial"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Descripción de Residuos</label>
-            <TextArea
-              value={formData.descripcion_residuos}
-              onChange={(value) => setFormData(prev => ({ ...prev, descripcion_residuos: value }))}
-              rows={3}
-              placeholder="Describe los tipos de residuos cubiertos por el contrato..."
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Residuos Cubiertos por el Contrato (Matriz LER y Operaciones) */}
+        <div className="space-y-4 border-t border-stroke dark:border-strokedark pt-4">
+          <div className="flex justify-between items-center">
             <div>
-              <label className="block text-sm font-medium mb-2">Cantidad Máxima Anual</label>
+              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <span>🎯</span> Residuos Cubiertos por el Contrato (Matriz LER y Operaciones)
+              </h3>
+              <p className="text-xs text-muted">
+                Define los códigos LER autorizados, la operación de tratamiento (R o D) y las condiciones económicas.
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                setContractWasteCodes((prev) => [
+                  ...prev,
+                  { codigo_ler: '', descripcion_ler: '', operacion_tratamiento: 'R13' },
+                ])
+              }
+            >
+              + Añadir LER
+            </Button>
+          </div>
+
+          <div className="space-y-3">
+            {contractWasteCodes.map((item, idx) => (
+              <div
+                key={idx}
+                className="p-3.5 bg-muted/20 border border-stroke dark:border-strokedark rounded-xl flex flex-col md:flex-row gap-3 items-start md:items-center"
+              >
+                <div className="w-full md:w-40">
+                  <label className="block text-xs font-medium mb-1">Código LER *</label>
+                  <input
+                    type="text"
+                    placeholder="15 01 01"
+                    value={item.codigo_ler}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setContractWasteCodes((prev) => {
+                        const copy = [...prev];
+                        copy[idx] = { ...copy[idx], codigo_ler: val };
+                        return copy;
+                      });
+                    }}
+                    required
+                    className="h-10 w-full px-3 text-sm rounded-lg border border-stroke bg-white dark:bg-dark shadow-xs focus:border-primary"
+                  />
+                </div>
+
+                <div className="w-full md:flex-1">
+                  <label className="block text-xs font-medium mb-1">Descripción</label>
+                  <input
+                    type="text"
+                    placeholder="Envases de papel y cartón"
+                    value={item.descripcion_ler || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setContractWasteCodes((prev) => {
+                        const copy = [...prev];
+                        copy[idx] = { ...copy[idx], descripcion_ler: val };
+                        return copy;
+                      });
+                    }}
+                    className="h-10 w-full px-3 text-sm rounded-lg border border-stroke bg-white dark:bg-dark shadow-xs focus:border-primary"
+                  />
+                </div>
+
+                <div className="w-full md:w-32">
+                  <label className="block text-xs font-medium mb-1">Operación R/D *</label>
+                  <input
+                    type="text"
+                    placeholder="R13"
+                    value={item.operacion_tratamiento}
+                    onChange={(e) => {
+                      const val = e.target.value.toUpperCase();
+                      setContractWasteCodes((prev) => {
+                        const copy = [...prev];
+                        copy[idx] = { ...copy[idx], operacion_tratamiento: val };
+                        return copy;
+                      });
+                    }}
+                    required
+                    className="h-10 w-full px-3 text-sm rounded-lg border border-stroke bg-white dark:bg-dark shadow-xs focus:border-primary"
+                  />
+                </div>
+
+                <div className="w-full md:w-28">
+                  <label className="block text-xs font-medium mb-1">Tarifa (€/t)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={item.tarifa_gestion ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                      setContractWasteCodes((prev) => {
+                        const copy = [...prev];
+                        copy[idx] = { ...copy[idx], tarifa_gestion: val };
+                        return copy;
+                      });
+                    }}
+                    className="h-10 w-full px-3 text-sm rounded-lg border border-stroke bg-white dark:bg-dark shadow-xs focus:border-primary"
+                  />
+                </div>
+
+                {contractWasteCodes.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setContractWasteCodes((prev) => prev.filter((_, i) => i !== idx))}
+                    className="mt-4 md:mt-5 p-2 text-red-500 hover:text-red-700 rounded-lg transition"
+                    title="Eliminar este residuo"
+                  >
+                    🗑️
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            <div>
+              <label className="block text-sm font-medium mb-2">Cantidad Máxima Anual (Total)</label>
               <Input
                 name="cantidad_maxima_anual"
                 type="number"
@@ -535,31 +749,6 @@ export default function NuevoContratoModal({
                 <option value="kg">Kilogramos</option>
                 <option value="m3">Metros cúbicos</option>
                 <option value="litros">Litros</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Precio Unitario</label>
-              <Input
-                name="precio_unitario"
-                type="number"
-                step={0.01}
-                value={formData.precio_unitario || ''}
-                onChange={handleChange}
-                placeholder="Ej: 150.00"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Moneda</label>
-              <select
-                name="moneda"
-                value={formData.moneda}
-                onChange={handleChange}
-                className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
-              >
-                <option value="EUR">EUR (€)</option>
-                <option value="USD">USD ($)</option>
               </select>
             </div>
           </div>

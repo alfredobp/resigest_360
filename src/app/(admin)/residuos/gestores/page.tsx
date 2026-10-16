@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
@@ -71,6 +72,24 @@ export default function GestoresPage() {
             <PageBreadCrumb pageTitle="Gestores de Tratamiento" />
 
             <div className="max-w-6xl mx-auto space-y-6">
+                {/* Banner Directorio Unificado */}
+                <div className="p-4 rounded-xl border border-brand-200 bg-brand-50/60 dark:bg-brand-950/20 dark:border-brand-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                    <div>
+                        <h4 className="font-semibold text-brand-900 dark:text-brand-300 text-sm flex items-center gap-1.5">
+                            <span>✨</span> Nuevo Directorio Unificado de Empresas
+                        </h4>
+                        <p className="text-xs text-brand-700 dark:text-brand-400 mt-0.5">
+                            Ahora puedes gestionar gestores, transportistas y productores bajo un mismo CIF sin duplicados.
+                        </p>
+                    </div>
+                    <Link
+                        href="/residuos/empresas?rol=gestor"
+                        className="inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition shadow-sm whitespace-nowrap"
+                    >
+                        Ver en Directorio Unificado →
+                    </Link>
+                </div>
+
                 {/* Header */}
                 <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-bold text-foreground">

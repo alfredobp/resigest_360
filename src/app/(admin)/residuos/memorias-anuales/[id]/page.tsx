@@ -6,8 +6,11 @@ import {
   getMemoriaById,
   updateEstado,
   deleteMemoria,
-  generateExcelData
+  generateExcelData,
+  exportMemoriaToExcelXML,
+  exportMemoriaToCSV
 } from '@/services/memoriaAnualService';
+import { generateMemoriaAnualPDF } from '@/lib/pdfUtils';
 import { MemoriaAnual, EstadoMemoria, ResumenLER } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
@@ -95,19 +98,46 @@ export default function DetalleMemoriaPage() {
     try {
       setProcessingExcel(true);
       const excelData = await generateExcelData(memoria.id);
-
-      // Aquí se debería generar el archivo Excel real
-      // Por ahora solo mostramos un mensaje de éxito
-      setSuccess('Datos de Excel generados correctamente. La funcionalidad de exportación se implementará próximamente.');
-
-      console.log('Excel Data:', excelData);
-
-      setTimeout(() => setSuccess(null), 5000);
+      exportMemoriaToExcelXML(memoria, excelData);
+      setSuccess('Archivo Excel generado y descargado correctamente.');
+      setTimeout(() => setSuccess(null), 4000);
     } catch (err) {
-      setError('Error al generar el Excel');
+      console.error(err);
+      setError('Error al generar el archivo Excel');
       setTimeout(() => setError(null), 3000);
     } finally {
       setProcessingExcel(false);
+    }
+  };
+
+  const handleExportCSV = async () => {
+    if (!memoria) return;
+    try {
+      setProcessingExcel(true);
+      const excelData = await generateExcelData(memoria.id);
+      exportMemoriaToCSV(memoria, excelData);
+      setSuccess('Archivo CSV exportado correctamente.');
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (err) {
+      console.error(err);
+      setError('Error al generar el CSV');
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setProcessingExcel(false);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!memoria) return;
+    try {
+      const pdfDoc = await generateMemoriaAnualPDF(memoria);
+      pdfDoc.save(`${memoria.numero_memoria}.pdf`);
+      setSuccess('PDF oficial generado y descargado correctamente.');
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (err) {
+      console.error(err);
+      setError('Error al generar el documento PDF');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -348,24 +378,45 @@ export default function DetalleMemoriaPage() {
           <ComponentCard title="Acciones">
             <h3 className="text-lg font-semibold mb-4">Acciones</h3>
             <div className="space-y-2">
-              {/* Generar/Descargar Excel */}
+              {/* Descargar Excel */}
               <Button
-                className="w-full justify-start"
+                className="w-full justify-start text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400"
                 variant="outline"
                 onClick={handleGenerateExcel}
                 disabled={processingExcel}
               >
                 {processingExcel ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-600 mr-2"></div>
                     Generando...
                   </>
                 ) : (
                   <>
-                    <Download className="mr-2 h-4 w-4" />
-                    {memoria.archivo_excel_url ? 'Descargar Excel' : 'Generar Excel'}
+                    <Download className="mr-2 h-4 w-4 text-emerald-600" />
+                    Descargar Excel (.xls)
                   </>
                 )}
+              </Button>
+
+              {/* Exportar CSV */}
+              <Button
+                className="w-full justify-start text-blue-700 hover:text-blue-800 hover:bg-blue-50 dark:text-blue-400"
+                variant="outline"
+                onClick={handleExportCSV}
+                disabled={processingExcel}
+              >
+                <Download className="mr-2 h-4 w-4 text-blue-600" />
+                Exportar CSV (.csv)
+              </Button>
+
+              {/* Descargar PDF */}
+              <Button
+                className="w-full justify-start text-purple-700 hover:text-purple-800 hover:bg-purple-50 dark:text-purple-400"
+                variant="outline"
+                onClick={handleDownloadPDF}
+              >
+                <FileText className="mr-2 h-4 w-4 text-purple-600" />
+                Descargar PDF Oficial
               </Button>
 
               {/* Cambiar Estado */}

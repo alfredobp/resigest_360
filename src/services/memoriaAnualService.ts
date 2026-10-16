@@ -56,9 +56,9 @@ export async function createMemoria(data: CreateMemoriaData): Promise<MemoriaAnu
   );
   const documentos_ids = documentos.map(d => d.id);
 
-  // Calcular totales
+  // Calcular totales con precisión basada en báscula
   const total_movimientos = documentos.length;
-  const total_toneladas = documentos.reduce((sum, doc) => sum + (doc.cantidad || 0), 0);
+  const total_toneladas = Number(documentos.reduce((sum, doc) => sum + getEffectiveWeightTonnes(doc), 0).toFixed(3));
 
   // Calcular resumen por LER
   const resumen_ler = calculateResumenLER(documentos);
@@ -247,6 +247,24 @@ export async function generateExcelData(
 }
 
 // =====================================================
+// =====================================================
+// UTILIDAD DE CÁLCULO DE PESO EN TONELADAS
+// =====================================================
+
+export function getEffectiveWeightTonnes(doc: IdentificationDocument): number {
+  if (doc.peso_destino_kg && doc.peso_destino_kg > 0) {
+    return Number((Number(doc.peso_destino_kg) / 1000).toFixed(3));
+  }
+  if (doc.peso_origen_kg && doc.peso_origen_kg > 0) {
+    return Number((Number(doc.peso_origen_kg) / 1000).toFixed(3));
+  }
+  if (doc.unidad === 'kg') {
+    return Number(((Number(doc.cantidad) || 0) / 1000).toFixed(3));
+  }
+  return Number((Number(doc.cantidad) || 0).toFixed(3));
+}
+
+// =====================================================
 // GENERAR DATOS PARA MEMORIA DE PRODUCTOR
 // =====================================================
 
@@ -258,7 +276,7 @@ function generateDataProductor(
     denominacion_proceso: 'Producción de residuos',
     codigo_ler: doc.codigo_ler || '',
     descripcion_residuo: doc.descripcion_residuo || '',
-    cantidad_toneladas: doc.cantidad || 0,
+    cantidad_toneladas: getEffectiveWeightTonnes(doc),
 
     // Destino (Gestor)
     nima_destino: doc.gestor_nima,
@@ -297,7 +315,7 @@ function generateDataGestor(
     // Residuo recepcionado
     codigo_ler: doc.codigo_ler || '',
     descripcion_residuo: doc.descripcion_residuo || '',
-    cantidad_toneladas: doc.cantidad || 0,
+    cantidad_toneladas: getEffectiveWeightTonnes(doc),
 
     // Origen (Productor)
     nima_origen: doc.productor_nima,
@@ -316,8 +334,7 @@ function generateDataGestor(
     srap: false,
   }));
 
-  // Las salidas se generarían si hay datos de destino final
-  // En este caso, asumimos que el gestor es el destino final
+  // Salidas hacia gestor final (en caso de rechazos o transferencias)
   const salidas: EntradaMemoriaGestorSalida[] = [];
 
   return { entradas, salidas };
@@ -335,7 +352,7 @@ function generateDataNegocianteTransportistaAgente(
     // Residuo
     codigo_ler: doc.codigo_ler || '',
     descripcion_residuo: doc.descripcion_residuo || '',
-    cantidad_toneladas: doc.cantidad || 0,
+    cantidad_toneladas: getEffectiveWeightTonnes(doc),
 
     // Procedencia (Productor)
     nima_origen: doc.productor_nima,
@@ -431,7 +448,7 @@ async function generateNumeroMemoria(tipo: TipoMemoria, año: number): Promise<s
   if (!user) throw new Error('No hay usuario autenticado');
 
   // Obtener el último número para este tipo y año
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('memorias_anuales')
     .select('numero_memoria')
     .eq('user_id', user.id)
@@ -465,25 +482,36 @@ async function getDocumentosIdentificacionByYear(
   userId: string,
   companyId: number,
   año: number,
-  productionCenterId: number
+  productionCenterId?: number
 ): Promise<IdentificationDocument[]> {
   const supabase = createClient();
 
   const fecha_inicio = `${año}-01-01`;
   const fecha_fin = `${año}-12-31`;
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('identification_documents')
     .select('*')
     .eq('user_id', userId)
     .eq('company_id', companyId)
-    .eq('production_center_id', productionCenterId)
     .gte('fecha_documento', fecha_inicio)
-    .lte('fecha_documento', fecha_fin)
-    .eq('estado', 'completado');
+    .lte('fecha_documento', fecha_fin);
 
+  if (productionCenterId && productionCenterId > 0) {
+    query = query.eq('production_center_id', productionCenterId);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
-  return data || [];
+  
+  const docs = data || [];
+  // Filtrar documentos que tengan estado completado, aceptado, tratado o traslado completado
+  return docs.filter(doc => 
+    doc.estado === 'completado' ||
+    doc.estado === 'aceptado' ||
+    doc.estado === 'tratado' ||
+    ['entregado', 'aceptado_en_destino', 'tratado_cerrado'].includes(doc.estado_traslado || '')
+  );
 }
 
 function calculateResumenLER(documentos: IdentificationDocument[]): ResumenLER[] {
@@ -492,17 +520,17 @@ function calculateResumenLER(documentos: IdentificationDocument[]): ResumenLER[]
   documentos.forEach(doc => {
     const codigo_ler = doc.codigo_ler || '';
     const descripcion = doc.descripcion_residuo || '';
-    const cantidad = doc.cantidad || 0;
+    const cantidadTon = getEffectiveWeightTonnes(doc);
 
     if (resumenMap.has(codigo_ler)) {
       const existing = resumenMap.get(codigo_ler)!;
-      existing.cantidad_total += cantidad;
+      existing.cantidad_total = Number((existing.cantidad_total + cantidadTon).toFixed(3));
       existing.numero_movimientos += 1;
     } else {
       resumenMap.set(codigo_ler, {
         codigo_ler,
         descripcion,
-        cantidad_total: cantidad,
+        cantidad_total: cantidadTon,
         numero_movimientos: 1,
       });
     }
@@ -510,3 +538,149 @@ function calculateResumenLER(documentos: IdentificationDocument[]): ResumenLER[]
 
   return Array.from(resumenMap.values());
 }
+
+// =====================================================
+// EXPORTACIÓN A EXCEL XML (.XLS) PARA MEMORIA ANUAL
+// =====================================================
+
+export function exportMemoriaToExcelXML(memoria: MemoriaAnual, excelData: any): void {
+  let xmlRows = '';
+
+  if (memoria.tipo_memoria === 'productor' && Array.isArray(excelData)) {
+    xmlRows = (excelData as EntradaMemoriaProductor[]).map(e => `
+      <Row>
+        <Cell><Data ss:Type="String">${e.denominacion_proceso || 'Producción de residuos'}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.codigo_ler}</Data></Cell>
+        <Cell><Data ss:Type="String">${(e.descripcion_residuo || '').replace(/[<>&]/g, '')}</Data></Cell>
+        <Cell><Data ss:Type="Number">${e.cantidad_toneladas}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.nif_destino}</Data></Cell>
+        <Cell><Data ss:Type="String">${(e.razon_social_destino || '').replace(/[<>&]/g, '')}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.nima_destino || ''}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.codigo_operacion_rd}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.codigo_di || ''}</Data></Cell>
+      </Row>
+    `).join('');
+  } else if (memoria.tipo_memoria === 'gestor' && excelData?.entradas) {
+    xmlRows = (excelData.entradas as EntradaMemoriaGestorEntrada[]).map(e => `
+      <Row>
+        <Cell><Data ss:Type="String">Recepción</Data></Cell>
+        <Cell><Data ss:Type="String">${e.codigo_ler}</Data></Cell>
+        <Cell><Data ss:Type="String">${(e.descripcion_residuo || '').replace(/[<>&]/g, '')}</Data></Cell>
+        <Cell><Data ss:Type="Number">${e.cantidad_toneladas}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.nif_origen}</Data></Cell>
+        <Cell><Data ss:Type="String">${(e.razon_social_origen || '').replace(/[<>&]/g, '')}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.nima_origen || ''}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.codigo_operacion_rd}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.codigo_di || ''}</Data></Cell>
+      </Row>
+    `).join('');
+  } else if (Array.isArray(excelData)) {
+    xmlRows = excelData.map((e: any) => `
+      <Row>
+        <Cell><Data ss:Type="String">${e.codigo_ler || ''}</Data></Cell>
+        <Cell><Data ss:Type="String">${(e.descripcion_residuo || '').replace(/[<>&]/g, '')}</Data></Cell>
+        <Cell><Data ss:Type="Number">${e.cantidad_toneladas || 0}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.nif_origen || e.nif_destino || ''}</Data></Cell>
+        <Cell><Data ss:Type="String">${(e.razon_social_origen || e.razon_social_destino || '').replace(/[<>&]/g, '')}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.codigo_di || ''}</Data></Cell>
+      </Row>
+    `).join('');
+  }
+
+  const xmlContent = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#047857" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Memoria Anual ${memoria.año}">
+  <Table>
+   <Row ss:StyleID="Header">
+    <Cell><Data ss:Type="String">Tipo Operación / Proceso</Data></Cell>
+    <Cell><Data ss:Type="String">Código LER</Data></Cell>
+    <Cell><Data ss:Type="String">Descripción Residuo</Data></Cell>
+    <Cell><Data ss:Type="String">Cantidad (Toneladas)</Data></Cell>
+    <Cell><Data ss:Type="String">NIF Contraparte</Data></Cell>
+    <Cell><Data ss:Type="String">Razón Social</Data></Cell>
+    <Cell><Data ss:Type="String">NIMA</Data></Cell>
+    <Cell><Data ss:Type="String">Operación R/D</Data></Cell>
+    <Cell><Data ss:Type="String">Código DI</Data></Cell>
+   </Row>
+   ${xmlRows}
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+  const blob = new Blob([xmlContent], { type: 'application/vnd.ms-excel' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${memoria.numero_memoria}.xls`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// =====================================================
+// EXPORTACIÓN A CSV PARA MEMORIA ANUAL
+// =====================================================
+
+export function exportMemoriaToCSV(memoria: MemoriaAnual, excelData: any): void {
+  const headers = [
+    'Proceso/Tipo',
+    'Código LER',
+    'Descripción Residuo',
+    'Cantidad (t)',
+    'NIF Contraparte',
+    'Razón Social',
+    'NIMA',
+    'Operación R/D',
+    'Código DI'
+  ];
+
+  let rows: string[][] = [];
+
+  if (memoria.tipo_memoria === 'productor' && Array.isArray(excelData)) {
+    rows = (excelData as EntradaMemoriaProductor[]).map(e => [
+      e.denominacion_proceso || 'Producción de residuos',
+      e.codigo_ler,
+      `"${(e.descripcion_residuo || '').replace(/"/g, '""')}"`,
+      e.cantidad_toneladas.toFixed(3).replace('.', ','),
+      e.nif_destino,
+      `"${(e.razon_social_destino || '').replace(/"/g, '""')}"`,
+      e.nima_destino || '',
+      e.codigo_operacion_rd,
+      e.codigo_di || ''
+    ]);
+  } else if (memoria.tipo_memoria === 'gestor' && excelData?.entradas) {
+    rows = (excelData.entradas as EntradaMemoriaGestorEntrada[]).map(e => [
+      'Recepción Gestor',
+      e.codigo_ler,
+      `"${(e.descripcion_residuo || '').replace(/"/g, '""')}"`,
+      e.cantidad_toneladas.toFixed(3).replace('.', ','),
+      e.nif_origen,
+      `"${(e.razon_social_origen || '').replace(/"/g, '""')}"`,
+      e.nima_origen || '',
+      e.codigo_operacion_rd,
+      e.codigo_di || ''
+    ]);
+  }
+
+  const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${memoria.numero_memoria}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+

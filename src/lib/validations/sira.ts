@@ -12,9 +12,7 @@ export const siraValidationSchema = z.object({
     numero_documento: requiredString("El número de documento es obligatorio"),
     fecha_documento: requiredString("La fecha del documento es obligatoria"),
 
-    production_center_id: z.any()
-        .transform((val) => Number(val))
-        .refine((val) => !isNaN(val) && val > 0, { message: "Debes seleccionar un centro de producción" }),
+    production_center_id: z.any().optional(),
 
     productor_nima: requiredString("El NIMA del productor es obligatorio"),
     productor_cif: requiredString("El CIF del productor es obligatorio"),
@@ -34,8 +32,8 @@ export const siraValidationSchema = z.object({
     descripcion_residuo: requiredString("La descripción es obligatoria"),
 
     operacion_tratamiento: z.string()
-        .min(3, "Debe tener 3 caracteres (Ej: R13)")
-        .regex(/^(R|D)\d{2}$/, "Formato inválido. Debe ser Rxx o Dxx (ej: R01, D15)"),
+        .min(2, "Debe tener al menos 2 caracteres (Ej: R1 o R13)")
+        .regex(/^(R|D)\d{1,2}$/i, "Formato inválido. Debe ser R o D seguido de 1 o 2 dígitos (ej: R1, R01, R13, D10)"),
 
     peligrosidad: z.any().refine(val => val === 'peligroso' || val === 'no-peligroso', "Selecciona peligrosidad"),
     estado_fisico: z.any().refine(val => ['solido', 'liquido', 'pastoso', 'gaseoso'].includes(val), "Selecciona estado físico"),
@@ -57,6 +55,16 @@ export const siraValidationSchema = z.object({
     transportista_codigo_postal: z.string().optional(),
 
 }).superRefine((data, ctx) => {
+    // Validar peligrosidad coherente con LER: si el LER contiene '*', es obligatoriamente peligroso
+    if (data.codigo_ler && typeof data.codigo_ler === 'string' && data.codigo_ler.includes('*')) {
+        if (data.peligrosidad !== 'peligroso') {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "El código LER con asterisco (*) corresponde a un residuo peligroso obligatorio.",
+                path: ["peligrosidad"]
+            });
+        }
+    }
     if (data.transportista_cif || data.transportista_razon_social) {
         if (!data.transportista_nima || String(data.transportista_nima).trim() === '') {
             ctx.addIssue({

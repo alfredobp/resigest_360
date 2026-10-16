@@ -18,6 +18,7 @@ import productionCenterService from '@/services/productionCenterService';
 import wasteTypeService from '@/services/wasteTypeService';
 import treatmentManagerService from '@/services/treatmentManagerService';
 import carrierService from '@/services/carrierService';
+import authorizationService, { type AuthorizedScopeResult } from '@/services/authorizationService';
 import type { IdentificationDocument, Company, WasteContract, ProductionCenter, WasteType, TreatmentManager, Carrier } from '@/types/wasteManagement';
 import DatePicker from '@/components/form/date-picker';
 
@@ -35,6 +36,9 @@ export default function NuevoDocumentoIdentificacionPage() {
   const [transportistas, setTransportistas] = useState<Company[]>([]);
   const [internalCarriers, setInternalCarriers] = useState<Carrier[]>([]);
   const [wasteTypes, setWasteTypes] = useState<WasteType[]>([]);
+  const [allContacts, setAllContacts] = useState<Company[]>([]);
+  const [destAuthScope, setDestAuthScope] = useState<AuthorizedScopeResult | null>(null);
+  const [selectedOrigin, setSelectedOrigin] = useState<string>('principal');
 
   const [formData, setFormData] = useState<Partial<IdentificationDocument>>({
     tipo_notificacion: 'sin-notificacion',
@@ -47,6 +51,13 @@ export default function NuevoDocumentoIdentificacionPage() {
     firmado_gestor: false,
     firmado_transportista: false,
   });
+
+  const isHazardousLocked = Boolean(
+    formData.codigo_ler && (
+      formData.codigo_ler.includes('*') ||
+      wasteTypes.find(wt => wt.codigo_ler === formData.codigo_ler)?.categoria === 'peligroso'
+    )
+  );
 
   useEffect(() => {
     loadData();
@@ -69,30 +80,51 @@ export default function NuevoDocumentoIdentificacionPage() {
       const centers = await productionCenterService.getByCompanyId(company.id);
       setProductionCenters(centers);
 
-      // Pre-rellenar datos del productor
+      // Pre-rellenar datos del productor usando la Sede / Instalación Principal por defecto
+      const defaultDir = company.domicilio_instalacion || company.domicilio_social || '';
+      const defaultMuni = company.municipio_instalacion || company.municipio_social || '';
+      const defaultProv = company.provincia_instalacion || company.provincia_social || '';
+      const defaultCP = company.codigo_postal_instalacion || company.codigo_postal_social || '';
+      const defaultNima = company.nima || '';
+
       setFormData(prev => ({
         ...prev,
         company_id: company.id,
         productor_razon_social: company.razon_social,
         productor_cif: company.cif,
+        productor_nima: defaultNima,
+        productor_direccion: defaultDir,
+        productor_municipio: defaultMuni,
+        productor_provincia: defaultProv,
+        productor_codigo_postal: defaultCP,
         numero_documento: identificationDocumentService.generateDocumentNumber(company.nima || company.cif),
       }));
 
-      // Cargar contratos vigentes
+      // Cargar contratos vigentes: filtrar solo aquellos con gestor y no caducados por fecha
       const contractsData = await wasteContractService.getActive();
-      setContracts(contractsData);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-      // Cargar gestores y transportistas
-      const [gestoresData, internalData, transportistasData, internalCarriersData] = await Promise.all([
+      const validContracts = contractsData.filter(c => {
+        const hasGestor = Boolean(c.treatment_manager || c.gestor_company);
+        const notExpired = !c.fecha_fin || new Date(c.fecha_fin) >= today;
+        return hasGestor && notExpired;
+      });
+      setContracts(validContracts);
+
+      // Cargar gestores, transportistas y contactos unificados
+      const [gestoresData, internalData, transportistasData, internalCarriersData, contactsData] = await Promise.all([
         companyService.getByType('gestor'),
         treatmentManagerService.getAll(),
         companyService.getByType('transportista'),
-        carrierService.getAll()
+        carrierService.getAll(),
+        companyService.getAllContacts(),
       ]);
       setGestores(gestoresData);
       setInternalGestores(internalData);
       setTransportistas(transportistasData);
       setInternalCarriers(internalCarriersData);
+      setAllContacts(contactsData);
 
       // Cargar tipos de residuos (LER)
       const wasteTypesData = await wasteTypeService.getAll();
@@ -101,6 +133,61 @@ export default function NuevoDocumentoIdentificacionPage() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkDestinationAuthorization = async (gestorCif?: string, transferDate?: string) => {
+    if (!gestorCif || !gestorCif.trim()) {
+      setDestAuthScope(null);
+      return;
+    }
+
+    const normCif = gestorCif.trim().toUpperCase();
+    const matchedComp = allContacts.find((c) => c.cif?.trim().toUpperCase() === normCif);
+
+    if (matchedComp) {
+      const scope = await authorizationService.getAuthorizedScope(
+        matchedComp.id,
+        null,
+        transferDate || formData.fecha_documento
+      );
+      setDestAuthScope(scope);
+    } else {
+      setDestAuthScope(null);
+    }
+  };
+
+  useEffect(() => {
+    if (formData.gestor_cif && allContacts.length > 0) {
+      checkDestinationAuthorization(formData.gestor_cif, formData.fecha_documento);
+    }
+  }, [formData.gestor_cif, formData.fecha_documento, allContacts]);
+
+  const handleOriginChange = (value: string) => {
+    setSelectedOrigin(value);
+    if (value === 'principal' && myCompany) {
+      setFormData(prev => ({
+        ...prev,
+        production_center_id: undefined,
+        productor_nima: myCompany.nima || '',
+        productor_direccion: myCompany.domicilio_instalacion || myCompany.domicilio_social || '',
+        productor_municipio: myCompany.municipio_instalacion || myCompany.municipio_social || '',
+        productor_provincia: myCompany.provincia_instalacion || myCompany.provincia_social || '',
+        productor_codigo_postal: myCompany.codigo_postal_instalacion || myCompany.codigo_postal_social || '',
+      }));
+    } else {
+      const center = productionCenters.find(c => c.id === parseInt(value));
+      if (center) {
+        setFormData(prev => ({
+          ...prev,
+          production_center_id: center.id,
+          productor_nima: center.nima,
+          productor_direccion: center.direccion,
+          productor_municipio: center.municipio || '',
+          productor_provincia: center.provincia || '',
+          productor_codigo_postal: center.codigo_postal || '',
+        }));
+      }
     }
   };
 
@@ -237,6 +324,29 @@ export default function NuevoDocumentoIdentificacionPage() {
       return;
     }
 
+    // Validación de Autorización Ambiental en Destino (Bloque 2)
+    if (destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler) {
+      const allowedOps = destAuthScope.authorizedLers[formData.codigo_ler];
+      if (!allowedOps) {
+        setError(
+          `Destino no autorizado: El gestor seleccionado (${formData.gestor_razon_social || 'destino'}) no cuenta con autorización ambiental para el código LER ${formData.codigo_ler}.`
+        );
+        window.scrollTo(0, 0);
+        return;
+      }
+
+      if (formData.operacion_tratamiento) {
+        const cleanOp = formData.operacion_tratamiento.toUpperCase().trim();
+        if (!allowedOps.includes(cleanOp)) {
+          setError(
+            `Operación no autorizada: La operación "${formData.operacion_tratamiento}" no está permitida para el LER ${formData.codigo_ler} en la autorización ambiental del destino (Operaciones autorizadas: ${allowedOps.join(', ')}).`
+          );
+          window.scrollTo(0, 0);
+          return;
+        }
+      }
+    }
+
     // Datos validados y listos
     const dataToSubmit = validationResult.data;
 
@@ -305,49 +415,39 @@ export default function NuevoDocumentoIdentificacionPage() {
               </div>
 
               <div>
-                <label htmlFor="production_center_id" className="block text-sm font-medium mb-2">Centro de Producción *</label>
+                <label htmlFor="origin_selector" className="block text-sm font-medium mb-2">Origen del Residuo (Instalación / Centro) *</label>
                 <Select
                   options={[
-                    { value: '', label: '-- Seleccionar Centro --' },
+                    { value: 'principal', label: `🏢 Sede / Instalación Principal (${myCompany?.razon_social || 'Mi Empresa'})` },
                     ...productionCenters.map(pc => ({
                       value: pc.id.toString(),
-                      label: `${pc.nombre} (${pc.nima})`,
+                      label: `📍 ${pc.nombre} (${pc.nima})`,
                     })),
                   ]}
-                  defaultValue={formData.production_center_id?.toString() || ''}
-                  onChange={(value) => {
-                    const center = productionCenters.find(c => c.id === parseInt(value));
-                    if (center) {
-                      setFormData({
-                        ...formData,
-                        production_center_id: center.id,
-                        productor_nima: center.nima,
-                        productor_direccion: center.direccion,
-                        productor_municipio: center.municipio || '',
-                        productor_provincia: center.provincia || '',
-                        productor_codigo_postal: center.codigo_postal || '',
-                      });
-                    } else {
-                      setFormData({ ...formData, production_center_id: undefined });
-                    }
-                  }}
+                  value={selectedOrigin}
+                  onChange={handleOriginChange}
                   placeholder="Selecciona el origen del residuo"
                   error={!!validationErrors.production_center_id}
                   hint={validationErrors.production_center_id}
                 />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {selectedOrigin === 'principal'
+                    ? 'Origen: Sede/Instalación principal según ficha de Mi Empresa.'
+                    : 'Origen: Centro de producción secundario seleccionado.'}
+                </p>
               </div>
 
               <div>
                 <label htmlFor="contract_id" className="block text-sm font-medium mb-2">Contrato de Referencia (Opcional)</label>
                 <Select
                   options={[
-                    { value: '', label: '-- Seleccionar --' },
+                    { value: '', label: contracts.length > 0 ? '-- Seleccionar Contrato --' : '-- Sin contratos vigentes con gestor --' },
                     ...contracts.map(c => ({
                       value: c.id.toString(),
-                      label: `${c.numero_contrato || `#${c.id}`} - ${c.gestor_company?.razon_social || 'Sin gestor'}`,
+                      label: `${c.numero_contrato || `#${c.id}`} - ${c.treatment_manager?.razon_social || c.gestor_company?.razon_social || 'Gestor asignado'}`,
                     })),
                   ]}
-                  defaultValue={formData.contract_id?.toString() || ''}
+                  value={formData.contract_id?.toString() || ''}
                   onChange={(value) => handleContractChange(value)}
                   placeholder="Selecciona un contrato"
                 />
@@ -545,6 +645,35 @@ export default function NuevoDocumentoIdentificacionPage() {
                     onChange={(e) => setFormData({ ...formData, gestor_codigo_postal: e.target.value })}
                   />
                 </div>
+
+                {/* Banner de Autorización Ambiental Consultable (Bloque 2) */}
+                {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && (
+                  <div className="md:col-span-2 p-3.5 bg-brand-50/80 dark:bg-brand-950/30 border border-brand-200 dark:border-brand-800 rounded-xl space-y-2 mt-2">
+                    {destAuthScope.authorizations.map((auth) => (
+                      <div key={auth.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <div>
+                          <p className="text-xs font-bold text-brand-950 dark:text-brand-200 flex items-center gap-1.5">
+                            <span>📜</span> Autorización Ambiental: {auth.numero_autorizacion} — {auth.titulo}
+                          </p>
+                          <p className="text-xs text-brand-700 dark:text-brand-400 mt-0.5">
+                            Emisor: {auth.organismo_emisor || 'Comunidad Autónoma'} | Vigencia:{' '}
+                            <strong>{auth.es_indefinida ? 'Vigencia Indefinida' : (auth.fecha_vencimiento ? `Hasta ${auth.fecha_vencimiento}` : 'Vigente')}</strong>
+                          </p>
+                        </div>
+                        {auth.archivo_url && (
+                          <a
+                            href={auth.archivo_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-md bg-brand-500 text-white hover:bg-brand-600 transition shrink-0"
+                          >
+                            Ver Documento ↗
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </ComponentCard>
@@ -696,16 +825,17 @@ export default function NuevoDocumentoIdentificacionPage() {
                       label: `${wt.codigo_ler} - ${wt.descripcion.substring(0, 60)}${wt.descripcion.length > 60 ? '...' : ''}`,
                     })),
                   ]}
-                  defaultValue={wasteTypes.find(wt => wt.codigo_ler === formData.codigo_ler)?.id.toString() || ''}
+                  value={wasteTypes.find(wt => wt.codigo_ler === formData.codigo_ler)?.id.toString() || ''}
                   onChange={(value) => {
                     const wt = wasteTypes.find(w => w.id === parseInt(value));
                     if (wt) {
+                      const isDangerous = wt.codigo_ler.includes('*') || wt.categoria === 'peligroso';
                       setFormData({
                         ...formData,
                         waste_type_id: wt.id,
                         codigo_ler: wt.codigo_ler,
                         descripcion_residuo: wt.descripcion,
-                        peligrosidad: wt.categoria,
+                        peligrosidad: isDangerous ? 'peligroso' : (wt.categoria || 'no-peligroso'),
                         estado_fisico: wt.estado,
                         operacion_tratamiento: wt.operaciones_permitidas?.[0] || '',
                       });
@@ -715,6 +845,18 @@ export default function NuevoDocumentoIdentificacionPage() {
                   error={!!validationErrors.codigo_ler}
                   hint={validationErrors.codigo_ler}
                 />
+                {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler && (
+                  destAuthScope.authorizedLers[formData.codigo_ler] ? (
+                    <p className="mt-1.5 text-xs text-green-700 dark:text-green-400 font-medium flex items-center gap-1">
+                      <span>✅</span> LER Autorizado en destino (Operaciones:{' '}
+                      <strong>{destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}</strong>)
+                    </p>
+                  ) : (
+                    <p className="mt-1.5 text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
+                      <span>🚫</span> <strong>No Autorizado en Destino:</strong> Este residuo no figura en las autorizaciones ambientales del gestor seleccionado.
+                    </p>
+                  )
+                )}
               </div>
 
               <div>
@@ -724,10 +866,18 @@ export default function NuevoDocumentoIdentificacionPage() {
                     { value: 'no-peligroso', label: 'No Peligroso' },
                     { value: 'peligroso', label: 'Peligroso' },
                   ]}
-                  defaultValue={formData.peligrosidad}
+                  value={formData.peligrosidad || 'no-peligroso'}
+                  disabled={isHazardousLocked}
                   onChange={(value) => setFormData({ ...formData, peligrosidad: value as any })}
                   placeholder="Selecciona una opción"
+                  error={!!validationErrors.peligrosidad}
+                  hint={validationErrors.peligrosidad}
                 />
+                {isHazardousLocked && (
+                  <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                    <span>⚠️</span> Clasificado obligatoriamente como <strong>Peligroso</strong> según LER con asterisco (*) (RD 553/2020).
+                  </p>
+                )}
               </div>
 
               <div className="md:col-span-2">
@@ -749,7 +899,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                     { value: 'pastoso', label: 'Pastoso' },
                     { value: 'gaseoso', label: 'Gaseoso' },
                   ]}
-                  defaultValue={formData.estado_fisico}
+                  value={formData.estado_fisico || 'solido'}
                   onChange={(value) => setFormData({ ...formData, estado_fisico: value as any })}
                   placeholder="Selecciona una opción"
                 />
@@ -764,6 +914,17 @@ export default function NuevoDocumentoIdentificacionPage() {
                   onChange={(e) => setFormData({ ...formData, operacion_tratamiento: e.target.value })}
                   placeholder="Ej: R05, D01"
                 />
+                {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler && destAuthScope.authorizedLers[formData.codigo_ler] && (
+                  formData.operacion_tratamiento && !destAuthScope.authorizedLers[formData.codigo_ler].includes(formData.operacion_tratamiento.toUpperCase().trim()) ? (
+                    <p className="mt-1.5 text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
+                      <span>⚠️</span> Operación no autorizada (Permitidas: {destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}).
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-muted">
+                      Operaciones autorizadas en destino: <strong>{destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}</strong>
+                    </p>
+                  )
+                )}
               </div>
             </div>
           </ComponentCard>
@@ -795,7 +956,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                     { value: 'm3', label: 'Metros cúbicos (m³)' },
                     { value: 'unidades', label: 'Unidades' },
                   ]}
-                  defaultValue={formData.unidad}
+                  value={formData.unidad || 'kg'}
                   onChange={(value) => setFormData({ ...formData, unidad: value as any })}
                   placeholder="Selecciona una opción"
                   error={!!validationErrors.unidad}

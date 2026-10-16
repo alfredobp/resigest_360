@@ -7,11 +7,11 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
-import identificationDocumentService from '@/services/identificationDocumentService';
+import identificationDocumentService, { getTrackingStatusMeta } from '@/services/identificationDocumentService';
 import siraService from '@/services/siraService';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
-import type { IdentificationDocument, Company, ProductionCenter } from '@/types/wasteManagement';
+import type { IdentificationDocument, Company, ProductionCenter, EstadoTraslado } from '@/types/wasteManagement';
 
 const STATUS_COLORS = {
   borrador: 'info',
@@ -113,7 +113,17 @@ export default function DocumentosIdentificacionPage() {
   };
 
   const filteredDocuments = documents.filter(d => {
-    const matchStatus = filterStatus === 'all' || d.estado === filterStatus;
+    let matchStatus = true;
+    if (filterStatus === 'all') {
+      matchStatus = true;
+    } else if (filterStatus === 'incidencias') {
+      matchStatus = d.estado_traslado === 'rechazado_parcial' || d.estado_traslado === 'rechazado_total';
+    } else if (filterStatus === 'borrador') {
+      matchStatus = !d.estado_traslado || d.estado_traslado === 'borrador';
+    } else {
+      matchStatus = d.estado_traslado === filterStatus || d.estado === filterStatus;
+    }
+
     const matchCenter = filterCenter === 'all' || d.production_center_id === parseInt(filterCenter);
     return matchStatus && matchCenter;
   });
@@ -170,7 +180,7 @@ export default function DocumentosIdentificacionPage() {
           <div>
             <h2 className="text-2xl font-bold text-foreground">Documentos de Identificación (DI)</h2>
             <p className="text-muted mt-1">
-              Gestiona los documentos de identificación de residuos
+              Control oficial de traslados, pesajes en báscula, incidencias y tratamiento (RD 553/2020)
             </p>
           </div>
           <Button onClick={() => router.push('/residuos/documentos-identificacion/nuevo')}>
@@ -178,8 +188,8 @@ export default function DocumentosIdentificacionPage() {
           </Button>
         </div>
 
-        {/* Filtros */}
-        <ComponentCard title="Filtros">
+        {/* Filtros por Ciclo de Vida */}
+        <ComponentCard title="Ciclo de Vida del Traslado (RD 553/2020)">
           <div className="flex flex-wrap gap-2">
             <Button
               variant={filterStatus === 'all' ? 'primary' : 'outline'}
@@ -189,25 +199,46 @@ export default function DocumentosIdentificacionPage() {
               Todos ({documents.length})
             </Button>
             <Button
+              variant={filterStatus === 'en_transito' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => setFilterStatus('en_transito')}
+            >
+              🚚 En Tránsito ({documents.filter(d => d.estado_traslado === 'en_transito').length})
+            </Button>
+            <Button
+              variant={filterStatus === 'recepcionado' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => setFilterStatus('recepcionado')}
+            >
+              ⚖️ En Báscula ({documents.filter(d => d.estado_traslado === 'recepcionado').length})
+            </Button>
+            <Button
+              variant={filterStatus === 'aceptado' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => setFilterStatus('aceptado')}
+            >
+              ✅ Aceptados ({documents.filter(d => d.estado_traslado === 'aceptado').length})
+            </Button>
+            <Button
+              variant={filterStatus === 'incidencias' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => setFilterStatus('incidencias')}
+            >
+              ⚠️ Incidencias ({documents.filter(d => d.estado_traslado === 'rechazado_parcial' || d.estado_traslado === 'rechazado_total').length})
+            </Button>
+            <Button
+              variant={filterStatus === 'tratado' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => setFilterStatus('tratado')}
+            >
+              🏁 Tratados ({documents.filter(d => d.estado_traslado === 'tratado').length})
+            </Button>
+            <Button
               variant={filterStatus === 'borrador' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('borrador')}
             >
-              Borradores ({documents.filter(d => d.estado === 'borrador').length})
-            </Button>
-            <Button
-              variant={filterStatus === 'pendiente-firma' ? 'primary' : 'outline'}
-              size="sm"
-              onClick={() => setFilterStatus('pendiente-firma')}
-            >
-              Pendientes ({documents.filter(d => d.estado === 'pendiente-firma').length})
-            </Button>
-            <Button
-              variant={filterStatus === 'completado' ? 'primary' : 'outline'}
-              size="sm"
-              onClick={() => setFilterStatus('completado')}
-            >
-              Completados ({documents.filter(d => d.estado === 'completado').length})
+              📝 Borradores ({documents.filter(d => !d.estado_traslado || d.estado_traslado === 'borrador').length})
             </Button>
           </div>
 
@@ -243,119 +274,131 @@ export default function DocumentosIdentificacionPage() {
                   d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
-              <h3 className="mt-4 text-lg font-medium text-foreground">No hay documentos</h3>
+              <h3 className="mt-4 text-lg font-medium text-foreground">No hay documentos con este filtro</h3>
               <p className="mt-2 text-sm text-muted">
-                Comienza creando tu primer documento de identificación
+                Cambia el filtro de estado o crea un nuevo traslado
               </p>
-              <Button
-                className="mt-4"
-                onClick={() => router.push('/residuos/documentos-identificacion/nuevo')}
-              >
-                Crear Primer Documento
-              </Button>
             </div>
           </ComponentCard>
         ) : (
           <div className="grid grid-cols-1 gap-6">
-            {filteredDocuments.map((doc) => (
-              <ComponentCard key={doc.id} title="">
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-foreground">
-                            DI {doc.numero_documento}
-                          </h3>
-                          <Badge color={STATUS_COLORS[doc.estado]}>
-                            {STATUS_LABELS[doc.estado]}
-                          </Badge>
-                        </div>
+            {filteredDocuments.map((doc) => {
+              const tracking = getTrackingStatusMeta(doc);
+              const pesoOrigen = doc.peso_origen_kg || (doc.unidad === 'toneladas' ? doc.cantidad * 1000 : doc.cantidad) || 0;
 
-                        <div className="space-y-2 text-sm text-muted">
-                          <p>
-                            <span className="font-medium text-foreground">Fecha:</span>{' '}
-                            {formatDate(doc.fecha_documento)}
-                          </p>
+              return (
+                <ComponentCard key={doc.id} title="">
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1">
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <h3 className="text-lg font-semibold text-foreground">
+                              DI {doc.numero_documento}
+                            </h3>
+                            <Badge color={tracking.badgeColor}>
+                              {tracking.label}
+                            </Badge>
+                            {tracking.hasDiscrepancy && (
+                              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+                                ⚠️ Discrepancia Báscula: {(doc.diferencia_peso_kg || 0) > 0 ? '+' : ''}{doc.diferencia_peso_kg} kg
+                              </span>
+                            )}
+                          </div>
 
-                          <p>
-                            <span className="font-medium text-foreground">Residuo:</span>{' '}
-                            {doc.codigo_ler} - {doc.descripcion_residuo}
-                          </p>
-
-                          <p>
-                            <span className="font-medium text-foreground">Cantidad:</span>{' '}
-                            {doc.cantidad} {doc.unidad}
-                          </p>
-
-                          <p>
-                            <span className="font-medium text-foreground">Gestor:</span>{' '}
-                            {doc.gestor_razon_social}
-                          </p>
-
-                          {doc.production_center && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-muted">
                             <p>
-                              <span className="font-medium text-foreground">Centro de Origen:</span>{' '}
-                              <span className="text-primary font-medium">{doc.production_center.nombre}</span>
+                              <span className="font-medium text-foreground">Fecha:</span>{' '}
+                              {formatDate(doc.fecha_documento)}
                             </p>
-                          )}
 
-                          {doc.fecha_recogida && (
                             <p>
-                              <span className="font-medium text-foreground">Recogida:</span>{' '}
-                              {formatDate(doc.fecha_recogida)}
+                              <span className="font-medium text-foreground">Residuo:</span>{' '}
+                              <span className="font-mono font-bold text-foreground">{doc.codigo_ler}</span> ({doc.peligrosidad === 'peligroso' ? 'Peligroso' : 'No Peligroso'})
                             </p>
+
+                            <p>
+                              <span className="font-medium text-foreground">Gestor Destino:</span>{' '}
+                              {doc.gestor_razon_social}
+                            </p>
+
+                            <p>
+                              <span className="font-medium text-foreground">Pesada Origen:</span>{' '}
+                              <span className="font-mono font-medium text-foreground">{pesoOrigen.toLocaleString('es-ES')} kg</span>
+                            </p>
+
+                            {doc.peso_destino_kg ? (
+                              <p>
+                                <span className="font-medium text-foreground">Pesada Destino (Báscula):</span>{' '}
+                                <span className="font-mono font-bold text-foreground">{doc.peso_destino_kg.toLocaleString('es-ES')} kg</span>
+                              </p>
+                            ) : (
+                              <p className="italic text-muted">
+                                Pesada Destino: Pendiente en báscula
+                              </p>
+                            )}
+
+                            {doc.production_center && (
+                              <p>
+                                <span className="font-medium text-foreground">Centro de Origen:</span>{' '}
+                                <span className="text-primary font-medium">{doc.production_center.nombre}</span>
+                              </p>
+                            )}
+
+                            {doc.transportista_matricula && (
+                              <p>
+                                <span className="font-medium text-foreground">Vehículo:</span>{' '}
+                                <span className="font-mono text-foreground">{doc.transportista_matricula}</span>
+                              </p>
+                            )}
+                          </div>
+
+                          {doc.motivo_incidencia && (
+                            <div className="mt-2 p-2 rounded bg-red-500/10 border border-red-500/20 text-xs text-red-800 dark:text-red-300">
+                              <span className="font-bold">Incidencia / Rechazo:</span> {doc.motivo_incidencia}
+                            </div>
                           )}
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Acciones */}
-                  <div className="flex flex-col gap-2 min-w-[140px]">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => router.push(`/residuos/documentos-identificacion/${doc.id}`)}
-                    >
-                      Ver Detalles
-                    </Button>
-
-                    {doc.estado === 'borrador' && (
+                    {/* Acciones */}
+                    <div className="flex flex-col gap-2 min-w-[150px]">
                       <Button
                         variant="primary"
                         size="sm"
-                        onClick={() => handleSendToSira(doc.id)}
-                        disabled={!myCompany?.sira_usuario || !myCompany?.sira_password}
-                        className={!myCompany?.sira_usuario || !myCompany?.sira_password ? 'opacity-50 cursor-not-allowed' : ''}
+                        onClick={() => router.push(`/residuos/documentos-identificacion/${doc.id}`)}
                       >
-                        Enviar a SIRA
+                        Ver Detalle y Trazabilidad
                       </Button>
-                    )}
 
-                    {doc.estado === 'pendiente-firma' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleChangeStatus(doc.id, 'completado')}
-                      >
-                        Marcar Completado
-                      </Button>
-                    )}
+                      {(!doc.estado_traslado || doc.estado_traslado === 'borrador') && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSendToSira(doc.id)}
+                          disabled={!myCompany?.sira_usuario || !myCompany?.sira_password}
+                          className={!myCompany?.sira_usuario || !myCompany?.sira_password ? 'opacity-50 cursor-not-allowed' : ''}
+                        >
+                          Enviar a SIRA
+                        </Button>
+                      )}
 
-                    {doc.estado === 'borrador' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(doc.id)}
-                      >
-                        Eliminar
-                      </Button>
-                    )}
+                      {(!doc.estado_traslado || doc.estado_traslado === 'borrador') && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(doc.id)}
+                          className="text-red-500"
+                        >
+                          Eliminar
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </ComponentCard>
-            ))}
+                </ComponentCard>
+              );
+            })}
           </div>
         )}
       </div>

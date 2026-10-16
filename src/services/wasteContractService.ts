@@ -4,7 +4,12 @@
 // =====================================================
 
 import { createClient } from '@/lib/supabase/client';
-import type { WasteContract, WasteContractFormData } from '@/types/wasteManagement';
+import type {
+  WasteContract,
+  WasteContractFormData,
+  ContractWasteCode,
+  ContractWasteCodeFormData,
+} from '@/types/wasteManagement';
 
 const supabase = createClient();
 
@@ -49,7 +54,39 @@ export const wasteContractService = {
       throw new Error(`Error al obtener contrato: ${error.message}`);
     }
 
-    return data as WasteContract;
+    const contract = data as WasteContract;
+
+    // Cargar códigos LER detallados del contrato
+    try {
+      const { data: wasteCodes } = await supabase
+        .from('contract_waste_codes')
+        .select('*')
+        .eq('contract_id', id);
+      if (wasteCodes) {
+        contract.contract_waste_codes = wasteCodes;
+      }
+    } catch (e) {
+      console.warn('Nota: tabla contract_waste_codes:', e);
+    }
+
+    // Cargar centros de origen y destino si existen
+    try {
+      const centerIds = [contract.producer_center_id, contract.gestor_center_id].filter(Boolean) as number[];
+      if (centerIds.length > 0) {
+        const { data: centers } = await supabase
+          .from('production_centers')
+          .select('*')
+          .in('id', centerIds);
+        if (centers) {
+          contract.producer_center = centers.find(c => c.id === contract.producer_center_id);
+          contract.gestor_center = centers.find(c => c.id === contract.gestor_center_id);
+        }
+      }
+    } catch (e) {
+      console.warn('Nota: centros de producción en contrato:', e);
+    }
+
+    return contract;
   },
 
   /**
@@ -135,14 +172,27 @@ export const wasteContractService = {
       throw new Error('Usuario no autenticado');
     }
 
+    const { contract_waste_codes, ...mainData } = contractData;
+
+    // Sincronizar codigos_ler y operaciones si vienen códigos detallados
+    const codigosLer = contract_waste_codes && contract_waste_codes.length > 0
+      ? contract_waste_codes.map((c) => c.codigo_ler.trim())
+      : (mainData.codigos_ler || []);
+
+    const operaciones = contract_waste_codes && contract_waste_codes.length > 0
+      ? Array.from(new Set(contract_waste_codes.map((c) => c.operacion_tratamiento.trim().toUpperCase())))
+      : (mainData.operaciones_tratamiento || []);
+
     const { data, error } = await supabase
       .from('waste_contracts')
       .insert({
-        ...contractData,
+        ...mainData,
+        codigos_ler: codigosLer,
+        operaciones_tratamiento: operaciones,
         user_id: userData.user.id,
-        estado: contractData.estado || 'borrador',
-        moneda: contractData.moneda || 'EUR',
-        unidad_cantidad: contractData.unidad_cantidad || 'toneladas',
+        estado: mainData.estado || 'borrador',
+        moneda: mainData.moneda || 'EUR',
+        unidad_cantidad: mainData.unidad_cantidad || 'toneladas',
       })
       .select(`
         *,
@@ -156,7 +206,28 @@ export const wasteContractService = {
       throw new Error(`Error al crear contrato: ${error.message}`);
     }
 
-    return data as WasteContract;
+    const createdContract = data as WasteContract;
+
+    // Guardar residuos detallados si se proporcionaron
+    if (contract_waste_codes && contract_waste_codes.length > 0) {
+      try {
+        const wasteRecords = contract_waste_codes.map((wc) => ({
+          contract_id: createdContract.id,
+          codigo_ler: wc.codigo_ler.trim(),
+          descripcion_ler: wc.descripcion_ler || '',
+          operacion_tratamiento: wc.operacion_tratamiento.trim().toUpperCase(),
+          tarifa_gestion: wc.tarifa_gestion || null,
+          tipo_precio: wc.tipo_precio || 'por_tonelada',
+          cantidad_estimada_anual: wc.cantidad_estimada_anual || null,
+        }));
+
+        await supabase.from('contract_waste_codes').insert(wasteRecords);
+      } catch (wcErr) {
+        console.warn('Nota: guardando contract_waste_codes:', wcErr);
+      }
+    }
+
+    return createdContract;
   },
 
   /**
@@ -185,9 +256,19 @@ export const wasteContractService = {
    * Actualizar contrato existente
    */
   async update(id: number, contractData: Partial<WasteContractFormData>): Promise<WasteContract> {
+    const { contract_waste_codes, ...mainData } = contractData;
+    const updatePayload: any = { ...mainData };
+
+    if (contract_waste_codes !== undefined) {
+      updatePayload.codigos_ler = contract_waste_codes.map((c) => c.codigo_ler.trim());
+      updatePayload.operaciones_tratamiento = Array.from(
+        new Set(contract_waste_codes.map((c) => c.operacion_tratamiento.trim().toUpperCase()))
+      );
+    }
+
     const { data, error } = await supabase
       .from('waste_contracts')
-      .update(contractData)
+      .update(updatePayload)
       .eq('id', id)
       .select(`
         *,
@@ -201,7 +282,47 @@ export const wasteContractService = {
       throw new Error(`Error al actualizar contrato: ${error.message}`);
     }
 
+    // Actualizar contract_waste_codes si se enviaron
+    if (contract_waste_codes !== undefined) {
+      try {
+        await supabase.from('contract_waste_codes').delete().eq('contract_id', id);
+
+        if (contract_waste_codes.length > 0) {
+          const wasteRecords = contract_waste_codes.map((wc) => ({
+            contract_id: id,
+            codigo_ler: wc.codigo_ler.trim(),
+            descripcion_ler: wc.descripcion_ler || '',
+            operacion_tratamiento: wc.operacion_tratamiento.trim().toUpperCase(),
+            tarifa_gestion: wc.tarifa_gestion || null,
+            tipo_precio: wc.tipo_precio || 'por_tonelada',
+            cantidad_estimada_anual: wc.cantidad_estimada_anual || null,
+          }));
+
+          await supabase.from('contract_waste_codes').insert(wasteRecords);
+        }
+      } catch (wcErr) {
+        console.warn('Nota: actualizando contract_waste_codes:', wcErr);
+      }
+    }
+
     return data as WasteContract;
+  },
+
+  /**
+   * Activar contrato previo chequeo estricto de requisitos legales
+   */
+  async activate(id: number): Promise<WasteContract> {
+    const contract = await this.getById(id);
+    if (!contract) {
+      throw new Error('Contrato no encontrado');
+    }
+
+    const validation = validateContractActivation(contract);
+    if (!validation.canActivate) {
+      throw new Error(`No se puede activar el contrato: ${validation.errors.join(' ')}`);
+    }
+
+    return this.update(id, { estado: 'vigente' });
   },
 
   /**
@@ -223,13 +344,6 @@ export const wasteContractService = {
    */
   async updateStatus(id: number, estado: 'borrador' | 'vigente' | 'finalizado' | 'cancelado'): Promise<WasteContract> {
     return this.update(id, { estado });
-  },
-
-  /**
-   * Marcar contrato como vigente
-   */
-  async activate(id: number): Promise<WasteContract> {
-    return this.updateStatus(id, 'vigente');
   },
 
   /**
@@ -478,4 +592,125 @@ export const wasteContractService = {
   },
 };
 
+export interface ContractActivationValidation {
+  canActivate: boolean;
+  valid: boolean;
+  errors: string[];
+  checklist: {
+    hasProducer: boolean;
+    hasGestor: boolean;
+    hasValidity: boolean;
+    hasValidDates: boolean;
+    isNotExpired: boolean;
+    hasWasteCodes: boolean;
+    hasOperations: boolean;
+  };
+}
+
+/**
+ * Valida estrictamente si un contrato cumple todos los requisitos legales para pasar a Vigente
+ */
+export function validateContractActivation(
+  contract: Omit<Partial<WasteContract>, 'contract_waste_codes'> & {
+    contract_waste_codes?: (Partial<ContractWasteCode> | ContractWasteCodeFormData)[];
+  }
+): ContractActivationValidation {
+  const errors: string[] = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const hasProducer = Boolean(contract.company_id || contract.company);
+  if (!hasProducer) {
+    errors.push('El contrato debe tener asignada una empresa productora titular.');
+  }
+
+  const hasGestor = Boolean(
+    contract.gestor_company_id ||
+    contract.treatment_manager_id ||
+    contract.gestor_company ||
+    contract.treatment_manager
+  );
+  if (!hasGestor) {
+    errors.push('El contrato debe tener asignado un gestor de tratamiento de destino.');
+  }
+
+  const hasValidity = Boolean(contract.fecha_inicio && contract.fecha_fin);
+  if (!hasValidity) {
+    errors.push('El contrato debe tener definidas las fechas de inicio y fin de vigencia.');
+  }
+
+  const isNotExpired = contract.fecha_fin ? new Date(contract.fecha_fin) >= today : false;
+  if (contract.fecha_fin && !isNotExpired) {
+    errors.push(`La fecha de fin del contrato (${contract.fecha_fin}) ya ha expirado.`);
+  }
+
+  const hasWasteCodes = Boolean(
+    (contract.contract_waste_codes && contract.contract_waste_codes.length > 0) ||
+    (contract.codigos_ler && contract.codigos_ler.length > 0) ||
+    (contract.waste_type_ids && contract.waste_type_ids.length > 0) ||
+    (contract.descripcion_residuos && contract.descripcion_residuos.trim().length > 0)
+  );
+  if (!hasWasteCodes) {
+    errors.push('El contrato debe incluir al menos un código LER o tipo de residuo amparado.');
+  }
+
+  const hasOperations = Boolean(
+    (contract.contract_waste_codes && contract.contract_waste_codes.some((c) => c.operacion_tratamiento)) ||
+    (contract.operaciones_tratamiento && contract.operaciones_tratamiento.length > 0)
+  );
+  if (!hasOperations) {
+    errors.push('Debe definirse al menos una operación de tratamiento autorizada (R o D).');
+  }
+
+  const canActivate =
+    hasProducer &&
+    hasGestor &&
+    hasValidity &&
+    isNotExpired &&
+    hasWasteCodes &&
+    hasOperations;
+
+  return {
+    canActivate,
+    valid: canActivate,
+    errors,
+    checklist: {
+      hasProducer,
+      hasGestor,
+      hasValidity,
+      hasValidDates: hasValidity,
+      isNotExpired,
+      hasWasteCodes,
+      hasOperations,
+    },
+  };
+}
+
+/**
+ * Calcula el estado dinámico y vigencia real de un contrato según sus fechas
+ */
+export function getContractEffectiveStatus(contract: WasteContract): {
+  status: 'borrador' | 'vigente' | 'caducado' | 'finalizado' | 'cancelado';
+  isExpired: boolean;
+  label: string;
+} {
+  if (contract.estado === 'cancelado') return { status: 'cancelado', isExpired: false, label: 'Cancelado' };
+  if (contract.estado === 'finalizado') return { status: 'finalizado', isExpired: false, label: 'Finalizado' };
+  if (contract.estado === 'borrador') {
+    const isExpired = Boolean(contract.fecha_fin && new Date(contract.fecha_fin) < new Date(new Date().setHours(0, 0, 0, 0)));
+    return { status: 'borrador', isExpired, label: isExpired ? 'Borrador (Vencido)' : 'Borrador' };
+  }
+  // Estado es 'vigente'
+  if (contract.fecha_fin) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const end = new Date(contract.fecha_fin);
+    if (end < today) {
+      return { status: 'caducado', isExpired: true, label: 'Caducado' };
+    }
+  }
+  return { status: 'vigente', isExpired: false, label: 'Vigente' };
+}
+
 export default wasteContractService;
+
