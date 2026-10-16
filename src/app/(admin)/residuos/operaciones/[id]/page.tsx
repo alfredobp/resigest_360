@@ -48,6 +48,7 @@ export default function DetalleOperacionComercialPage() {
   const [operation, setOperation] = useState<CommercialOperation | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
+  const [syncingHolded, setSyncingHolded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -56,6 +57,23 @@ export default function DetalleOperacionComercialPage() {
       loadOperation();
     }
   }, [opId]);
+
+  const handleSyncHolded = async () => {
+    if (!operation) return;
+    try {
+      setSyncingHolded(true);
+      setError(null);
+      const res = await commercialOperationService.syncOperationToHolded(operation.id);
+      setSuccess(res.message);
+      await loadOperation();
+      setTimeout(() => setSuccess(null), 5000);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Error al sincronizar con Holded.');
+    } finally {
+      setSyncingHolded(false);
+    }
+  };
 
   const loadOperation = async () => {
     try {
@@ -395,8 +413,29 @@ export default function DetalleOperacionComercialPage() {
                 <span className="font-bold text-emerald-600">Total: {(operation.ingreso_venta_total || 0).toFixed(2)} €</span>
               </div>
               <div className="flex justify-between items-center text-[11px] text-gray-400 pt-1 border-t border-emerald-100 dark:border-emerald-900/30">
-                <span>Ref. Factura: {operation.factura_venta_ref || 'Pendiente'}</span>
+                <span className="flex items-center gap-1.5">
+                  Ref. Factura: {operation.factura_venta_ref ? (
+                    <Badge variant="light" color="success" size="sm">
+                      {operation.factura_venta_ref}
+                    </Badge>
+                  ) : (
+                    <span className="text-gray-400">Pendiente</span>
+                  )}
+                </span>
                 <span>Estado Cobro: {operation.estado_cobro_venta}</span>
+              </div>
+              <div className="pt-2 flex justify-between items-center border-t border-emerald-100 dark:border-emerald-900/30">
+                <span className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
+                  Holded ERP Invoicing
+                </span>
+                <Button
+                  size="sm"
+                  variant={operation.factura_venta_ref ? "outline" : "primary"}
+                  disabled={syncingHolded}
+                  onClick={() => handleSyncHolded()}
+                >
+                  {syncingHolded ? 'Sincronizando...' : operation.factura_venta_ref ? 'Re-sincronizar Holded' : 'Emitir Factura Holded'}
+                </Button>
               </div>
             </div>
 

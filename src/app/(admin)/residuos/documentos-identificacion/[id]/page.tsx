@@ -22,6 +22,7 @@ import type {
   CompleteTreatmentPayload,
   ResultadoRecepcion,
   TipoIncidencia,
+  SiraSubmission,
 } from '@/types/wasteManagement';
 import {
   Truck,
@@ -38,6 +39,9 @@ import {
   ShieldCheck,
   ShieldAlert,
   HelpCircle,
+  Code2,
+  Send,
+  RefreshCw,
 } from 'lucide-react';
 
 const OPERACIONES_TRATAMIENTO = [
@@ -66,6 +70,9 @@ export default function DetalleDocumentoIdentificacionPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [sendingSira, setSendingSira] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [siraSubmissions, setSiraSubmissions] = useState<SiraSubmission[]>([]);
+  const [selectedXml, setSelectedXml] = useState<string | null>(null);
+  const [isXmlModalOpen, setIsXmlModalOpen] = useState(false);
 
   // Estados de modales
   const [isDepartureModalOpen, setIsDepartureModalOpen] = useState(false);
@@ -117,6 +124,14 @@ export default function DetalleDocumentoIdentificacionPage() {
 
       const docData = await identificationDocumentService.getById(parseInt(id));
       setDocument(docData);
+
+      // Cargar transmisiones telemáticas SIRA
+      try {
+        const subs = await siraService.getSubmissionsForDI(parseInt(id));
+        setSiraSubmissions(subs);
+      } catch (sErr) {
+        console.warn('Error loading SIRA submissions:', sErr);
+      }
 
       // Prellenar formularios
       const pesoOrigenDefault = docData.peso_origen_kg || (docData.unidad === 'toneladas' ? docData.cantidad * 1000 : docData.cantidad) || 0;
@@ -811,6 +826,156 @@ export default function DetalleDocumentoIdentificacionPage() {
             )}
           </div>
         </ComponentCard>
+
+        {/* PANEL TELEMÁTICO SIRA / E3L */}
+        <ComponentCard title="Integración Telemática Oficial (SIRA / e3l - Junta de Andalucía)">
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted">Estado Telemático:</span>
+                  {siraSubmissions.length > 0 ? (
+                    siraSubmissions[0].estado === 'aceptado' ? (
+                      <Badge color="success" size="md">✓ Aceptado en SIRA</Badge>
+                    ) : siraSubmissions[0].estado === 'rechazado' ? (
+                      <Badge color="error" size="md">✗ Rechazado por SIRA</Badge>
+                    ) : (
+                      <Badge color="info" size="md">Enviado / En Proceso</Badge>
+                    )
+                  ) : document.notas?.includes('[SIRA]') ? (
+                    <Badge color="success" size="md">✓ Notificado en SIRA</Badge>
+                  ) : (
+                    <Badge color="light" size="md">Pendiente de Remisión</Badge>
+                  )}
+                </div>
+                {siraSubmissions.length > 0 && siraSubmissions[0].codigo_acuse && (
+                  <p className="text-xs font-mono font-semibold text-emerald-700 dark:text-emerald-400">
+                    Código Acuse Oficial: {siraSubmissions[0].codigo_acuse}
+                  </p>
+                )}
+                {siraSubmissions.length > 0 && siraSubmissions[0].mensaje_error && (
+                  <p className="text-xs text-red-600 dark:text-red-400 font-medium">
+                    Motivo: {siraSubmissions[0].mensaje_error}
+                  </p>
+                )}
+                <p className="text-[11px] text-muted">
+                  Protocolo E3L 3.3 conforme al Estándar Nacional de Residuos (e-SIR / SIRA).
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const xml = (siraSubmissions.length > 0 && siraSubmissions[0].xml_enviado)
+                      ? siraSubmissions[0].xml_enviado
+                      : siraService.generateDIXml(document);
+                    setSelectedXml(xml);
+                    setIsXmlModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5"
+                >
+                  <Code2 className="w-3.5 h-3.5" />
+                  <span>Ver XML e3l</span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const xml = (siraSubmissions.length > 0 && siraSubmissions[0].xml_enviado)
+                      ? siraSubmissions[0].xml_enviado
+                      : siraService.generateDIXml(document);
+                    siraService.downloadXmlFile(xml, `DI_${document.numero_documento}_e3l.xml`);
+                  }}
+                  className="flex items-center gap-1.5"
+                >
+                  <FileDown className="w-3.5 h-3.5" />
+                  <span>Descargar XML</span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant={siraSubmissions.length > 0 && siraSubmissions[0].estado === 'aceptado' ? "outline" : "primary"}
+                  disabled={sendingSira || !myCompany?.sira_usuario}
+                  onClick={() => handleSendSira()}
+                  className="flex items-center gap-1.5"
+                >
+                  {sendingSira ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Transmitiendo...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>{siraSubmissions.length > 0 && siraSubmissions[0].estado === 'aceptado' ? 'Re-enviar a SIRA' : 'Transmitir a SIRA'}</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Historial de Envíos si hay registros */}
+            {siraSubmissions.length > 0 && (
+              <div className="pt-2">
+                <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+                  Histórico de Transmisiones Telemáticas ({siraSubmissions.length})
+                </h4>
+                <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-800">
+                  <table className="min-w-full text-xs text-left">
+                    <thead className="bg-gray-100 dark:bg-gray-800 text-muted uppercase font-semibold">
+                      <tr>
+                        <th className="px-3 py-2">Fecha / Hora</th>
+                        <th className="px-3 py-2">Estado</th>
+                        <th className="px-3 py-2">Acuse / Mensaje</th>
+                        <th className="px-3 py-2 text-right">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-foreground">
+                      {siraSubmissions.map((sub) => (
+                        <tr key={sub.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20">
+                          <td className="px-3 py-2 whitespace-nowrap text-muted">
+                            {formatDateTime(sub.created_at)}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              sub.estado === 'aceptado'
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                : sub.estado === 'rechazado'
+                                ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400'
+                                : 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400'
+                            }`}>
+                              {sub.estado.toUpperCase()}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 font-mono text-[11px] truncate max-w-xs">
+                            {sub.codigo_acuse ? `Acuse: ${sub.codigo_acuse}` : sub.mensaje_error || '-'}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            {sub.xml_enviado && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedXml(sub.xml_enviado || '');
+                                  setIsXmlModalOpen(true);
+                                }}
+                                className="text-primary hover:underline text-[11px] font-medium"
+                              >
+                                Ver Payload
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </ComponentCard>
       </div>
 
       {/* MODAL 1: INICIAR TRASLADO / SALIDA */}
@@ -1091,6 +1256,42 @@ export default function DetalleDocumentoIdentificacionPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* MODAL 4: INSPECTOR XML E3L */}
+      <Modal isOpen={isXmlModalOpen} onClose={() => setIsXmlModalOpen(false)} className="max-w-3xl p-6">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between border-b pb-3 border-gray-200 dark:border-gray-800">
+            <div className="flex items-center gap-2">
+              <Code2 className="w-5 h-5 text-primary" />
+              <h3 className="text-lg font-bold text-foreground">Payload XML E3L (SIRA / e-SIR)</h3>
+            </div>
+            {selectedXml && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => siraService.downloadXmlFile(selectedXml, `DI_${document.numero_documento}_e3l.xml`)}
+                className="flex items-center gap-1.5"
+              >
+                <FileDown className="w-3.5 h-3.5" />
+                <span>Descargar XML</span>
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted">
+            Estructura SOAP/XML remitida conforme al estándar oficial e3l v3.3 de la Junta de Andalucía y MITERD.
+          </p>
+
+          <pre className="p-4 rounded-xl bg-gray-900 text-emerald-400 font-mono text-xs overflow-x-auto max-h-96 whitespace-pre border border-gray-800 select-all">
+            {selectedXml || 'No hay contenido XML disponible'}
+          </pre>
+
+          <div className="flex justify-end pt-3 border-t border-gray-200 dark:border-gray-800">
+            <Button variant="outline" onClick={() => setIsXmlModalOpen(false)}>
+              Cerrar
+            </Button>
+          </div>
+        </div>
       </Modal>
     </>
   );

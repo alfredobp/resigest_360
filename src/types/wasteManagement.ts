@@ -1177,5 +1177,68 @@ export interface CommercialOperationStats {
   por_estado: Record<EstadoOperacionComercial, number>;
 }
 
+// =====================================================
+// BLOQUE 8: INTEGRACIONES (SIRA / e3l, HOLDED) Y AUDITORÍA
+// =====================================================
+
+export type SiraSubmissionStatus = 'pendiente' | 'enviado' | 'aceptado' | 'rechazado' | 'error';
+export type SiraSubmissionType = 'di' | 'notificacion_previa' | 'memoria_anual';
+
+export interface SiraSubmission {
+  id: number;
+  user_id?: string | null;
+  company_id?: number | null;
+  identification_document_id?: number | null;
+  tipo_envio: SiraSubmissionType;
+  estado: SiraSubmissionStatus;
+  xml_enviado?: string | null;
+  xml_respuesta?: string | null;
+  codigo_acuse?: string | null;
+  mensaje_error?: string | null;
+  intentos: number;
+  ultimo_intento: string;
+  created_at: string;
+  updated_at: string;
+
+  // Joined fields
+  identification_document?: IdentificationDocument;
+  company?: Company;
+}
+
+export type AuditLogEntity =
+  | 'di'
+  | 'contrato'
+  | 'operacion_comercial'
+  | 'empresa'
+  | 'archivo_cronologico'
+  | 'memoria_anual'
+  | 'autorizacion'
+  | 'integracion_sira'
+  | 'integracion_holded';
+
+export type AuditLogAction =
+  | 'crear'
+  | 'actualizar'
+  | 'eliminar'
+  | 'cambiar_estado'
+  | 'recepcionar_pesada'
+  | 'registrar_incidencia'
+  | 'sincronizar_sira'
+  | 'sincronizar_holded'
+  | 'exportar_archivo'
+  | 'descargar_pdf';
+
+export interface AuditLogEntry {
+  id: number;
+  user_id?: string | null;
+  company_id?: number | null;
+  entidad: AuditLogEntity;
+  entidad_id?: string | null;
+  accion: AuditLogAction;
+  detalles: Record<string, any>;
+  ip_address?: string | null;
+  created_at: string;
+}
+
 
 

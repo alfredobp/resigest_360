@@ -6,26 +6,32 @@ import * as path from 'path';
 
 /**
  * Endpoint para enviar un Documento de Identificación a SIRA (Junta de Andalucía)
- * Realiza la comunicación SOAP de forma segura desde el servidor
+ * Realiza la comunicación SOAP de forma segura desde el servidor, registrando
+ * el resultado en sira_submissions y en la pista de auditoría audit_logs.
  */
 export async function POST(req: NextRequest) {
+    let submissionId: number | null = null;
+    let documentId: number | null = null;
+
     try {
-        const { documentId } = await req.json();
+        const body = await req.json();
+        documentId = body.documentId;
 
         if (!documentId) {
             return NextResponse.json({ error: 'ID de documento no proporcionado' }, { status: 400 });
         }
 
         const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
 
         // 1. Obtener los datos del documento con sus relaciones
         const { data: doc, error: docError } = await supabase
             .from('identification_documents')
             .select(`
-        *,
-        company:companies(*),
-        production_center:production_centers(*)
-      `)
+                *,
+                company:companies(*),
+                production_center:production_centers(*)
+            `)
             .eq('id', documentId)
             .single();
 
@@ -34,7 +40,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Documento no encontrado' }, { status: 404 });
         }
 
-        // 2. Obtener credenciales de SIRA de la empresa (manejar objeto o array si el join es ambiguo)
+        // 2. Obtener credenciales de SIRA de la empresa
         const companyData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
         const { sira_usuario, sira_password, sira_activo } = companyData || {};
 
@@ -47,6 +53,19 @@ export async function POST(req: NextRequest) {
                 hasPass: !!sira_password,
                 companyId: doc.company_id
             });
+
+            // Registrar fallo en auditoría
+            try {
+                await supabase.from('audit_logs').insert({
+                    user_id: user?.id || null,
+                    company_id: doc.company_id,
+                    entidad: 'integracion_sira',
+                    entidad_id: String(documentId),
+                    accion: 'sincronizar_sira',
+                    detalles: { error: 'Credenciales de SIRA no configuradas para esta empresa' }
+                });
+            } catch (ignore) {}
+
             return NextResponse.json({
                 error: 'Credenciales de SIRA no configuradas para esta empresa. Por favor, configúralas en Mi Empresa.'
             }, { status: 400 });
@@ -66,41 +85,54 @@ export async function POST(req: NextRequest) {
    </soapenv:Body>
 </soapenv:Envelope>`.trim();
 
-        // --- DEBUG: GUARDAR XML EN ARCHIVO Y CONSOLA ---
+        // 5. Registrar intento inicial en sira_submissions
         try {
-            console.log('📦 Generando XML para SIRA...');
+            const { data: subData } = await supabase
+                .from('sira_submissions')
+                .insert({
+                    user_id: user?.id || null,
+                    company_id: doc.company_id,
+                    identification_document_id: documentId,
+                    tipo_envio: 'di',
+                    estado: 'enviado',
+                    xml_enviado: soapEnvelope,
+                    intentos: 1,
+                    ultimo_intento: new Date().toISOString()
+                })
+                .select('id')
+                .single();
+
+            if (subData?.id) {
+                submissionId = subData.id;
+            }
+        } catch (dbErr) {
+            console.warn('sira_submissions insert warning (table might be initializing):', dbErr);
+        }
+
+        // --- DEBUG: GUARDAR XML EN ARCHIVO LOCAL ---
+        try {
             const logDir = path.join(process.cwd(), 'sira_xml_logs');
             if (!fs.existsSync(logDir)) {
                 fs.mkdirSync(logDir, { recursive: true });
             }
-
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const filenameReq = `req_${documentId}_${timestamp}.xml`;
-            const filePathReq = path.join(logDir, filenameReq);
-
+            const filePathReq = path.join(logDir, `req_${documentId}_${timestamp}.xml`);
             fs.writeFileSync(filePathReq, soapEnvelope);
-            console.log(`✅ XML de petición guardado en: ${filePathReq}`);
-
-            // Console log recortado para no inundar la terminal
-            console.log('--- XML PREVIEW ---\n', soapEnvelope.substring(0, 500) + '... (ver archivo para completo)\n-------------------');
-
         } catch (logErr) {
             console.error('Error guardando log XML:', logErr);
         }
         // ------------------------------------------------
 
-        // 5. Realizar la petición al Web Service de la Junta
+        // 6. Realizar la petición al Web Service de la Junta
         const siraUrl = 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones';
-
-        // El error JA000018 indica que falta la cabecera HTTP Authorization (Basic Auth)
         const authHeader = `Basic ${Buffer.from(`${sira_usuario}:${sira_password}`).toString('base64')}`;
 
         const siraResponse = await fetch(siraUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'text/xml;charset=UTF-8',
-                'SOAPAction': '', // A veces necesario vacío o con la acción específica
-                'Authorization': authHeader, // Autenticación Basic HTTP
+                'SOAPAction': '',
+                'Authorization': authHeader,
             },
             body: soapEnvelope,
         });
@@ -110,18 +142,15 @@ export async function POST(req: NextRequest) {
         // --- DEBUG: GUARDAR RESPUESTA XML ---
         try {
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const filenameRes = `res_${documentId}_${timestamp}.xml`;
             const logDir = path.join(process.cwd(), 'sira_xml_logs');
-            const filePathRes = path.join(logDir, filenameRes);
-
+            const filePathRes = path.join(logDir, `res_${documentId}_${timestamp}.xml`);
             fs.writeFileSync(filePathRes, responseText);
-            console.log(`📩 Respuesta SIRA guardada en: ${filePathRes}`);
         } catch (logErr) {
             console.error('Error guardando log respuesta:', logErr);
         }
         // ------------------------------------
 
-        // 6. Procesar respuesta y buscar errores dentro del XML (incluso si el HTTP es 200)
+        // 7. Procesar respuesta y buscar errores dentro del XML
         const hasFault = responseText.includes('<soapenv:Fault>') || responseText.includes('<resultWrong>');
         const matchId = responseText.match(/<IdSira>(.*?)<\/IdSira>/);
         const siraId = matchId ? matchId[1] : null;
@@ -129,21 +158,65 @@ export async function POST(req: NextRequest) {
         if (!siraResponse.ok || hasFault || !siraId) {
             console.error('SIRA API Error/Fault:', responseText);
 
-            // Intentar extraer un mensaje de error legible del XML
             const errorMatch = responseText.match(/<description>(.*?)<\/description>/) ||
                 responseText.match(/<faultstring>(.*?)<\/faultstring>/) ||
                 responseText.match(/<message.*?>(.*?)<\/message>/);
 
             const errorMessage = errorMatch ? errorMatch[1] : 'Error en la validación de SIRA. Ver logs XML.';
 
+            // Actualizar sira_submissions con estado 'rechazado'
+            if (submissionId) {
+                try {
+                    await supabase
+                        .from('sira_submissions')
+                        .update({
+                            estado: 'rechazado',
+                            xml_respuesta: responseText,
+                            mensaje_error: errorMessage
+                        })
+                        .eq('id', submissionId);
+                } catch (ignore) {}
+            }
+
+            // Registrar fallo en audit_logs
+            try {
+                await supabase.from('audit_logs').insert({
+                    user_id: user?.id || null,
+                    company_id: doc.company_id,
+                    entidad: 'integracion_sira',
+                    entidad_id: String(documentId),
+                    accion: 'sincronizar_sira',
+                    detalles: {
+                        resultado: 'rechazado',
+                        error: errorMessage,
+                        numero_documento: doc.numero_documento,
+                        submission_id: submissionId
+                    }
+                });
+            } catch (ignore) {}
+
             return NextResponse.json({
                 error: 'SIRA ha rechazado el documento',
-                details: responseText.substring(0, 1000), // Limitamos longitud
-                message: errorMessage
+                details: responseText.substring(0, 1000),
+                message: errorMessage,
+                submissionId
             }, { status: siraResponse.ok ? 400 : siraResponse.status });
         }
 
-        // 7. Actualizar el estado del documento localmente (ÉXITO REAL)
+        // 8. Actualizar submission y estado del documento localmente (ÉXITO REAL)
+        if (submissionId) {
+            try {
+                await supabase
+                    .from('sira_submissions')
+                    .update({
+                        estado: 'aceptado',
+                        codigo_acuse: siraId,
+                        xml_respuesta: responseText
+                    })
+                    .eq('id', submissionId);
+            } catch (ignore) {}
+        }
+
         await supabase
             .from('identification_documents')
             .update({
@@ -152,14 +225,46 @@ export async function POST(req: NextRequest) {
             })
             .eq('id', documentId);
 
+        // Registrar en audit_logs
+        try {
+            await supabase.from('audit_logs').insert({
+                user_id: user?.id || null,
+                company_id: doc.company_id,
+                entidad: 'di',
+                entidad_id: String(documentId),
+                accion: 'sincronizar_sira',
+                detalles: {
+                    resultado: 'aceptado',
+                    sira_id: siraId,
+                    numero_documento: doc.numero_documento,
+                    submission_id: submissionId
+                }
+            });
+        } catch (ignore) {}
+
         return NextResponse.json({
             success: true,
             message: 'Documento aceptado correctamente por SIRA',
-            siraId
+            siraId,
+            submissionId
         });
 
     } catch (error: any) {
         console.error('API Route SIRA Error:', error);
+
+        if (submissionId) {
+            try {
+                const supabase = await createClient();
+                await supabase
+                    .from('sira_submissions')
+                    .update({
+                        estado: 'error',
+                        mensaje_error: error.message
+                    })
+                    .eq('id', submissionId);
+            } catch (ignore) {}
+        }
+
         return NextResponse.json({ error: error.message || 'Error interno del servidor' }, { status: 500 });
     }
 }

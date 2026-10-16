@@ -9,6 +9,8 @@ import {
   CommercialOperationStats,
   EstadoOperacionComercial
 } from '@/types/wasteManagement';
+import { holdedService } from './holdedService';
+import { auditService } from './auditService';
 
 export interface CommercialOperationFilter {
   año?: number;
@@ -445,6 +447,126 @@ export const commercialOperationService = {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  },
+
+  /**
+   * Sincroniza la operación comercial con Holded ERP creando la factura de venta correspondiente
+   */
+  async syncOperationToHolded(operationId: number): Promise<{ success: boolean; invoiceId?: string; docNumber?: string; message: string }> {
+    try {
+      const op = await this.getById(operationId);
+      if (!op) {
+        throw new Error('Operación comercial no encontrada');
+      }
+
+      const supabase = createClient();
+
+      // 1. Obtener API Key de Holded de la empresa
+      const { data: company } = await supabase
+        .from('companies')
+        .select('holded_api_key, razon_social')
+        .eq('id', op.company_id)
+        .single();
+
+      const apiKey = company?.holded_api_key || process.env.HOLDED_API_KEY;
+      if (!apiKey) {
+        throw new Error('API Key de Holded no configurada para la empresa.');
+      }
+
+      // 2. Comprobar / Crear contacto del cliente en Holded
+      let contactId = '';
+      if (op.cliente_comercial_id) {
+        const { data: clientCompany } = await supabase
+          .from('companies')
+          .select('*')
+          .eq('id', op.cliente_comercial_id)
+          .single();
+
+        if (clientCompany) {
+          // Si no tiene holded_contact_id, lo creamos
+          const contactName = clientCompany.razon_social || op.cliente_razon_social || 'Cliente Operación Comercial';
+          const vat = clientCompany.cif || op.cliente_cif || '';
+
+          try {
+            const createdContact = await holdedService.createContact({
+              name: contactName,
+              vatnumber: vat,
+              type: 'client',
+              email: clientCompany.email || undefined,
+              phone: clientCompany.telefono || undefined,
+              city: clientCompany.municipio || undefined,
+              postalCode: clientCompany.codigo_postal || undefined,
+              province: clientCompany.provincia || undefined,
+              address: clientCompany.direccion || undefined,
+            }, apiKey);
+
+            if (createdContact?.id) {
+              contactId = createdContact.id;
+            }
+          } catch (cErr) {
+            console.warn('Holded contact creation warning:', cErr);
+          }
+        }
+      }
+
+      // 3. Preparar líneas de factura
+      const toneladas = (op.cantidad_real_t && op.cantidad_real_t > 0)
+        ? op.cantidad_real_t
+        : (op.cantidad_estimada_t || 1);
+
+      const invoicePayload = {
+        contactId: contactId || undefined,
+        contactName: op.cliente_razon_social || 'Cliente Venta',
+        desc: `Factura Venta Residuo - Operación ${op.numero_operacion} (LER ${op.codigo_ler})`,
+        date: Math.floor(new Date(op.fecha || Date.now()).getTime() / 1000),
+        items: [
+          {
+            name: `Gestión / Venta Residuo LER ${op.codigo_ler}`,
+            desc: `${op.descripcion_residuo || 'Residuo'} - Operación ${op.numero_operacion}`,
+            units: toneladas,
+            subtotal: op.ingreso_venta_total,
+            tax: 21,
+          }
+        ]
+      };
+
+      const result = await holdedService.createInvoice(invoicePayload, apiKey);
+      const invoiceRef = result?.docNumber || result?.id || `HOLDED-${Date.now()}`;
+
+      // 4. Actualizar referencia en commercial_operations
+      await supabase
+        .from('commercial_operations')
+        .update({
+          factura_venta_ref: invoiceRef,
+          estado_cobro_venta: 'pendiente'
+        })
+        .eq('id', operationId);
+
+      // 5. Registrar en audit_logs
+      await auditService.logAction({
+        company_id: op.company_id,
+        entidad: 'operacion_comercial',
+        entidad_id: op.id,
+        accion: 'sincronizar_holded',
+        detalles: {
+          numero_operacion: op.numero_operacion,
+          factura_ref: invoiceRef,
+          importe: op.ingreso_venta_total,
+          holded_response: result
+        }
+      });
+
+      return {
+        success: true,
+        invoiceId: result?.id,
+        docNumber: invoiceRef,
+        message: `Factura ${invoiceRef} generada y vinculada en Holded con éxito.`
+      };
+
+    } catch (error: any) {
+      console.error('Error sincronizando operación con Holded:', error);
+      throw error;
+    }
   }
 };
 

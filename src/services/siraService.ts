@@ -3,7 +3,8 @@
 // Servicio para comunicación SOAP con la plataforma SIRA
 // =====================================================
 
-import { IdentificationDocument } from '@/types/wasteManagement';
+import { IdentificationDocument, SiraSubmission, SiraSubmissionStatus } from '@/types/wasteManagement';
+import { createClient } from '@/lib/supabase/client';
 
 // ============================================================================
 // FUNCIONES AUXILIARES PRIVADAS (Generación de bloques XML E3L v3.6)
@@ -375,12 +376,97 @@ export const siraService = {
         body: JSON.stringify({ documentId }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Error al conectar con el servicio SIRA');
+      if (!response.ok) throw new Error(result.error || result.message || 'Error al conectar con el servicio SIRA');
       return result;
     } catch (error: any) {
       console.error('SIRA Service Error:', error);
       throw error;
     }
+  },
+
+  /**
+   * Obtiene el histórico de transmisiones SIRA vinculadas a un DI concreto
+   */
+  async getSubmissionsForDI(documentId: number): Promise<SiraSubmission[]> {
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('sira_submissions')
+        .select('*')
+        .eq('identification_document_id', documentId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('siraService.getSubmissionsForDI error:', error.message);
+        return [];
+      }
+      return (data || []) as SiraSubmission[];
+    } catch (err) {
+      console.warn('siraService.getSubmissionsForDI exception:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Obtiene la cola general de envíos SIRA con filtros
+   */
+  async getAllSubmissions(options?: {
+    limit?: number;
+    status?: SiraSubmissionStatus;
+  }): Promise<SiraSubmission[]> {
+    try {
+      const supabase = createClient();
+      let query = supabase
+        .from('sira_submissions')
+        .select(`
+          *,
+          identification_document:identification_documents(
+            id,
+            numero_documento,
+            codigo_ler,
+            descripcion_residuo,
+            productor_razon_social,
+            gestor_razon_social
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(options?.limit || 50);
+
+      if (options?.status) {
+        query = query.eq('estado', options.status);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.warn('siraService.getAllSubmissions error:', error.message);
+        return [];
+      }
+      return (data || []) as SiraSubmission[];
+    } catch (err) {
+      console.warn('siraService.getAllSubmissions exception:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Reintenta el envío de una transmisión fallida
+   */
+  async retrySubmission(documentId: number): Promise<{ success: boolean; message: string; siraId?: string }> {
+    return this.sendDI(documentId);
+  },
+
+  /**
+   * Descarga un archivo XML localmente para inspección
+   */
+  downloadXmlFile(xmlContent: string, filename: string): void {
+    const blob = new Blob([xmlContent], { type: 'application/xml;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 };
 

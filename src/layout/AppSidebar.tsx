@@ -85,7 +85,11 @@ const navItems: NavItem[] = [
     name: "Memorias Anuales",
     path: "/residuos/memorias-anuales",
   },
-
+  {
+    icon: <PlugInIcon />,
+    name: "Integraciones y Auditoría",
+    path: "/residuos/integraciones",
+  },
 ];
 
 const othersItems: NavItem[] = [
