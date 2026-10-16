@@ -13,33 +13,68 @@ import type {
 
 const supabase = createClient();
 
+/**
+ * Obtiene el contexto del tenant actual (usuario autenticado y sus empresas asociadas)
+ * para garantizar aislamiento estricto entre entidades en multi-tenancy.
+ */
+async function getTenantContext() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('Usuario no autenticado');
+  }
+
+  // Obtener IDs de las empresas pertenecientes a este usuario
+  const { data: userCompanies } = await supabase
+    .from('companies')
+    .select('id')
+    .eq('user_id', user.id);
+
+  const companyIds = (userCompanies || []).map((c) => c.id);
+
+  return {
+    userId: user.id,
+    companyIds,
+  };
+}
+
 export const wasteContractService = {
   /**
-   * Obtener todos los contratos del usuario
+   * Obtener todos los contratos del usuario o sus empresas asociadas
    */
   async getAll(): Promise<WasteContract[]> {
-    const { data, error } = await supabase
+    const { userId, companyIds } = await getTenantContext();
+
+    let query = supabase
       .from('waste_contracts')
       .select(`
         *,
         company:companies!waste_contracts_company_id_fkey(*),
         gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
         treatment_manager:treatment_managers(*)
-      `)
-      .order('fecha_contrato', { ascending: false });
+      `);
+
+    if (companyIds.length > 0) {
+      query = query.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')}),gestor_company_id.in.(${companyIds.join(',')})`);
+    } else {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query.order('fecha_contrato', { ascending: false });
 
     if (error) {
       throw new Error(`Error al obtener contratos: ${error.message}`);
     }
 
-    return data as WasteContract[];
+    return (data || []) as WasteContract[];
   },
 
   /**
-   * Obtener contrato por ID
+   * Obtener contrato por ID con validación estricta de pertenencia al tenant
    */
   async getById(id: number): Promise<WasteContract | null> {
-    const { data, error } = await supabase
+    const { userId, companyIds } = await getTenantContext();
+
+    let query = supabase
       .from('waste_contracts')
       .select(`
         *,
@@ -47,11 +82,22 @@ export const wasteContractService = {
         gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
         treatment_manager:treatment_managers(*)
       `)
-      .eq('id', id)
-      .single();
+      .eq('id', id);
+
+    if (companyIds.length > 0) {
+      query = query.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')}),gestor_company_id.in.(${companyIds.join(',')})`);
+    } else {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query.maybeSingle();
 
     if (error) {
       throw new Error(`Error al obtener contrato: ${error.message}`);
+    }
+
+    if (!data) {
+      return null;
     }
 
     const contract = data as WasteContract;
@@ -90,10 +136,12 @@ export const wasteContractService = {
   },
 
   /**
-   * Obtener contratos por estado
+   * Obtener contratos por estado filtrando por tenant
    */
   async getByStatus(estado: string): Promise<WasteContract[]> {
-    const { data, error } = await supabase
+    const { userId, companyIds } = await getTenantContext();
+
+    let query = supabase
       .from('waste_contracts')
       .select(`
         *,
@@ -101,27 +149,40 @@ export const wasteContractService = {
         gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
         treatment_manager:treatment_managers(*)
       `)
-      .eq('estado', estado)
-      .order('fecha_contrato', { ascending: false });
+      .eq('estado', estado);
+
+    if (companyIds.length > 0) {
+      query = query.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')}),gestor_company_id.in.(${companyIds.join(',')})`);
+    } else {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query.order('fecha_contrato', { ascending: false });
 
     if (error) {
       throw new Error(`Error al obtener contratos: ${error.message}`);
     }
 
-    return data as WasteContract[];
+    return (data || []) as WasteContract[];
   },
 
   /**
-   * Obtener contratos vigentes (activos)
+   * Obtener contratos vigentes (activos) del tenant
    */
   async getActive(): Promise<WasteContract[]> {
     return this.getByStatus('vigente');
   },
 
   /**
-   * Obtener contratos de una empresa específica
+   * Obtener contratos de una empresa específica (si pertenece al tenant)
    */
   async getByCompany(companyId: number): Promise<WasteContract[]> {
+    const { userId, companyIds } = await getTenantContext();
+
+    if (!companyIds.includes(companyId)) {
+      return [];
+    }
+
     const { data, error } = await supabase
       .from('waste_contracts')
       .select(`
@@ -137,14 +198,16 @@ export const wasteContractService = {
       throw new Error(`Error al obtener contratos: ${error.message}`);
     }
 
-    return data as WasteContract[];
+    return (data || []) as WasteContract[];
   },
 
   /**
-   * Buscar contratos por número o descripción
+   * Buscar contratos por número o descripción dentro del tenant
    */
   async search(query: string): Promise<WasteContract[]> {
-    const { data, error } = await supabase
+    const { userId, companyIds } = await getTenantContext();
+
+    let dbQuery = supabase
       .from('waste_contracts')
       .select(`
         *,
@@ -152,7 +215,15 @@ export const wasteContractService = {
         gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
         treatment_manager:treatment_managers(*)
       `)
-      .or(`numero_contrato.ilike.%${query}%,descripcion_residuos.ilike.%${query}%`)
+      .or(`numero_contrato.ilike.%${query}%,descripcion_residuos.ilike.%${query}%`);
+
+    if (companyIds.length > 0) {
+      dbQuery = dbQuery.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')}),gestor_company_id.in.(${companyIds.join(',')})`);
+    } else {
+      dbQuery = dbQuery.eq('user_id', userId);
+    }
+
+    const { data, error } = await dbQuery
       .order('fecha_contrato', { ascending: false })
       .limit(20);
 
@@ -160,7 +231,7 @@ export const wasteContractService = {
       throw new Error(`Error al buscar contratos: ${error.message}`);
     }
 
-    return data as WasteContract[];
+    return (data || []) as WasteContract[];
   },
 
   /**
@@ -329,10 +400,20 @@ export const wasteContractService = {
    * Eliminar contrato
    */
   async delete(id: number): Promise<void> {
-    const { error } = await supabase
+    const { userId, companyIds } = await getTenantContext();
+
+    let query = supabase
       .from('waste_contracts')
       .delete()
       .eq('id', id);
+
+    if (companyIds.length > 0) {
+      query = query.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')})`);
+    } else {
+      query = query.eq('user_id', userId);
+    }
+
+    const { error } = await query;
 
     if (error) {
       throw new Error(`Error al eliminar contrato: ${error.message}`);
