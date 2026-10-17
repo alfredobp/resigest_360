@@ -210,8 +210,8 @@ export default function DetalleDocumentoIdentificacionPage() {
       setError(null);
       await identificationDocumentService.recordReception(document.id, receptionForm);
       setIsReceptionModalOpen(false);
-      setSuccess('Recepción y pesaje en báscula registrados correctamente.');
-      toast.success('Recepción y pesaje en báscula registrados correctamente.');
+      setSuccess('Recepción y pesaje en báscula registrados correctamente. Asiento sincronizado en el Archivo Cronológico.');
+      toast.success('Recepción y pesaje en báscula registrados correctamente. Asiento sincronizado en el Archivo Cronológico.');
       await loadData();
     } catch (err: any) {
       const msg = `Error al registrar recepción: ${err.message}`;
@@ -231,8 +231,8 @@ export default function DetalleDocumentoIdentificacionPage() {
       setError(null);
       await identificationDocumentService.completeTreatment(document.id, treatmentForm);
       setIsTreatmentModalOpen(false);
-      setSuccess('Operación de tratamiento certificada. Traslado cerrado exitosamente.');
-      toast.success('Operación de tratamiento certificada. Traslado cerrado exitosamente.');
+      setSuccess('Operación de tratamiento certificada. Traslado cerrado exitosamente y archivado.');
+      toast.success('Operación de tratamiento certificada. Traslado cerrado exitosamente y archivado.');
       await loadData();
     } catch (err: any) {
       const msg = `Error al certificar tratamiento: ${err.message}`;

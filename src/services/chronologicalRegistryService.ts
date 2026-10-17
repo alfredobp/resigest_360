@@ -243,12 +243,28 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
   const year = new Date(fechaAsiento).getFullYear();
   const numero_asiento = `AS-${year}-${String(di.id).padStart(6, '0')}`;
 
+  // Detectar si la empresa actual actúa como Gestor Receptora o Productor
+  let isGestor = false;
+  if (di.company_id) {
+    const { data: userComp } = await supabase
+      .from('companies')
+      .select('cif, tipo_empresa')
+      .eq('id', di.company_id)
+      .maybeSingle();
+
+    if (userComp) {
+      isGestor =
+        userComp.tipo_empresa === 'gestor' ||
+        (Boolean(userComp.cif) && Boolean(di.gestor_cif) && userComp.cif.trim().toUpperCase() === di.gestor_cif.trim().toUpperCase());
+    }
+  }
+
   const payload: Partial<ChronologicalEntry> = {
     user_id: user.id,
     company_id: di.company_id,
     production_center_id: di.production_center_id,
     fecha: fechaAsiento,
-    tipo_operacion: 'salida_traslado',
+    tipo_operacion: isGestor ? 'entrada_recepcion' : 'salida_traslado',
     codigo_ler: di.codigo_ler,
     descripcion_residuo: di.descripcion_residuo,
     peligrosidad: di.codigo_ler.includes('*') ? 'peligroso' : di.peligrosidad,
@@ -256,7 +272,7 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
     cantidad_kg: Math.round(cantidadKg * 1000) / 1000,
     envase_tipo: di.tipo_envases,
     envase_unidades: di.numero_envases,
-    origen_tipo: 'propio',
+    origen_tipo: isGestor ? 'tercero_productor' : 'propio',
     origen_nif: di.productor_cif,
     origen_razon_social: di.productor_razon_social,
     origen_nima: di.productor_nima,
@@ -267,7 +283,7 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
     transportista_razon_social: di.transportista_razon_social,
     transportista_nima: di.transportista_nima,
     transportista_matricula: di.transportista_matricula,
-    destino_tipo: 'tercero_gestor',
+    destino_tipo: isGestor ? 'propio' : 'tercero_gestor',
     destino_nif: di.gestor_cif,
     destino_razon_social: di.gestor_razon_social,
     destino_nima: di.gestor_nima,
@@ -278,7 +294,7 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
     operacion_rd: di.operacion_tratamiento,
     identification_document_id: di.id,
     numero_documento_referencia: di.numero_albaran_gestor || di.numero_documento,
-    observaciones: `Registro cronológico sincronizado desde DI ${di.numero_documento}`
+    observaciones: `Registro cronológico sincronizado desde DI ${di.numero_documento} (${isGestor ? 'Entrada / Recepción en planta' : 'Salida / Traslado'})`
   };
 
   if (existing) {
@@ -326,7 +342,7 @@ export async function syncAllClosedDIs(): Promise<{ totalSincronizados: number }
       di.estado === 'completado' ||
       di.estado === 'aceptado' ||
       di.estado === 'tratado' ||
-      ['entregado', 'aceptado_en_destino', 'tratado_cerrado'].includes(di.estado_traslado || '');
+      ['aceptado', 'rechazado_parcial', 'tratado', 'entregado', 'aceptado_en_destino', 'tratado_cerrado'].includes(di.estado_traslado || '');
 
     if (isCompleted) {
       await syncEntryFromDI(di);
