@@ -126,6 +126,14 @@ export async function generateContractPDF(contract: WasteContract) {
     const dirProductor = doc.splitTextToSize(`${contract.company.domicilio_social || '-'}, ${contract.company.municipio_social || ''}`, 120);
     doc.text(dirProductor, 60, yPos);
     yPos += (dirProductor.length * 5) + 5;
+
+    if (contract.producer_center) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Centro de Origen:', 25, yPos);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${contract.producer_center.nombre} (NIMA: ${contract.producer_center.nima || '-'})`, 60, yPos);
+      yPos += 7;
+    }
   } else {
     doc.setFont('helvetica', 'italic');
     doc.text('Datos del productor no asociados en este contrato.', 25, yPos);
@@ -179,6 +187,14 @@ export async function generateContractPDF(contract: WasteContract) {
     const dirGestor = doc.splitTextToSize(`${address || '-'}, ${muni || ''}`, 120);
     doc.text(dirGestor, 60, yPos);
     yPos += (dirGestor.length * 5) + 5;
+
+    if (contract.gestor_center) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Instalación Destino:', 25, yPos);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${contract.gestor_center.nombre} (NIMA: ${contract.gestor_center.nima || '-'})`, 60, yPos);
+      yPos += 7;
+    }
   } else {
     doc.setFont('helvetica', 'italic');
     doc.text('Gestor autorizado no asignado en este contrato.', 25, yPos);
@@ -187,6 +203,10 @@ export async function generateContractPDF(contract: WasteContract) {
 
   // --- VIGENCIA ---
   if (contract.fecha_inicio || contract.fecha_fin) {
+    if (yPos > pageHeight - 50) {
+      doc.addPage();
+      yPos = 30;
+    }
     yPos = drawSectionHeader('VIGENCIA Y DURACIÓN', yPos);
 
     doc.setFontSize(10);
@@ -203,16 +223,191 @@ export async function generateContractPDF(contract: WasteContract) {
     yPos += 12;
   }
 
+  // --- RESIDUOS OBJETO DEL CONTRATO (MATRIZ LER Y OPERACIONES) ---
+  if (yPos > pageHeight - 50) {
+    doc.addPage();
+    yPos = 30;
+  }
+  yPos = drawSectionHeader('RESIDUOS OBJETO DEL CONTRATO (CÓDIGOS LER Y OPERACIONES)', yPos);
+
+  const wasteCodesList = contract.contract_waste_codes || [];
+  const simpleLerCodes = contract.codigos_ler || [];
+
+  if (wasteCodesList.length > 0) {
+    const drawTableHeader = (headerY: number): number => {
+      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.rect(20, headerY, pageWidth - 40, 7, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text('CÓDIGO LER', 24, headerY + 4.8);
+      doc.text('DESCRIPCIÓN DEL RESIDUO', 56, headerY + 4.8);
+      doc.text('OPERACIÓN', 120, headerY + 4.8);
+      doc.text('CANT. ESTIMADA', 145, headerY + 4.8);
+      doc.text('TARIFA / PRECIO', 170, headerY + 4.8);
+      doc.setTextColor(0, 0, 0);
+      return headerY + 7;
+    };
+
+    yPos = drawTableHeader(yPos);
+
+    wasteCodesList.forEach((item, index) => {
+      const descLines = doc.splitTextToSize(item.descripcion_ler || 'Sin descripción', 58);
+      const rowHeight = Math.max(7.5, (descLines.length * 4) + 3);
+
+      if (yPos + rowHeight > pageHeight - 40) {
+        doc.addPage();
+        yPos = 30;
+        yPos = drawTableHeader(yPos);
+      }
+
+      if (index % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(20, yPos, pageWidth - 40, rowHeight, 'F');
+      }
+
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.2);
+      doc.rect(20, yPos, pageWidth - 40, rowHeight, 'S');
+
+      const isPeligroso = item.codigo_ler.includes('*');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      if (isPeligroso) {
+        doc.setTextColor(185, 28, 28);
+      } else {
+        doc.setTextColor(15, 23, 42);
+      }
+      doc.text(item.codigo_ler, 24, yPos + 4.8);
+
+      doc.setTextColor(30, 41, 59);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.text(descLines, 56, yPos + 4.8);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text(item.operacion_tratamiento || '-', 124, yPos + 4.8);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(30, 41, 59);
+      const cantText = item.cantidad_estimada_anual !== undefined && item.cantidad_estimada_anual !== null
+        ? `${item.cantidad_estimada_anual} t/año`
+        : '-';
+      doc.text(cantText, 145, yPos + 4.8);
+
+      const precioText = item.tarifa_gestion !== undefined && item.tarifa_gestion !== null
+        ? `${item.tarifa_gestion} €/t`
+        : '-';
+      doc.text(precioText, 170, yPos + 4.8);
+
+      yPos += rowHeight;
+    });
+
+    yPos += 5;
+  } else if (simpleLerCodes.length > 0) {
+    const drawTableHeader = (headerY: number): number => {
+      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.rect(20, headerY, pageWidth - 40, 7, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text('CÓDIGO LER', 25, headerY + 4.8);
+      doc.text('OPERACIÓN ASIGNADA', 75, headerY + 4.8);
+      doc.text('DESCRIPCIÓN / ESPECIFICACIÓN', 125, headerY + 4.8);
+      doc.setTextColor(0, 0, 0);
+      return headerY + 7;
+    };
+
+    yPos = drawTableHeader(yPos);
+
+    simpleLerCodes.forEach((code, index) => {
+      const op = contract.operaciones_tratamiento?.[index] || contract.operaciones_tratamiento?.[0] || 'R/D según DI';
+      const rowHeight = 7.5;
+
+      if (yPos + rowHeight > pageHeight - 40) {
+        doc.addPage();
+        yPos = 30;
+        yPos = drawTableHeader(yPos);
+      }
+
+      if (index % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(20, yPos, pageWidth - 40, rowHeight, 'F');
+      }
+
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.2);
+      doc.rect(20, yPos, pageWidth - 40, rowHeight, 'S');
+
+      const isPeligroso = code.includes('*');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      if (isPeligroso) {
+        doc.setTextColor(185, 28, 28);
+      } else {
+        doc.setTextColor(15, 23, 42);
+      }
+      doc.text(code, 25, yPos + 4.8);
+
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text(op, 75, yPos + 4.8);
+
+      doc.setTextColor(75, 85, 99);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.text(contract.descripcion_residuos || 'Según autorización de gestor', 125, yPos + 4.8);
+
+      yPos += rowHeight;
+    });
+
+    yPos += 5;
+  } else {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(9);
+    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+    doc.text(
+      contract.descripcion_residuos || 'Residuos autorizados según Anexo Técnico o Documentos de Identificación (DIs) vinculados.',
+      25,
+      yPos
+    );
+    yPos += 10;
+  }
+
+  // Especificaciones técnicas adicionales si existen
+  if (wasteCodesList.length > 0 && contract.descripcion_residuos) {
+    if (yPos > pageHeight - 35) {
+      doc.addPage();
+      yPos = 30;
+    }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Especificaciones técnicas adicionales:', 25, yPos);
+    yPos += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    const descLines = doc.splitTextToSize(contract.descripcion_residuos, pageWidth - 50);
+    doc.text(descLines, 25, yPos);
+    yPos += (descLines.length * 4) + 6;
+  }
+
   // --- CONDICIONES TÉCNICAS Y ECONÓMICAS ---
+  if (yPos > pageHeight - 50) {
+    doc.addPage();
+    yPos = 30;
+  }
   yPos = drawSectionHeader('CONDICIONES TÉCNICAS Y ECONÓMICAS', yPos);
 
-  // Residuos
+  // Tipo de Contrato
   doc.setFont('helvetica', 'bold');
-  doc.text('Residuos Objeto del Contrato:', 25, yPos);
+  doc.setFontSize(9);
+  doc.text('Tipo de Contrato:', 25, yPos);
   doc.setFont('helvetica', 'normal');
-  const descResiduos = doc.splitTextToSize(contract.descripcion_residuos || 'Según anexo o DIs asociados.', pageWidth - 100);
-  doc.text(descResiduos, 80, yPos);
-  yPos += (descResiduos.length * 5) + 5;
+  doc.text((contract.tipo_contrato || 'tratamiento').toUpperCase(), 80, yPos);
+  yPos += 6.5;
 
   // Cantidad Máxima
   doc.setFont('helvetica', 'bold');
@@ -222,20 +417,24 @@ export async function generateContractPDF(contract: WasteContract) {
     ? `${contract.cantidad_maxima_anual} ${contract.unidad_cantidad || 't'}/año`
     : 'Sin límite especificado';
   doc.text(cantText, 80, yPos);
-  yPos += 7;
+  yPos += 6.5;
 
   // Precio
   doc.setFont('helvetica', 'bold');
-  doc.text('Precio por Tonelada / Servicio:', 25, yPos);
+  doc.text('Precio General / Referencia:', 25, yPos);
   doc.setFont('helvetica', 'normal');
   const precioText = contract.precio_unitario
     ? `${contract.precio_unitario} ${contract.moneda || 'EUR'}`
-    : 'Según tarifa vigente en el momento de la entrega';
+    : 'Según matriz de residuos o tarifas vigentes en báscula';
   doc.text(precioText, 80, yPos);
   yPos += 12;
 
   // --- NOTAS ADICIONALES ---
   if (contract.notas) {
+    if (yPos > pageHeight - 50) {
+      doc.addPage();
+      yPos = 30;
+    }
     yPos = drawSectionHeader('CLÁUSULAS ADICIONALES / NOTAS', yPos);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
@@ -245,12 +444,12 @@ export async function generateContractPDF(contract: WasteContract) {
   }
 
   // --- FIRMAS ---
-  // Asegurar que las firmas queden al final o en nueva página
-  if (yPos > pageHeight - 70) {
+  // Asegurar que las firmas queden al final o en nueva página con espacio suficiente
+  if (yPos > pageHeight - 75) {
     doc.addPage();
-    yPos = 30;
+    yPos = 50;
   } else {
-    yPos = pageHeight - 70;
+    yPos = Math.max(yPos + 10, pageHeight - 75);
   }
 
   doc.setDrawColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
@@ -506,23 +705,26 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
   yPos = drawSection('4. CARACTERIZACIÓN DEL RESIDUO', yPos);
   doc.setFontSize(8);
 
+  const lerCode = docData.codigo_ler || (docData as any).waste_type?.codigo_ler || 'Sin código LER';
+  const isPeligroso = docData.peligrosidad === 'peligroso' || lerCode.includes('*');
+
   doc.setFont('helvetica', 'bold');
   doc.text('Código LER:', 18, yPos);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(docData.peligrosidad === 'peligroso' ? 180 : 0, docData.peligrosidad === 'peligroso' ? 0 : 100, 0);
-  doc.text(`${docData.codigo_ler} (${docData.peligrosidad === 'peligroso' ? 'PELIGROSO' : 'NO PELIGROSO'})`, 42, yPos);
+  doc.setTextColor(isPeligroso ? 180 : 0, isPeligroso ? 0 : 100, 0);
+  doc.text(`${lerCode} (${isPeligroso ? 'PELIGROSO' : 'NO PELIGROSO'})`, 42, yPos);
   doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
 
   doc.setFont('helvetica', 'bold');
   doc.text('Estado Físico:', 130, yPos);
   doc.setFont('helvetica', 'normal');
-  doc.text(docData.estado_fisico || '-', 155, yPos);
+  doc.text(docData.estado_fisico || (docData as any).waste_type?.estado || '-', 155, yPos);
   yPos += 4.5;
 
   doc.setFont('helvetica', 'bold');
   doc.text('Descripción:', 18, yPos);
   doc.setFont('helvetica', 'normal');
-  const descRes = doc.splitTextToSize(docData.descripcion_residuo || '-', pageWidth - 65);
+  const descRes = doc.splitTextToSize(docData.descripcion_residuo || (docData as any).waste_type?.descripcion || '-', pageWidth - 65);
   doc.text(descRes, 42, yPos);
   yPos += (descRes.length * 4) + 2;
 

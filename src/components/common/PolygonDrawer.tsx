@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from 'react';
 import { SpatialData } from '@/services/projectService';
+import { toast } from '@/context/ToastContext';
 
 interface PolygonDrawerProps {
   onSave: (coordinates: number[][]) => void;
@@ -32,7 +33,7 @@ export default function PolygonDrawer({ onSave, onCancel, initialCoordinates = [
 
   const handleSave = () => {
     if (coordinates.length < 3) {
-      alert('Un polígono necesita al menos 3 puntos');
+      toast.warning('Un polígono necesita al menos 3 puntos');
       return;
     }
     

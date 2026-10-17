@@ -5,16 +5,15 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Resigest 360 DashBoard Line Chart | Resigest360",
-  description:
-    "This is Resigest 360 DashBoard Line Chart page for Resigest360 - Resigest 360 DashBoard",
+  title: "Gráfico de Líneas | Resigest360",
+  description: "Página de gráficos de líneas en Resigest 360",
 };
 export default function LineChart() {
   return (
     <div>
-      <PageBreadcrumb pageTitle="Line Chart" />
+      <PageBreadcrumb pageTitle="Gráfico de Líneas" />
       <div className="space-y-6">
-        <ComponentCard title="Line Chart 1">
+        <ComponentCard title="Gráfico de Líneas">
           <LineChartOne />
         </ComponentCard>
       </div>

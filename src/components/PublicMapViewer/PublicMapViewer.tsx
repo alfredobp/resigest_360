@@ -17,10 +17,6 @@ export default function PublicMapViewer({ slug }: PublicMapViewerProps) {
   const [error, setError] = useState<string | null>(null);
   const [visibleCollectionIds, setVisibleCollectionIds] = useState<number[]>([]);
 
-  useEffect(() => {
-    loadMapData();
-  }, [slug]);
-
   const loadMapData = async () => {
     try {
       setLoading(true);
@@ -48,6 +44,10 @@ export default function PublicMapViewer({ slug }: PublicMapViewerProps) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadMapData();
+  }, [slug]);
 
   const toggleCollection = (collectionId: number) => {
     setVisibleCollectionIds(prev =>

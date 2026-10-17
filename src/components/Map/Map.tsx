@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import maplibregl, { Map as MapLibreMap, Marker, Popup } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { projectService, Project, MapCollection, MapPoint, SpatialData } from '@/services/projectService';
+import { toast } from '@/context/ToastContext';
 
 interface Layer {
   id: string;
@@ -786,9 +787,10 @@ const Map: React.FC<MapProps> = ({
       setEditingEntity(null);
       setIsEditMode(false);
       cleanupPolygonEdit();
+      toast.success('Cambios guardados correctamente en el mapa.');
     } catch (error) {
       console.error('Error saving entity:', error);
-      alert('Error al guardar los cambios');
+      toast.error('Error al guardar los cambios en el mapa.');
     }
   };
 

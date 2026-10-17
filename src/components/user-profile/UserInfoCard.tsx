@@ -34,10 +34,6 @@ export default function UserInfoCard() {
     location: "",
     website: "",
   });
-  
-  useEffect(() => {
-    loadUserProfile();
-  }, []);
 
   const loadUserProfile = async () => {
     try {
@@ -100,6 +96,10 @@ export default function UserInfoCard() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadUserProfile();
+  }, []);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));

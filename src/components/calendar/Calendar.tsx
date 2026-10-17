@@ -100,7 +100,7 @@ const Calendar: React.FC = () => {
     } else {
       // Add new event
       const newEvent: CalendarEvent = {
-        id: Date.now().toString(),
+        id: `event-${events.length + 1}`,
         title: eventTitle,
         start: eventStartDate,
         end: eventEndDate,

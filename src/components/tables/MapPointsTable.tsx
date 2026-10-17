@@ -4,6 +4,7 @@ import { projectService, Project, MapCollection, MapPoint, SpatialData } from '@
 import { PencilIcon, TrashBinIcon } from '@/icons';
 import ImageUpload from '@/components/common/ImageUpload';
 import PolygonDrawer from '@/components/common/PolygonDrawer';
+import { toast } from '@/context/ToastContext';
 
 type ViewMode = 'projects' | 'collections' | 'spatial_data';
 
@@ -69,16 +70,16 @@ export default function MapPointsTable() {
   
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadProjects();
-  }, []);
-
   const loadProjects = async () => {
     setLoading(true);
     const data = await projectService.getProjects();
     setProjects(data);
     setLoading(false);
   };
+
+  useEffect(() => {
+    loadProjects();
+  }, []);
 
   const loadCollections = async (projectId: number) => {
     setLoading(true);
@@ -111,7 +112,7 @@ export default function MapPointsTable() {
 
   const handleAddProject = async () => {
     if (!newProject.name || !newProject.description) {
-      alert('Nombre y descripción son obligatorios');
+      toast.warning('Nombre y descripción son obligatorios');
       return;
     }
     
@@ -120,6 +121,9 @@ export default function MapPointsTable() {
       setProjects([added, ...projects]);
       setShowAddProjectForm(false);
       setNewProject({ name: '', description: '', show: true, photo: '' });
+      toast.success('Proyecto creado correctamente');
+    } else {
+      toast.error('Error al crear el proyecto');
     }
   };
 
@@ -134,6 +138,9 @@ export default function MapPointsTable() {
       setProjects(projects.map(p => p.id === id ? updated : p));
       setEditingProjectId(null);
       setEditProjectForm({});
+      toast.success('Proyecto actualizado correctamente');
+    } else {
+      toast.error('Error al actualizar el proyecto');
     }
   };
 
@@ -147,6 +154,9 @@ export default function MapPointsTable() {
       const success = await projectService.deleteProject(id);
       if (success) {
         setProjects(projects.filter(p => p.id !== id));
+        toast.success('Proyecto eliminado correctamente');
+      } else {
+        toast.error('Error al eliminar el proyecto');
       }
     }
   };
@@ -169,12 +179,12 @@ export default function MapPointsTable() {
 
   const handleAddCollection = async () => {
     if (!newCollection.name || !newCollection.description) {
-      alert('Nombre y descripción son obligatorios');
+      toast.warning('Nombre y descripción son obligatorios');
       return;
     }
 
     if (!selectedProject?.id) {
-      alert('Error: No hay proyecto seleccionado');
+      toast.error('Error: No hay proyecto seleccionado');
       return;
     }
     
@@ -249,14 +259,14 @@ export default function MapPointsTable() {
 
   const handleAdd = async () => {
     if (!newPoint.name || !newPoint.description) {
-      alert('Nombre y descripción son obligatorios');
+      toast.warning('Nombre y descripción son obligatorios');
       return;
     }
     
     // Validate geometry based on type
     if (geometryType === 'polygon') {
       if (!newPoint.geometry || newPoint.geometry.type !== 'Polygon') {
-        alert('Por favor, define el polígono usando el botón "Guardar Polígono"');
+        toast.warning('Por favor, define el polígono usando el botón "Guardar Polígono"');
         return;
       }
     }

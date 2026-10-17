@@ -6,6 +6,7 @@ import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
+import { toast } from '@/context/ToastContext';
 import treatmentManagerService from '@/services/treatmentManagerService';
 import type { TreatmentManager } from '@/types/wasteManagement';
 import GestorModal from '@/components/residuos/GestorModal';
@@ -51,8 +52,9 @@ export default function GestoresPage() {
         try {
             await treatmentManagerService.delete(id);
             setGestores((prev) => prev.filter((g) => g.id !== id));
+            toast.success('Gestor eliminado correctamente.');
         } catch (err: any) {
-            alert(`Error al eliminar: ${err.message}`);
+            toast.error(`Error al eliminar gestor: ${err.message}`);
         }
     };
 

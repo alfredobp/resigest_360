@@ -8,6 +8,7 @@ import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
+import { toast } from '@/context/ToastContext';
 import wasteContractService from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
 import type { Company, WasteContractFormData } from '@/types/wasteManagement';
@@ -107,13 +108,13 @@ export default function NuevoContratoPage() {
       const results = await companyService.search(searchQuery);
       setGestores(results);
     } catch (err: any) {
-      alert(`Error al buscar: ${err.message}`);
+      toast.error(`Error al buscar: ${err.message}`);
     }
   };
 
   const handleCreateGestor = async () => {
     if (!gestorData.razon_social || !gestorData.cif) {
-      alert('La razón social y el CIF son obligatorios');
+      toast.warning('La razón social y el CIF son obligatorios');
       return;
     }
 
@@ -131,8 +132,9 @@ export default function NuevoContratoPage() {
       setFormData((prev) => ({ ...prev, gestor_company_id: newGestor.id }));
       setShowGestorForm(false);
       setGestorData({ razon_social: '', cif: '', nima: '', direccion: '', telefono: '' });
+      toast.success('Gestor creado y seleccionado correctamente.');
     } catch (err: any) {
-      alert(`Error al crear gestor: ${err.message}`);
+      toast.error(`Error al crear gestor: ${err.message}`);
     }
   };
 
@@ -142,13 +144,17 @@ export default function NuevoContratoPage() {
 
     // Validaciones
     if (!formData.fecha_contrato) {
-      setError('La fecha del contrato es obligatoria');
+      const msg = 'La fecha del contrato es obligatoria';
+      setError(msg);
+      toast.warning(msg);
       return;
     }
 
     if (formData.fecha_inicio && formData.fecha_fin) {
       if (!wasteContractService.validateDates(formData.fecha_inicio, formData.fecha_fin)) {
-        setError('La fecha de fin debe ser posterior a la fecha de inicio');
+        const msg = 'La fecha de fin debe ser posterior a la fecha de inicio';
+        setError(msg);
+        toast.warning(msg);
         return;
       }
     }
@@ -156,9 +162,11 @@ export default function NuevoContratoPage() {
     try {
       setSaving(true);
       const newContract = await wasteContractService.create(formData);
-      router.push(`/admin/residuos/contratos/${newContract.id}`);
+      toast.success('Contrato de tratamiento creado con éxito.');
+      router.push(`/residuos/contratos/${newContract.id}`);
     } catch (err: any) {
       setError(err.message);
+      toast.error(`Error al crear contrato: ${err.message}`);
     } finally {
       setSaving(false);
     }

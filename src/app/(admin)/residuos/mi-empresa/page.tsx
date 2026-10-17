@@ -9,6 +9,7 @@ import TextArea from '@/components/form/input/TextArea';
 import Button from '@/components/ui/button/Button';
 import ImageUpload from '@/components/common/ImageUpload';
 import Alert from '@/components/ui/alert/Alert';
+import { toast } from '@/context/ToastContext';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import type { Company, CompanyFormData, ProductionCenter, ProductionCenterFormData } from '@/types/wasteManagement';
@@ -137,7 +138,9 @@ export default function MiEmpresaPage() {
     }
 
     if (!formData.cif.trim()) {
-      setError('El CIF es obligatorio');
+      const msg = 'El CIF es obligatorio';
+      setError(msg);
+      toast.warning(msg);
       return;
     }
 
@@ -147,18 +150,23 @@ export default function MiEmpresaPage() {
       if (company) {
         // Actualizar empresa existente
         await companyService.update(company.id, formData);
-        setSuccess('Empresa actualizada correctamente');
+        const msg = 'Empresa actualizada correctamente';
+        setSuccess(msg);
+        toast.success(msg);
       } else {
         // Crear nueva empresa
         const newCompany = await companyService.create(formData);
         setCompany(newCompany);
-        setSuccess('Empresa creada correctamente');
+        const msg = 'Empresa creada correctamente';
+        setSuccess(msg);
+        toast.success(msg);
       }
 
       // Recargar datos
       await loadCompany();
     } catch (err: any) {
       setError(err.message);
+      toast.error(`Error al guardar datos de la empresa: ${err.message}`);
     } finally {
       setSaving(false);
     }
@@ -175,7 +183,9 @@ export default function MiEmpresaPage() {
         company_id: company.id,
       });
 
-      setSuccess('Centro de producción añadido correctamente');
+      const msg = 'Centro de producción añadido correctamente';
+      setSuccess(msg);
+      toast.success(msg);
       setCenterFormData({ nombre: '', direccion: '', nima: '', municipio: '', provincia: '', codigo_postal: '', descripcion: '' });
       setShowCenterForm(false);
 
@@ -184,6 +194,7 @@ export default function MiEmpresaPage() {
       setProductionCenters(centers);
     } catch (err: any) {
       setError(err.message);
+      toast.error(`Error al añadir centro de producción: ${err.message}`);
     } finally {
       setSaving(false);
     }
@@ -194,10 +205,13 @@ export default function MiEmpresaPage() {
 
     try {
       await productionCenterService.delete(id);
-      setSuccess('Centro de producción eliminado');
+      const msg = 'Centro de producción eliminado correctamente';
+      setSuccess(msg);
+      toast.success(msg);
       setProductionCenters(prev => prev.filter(c => c.id !== id));
     } catch (err: any) {
       setError(err.message);
+      toast.error(`Error al eliminar centro de producción: ${err.message}`);
     }
   };
 
@@ -711,7 +725,7 @@ export default function MiEmpresaPage() {
                             )}
                           </p>
                           {center.descripcion && (
-                            <p className="text-sm text-muted mt-3 italic">"{center.descripcion}"</p>
+                            <p className="text-sm text-muted mt-3 italic">&ldquo;{center.descripcion}&rdquo;</p>
                           )}
                         </div>
                       </div>

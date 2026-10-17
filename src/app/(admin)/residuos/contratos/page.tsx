@@ -7,6 +7,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
+import { toast } from '@/context/ToastContext';
 import NuevoContratoModal from '@/components/residuos/NuevoContratoModal';
 import wasteContractService, { getContractEffectiveStatus } from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
@@ -47,9 +48,11 @@ export default function ContratosPage() {
       setDownloadingId(contract.id);
       setError(null);
       setSuccessMessage(null);
-      const doc = await generateContractPDF(contract);
-      doc.save(`contrato_${contract.numero_contrato || contract.id}.pdf`);
-      setSuccessMessage(`PDF del contrato ${contract.numero_contrato || `#${contract.id}`} generado y descargado correctamente.`);
+      const fullContract = await wasteContractService.getById(contract.id);
+      const contractToPrint = fullContract || contract;
+      const doc = await generateContractPDF(contractToPrint);
+      doc.save(`contrato_${contractToPrint.numero_contrato || contractToPrint.id}.pdf`);
+      setSuccessMessage(`PDF del contrato ${contractToPrint.numero_contrato || `#${contractToPrint.id}`} generado y descargado correctamente.`);
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err: any) {
       console.error('Error al descargar PDF:', err);
@@ -92,8 +95,9 @@ export default function ContratosPage() {
     try {
       await wasteContractService.delete(id);
       setContracts((prev) => prev.filter((c) => c.id !== id));
+      toast.success('Contrato de tratamiento eliminado correctamente.');
     } catch (err: any) {
-      alert(`Error al eliminar: ${err.message}`);
+      toast.error(`Error al eliminar: ${err.message}`);
     }
   };
 
@@ -104,17 +108,17 @@ export default function ContratosPage() {
         const hasProducer = Boolean(contract.company_id || contract.company);
         const hasGestor = Boolean(contract.treatment_manager || contract.gestor_company || contract.gestor_company_id);
         if (!hasProducer || !hasGestor) {
-          alert('No es posible activar el contrato: Debe tener asignado obligatoriamente tanto el Productor como el Gestor.');
+          toast.warning('No es posible activar el contrato: Debe tener asignado obligatoriamente tanto el Productor como el Gestor.');
           return;
         }
         if (!contract.fecha_fin) {
-          alert('No es posible activar el contrato: Debe especificarse una fecha de finalización.');
+          toast.warning('No es posible activar el contrato: Debe especificarse una fecha de finalización.');
           return;
         }
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         if (new Date(contract.fecha_fin) < today) {
-          alert(`No es posible activar el contrato: La fecha de finalización (${new Date(contract.fecha_fin).toLocaleDateString('es-ES')}) ya ha vencido. Actualice las fechas antes de activarlo.`);
+          toast.warning(`No es posible activar el contrato: La fecha de finalización (${new Date(contract.fecha_fin).toLocaleDateString('es-ES')}) ya ha vencido. Actualice las fechas antes de activarlo.`);
           return;
         }
       }
@@ -122,9 +126,10 @@ export default function ContratosPage() {
 
     try {
       await wasteContractService.updateStatus(id, newStatus);
+      toast.success(`Estado del contrato actualizado a "${newStatus}" correctamente.`);
       await loadData();
     } catch (err: any) {
-      alert(`Error al cambiar estado: ${err.message}`);
+      toast.error(`Error al cambiar estado: ${err.message}`);
     }
   };
 

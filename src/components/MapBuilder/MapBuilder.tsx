@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { publishedMapService, PublishedMap } from '@/services/publishedMapService';
 import { projectService, Project, MapCollection } from '@/services/projectService';
 import { useRouter } from 'next/navigation';
+import { toast } from '@/context/ToastContext';
 
 export default function MapBuilder() {
   const router = useRouter();
@@ -28,10 +29,6 @@ export default function MapBuilder() {
     custom_style: {}
   });
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
   const loadData = async () => {
     setLoading(true);
     const [mapsData, projectsData] = await Promise.all([
@@ -50,6 +47,10 @@ export default function MapBuilder() {
     setCollections(allCollections);
     setLoading(false);
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const handleCreate = async () => {
     const created = await publishedMapService.createMap(formData);
@@ -135,7 +136,7 @@ export default function MapBuilder() {
   const copyShareLink = (slug: string) => {
     const url = `${window.location.origin}/map/${slug}`;
     navigator.clipboard.writeText(url);
-    alert('¡Link copiado al portapapeles!');
+    toast.success('¡Enlace del mapa copiado al portapapeles!');
   };
 
   if (loading) {

@@ -7,6 +7,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
+import { toast } from '@/context/ToastContext';
 import wasteContractService, { getContractEffectiveStatus, validateContractActivation } from '@/services/wasteContractService';
 import type { WasteContract } from '@/types/wasteManagement';
 import SignatureModal from '@/components/ui/signature/SignatureModal';
@@ -99,9 +100,12 @@ export default function ContractDetailPage() {
     try {
       setLoading(true);
       await wasteContractService.signContract(contract.id, signatureBase64, signingRole);
+      toast.success('Firma registrada con éxito en el contrato.');
       await loadContract();
     } catch (err: any) {
-      setError(`Error al guardar firma: ${err.message}`);
+      const msg = `Error al guardar firma: ${err.message}`;
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -113,12 +117,20 @@ export default function ContractDetailPage() {
       setDownloading(true);
       setError(null);
       setDownloadSuccess(null);
-      const doc = await generateContractPDF(contract);
-      doc.save(`contrato_${contract.numero_contrato || contract.id}.pdf`);
+      let contractToPrint = contract;
+      if (!contractToPrint.contract_waste_codes || contractToPrint.contract_waste_codes.length === 0) {
+        const full = await wasteContractService.getById(contract.id);
+        if (full) contractToPrint = full;
+      }
+      const doc = await generateContractPDF(contractToPrint);
+      doc.save(`contrato_${contractToPrint.numero_contrato || contractToPrint.id}.pdf`);
       setDownloadSuccess('PDF descargado con éxito.');
+      toast.success('PDF del contrato descargado con éxito.');
       setTimeout(() => setDownloadSuccess(null), 4000);
     } catch (err: any) {
-      setError(`Error al descargar PDF: ${err.message || 'Error desconocido'}`);
+      const msg = `Error al descargar PDF: ${err.message || 'Error desconocido'}`;
+      setError(msg);
+      toast.error(msg);
     } finally {
       setDownloading(false);
     }
@@ -126,14 +138,14 @@ export default function ContractDetailPage() {
 
   const handleCopyPublicLink = () => {
     if (!contract?.signing_token) {
-      alert('Este contrato no tiene un token de firma asignado.');
+      toast.warning('Este contrato no tiene un token de firma asignado.');
       return;
     }
     const baseUrl = window.location.origin;
     const publicUrl = `${baseUrl}/public/sign-contract/${contract.signing_token}`;
 
     navigator.clipboard.writeText(publicUrl);
-    alert('Enlace de firma pública copiado al portapapeles.');
+    toast.success('Enlace de firma pública copiado al portapapeles.');
   };
 
   const formatDate = (dateString: string) => {

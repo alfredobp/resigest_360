@@ -253,9 +253,14 @@ export interface WasteType {
   estado: 'solido' | 'liquido' | 'pastoso' | 'gaseoso';
   operaciones_permitidas: string[];
   activo: boolean;
+  peligroso?: boolean;
+  capitulo_codigo?: string;
+  capitulo_titulo?: string;
+  subcapitulo_codigo?: string;
+  subcapitulo_titulo?: string;
   notas?: string;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // =====================================================

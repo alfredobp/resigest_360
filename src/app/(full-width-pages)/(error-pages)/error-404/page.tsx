@@ -5,9 +5,8 @@ import Link from "next/link";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Resigest 360 DashBoard Error 404 | Resigest360",
-  description:
-    "This is Resigest 360 DashBoard Error 404 page for Resigest360 - Resigest 360 DashBoard",
+  title: "Página no encontrada (404) | Resigest360",
+  description: "La página que buscas no existe o ha sido movida - Resigest 360",
 };
 
 export default function Error404() {
@@ -35,14 +34,14 @@ export default function Error404() {
         />
 
         <p className="mt-10 mb-6 text-base text-gray-700 dark:text-gray-400 sm:text-lg">
-          We can’t seem to find the page you are looking for!
+          ¡No podemos encontrar la página que estás buscando!
         </p>
 
         <Link
           href="/"
           className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-5 py-3.5 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
         >
-          Back to Home Page
+          Volver al Inicio
         </Link>
       </div>
       {/* <!-- Footer --> */}

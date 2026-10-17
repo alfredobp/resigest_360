@@ -2,9 +2,8 @@ import SignUpForm from "@/components/auth/SignUpForm";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Resigest 360 DashBoard SignUp Page | Resigest360",
-  description: "This is Resigest 360 DashBoard SignUp Page Resigest360 Dashboard Template",
-  // other metadata
+  title: "Registrarse | Resigest360",
+  description: "Crear una cuenta en Resigest 360",
 };
 
 export default function SignUp() {

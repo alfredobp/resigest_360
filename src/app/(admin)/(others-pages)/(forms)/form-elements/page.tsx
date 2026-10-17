@@ -13,15 +13,14 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Resigest 360 DashBoard Form Elements | Resigest360",
-  description:
-    "This is Resigest 360 DashBoard Form Elements page for Resigest360 - Resigest 360 DashBoard",
+  title: "Elementos de Formulario | Resigest360",
+  description: "Página de elementos de formulario en Resigest 360",
 };
 
 export default function FormElements() {
   return (
     <div>
-      <PageBreadcrumb pageTitle="From Elements" />
+      <PageBreadcrumb pageTitle="Elementos de Formulario" />
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div className="space-y-6">
           <DefaultInputs />

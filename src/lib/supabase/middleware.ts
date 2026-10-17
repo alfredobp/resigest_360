@@ -52,10 +52,12 @@ export async function updateSession(request: NextRequest) {
   // Protected routes - redirect to signin if not authenticated
   if (
     !user &&
+    request.nextUrl.pathname !== '/' &&
     !request.nextUrl.pathname.startsWith('/signin') &&
     !request.nextUrl.pathname.startsWith('/signup') &&
     !request.nextUrl.pathname.startsWith('/error-404') &&
     !request.nextUrl.pathname.startsWith('/auth/') &&
+    !request.nextUrl.pathname.startsWith('/api/') &&
     !request.nextUrl.pathname.startsWith('/map/') && // Public map viewer
     !request.nextUrl.pathname.startsWith('/public/') // Public signature and other public pages
   ) {
@@ -67,10 +69,10 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // If user is authenticated and trying to access signin/signup, redirect to dashboard
+  // If user is authenticated and trying to access signin/signup, redirect to dashboard (/app)
   if (user && (request.nextUrl.pathname.startsWith('/signin') || request.nextUrl.pathname.startsWith('/signup'))) {
     const url = request.nextUrl.clone()
-    url.pathname = '/'
+    url.pathname = '/app'
     return NextResponse.redirect(url)
   }
 

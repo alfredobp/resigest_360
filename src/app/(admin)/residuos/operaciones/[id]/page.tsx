@@ -13,6 +13,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
+import { toast } from '@/context/ToastContext';
 import {
   ArrowLeft,
   Download,
@@ -65,11 +66,14 @@ export default function DetalleOperacionComercialPage() {
       setError(null);
       const res = await commercialOperationService.syncOperationToHolded(operation.id);
       setSuccess(res.message);
+      toast.success(res.message);
       await loadOperation();
       setTimeout(() => setSuccess(null), 5000);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Error al sincronizar con Holded.');
+      const msg = err.message || 'Error al sincronizar con Holded.';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSyncingHolded(false);
     }
@@ -97,12 +101,16 @@ export default function DetalleOperacionComercialPage() {
     if (!operation) return;
     try {
       await commercialOperationService.update(operation.id, { estado: nuevoEstado });
-      setSuccess(`Estado actualizado a ${nuevoEstado.toUpperCase()}.`);
+      const msg = `Estado actualizado a ${nuevoEstado.toUpperCase()}.`;
+      setSuccess(msg);
+      toast.success(msg);
       await loadOperation();
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       console.error(err);
-      setError('Error al actualizar el estado de la operación.');
+      const msg = 'Error al actualizar el estado de la operación.';
+      setError(msg);
+      toast.error(msg);
     }
   };
 
@@ -112,11 +120,15 @@ export default function DetalleOperacionComercialPage() {
       setDownloadingPDF(true);
       const doc = await generateCommercialOperationPDF(operation);
       doc.save(`Liquidacion_${operation.numero_operacion}.pdf`);
-      setSuccess('Documento de liquidación descargado correctamente.');
+      const msg = 'Documento de liquidación descargado correctamente.';
+      setSuccess(msg);
+      toast.success(msg);
       setTimeout(() => setSuccess(null), 4000);
     } catch (err) {
       console.error(err);
-      setError('Error al generar el PDF de liquidación.');
+      const msg = 'Error al generar el PDF de liquidación.';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setDownloadingPDF(false);
     }
@@ -127,10 +139,13 @@ export default function DetalleOperacionComercialPage() {
     if (!confirm('¿Confirma la eliminación definitiva de esta operación comercial?')) return;
     try {
       await commercialOperationService.delete(operation.id);
+      toast.success('Operación comercial eliminada correctamente.');
       router.push('/residuos/operaciones');
     } catch (err) {
       console.error(err);
-      setError('Error al eliminar la operación comercial.');
+      const msg = 'Error al eliminar la operación comercial.';
+      setError(msg);
+      toast.error(msg);
     }
   };
 

@@ -7,6 +7,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
+import { toast } from '@/context/ToastContext';
 import { Modal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
@@ -182,9 +183,12 @@ export default function DetalleDocumentoIdentificacionPage() {
       const doc = await generateIdentificationDocumentPDF(document);
       doc.save(`DI_${document.numero_documento}.pdf`);
       setSuccess('PDF oficial generado y descargado correctamente.');
+      toast.success('PDF oficial generado y descargado correctamente.');
       setTimeout(() => setSuccess(null), 4000);
     } catch (err: any) {
-      setError(`Error al generar PDF: ${err.message || 'Error desconocido'}`);
+      const msg = `Error al generar PDF: ${err.message || 'Error desconocido'}`;
+      setError(msg);
+      toast.error(msg);
     } finally {
       setDownloading(false);
     }
@@ -200,9 +204,12 @@ export default function DetalleDocumentoIdentificacionPage() {
       await identificationDocumentService.recordDeparture(document.id, departureForm);
       setIsDepartureModalOpen(false);
       setSuccess('Salida registrada. El traslado se encuentra En Tránsito.');
+      toast.success('Salida registrada. El traslado se encuentra En Tránsito.');
       await loadData();
     } catch (err: any) {
-      setError(`Error al registrar salida: ${err.message}`);
+      const msg = `Error al registrar salida: ${err.message}`;
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmittingAction(false);
     }
@@ -213,7 +220,7 @@ export default function DetalleDocumentoIdentificacionPage() {
     if (!document) return;
 
     if (!receptionForm.peso_destino_kg || receptionForm.peso_destino_kg <= 0) {
-      alert('Debe introducir un peso neto verificado en báscula de destino mayor a 0 kg.');
+      toast.warning('Debe introducir un peso neto verificado en báscula de destino mayor a 0 kg.');
       return;
     }
 
@@ -223,9 +230,12 @@ export default function DetalleDocumentoIdentificacionPage() {
       await identificationDocumentService.recordReception(document.id, receptionForm);
       setIsReceptionModalOpen(false);
       setSuccess('Recepción y pesaje en báscula registrados correctamente.');
+      toast.success('Recepción y pesaje en báscula registrados correctamente.');
       await loadData();
     } catch (err: any) {
-      setError(`Error al registrar recepción: ${err.message}`);
+      const msg = `Error al registrar recepción: ${err.message}`;
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmittingAction(false);
     }
@@ -241,9 +251,12 @@ export default function DetalleDocumentoIdentificacionPage() {
       await identificationDocumentService.completeTreatment(document.id, treatmentForm);
       setIsTreatmentModalOpen(false);
       setSuccess('Operación de tratamiento certificada. Traslado cerrado exitosamente.');
+      toast.success('Operación de tratamiento certificada. Traslado cerrado exitosamente.');
       await loadData();
     } catch (err: any) {
-      setError(`Error al certificar tratamiento: ${err.message}`);
+      const msg = `Error al certificar tratamiento: ${err.message}`;
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmittingAction(false);
     }
@@ -256,9 +269,12 @@ export default function DetalleDocumentoIdentificacionPage() {
 
     try {
       await identificationDocumentService.delete(document.id);
+      toast.success('Documento eliminado correctamente.');
       router.push('/residuos/documentos-identificacion');
     } catch (err: any) {
-      setError(`Error al eliminar: ${err.message}`);
+      const msg = `Error al eliminar: ${err.message}`;
+      setError(msg);
+      toast.error(msg);
     }
   };
 
@@ -273,12 +289,16 @@ export default function DetalleDocumentoIdentificacionPage() {
       const result = await siraService.sendDI(document.id);
       if (result.success) {
         setSuccess(result.message);
+        toast.success(result.message);
         await loadData();
       } else {
         setError(result.message);
+        toast.error(result.message);
       }
     } catch (err: any) {
-      setError(err.message || 'Error al conectar con SIRA');
+      const msg = err.message || 'Error al conectar con SIRA';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSendingSira(false);
     }
@@ -821,7 +841,7 @@ export default function DetalleDocumentoIdentificacionPage() {
 
             {!myCompany?.sira_usuario && (
               <p className="text-xs text-error-500 italic">
-                * Para remitir telemáticamente a la administración configure sus credenciales de SIRA en 'Mi Empresa'.
+                * Para remitir telemáticamente a la administración configure sus credenciales de SIRA en &apos;Mi Empresa&apos;.
               </p>
             )}
           </div>

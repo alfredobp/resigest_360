@@ -21,6 +21,7 @@ import carrierService from '@/services/carrierService';
 import authorizationService, { type AuthorizedScopeResult } from '@/services/authorizationService';
 import type { IdentificationDocument, Company, WasteContract, ProductionCenter, WasteType, TreatmentManager, Carrier } from '@/types/wasteManagement';
 import DatePicker from '@/components/form/date-picker';
+import LerSelector from '@/components/residuos/LerSelector';
 
 export default function NuevoDocumentoIdentificacionPage() {
   const router = useRouter();
@@ -817,17 +818,9 @@ export default function NuevoDocumentoIdentificacionPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="codigo_ler" className="block text-sm font-medium mb-2">Código LER *</label>
-                <Select
-                  options={[
-                    { value: '', label: '-- Seleccionar Código LER --' },
-                    ...wasteTypes.map(wt => ({
-                      value: wt.id.toString(),
-                      label: `${wt.codigo_ler} - ${wt.descripcion.substring(0, 60)}${wt.descripcion.length > 60 ? '...' : ''}`,
-                    })),
-                  ]}
-                  value={wasteTypes.find(wt => wt.codigo_ler === formData.codigo_ler)?.id.toString() || ''}
-                  onChange={(value) => {
-                    const wt = wasteTypes.find(w => w.id === parseInt(value));
+                <LerSelector
+                  value={formData.codigo_ler}
+                  onChange={(value, wt) => {
                     if (wt) {
                       const isDangerous = wt.codigo_ler.includes('*') || wt.categoria === 'peligroso';
                       setFormData({
@@ -837,13 +830,18 @@ export default function NuevoDocumentoIdentificacionPage() {
                         descripcion_residuo: wt.descripcion,
                         peligrosidad: isDangerous ? 'peligroso' : (wt.categoria || 'no-peligroso'),
                         estado_fisico: wt.estado,
-                        operacion_tratamiento: wt.operaciones_permitidas?.[0] || '',
+                        operacion_tratamiento: wt.operaciones_permitidas?.[0] || formData.operacion_tratamiento || '',
+                      });
+                    } else {
+                      setFormData({
+                        ...formData,
+                        codigo_ler: value,
                       });
                     }
                   }}
-                  placeholder="Selecciona según la lista europea"
                   error={!!validationErrors.codigo_ler}
                   hint={validationErrors.codigo_ler}
+                  required
                 />
                 {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler && (
                   destAuthScope.authorizedLers[formData.codigo_ler] ? (

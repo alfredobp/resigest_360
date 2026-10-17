@@ -85,15 +85,69 @@ export async function createMemoria(data: CreateMemoriaData): Promise<MemoriaAnu
     observaciones: data.observaciones,
   };
 
-  const { data: newMemoria, error } = await supabase
-    .from('memorias_anuales')
-    .insert([memoria])
-    .select()
-    .single();
+  const tipoPrefix = {
+    'productor': 'PROD',
+    'gestor': 'GEST',
+    'gestor_raee': 'RAEE',
+    'negociante': 'NEG',
+    'transportista': 'TRANS',
+    'agente': 'AGEN',
+  }[data.tipo_memoria] || 'MEM';
 
-  if (error) {
-    console.error('Error al crear memoria anual:', error);
-    throw error;
+  let currentCandidate = numero_memoria;
+  let attempts = 0;
+  let newMemoria: MemoriaAnual | null = null;
+
+  while (attempts < 10) {
+    attempts++;
+    memoria.numero_memoria = currentCandidate;
+
+    const { data: inserted, error } = await supabase
+      .from('memorias_anuales')
+      .insert([memoria])
+      .select()
+      .single();
+
+    if (!error && inserted) {
+      newMemoria = inserted;
+      break;
+    }
+
+    if (error) {
+      // Si el error es por colisión de número de memoria único (23505)
+      const isNumeroMemoriaConflict =
+        error.code === '23505' &&
+        (error.message?.includes('memorias_anuales_numero_memoria_key') ||
+         error.details?.includes('numero_memoria') ||
+         error.message?.includes('numero_memoria'));
+
+      if (isNumeroMemoriaConflict) {
+        console.warn(`Colisión detectada en ${currentCandidate}, buscando siguiente número disponible...`);
+        const match = currentCandidate.match(/-(\d+)$/);
+        const nextNum = match ? parseInt(match[1], 10) + 1 : attempts + 1;
+        currentCandidate = `MA-${data.año}-${tipoPrefix}-${String(nextNum).padStart(3, '0')}`;
+        continue;
+      }
+
+      // Si el error es por duplicidad de centro y año para el mismo tipo
+      if (
+        error.code === '23505' &&
+        (error.message?.includes('memorias_anuales_unique_center_year') ||
+         error.message?.includes('unique_year') ||
+         error.message?.includes('production_center_id'))
+      ) {
+        throw new Error(
+          `Ya existe una memoria anual de tipo "${data.tipo_memoria}" para este centro de producción en el ejercicio ${data.año}.`
+        );
+      }
+
+      console.error('Error al crear memoria anual:', error);
+      throw error;
+    }
+  }
+
+  if (!newMemoria) {
+    throw new Error('No se pudo generar un número de memoria único tras varios intentos.');
   }
 
   return newMemoria;
@@ -444,27 +498,6 @@ export async function getStats(año?: number): Promise<{
 
 async function generateNumeroMemoria(tipo: TipoMemoria, año: number): Promise<string> {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('No hay usuario autenticado');
-
-  // Obtener el último número para este tipo y año
-  const { data } = await supabase
-    .from('memorias_anuales')
-    .select('numero_memoria')
-    .eq('user_id', user.id)
-    .eq('tipo_memoria', tipo)
-    .eq('año', año)
-    .order('created_at', { ascending: false })
-    .limit(1);
-
-  let nextNumber = 1;
-  if (data && data.length > 0) {
-    const lastNumber = data[0].numero_memoria;
-    const match = lastNumber.match(/-(\d+)$/);
-    if (match) {
-      nextNumber = parseInt(match[1]) + 1;
-    }
-  }
 
   const tipoPrefix = {
     'productor': 'PROD',
@@ -473,9 +506,31 @@ async function generateNumeroMemoria(tipo: TipoMemoria, año: number): Promise<s
     'negociante': 'NEG',
     'transportista': 'TRANS',
     'agente': 'AGEN',
-  }[tipo];
+  }[tipo] || 'MEM';
 
-  return `MA-${año}-${tipoPrefix}-${String(nextNumber).padStart(3, '0')}`;
+  const prefix = `MA-${año}-${tipoPrefix}-`;
+
+  // Obtener todas las memorias existentes con este prefijo para calcular el máximo correlativo
+  const { data } = await supabase
+    .from('memorias_anuales')
+    .select('numero_memoria')
+    .ilike('numero_memoria', `${prefix}%`);
+
+  let maxNumber = 0;
+  if (data && data.length > 0) {
+    for (const item of data) {
+      const match = item.numero_memoria?.match(/-(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxNumber) {
+          maxNumber = num;
+        }
+      }
+    }
+  }
+
+  const nextNumber = maxNumber + 1;
+  return `${prefix}${String(nextNumber).padStart(3, '0')}`;
 }
 
 async function getDocumentosIdentificacionByYear(

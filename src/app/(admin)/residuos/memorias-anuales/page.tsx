@@ -14,6 +14,7 @@ import { createClient } from '@/lib/supabase/client';
 import { MemoriaAnual, EstadoMemoria, TipoMemoria, ProductionCenter } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
+import { toast } from '@/context/ToastContext';
 import Badge from '@/components/ui/badge/Badge';
 import Button from '@/components/ui/button/Button';
 import {
@@ -115,12 +116,16 @@ export default function MemoriasAnualesPage() {
 
     try {
       await deleteMemoria(id);
-      setSuccess('Memoria anual eliminada correctamente');
+      const msg = 'Memoria anual eliminada correctamente';
+      setSuccess(msg);
+      toast.success(msg);
       loadMemorias();
       loadStats();
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError('Error al eliminar la memoria anual');
+    } catch (err: any) {
+      const msg = err?.message || 'Error al eliminar la memoria anual';
+      setError(msg);
+      toast.error(msg);
       setTimeout(() => setError(null), 3000);
     }
   };
@@ -128,12 +133,16 @@ export default function MemoriasAnualesPage() {
   const handleChangeEstado = async (id: number, nuevoEstado: EstadoMemoria) => {
     try {
       await updateEstado(id, nuevoEstado);
-      setSuccess('Estado actualizado correctamente');
+      const msg = 'Estado actualizado correctamente';
+      setSuccess(msg);
+      toast.success(msg);
       loadMemorias();
       loadStats();
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError('Error al actualizar el estado');
+    } catch (err: any) {
+      const msg = err?.message || 'Error al actualizar el estado';
+      setError(msg);
+      toast.error(msg);
       setTimeout(() => setError(null), 3000);
     }
   };

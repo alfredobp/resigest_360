@@ -5,6 +5,7 @@ import Button from '@/components/ui/button/Button';
 import Input from '@/components/form/input/InputField';
 import Label from '@/components/form/Label';
 import Alert from '@/components/ui/alert/Alert';
+import LerSelector from '@/components/residuos/LerSelector';
 import authorizationService from '@/services/authorizationService';
 import type {
   Company,
@@ -312,12 +313,19 @@ export default function AutorizacionModal({
                   key={idx}
                   className="p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 flex flex-col md:flex-row items-start md:items-center gap-3"
                 >
-                  <div className="w-full md:w-36">
+                  <div className="w-full md:w-64">
                     <Label className="text-xs mb-1">Código LER *</Label>
-                    <Input
-                      placeholder="15 01 01"
+                    <LerSelector
                       value={item.codigo_ler}
-                      onChange={(e) => handleWasteCodeChange(idx, 'codigo_ler', e.target.value)}
+                      onChange={(code, wt) => {
+                        handleWasteCodeChange(idx, 'codigo_ler', code);
+                        if (wt?.descripcion) {
+                          handleWasteCodeChange(idx, 'descripcion_ler', wt.descripcion);
+                        }
+                        if (wt?.operaciones_permitidas && wt.operaciones_permitidas.length > 0 && item.operaciones_tratamiento.length <= 1) {
+                          handleWasteCodeChange(idx, 'operaciones_tratamiento', wt.operaciones_permitidas);
+                        }
+                      }}
                       required
                     />
                   </div>

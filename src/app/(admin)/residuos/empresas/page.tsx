@@ -7,6 +7,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
+import { toast } from '@/context/ToastContext';
 import Input from '@/components/form/input/InputField';
 import EmpresaModal from '@/components/residuos/EmpresaModal';
 import AutorizacionModal from '@/components/residuos/AutorizacionModal';
@@ -74,9 +75,10 @@ function EmpresasContent() {
       await companyService.delete(id);
       setCompanies(prev => prev.filter(c => c.id !== id));
       setSuccessMessage(`Empresa "${razonSocial}" eliminada correctamente.`);
+      toast.success(`Empresa "${razonSocial}" eliminada correctamente.`);
       setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err: any) {
-      alert(`Error al eliminar empresa: ${err.message}`);
+      toast.error(`Error al eliminar empresa: ${err.message}`);
     }
   };
 
@@ -393,6 +395,7 @@ function EmpresasContent() {
             onSuccess={() => {
               loadData();
               setSuccessMessage('Autorización ambiental guardada correctamente.');
+              toast.success('Autorización ambiental guardada correctamente.');
               setTimeout(() => setSuccessMessage(null), 4000);
             }}
             company={selectedCompanyForAuth}

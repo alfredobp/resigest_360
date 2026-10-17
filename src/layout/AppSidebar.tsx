@@ -22,7 +22,8 @@ import {
   TrashBinIcon,
   DocsIcon,
   PaperPlaneIcon,
-  DollarLineIcon
+  DollarLineIcon,
+  InfoIcon
 } from "../icons/index";
 import Logo from "@/components/common/Logo";
 
@@ -37,7 +38,7 @@ const navItems: NavItem[] = [
   {
     icon: <GridIcon />,
     name: "Dashboard",
-    path: "/",
+    path: "/app",
   },
   {
     icon: <DocsIcon />,
@@ -90,35 +91,40 @@ const navItems: NavItem[] = [
     name: "Integraciones y Auditoría",
     path: "/residuos/integraciones",
   },
+  {
+    icon: <InfoIcon />,
+    name: "Soporte y Manual",
+    path: "/support",
+  },
 ];
 
 const othersItems: NavItem[] = [
   {
     icon: <PieChartIcon />,
-    name: "Charts",
+    name: "Gráficos",
     subItems: [
-      { name: "Line Chart", path: "/line-chart", pro: false },
-      { name: "Bar Chart", path: "/bar-chart", pro: false },
+      { name: "Gráfico de líneas", path: "/line-chart", pro: false },
+      { name: "Gráfico de barras", path: "/bar-chart", pro: false },
     ],
   },
   {
     icon: <BoxCubeIcon />,
-    name: "UI Elements",
+    name: "Elementos UI",
     subItems: [
-      { name: "Alerts", path: "/alerts", pro: false },
-      { name: "Avatar", path: "/avatars", pro: false },
-      { name: "Badge", path: "/badge", pro: false },
-      { name: "Buttons", path: "/buttons", pro: false },
-      { name: "Images", path: "/images", pro: false },
-      { name: "Videos", path: "/videos", pro: false },
+      { name: "Alertas", path: "/alerts", pro: false },
+      { name: "Avatares", path: "/avatars", pro: false },
+      { name: "Insignias", path: "/badge", pro: false },
+      { name: "Botones", path: "/buttons", pro: false },
+      { name: "Imágenes", path: "/images", pro: false },
+      { name: "Vídeos", path: "/videos", pro: false },
     ],
   },
   {
     icon: <PlugInIcon />,
-    name: "Authentication",
+    name: "Autenticación",
     subItems: [
-      { name: "Sign In", path: "/signin", pro: false },
-      { name: "Sign Up", path: "/signup", pro: false },
+      { name: "Iniciar Sesión", path: "/signin", pro: false },
+      { name: "Registrarse", path: "/signup", pro: false },
     ],
   },
 ];
@@ -326,7 +332,7 @@ const AppSidebar: React.FC = () => {
         className={`py-4 flex  ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
           }`}
       >
-        <Link href="/">
+        <Link href="/app">
           {isExpanded || isHovered || isMobileOpen ? (
             <>
               <Logo width={231} height={99} />
@@ -348,7 +354,7 @@ const AppSidebar: React.FC = () => {
                   }`}
               >
                 {isExpanded || isHovered || isMobileOpen ? (
-                  "Menu"
+                  "Menú"
                 ) : (
                   <HorizontaLDots />
                 )}

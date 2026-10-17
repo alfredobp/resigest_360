@@ -18,6 +18,7 @@ import {
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
+import LerSelector from '@/components/residuos/LerSelector';
 import {
   ArrowLeft,
   Save,
@@ -62,10 +63,6 @@ export default function NuevaOperacionComercialPage() {
     observaciones: ''
   });
 
-  useEffect(() => {
-    loadCatalogs();
-  }, []);
-
   const loadCatalogs = async () => {
     try {
       const [comps, docs, myComp] = await Promise.all([
@@ -90,27 +87,23 @@ export default function NuevaOperacionComercialPage() {
     }
   };
 
+  useEffect(() => {
+    loadCatalogs();
+  }, []);
+
   // Cálculo en vivo de rentabilidad
   const simulation = useMemo(() => {
     return calculateProfitability(formData);
-  }, [
-    formData.cantidad_estimada_t,
-    formData.cantidad_real_t,
-    formData.tipo_precio_compra,
-    formData.precio_unitario_compra,
-    formData.tipo_precio_venta,
-    formData.precio_unitario_venta,
-    formData.coste_transporte,
-    formData.otros_costes
-  ]);
+  }, [formData]);
 
-  // Selección de código LER con ajuste de peligrosidad
-  const handleLerChange = (code: string) => {
-    const isPeligroso = code.includes('*');
+  // Selección de código LER con ajuste de peligrosidad y descripción
+  const handleLerChange = (code: string, wt?: any) => {
+    const isPeligroso = code.includes('*') || wt?.peligroso || wt?.categoria === 'peligroso';
     setFormData(prev => ({
       ...prev,
       codigo_ler: code,
-      peligrosidad: isPeligroso ? 'peligroso' : prev.peligrosidad
+      descripcion_residuo: wt?.descripcion || prev.descripcion_residuo,
+      peligrosidad: isPeligroso ? 'peligroso' : 'no-peligroso'
     }));
   };
 
@@ -284,13 +277,10 @@ export default function NuevaOperacionComercialPage() {
                   <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
                     Código LER *
                   </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej. 17 02 04*"
+                  <LerSelector
                     value={formData.codigo_ler}
-                    onChange={(e) => handleLerChange(e.target.value)}
-                    className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-2 font-mono font-bold bg-white dark:bg-gray-700"
+                    onChange={(code, wt) => handleLerChange(code, wt)}
+                    required
                   />
                 </div>
 

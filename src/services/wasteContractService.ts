@@ -50,7 +50,8 @@ export const wasteContractService = {
         *,
         company:companies!waste_contracts_company_id_fkey(*),
         gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
-        treatment_manager:treatment_managers(*)
+        treatment_manager:treatment_managers(*),
+        contract_waste_codes(*)
       `);
 
     if (companyIds.length > 0) {
@@ -80,7 +81,8 @@ export const wasteContractService = {
         *,
         company:companies!waste_contracts_company_id_fkey(*),
         gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
-        treatment_manager:treatment_managers(*)
+        treatment_manager:treatment_managers(*),
+        contract_waste_codes(*)
       `)
       .eq('id', id);
 
@@ -102,14 +104,16 @@ export const wasteContractService = {
 
     const contract = data as WasteContract;
 
-    // Cargar códigos LER detallados del contrato
+    // Cargar códigos LER detallados del contrato (fallback si la relación no vino poblada)
     try {
-      const { data: wasteCodes } = await supabase
-        .from('contract_waste_codes')
-        .select('*')
-        .eq('contract_id', id);
-      if (wasteCodes) {
-        contract.contract_waste_codes = wasteCodes;
+      if (!contract.contract_waste_codes || contract.contract_waste_codes.length === 0) {
+        const { data: wasteCodes } = await supabase
+          .from('contract_waste_codes')
+          .select('*')
+          .eq('contract_id', id);
+        if (wasteCodes && wasteCodes.length > 0) {
+          contract.contract_waste_codes = wasteCodes;
+        }
       }
     } catch (e) {
       console.warn('Nota: tabla contract_waste_codes:', e);
@@ -147,7 +151,8 @@ export const wasteContractService = {
         *,
         company:companies!waste_contracts_company_id_fkey(*),
         gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
-        treatment_manager:treatment_managers(*)
+        treatment_manager:treatment_managers(*),
+        contract_waste_codes(*)
       `)
       .eq('estado', estado);
 

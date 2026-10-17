@@ -14,6 +14,7 @@ import { generateMemoriaAnualPDF } from '@/lib/pdfUtils';
 import { MemoriaAnual, EstadoMemoria, ResumenLER } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
+import { toast } from '@/context/ToastContext';
 import Badge from '@/components/ui/badge/Badge';
 import Button from '@/components/ui/button/Button';
 import {
@@ -67,11 +68,15 @@ export default function DetalleMemoriaPage() {
 
     try {
       await updateEstado(memoria.id, nuevoEstado);
-      setSuccess('Estado actualizado correctamente');
+      const msg = 'Estado actualizado correctamente';
+      setSuccess(msg);
+      toast.success(msg);
       loadMemoria();
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError('Error al actualizar el estado');
+    } catch (err: any) {
+      const msg = err?.message || 'Error al actualizar el estado';
+      setError(msg);
+      toast.error(msg);
       setTimeout(() => setError(null), 3000);
     }
   };
@@ -85,9 +90,12 @@ export default function DetalleMemoriaPage() {
 
     try {
       await deleteMemoria(memoria.id);
+      toast.success('Memoria anual eliminada correctamente');
       router.push('/residuos/memorias-anuales');
-    } catch (err) {
-      setError('Error al eliminar la memoria anual');
+    } catch (err: any) {
+      const msg = err?.message || 'Error al eliminar la memoria anual';
+      setError(msg);
+      toast.error(msg);
       setTimeout(() => setError(null), 3000);
     }
   };
@@ -99,11 +107,15 @@ export default function DetalleMemoriaPage() {
       setProcessingExcel(true);
       const excelData = await generateExcelData(memoria.id);
       exportMemoriaToExcelXML(memoria, excelData);
-      setSuccess('Archivo Excel generado y descargado correctamente.');
+      const msg = 'Archivo Excel generado y descargado correctamente.';
+      setSuccess(msg);
+      toast.success(msg);
       setTimeout(() => setSuccess(null), 4000);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError('Error al generar el archivo Excel');
+      const msg = err?.message || 'Error al generar el archivo Excel';
+      setError(msg);
+      toast.error(msg);
       setTimeout(() => setError(null), 3000);
     } finally {
       setProcessingExcel(false);
@@ -116,11 +128,15 @@ export default function DetalleMemoriaPage() {
       setProcessingExcel(true);
       const excelData = await generateExcelData(memoria.id);
       exportMemoriaToCSV(memoria, excelData);
-      setSuccess('Archivo CSV exportado correctamente.');
+      const msg = 'Archivo CSV exportado correctamente.';
+      setSuccess(msg);
+      toast.success(msg);
       setTimeout(() => setSuccess(null), 4000);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError('Error al generar el CSV');
+      const msg = err?.message || 'Error al generar el CSV';
+      setError(msg);
+      toast.error(msg);
       setTimeout(() => setError(null), 3000);
     } finally {
       setProcessingExcel(false);
@@ -132,11 +148,15 @@ export default function DetalleMemoriaPage() {
     try {
       const pdfDoc = await generateMemoriaAnualPDF(memoria);
       pdfDoc.save(`${memoria.numero_memoria}.pdf`);
-      setSuccess('PDF oficial generado y descargado correctamente.');
+      const msg = 'PDF oficial generado y descargado correctamente.';
+      setSuccess(msg);
+      toast.success(msg);
       setTimeout(() => setSuccess(null), 4000);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError('Error al generar el documento PDF');
+      const msg = err?.message || 'Error al generar el documento PDF';
+      setError(msg);
+      toast.error(msg);
       setTimeout(() => setError(null), 3000);
     }
   };

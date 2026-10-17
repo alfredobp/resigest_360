@@ -97,23 +97,27 @@ CREATE INDEX IF NOT EXISTS idx_chronological_di_id ON public.chronological_regis
 -- Habilitar Row Level Security
 ALTER TABLE public.chronological_registry ENABLE ROW LEVEL SECURITY;
 
--- Políticas de Seguridad RLS
+-- Políticas de Seguridad RLS (idempotentes)
+DROP POLICY IF EXISTS "Users can view own chronological entries" ON public.chronological_registry;
 CREATE POLICY "Users can view own chronological entries"
   ON public.chronological_registry
   FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own chronological entries" ON public.chronological_registry;
 CREATE POLICY "Users can insert own chronological entries"
   ON public.chronological_registry
   FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own chronological entries" ON public.chronological_registry;
 CREATE POLICY "Users can update own chronological entries"
   ON public.chronological_registry
   FOR UPDATE
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own chronological entries" ON public.chronological_registry;
 CREATE POLICY "Users can delete own chronological entries"
   ON public.chronological_registry
   FOR DELETE
@@ -213,7 +217,8 @@ SELECT
   COALESCE(di.numero_albaran_gestor, di.numero_documento),
   'Asiento generado automáticamente a partir del Documento de Identificación ' || di.numero_documento
 FROM public.identification_documents di
-WHERE (di.estado IN ('completado', 'aceptado', 'tratado') OR di.estado_traslado IN ('entregado', 'aceptado_en_destino', 'tratado_cerrado'))
+WHERE di.user_id IS NOT NULL
+  AND (di.estado IN ('completado', 'aceptado', 'tratado') OR di.estado_traslado IN ('entregado', 'aceptado_en_destino', 'tratado_cerrado'))
   AND NOT EXISTS (
     SELECT 1 FROM public.chronological_registry cr
     WHERE cr.identification_document_id = di.id

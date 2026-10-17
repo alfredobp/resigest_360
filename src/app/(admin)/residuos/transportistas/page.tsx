@@ -6,6 +6,7 @@ import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
+import { toast } from '@/context/ToastContext';
 import carrierService from '@/services/carrierService';
 import type { Carrier } from '@/types/wasteManagement';
 import CarrierModal from '@/components/residuos/CarrierModal';
@@ -51,8 +52,9 @@ export default function TransportistasPage() {
         try {
             await carrierService.delete(id);
             setCarriers((prev) => prev.filter((c) => c.id !== id));
+            toast.success('Transportista eliminado correctamente.');
         } catch (err: any) {
-            alert(`Error al eliminar: ${err.message}`);
+            toast.error(`Error al eliminar transportista: ${err.message}`);
         }
     };
 

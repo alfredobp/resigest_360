@@ -15,6 +15,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
+import { toast } from '@/context/ToastContext';
 import {
   Briefcase,
   Plus,
@@ -99,12 +100,16 @@ export default function OperacionesComercialesPage() {
     if (!confirm('¿Confirma la eliminación de esta operación comercial?')) return;
     try {
       await commercialOperationService.delete(id);
-      setSuccess('Operación comercial eliminada correctamente.');
+      const msg = 'Operación comercial eliminada correctamente.';
+      setSuccess(msg);
+      toast.success(msg);
       await loadData();
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       console.error(err);
-      setError('Error al eliminar la operación comercial.');
+      const msg = 'Error al eliminar la operación comercial.';
+      setError(msg);
+      toast.error(msg);
     }
   };
 

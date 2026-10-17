@@ -7,6 +7,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
+import { toast } from '@/context/ToastContext';
 import identificationDocumentService, { getTrackingStatusMeta } from '@/services/identificationDocumentService';
 import siraService from '@/services/siraService';
 import companyService from '@/services/companyService';
@@ -75,8 +76,9 @@ export default function DocumentosIdentificacionPage() {
     try {
       await identificationDocumentService.delete(id);
       setDocuments((prev) => prev.filter((d) => d.id !== id));
+      toast.success('Documento de identificación eliminado correctamente.');
     } catch (err: any) {
-      alert(`Error al eliminar: ${err.message}`);
+      toast.error(`Error al eliminar: ${err.message}`);
     }
   };
 
@@ -85,8 +87,9 @@ export default function DocumentosIdentificacionPage() {
       setLoading(true);
       await identificationDocumentService.updateStatus(id, newStatus);
       await loadData();
+      toast.success(`Estado actualizado a "${newStatus}" correctamente.`);
     } catch (err: any) {
-      alert(`Error al cambiar estado: ${err.message}`);
+      toast.error(`Error al cambiar estado: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -102,11 +105,11 @@ export default function DocumentosIdentificacionPage() {
       const result = await siraService.sendDI(id);
 
       if (result.success) {
-        alert(`Documento enviado con éxito a SIRA.\nID de Registro: ${result.siraId}`);
+        toast.success(`Documento enviado con éxito a SIRA.\nID de Registro: ${result.siraId}`);
         await loadData();
       }
     } catch (err: any) {
-      alert(`Error al enviar a SIRA: ${err.message}`);
+      toast.error(`Error al enviar a SIRA: ${err.message}`);
     } finally {
       setLoading(false);
     }

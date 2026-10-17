@@ -23,10 +23,13 @@ import {
 } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
+import { toast } from '@/context/ToastContext';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
+import { Modal } from '@/components/ui/modal';
 import InputField from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
+import LerSelector from '@/components/residuos/LerSelector';
 import {
   BookOpen,
   Calendar,
@@ -129,8 +132,12 @@ export default function ArchivoCronologicoPage() {
       setEntries(entriesData);
       setStats(statsData);
     } catch (err: any) {
-      console.error(err);
-      setError('Error al cargar los asientos del Archivo Cronológico.');
+      console.error('Error al cargar datos del Archivo Cronológico:', err);
+      if (err?.code === 'PGRST205' || err?.message?.includes('chronological_registry') || err?.message?.includes('schema cache')) {
+        setError('La tabla "chronological_registry" no ha sido creada en la base de datos de Supabase. Por favor, ejecuta la migración SQL disponible en "src/SQL/migration-chronological-register.sql" en el SQL Editor de tu panel de Supabase.');
+      } else {
+        setError(err?.message || 'Error al cargar los asientos del Archivo Cronológico.');
+      }
     } finally {
       setLoading(false);
     }
@@ -156,12 +163,16 @@ export default function ArchivoCronologicoPage() {
       setSyncing(true);
       setError(null);
       const res = await syncAllClosedDIs();
-      setSuccess(`Sincronización finalizada con éxito. Se actualizaron ${res.totalSincronizados} asientos.`);
+      const msg = `Sincronización finalizada con éxito. Se actualizaron ${res.totalSincronizados} asientos.`;
+      setSuccess(msg);
+      toast.success(msg);
       await loadData();
       setTimeout(() => setSuccess(null), 4000);
     } catch (err: any) {
       console.error(err);
-      setError('Error al sincronizar con los Documentos de Identificación.');
+      const msg = 'Error al sincronizar con los Documentos de Identificación.';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSyncing(false);
     }
@@ -171,14 +182,18 @@ export default function ArchivoCronologicoPage() {
   const handleSaveEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.codigo_ler || !formData.descripcion_residuo || formData.cantidad_kg <= 0) {
-      setError('Por favor complete los campos obligatorios: Código LER, Descripción y Cantidad (kg).');
+      const msg = 'Por favor complete los campos obligatorios: Código LER, Descripción y Cantidad (kg).';
+      setError(msg);
+      toast.warning(msg);
       return;
     }
 
     try {
       setSavingEntry(true);
       await createChronologicalEntry(formData);
-      setSuccess('Asiento cronológico registrado satisfactoriamente.');
+      const msg = 'Asiento cronológico registrado satisfactoriamente.';
+      setSuccess(msg);
+      toast.success(msg);
       setModalOpen(false);
       // Reset form
       setFormData(prev => ({
@@ -193,7 +208,9 @@ export default function ArchivoCronologicoPage() {
       setTimeout(() => setSuccess(null), 4000);
     } catch (err: any) {
       console.error(err);
-      setError('Error al guardar el asiento cronológico.');
+      const msg = 'Error al guardar el asiento cronológico.';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSavingEntry(false);
     }
@@ -204,22 +221,27 @@ export default function ArchivoCronologicoPage() {
     if (!confirm('¿Confirma la anulación o eliminación de este asiento cronológico?')) return;
     try {
       await deleteChronologicalEntry(id);
-      setSuccess('Asiento eliminado correctamente.');
+      const msg = 'Asiento eliminado correctamente.';
+      setSuccess(msg);
+      toast.success(msg);
       await loadData();
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       console.error(err);
-      setError('Error al eliminar el asiento.');
+      const msg = 'Error al eliminar el asiento.';
+      setError(msg);
+      toast.error(msg);
     }
   };
 
-  // Auto-ajuste de peligrosidad en formulario
-  const handleLerChange = (code: string) => {
-    const isPeligroso = code.includes('*');
+  // Auto-ajuste de peligrosidad y descripción al seleccionar código LER
+  const handleLerChange = (code: string, wt?: any) => {
+    const isPeligroso = code.includes('*') || wt?.peligroso || wt?.categoria === 'peligroso';
     setFormData(prev => ({
       ...prev,
       codigo_ler: code,
-      peligrosidad: isPeligroso ? 'peligroso' : prev.peligrosidad
+      descripcion_residuo: wt?.descripcion || prev.descripcion_residuo,
+      peligrosidad: isPeligroso ? 'peligroso' : 'no-peligroso'
     }));
   };
 
@@ -375,15 +397,15 @@ export default function ArchivoCronologicoPage() {
       )}
 
       {/* Barra de Filtros */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/80">
         <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {/* Año */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Ejercicio</label>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Ejercicio</label>
             <select
               value={selectedYear || ''}
               onChange={(e) => setSelectedYear(e.target.value ? Number(e.target.value) : undefined)}
-              className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2.5 py-1.5 focus:ring-1 focus:ring-primary"
+              className="w-full text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 px-3 py-2 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
             >
               <option value="">Todos los años</option>
               <option value={CURRENT_YEAR}>{CURRENT_YEAR}</option>
@@ -396,11 +418,11 @@ export default function ArchivoCronologicoPage() {
 
           {/* Centro de Producción */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Centro de Producción</label>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Centro de Producción</label>
             <select
               value={selectedCenter}
               onChange={(e) => setSelectedCenter(e.target.value)}
-              className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2.5 py-1.5 focus:ring-1 focus:ring-primary"
+              className="w-full text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 px-3 py-2 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
             >
               <option value="todos">Todos los centros</option>
               {centers.map(c => (
@@ -411,11 +433,11 @@ export default function ArchivoCronologicoPage() {
 
           {/* Tipo de Operación */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Tipo Operación</label>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Tipo Operación</label>
             <select
               value={selectedTipo}
               onChange={(e) => setSelectedTipo(e.target.value)}
-              className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2.5 py-1.5 focus:ring-1 focus:ring-primary"
+              className="w-full text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 px-3 py-2 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
             >
               <option value="todas">Todas las operaciones</option>
               <option value="salida_traslado">Salida Traslado (DI)</option>
@@ -428,11 +450,11 @@ export default function ArchivoCronologicoPage() {
 
           {/* Peligrosidad */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Peligrosidad</label>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Peligrosidad</label>
             <select
               value={selectedPeligrosidad}
               onChange={(e) => setSelectedPeligrosidad(e.target.value)}
-              className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2.5 py-1.5 focus:ring-1 focus:ring-primary"
+              className="w-full text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 px-3 py-2 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
             >
               <option value="todas">Todos</option>
               <option value="peligroso">Peligrosos (*)</option>
@@ -442,16 +464,16 @@ export default function ArchivoCronologicoPage() {
 
           {/* Búsqueda */}
           <div className="lg:col-span-2">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Búsqueda rápida</label>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Búsqueda rápida</label>
             <div className="relative">
               <input
                 type="text"
                 placeholder="Nº Asiento, LER, DI, Razón Social..."
                 value={searchTerm}
                 onChange={handleSearchChange}
-                className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 pl-8 pr-2.5 py-1.5 focus:ring-1 focus:ring-primary"
+                className="w-full text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 pl-9 pr-3 py-2 text-gray-900 dark:text-white placeholder:text-gray-400 focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
               />
-              <Search className="h-3.5 w-3.5 absolute left-2.5 top-2 text-gray-400" />
+              <Search className="h-4 w-4 absolute left-3 top-2.5 text-gray-400" />
             </div>
           </div>
         </form>
@@ -619,217 +641,220 @@ export default function ArchivoCronologicoPage() {
       </div>
 
       {/* Modal para Nuevo Asiento Manual */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-2xl w-full p-6 border border-gray-100 dark:border-gray-700 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-gray-700">
+      <Modal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        className="max-w-2xl p-6 sm:p-7 max-h-[88vh] overflow-y-auto"
+        showCloseButton={true}
+      >
+        <div className="space-y-5">
+          {/* Header del Modal */}
+          <div className="border-b border-gray-100 dark:border-gray-800 pb-4 pr-10">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 text-primary shrink-0">
+                <BookOpen className="w-5 h-5" />
+              </div>
               <div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                   Registrar Asiento Manual en Archivo Cronológico
                 </h3>
-                <p className="text-xs text-gray-500">
-                  Conforme a los requisitos del Artículo 64 de la Ley 7/2022
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Conforme a los requisitos legales del Artículo 64 de la Ley 7/2022
                 </p>
               </div>
-              <button
-                onClick={() => setModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
-              >
-                <X className="h-5 w-5" />
-              </button>
             </div>
+          </div>
 
-            <form onSubmit={handleSaveEntry} className="space-y-4 pt-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Fecha */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                    Fecha del Movimiento *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.fecha}
-                    onChange={(e) => setFormData(prev => ({ ...prev, fecha: e.target.value }))}
-                    className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-700"
-                  />
-                </div>
-
-                {/* Tipo de Operación */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                    Tipo de Operación *
-                  </label>
-                  <select
-                    value={formData.tipo_operacion}
-                    onChange={(e) => setFormData(prev => ({ ...prev, tipo_operacion: e.target.value as any }))}
-                    className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-700"
-                  >
-                    <option value="produccion_interna">Producción Interna (Generación en Planta)</option>
-                    <option value="salida_traslado">Salida a Traslado (Hacia Gestor)</option>
-                    <option value="entrada_recepcion">Entrada por Recepción (Desde Productor)</option>
-                    <option value="tratamiento_interno">Tratamiento Interno R/D</option>
-                    <option value="merma_ajuste">Merma o Regularización de Stock</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Centro de Producción */}
+          <form onSubmit={handleSaveEntry} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Fecha */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                  Instalación / Centro de Producción
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Fecha del Movimiento *
                 </label>
-                <select
-                  value={formData.production_center_id || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, production_center_id: e.target.value ? Number(e.target.value) : undefined }))}
-                  className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-700"
-                >
-                  <option value="">Centro Principal / Sede</option>
-                  {centers.map(c => (
-                    <option key={c.id} value={c.id}>{c.nombre} {c.nima ? `(NIMA: ${c.nima})` : ''}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* LER y Descripción */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                    Código LER *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej. 17 02 04*"
-                    value={formData.codigo_ler}
-                    onChange={(e) => handleLerChange(e.target.value)}
-                    className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 p-2 font-mono bg-white dark:bg-gray-700"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                    Descripción del Residuo *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Denominación técnica del residuo"
-                    value={formData.descripcion_residuo}
-                    onChange={(e) => setFormData(prev => ({ ...prev, descripcion_residuo: e.target.value }))}
-                    className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-700"
-                  />
-                </div>
-              </div>
-
-              {/* Cantidad y Peligrosidad */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                    Cantidad (kg) *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    required
-                    value={formData.cantidad_kg || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, cantidad_kg: Number(e.target.value) }))}
-                    className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 p-2 font-bold bg-white dark:bg-gray-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                    Peligrosidad
-                  </label>
-                  <select
-                    disabled={formData.codigo_ler.includes('*')}
-                    value={formData.peligrosidad}
-                    onChange={(e) => setFormData(prev => ({ ...prev, peligrosidad: e.target.value as any }))}
-                    className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-700 disabled:opacity-60"
-                  >
-                    <option value="no-peligroso">No Peligroso</option>
-                    <option value="peligroso">Peligroso</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                    Operación R/D
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej. R13, D15"
-                    value={formData.operacion_rd || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, operacion_rd: e.target.value.toUpperCase() }))}
-                    className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 p-2 font-mono bg-white dark:bg-gray-700"
-                  />
-                </div>
-              </div>
-
-              {/* Referencia y Observaciones */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                    Referencia / Albarán / Parte
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Nº DI, albarán o ticket interno"
-                    value={formData.numero_documento_referencia || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, numero_documento_referencia: e.target.value }))}
-                    className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                    Gestor Destinatario / Origen
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Razón Social del tercero"
-                    value={formData.destino_razon_social || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, destino_razon_social: e.target.value }))}
-                    className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-700"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                  Observaciones Técnicas
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Detalles sobre el lote, merma, tratamiento o proceso..."
-                  value={formData.observaciones || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, observaciones: e.target.value }))}
-                  className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-700"
+                <input
+                  type="date"
+                  required
+                  value={formData.fecha}
+                  onChange={(e) => setFormData(prev => ({ ...prev, fecha: e.target.value }))}
+                  className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setModalOpen(false)}
-                  disabled={savingEntry}
+              {/* Tipo de Operación */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Tipo de Operación *
+                </label>
+                <select
+                  value={formData.tipo_operacion}
+                  onChange={(e) => setFormData(prev => ({ ...prev, tipo_operacion: e.target.value as any }))}
+                  className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                 >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={savingEntry}
-                  className="bg-primary hover:bg-primary/90 text-white"
-                >
-                  {savingEntry ? 'Guardando Asiento...' : 'Registrar Asiento Oficial'}
-                </Button>
+                  <option value="produccion_interna">Producción Interna (Generación en Planta)</option>
+                  <option value="salida_traslado">Salida a Traslado (Hacia Gestor)</option>
+                  <option value="entrada_recepcion">Entrada por Recepción (Desde Productor)</option>
+                  <option value="tratamiento_interno">Tratamiento Interno R/D</option>
+                  <option value="merma_ajuste">Merma o Regularización de Stock</option>
+                </select>
               </div>
-            </form>
-          </div>
+            </div>
+
+            {/* Centro de Producción */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                Instalación / Centro de Producción
+              </label>
+              <select
+                value={formData.production_center_id || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, production_center_id: e.target.value ? Number(e.target.value) : undefined }))}
+                className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+              >
+                <option value="">Centro Principal / Sede</option>
+                {centers.map(c => (
+                  <option key={c.id} value={c.id}>{c.nombre} {c.nima ? `(NIMA: ${c.nima})` : ''}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* LER y Descripción */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Código LER *
+                </label>
+                <LerSelector
+                  value={formData.codigo_ler}
+                  onChange={(code, wt) => handleLerChange(code, wt)}
+                  required
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Descripción del Residuo *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Denominación técnica del residuo"
+                  value={formData.descripcion_residuo}
+                  onChange={(e) => setFormData(prev => ({ ...prev, descripcion_residuo: e.target.value }))}
+                  className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Cantidad y Peligrosidad */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Cantidad (kg) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  required
+                  placeholder="0.00"
+                  value={formData.cantidad_kg || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, cantidad_kg: Number(e.target.value) }))}
+                  className="w-full text-sm font-semibold rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Peligrosidad
+                </label>
+                <select
+                  disabled={formData.codigo_ler.includes('*')}
+                  value={formData.peligrosidad}
+                  onChange={(e) => setFormData(prev => ({ ...prev, peligrosidad: e.target.value as any }))}
+                  className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none disabled:opacity-60"
+                >
+                  <option value="no-peligroso">No Peligroso</option>
+                  <option value="peligroso">Peligroso</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Operación R/D
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej. R13, D15"
+                  value={formData.operacion_rd || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, operacion_rd: e.target.value.toUpperCase() }))}
+                  className="w-full text-sm font-mono rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Referencia y Gestor */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Referencia / Albarán / Documento
+                </label>
+                <input
+                  type="text"
+                  placeholder="Nº DI, albarán o ticket interno"
+                  value={formData.numero_documento_referencia || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, numero_documento_referencia: e.target.value }))}
+                  className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Gestor Destinatario / Origen
+                </label>
+                <input
+                  type="text"
+                  placeholder="Razón Social del tercero"
+                  value={formData.destino_razon_social || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, destino_razon_social: e.target.value }))}
+                  className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Observaciones */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                Observaciones Técnicas
+              </label>
+              <textarea
+                rows={2}
+                placeholder="Detalles sobre el lote, merma, tratamiento o proceso..."
+                value={formData.observaciones || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, observaciones: e.target.value }))}
+                className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none resize-none"
+              />
+            </div>
+
+            {/* Botones de acción */}
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setModalOpen(false)}
+                disabled={savingEntry}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={savingEntry}
+                className="bg-primary hover:bg-primary/90 text-white font-medium shadow-sm"
+              >
+                {savingEntry ? 'Guardando Asiento...' : 'Registrar Asiento Oficial'}
+              </Button>
+            </div>
+          </form>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

@@ -6,9 +6,11 @@ import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
+import { toast } from '@/context/ToastContext';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
 import Select from '@/components/form/Select';
+import LerSelector from '@/components/residuos/LerSelector';
 import wasteContractService, { validateContractActivation } from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
 import wasteTypeService from '@/services/wasteTypeService';
@@ -244,7 +246,7 @@ export default function EditarContratoPage() {
 
   const handleSaveNewGestor = async () => {
     if (!newGestor.razon_social || !newGestor.cif) {
-      alert('Razón social y CIF son obligatorios');
+      toast.warning('Razón social y CIF son obligatorios');
       return;
     }
 
@@ -260,6 +262,7 @@ export default function EditarContratoPage() {
       setFormData((prev) => ({ ...prev, gestor_company_id: created.id }));
       setShowGestorForm(false);
       setNewGestor({ razon_social: '', cif: '', nima: '', email: '', telefono: '' });
+      toast.success('Gestor creado y asignado con éxito.');
       
       const allCompanies = await companyService.getAll();
       const gestorCompanies = allCompanies.filter(
@@ -267,7 +270,7 @@ export default function EditarContratoPage() {
       );
       setGestores(gestorCompanies);
     } catch (err: any) {
-      alert(`Error al crear gestor: ${err.message}`);
+      toast.error(`Error al crear gestor: ${err.message}`);
     }
   };
 
@@ -275,13 +278,17 @@ export default function EditarContratoPage() {
     e.preventDefault();
 
     if (!formData.fecha_contrato || !formData.tipo_contrato) {
-      setError('Fecha de contrato y tipo son obligatorios');
+      const msg = 'Fecha de contrato y tipo son obligatorios';
+      setError(msg);
+      toast.warning(msg);
       return;
     }
 
     const validWasteCodes = contractWasteCodes.filter(c => !!c.codigo_ler.trim());
     if (formData.estado === 'vigente' && validWasteCodes.length === 0) {
-      setError('Para guardar como vigente, debe especificar al menos un residuo LER y su operación de tratamiento.');
+      const msg = 'Para guardar como vigente, debe especificar al menos un residuo LER y su operación de tratamiento.';
+      setError(msg);
+      toast.warning(msg);
       return;
     }
 
@@ -313,16 +320,20 @@ export default function EditarContratoPage() {
           gestor_company: contract?.gestor_company,
         });
         if (!val.valid) {
-          setError(`No se puede guardar como vigente: ${val.errors.join('; ')}`);
+          const msg = `No se puede guardar como vigente: ${val.errors.join('; ')}`;
+          setError(msg);
+          toast.error(msg);
           setSaving(false);
           return;
         }
       }
 
       await wasteContractService.update(parseInt(id), cleanedData);
+      toast.success('Contrato actualizado con éxito.');
       router.push(`/residuos/contratos/${id}`);
     } catch (err: any) {
       setError(err.message);
+      toast.error(`Error al guardar contrato: ${err.message}`);
     } finally {
       setSaving(false);
     }
@@ -620,7 +631,7 @@ export default function EditarContratoPage() {
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800 text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-900/50 text-xs font-semibold text-muted uppercase">
                     <tr>
-                      <th className="px-3 py-2.5 text-left w-48">Código LER *</th>
+                      <th className="px-3 py-2.5 text-left w-72">Código LER *</th>
                       <th className="px-3 py-2.5 text-left">Denominación / Residuo</th>
                       <th className="px-3 py-2.5 text-left w-36">Operación *</th>
                       <th className="px-3 py-2.5 text-left w-32">Cant. Anual (t)</th>
@@ -631,14 +642,18 @@ export default function EditarContratoPage() {
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
                     {contractWasteCodes.map((row, idx) => (
                       <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
-                        <td className="p-2">
-                          <input
-                            type="text"
-                            list="waste-types-list"
+                        <td className="p-2 min-w-[260px]">
+                          <LerSelector
                             value={row.codigo_ler}
-                            onChange={(e) => handleWasteRowChange(idx, 'codigo_ler', e.target.value)}
-                            placeholder="Ej: 15 01 01"
-                            className="w-full text-xs font-mono font-semibold rounded-md border border-gray-300 dark:border-gray-700 bg-transparent px-2.5 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                            onChange={(code, wt) => {
+                              handleWasteRowChange(idx, 'codigo_ler', code);
+                              if (wt?.descripcion) {
+                                handleWasteRowChange(idx, 'descripcion_ler', wt.descripcion);
+                              }
+                              if (wt?.operaciones_permitidas?.[0]) {
+                                handleWasteRowChange(idx, 'operacion_tratamiento', wt.operaciones_permitidas[0]);
+                              }
+                            }}
                           />
                         </td>
                         <td className="p-2">

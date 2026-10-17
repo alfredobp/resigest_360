@@ -3,22 +3,21 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Resigest 360 DashBoard Blank Page | Resigest360",
-  description: "This is Resigest 360 DashBoard Blank Page Resigest360 Dashboard Template",
+  title: "Página en Blanco | Resigest360",
+  description: "Página en blanco para maquetación en Resigest 360",
 };
 
 export default function BlankPage() {
   return (
     <div>
-      <PageBreadcrumb pageTitle="Blank Page" />
+      <PageBreadcrumb pageTitle="Página en Blanco" />
       <div className="min-h-screen rounded-2xl border border-gray-200 bg-white px-5 py-7 dark:border-gray-800 dark:bg-white/[0.03] xl:px-10 xl:py-12">
         <div className="mx-auto w-full max-w-[630px] text-center">
           <h3 className="mb-4 font-semibold text-gray-800 text-theme-xl dark:text-white/90 sm:text-2xl">
-            Card Title Here
+            Título del Contenedor
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 sm:text-base">
-            Start putting content on grids or panels, you can also use different
-            combinations of grids.Please check out the dashboard and other pages
+            Comienza a añadir contenido en paneles o cuadrículas para maquetar tus vistas.
           </p>
         </div>
       </div>

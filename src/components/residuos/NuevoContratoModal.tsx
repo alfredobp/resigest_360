@@ -22,6 +22,7 @@ import type {
   ContractWasteCodeFormData,
 } from '@/types/wasteManagement';
 import DatePicker from '../form/date-picker';
+import LerSelector from '@/components/residuos/LerSelector';
 
 const TIPOS_CONTRATO = [
   { value: 'tratamiento', label: 'Tratamiento' },
@@ -635,22 +636,23 @@ export default function NuevoContratoModal({
                 key={idx}
                 className="p-3.5 bg-muted/20 border border-stroke dark:border-strokedark rounded-xl flex flex-col md:flex-row gap-3 items-start md:items-center"
               >
-                <div className="w-full md:w-40">
+                <div className="w-full md:w-64">
                   <label className="block text-xs font-medium mb-1">Código LER *</label>
-                  <input
-                    type="text"
-                    placeholder="15 01 01"
+                  <LerSelector
                     value={item.codigo_ler}
-                    onChange={(e) => {
-                      const val = e.target.value;
+                    onChange={(val, wt) => {
                       setContractWasteCodes((prev) => {
                         const copy = [...prev];
-                        copy[idx] = { ...copy[idx], codigo_ler: val };
+                        copy[idx] = {
+                          ...copy[idx],
+                          codigo_ler: val,
+                          descripcion_ler: wt?.descripcion || copy[idx].descripcion_ler,
+                          operacion_tratamiento: wt?.operaciones_permitidas?.[0] || copy[idx].operacion_tratamiento || 'R13'
+                        };
                         return copy;
                       });
                     }}
                     required
-                    className="h-10 w-full px-3 text-sm rounded-lg border border-stroke bg-white dark:bg-dark shadow-xs focus:border-primary"
                   />
                 </div>
 

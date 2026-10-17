@@ -7,6 +7,8 @@ import Input from "../form/input/InputField";
 import Label from "../form/Label";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import { companyService } from "@/services/companyService";
+import type { Company } from "@/types/wasteManagement";
 
 interface UserProfile {
   id: string;
@@ -27,6 +29,8 @@ interface UserProfile {
 export default function UserMetaCard() {
   const { isOpen, openModal, closeModal } = useModal();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [company, setCompany] = useState<Company | null>(null);
+  const [cardImgSrc, setCardImgSrc] = useState<string>("/images/logo/company-default.svg");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -50,6 +54,15 @@ export default function UserMetaCard() {
 
   useEffect(() => {
     loadUserProfile();
+
+    const handleLogoUpdate = () => {
+      loadUserProfile();
+    };
+
+    window.addEventListener("company-logo-updated", handleLogoUpdate);
+    return () => {
+      window.removeEventListener("company-logo-updated", handleLogoUpdate);
+    };
   }, []);
 
   const loadUserProfile = async () => {
@@ -59,18 +72,11 @@ export default function UserMetaCard() {
 
       if (user) {
         // Get profile from database
-        const { data: profileData, error: profileError } = await supabase
+        const { data: profileData } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
-          .single();
-
-        if (profileError) {
-          console.error("Error loading profile:", profileError);
-          setError("Error al cargar el perfil");
-          setLoading(false);
-          return;
-        }
+          .maybeSingle();
 
         const userProfile: UserProfile = {
           id: user.id,
@@ -101,6 +107,21 @@ export default function UserMetaCard() {
           linkedin: userProfile.linkedin || "",
           instagram: userProfile.instagram || "",
         });
+
+        // Load company to get logo and company details
+        try {
+          const comp = await companyService.getUserCompany();
+          if (comp) {
+            setCompany(comp);
+            const logo = comp.logo_url || userProfile.avatar_url || "/images/logo/company-default.svg";
+            setCardImgSrc(logo);
+          } else {
+            setCardImgSrc(userProfile.avatar_url || "/images/logo/company-default.svg");
+          }
+        } catch (compErr) {
+          console.warn("Could not load user company:", compErr);
+          setCardImgSrc(userProfile.avatar_url || "/images/logo/company-default.svg");
+        }
       }
       setLoading(false);
     } catch (err) {
@@ -246,6 +267,21 @@ export default function UserMetaCard() {
         }
       }
 
+      if (company?.id && avatarUrl) {
+        try {
+          await supabase
+            .from('companies')
+            .update({ logo_url: avatarUrl })
+            .eq('id', company.id);
+        } catch (compErr) {
+          console.warn("Could not sync company logo:", compErr);
+        }
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('company-logo-updated'));
+      }
+
       // Reload profile
       await loadUserProfile();
       setAvatarFile(null);
@@ -278,20 +314,28 @@ export default function UserMetaCard() {
         
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-col items-center w-full gap-6 xl:flex-row">
-            <div className="w-20 h-20 overflow-hidden border border-gray-200 rounded-full dark:border-gray-800">
+            <div className="w-20 h-20 overflow-hidden border border-gray-200 rounded-full dark:border-gray-800 bg-white dark:bg-gray-800 flex items-center justify-center flex-shrink-0 shadow-sm">
               <Image
                 width={80}
                 height={80}
-                src={profile?.avatar_url || "/images/user/owner.jpg"}
-                alt="user"
+                src={cardImgSrc}
+                alt={company?.nombre_comercial || company?.razon_social || "Logo de la empresa"}
+                className="object-contain w-full h-full p-1.5"
+                onError={() => setCardImgSrc("/images/logo/company-default.svg")}
+                unoptimized
               />
             </div>
             <div className="order-3 xl:order-2">
-              <h4 className="mb-2 text-lg font-semibold text-center text-gray-800 dark:text-white/90 xl:text-left">
-                {profile?.first_name && profile?.last_name 
+              <h4 className="mb-1 text-lg font-semibold text-center text-gray-800 dark:text-white/90 xl:text-left">
+                {company?.nombre_comercial || company?.razon_social || (profile?.first_name && profile?.last_name 
                   ? `${profile.first_name} ${profile.last_name}`
-                  : profile?.email || "Usuario"}
+                  : profile?.email || "Usuario")}
               </h4>
+              {company?.cif && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 text-center xl:text-left">
+                  CIF: {company.cif}
+                </p>
+              )}
               <div className="flex flex-col items-center gap-1 text-center xl:flex-row xl:gap-3 xl:text-left">
                 {profile?.bio && (
                   <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -419,7 +463,7 @@ export default function UserMetaCard() {
                 fill=""
               />
             </svg>
-            Edit
+            Editar
           </button>
         </div>
       </div>
@@ -427,31 +471,35 @@ export default function UserMetaCard() {
         <div className="no-scrollbar relative w-full max-w-[700px] overflow-y-auto rounded-3xl bg-white p-4 dark:bg-gray-900 lg:p-11">
           <div className="px-2 pr-14">
             <h4 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">
-              Edit Personal Information
+              Editar Información Personal
             </h4>
             <p className="mb-6 text-sm text-gray-500 dark:text-gray-400 lg:mb-7">
-              Update your details to keep your profile up-to-date.
+              Actualiza tus datos para mantener tu perfil al día.
             </p>
           </div>
           <form className="flex flex-col">
             <div className="custom-scrollbar h-[450px] overflow-y-auto px-2 pb-3">
-              {/* Avatar Upload Section */}
+              {/* Avatar / Logo Upload Section */}
               <div className="mb-7">
-                <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">
-                  Profile Photo
+                <h5 className="mb-2 text-lg font-medium text-gray-800 dark:text-white/90">
+                  Logo de la Empresa / Foto de Perfil
                 </h5>
+                <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+                  Sube el logo oficial de tu empresa. Se mostrará en el encabezado, en tu perfil y en los documentos.
+                </p>
                 <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-                  <div className="w-24 h-24 overflow-hidden border-2 border-gray-200 rounded-full dark:border-gray-800">
+                  <div className="w-24 h-24 overflow-hidden border-2 border-gray-200 rounded-full dark:border-gray-800 bg-white dark:bg-gray-800 flex items-center justify-center flex-shrink-0 shadow-sm">
                     <Image
                       width={96}
                       height={96}
-                      src={avatarPreview || profile?.avatar_url || "/images/user/owner.jpg"}
-                      alt="Avatar preview"
-                      className="object-cover w-full h-full"
+                      src={avatarPreview || cardImgSrc}
+                      alt="Logo preview"
+                      className="object-contain w-full h-full p-2"
+                      unoptimized
                     />
                   </div>
                   <div className="flex-1 w-full">
-                    <Label>Upload new photo</Label>
+                    <Label>Subir nuevo logo</Label>
                     <input
                       type="file"
                       accept="image/*"
@@ -460,7 +508,7 @@ export default function UserMetaCard() {
                       disabled={saving || uploading}
                     />
                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      JPG, PNG or GIF. Max size 5MB.
+                      JPG, PNG, WebP o SVG. Tamaño máx. 5MB.
                     </p>
                   </div>
                 </div>
@@ -468,7 +516,7 @@ export default function UserMetaCard() {
 
               <div>
                 <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">
-                  Social Links
+                  Redes Sociales
                 </h5>
 
                 <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
@@ -515,32 +563,32 @@ export default function UserMetaCard() {
               </div>
               <div className="mt-7">
                 <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">
-                  Personal Information
+                  Información Personal
                 </h5>
 
                 <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>First Name</Label>
+                    <Label>Nombre</Label>
                     <Input 
                       type="text" 
                       value={formData.first_name}
                       onChange={(e) => handleInputChange("first_name", e.target.value)}
-                      placeholder="First name"
+                      placeholder="Nombre"
                     />
                   </div>
 
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>Last Name</Label>
+                    <Label>Apellidos</Label>
                     <Input 
                       type="text" 
                       value={formData.last_name}
                       onChange={(e) => handleInputChange("last_name", e.target.value)}
-                      placeholder="Last name"
+                      placeholder="Apellidos"
                     />
                   </div>
 
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>Email Address</Label>
+                    <Label>Correo Electrónico</Label>
                     <Input 
                       type="email" 
                       value={profile?.email || ""}
@@ -550,32 +598,32 @@ export default function UserMetaCard() {
                   </div>
 
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>Phone</Label>
+                    <Label>Teléfono</Label>
                     <Input 
                       type="text" 
                       value={formData.phone}
                       onChange={(e) => handleInputChange("phone", e.target.value)}
-                      placeholder="+1 234 567 890"
+                      placeholder="+34 600 000 000"
                     />
                   </div>
 
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>Bio</Label>
+                    <Label>Bio / Cargo</Label>
                     <Input 
                       type="text" 
                       value={formData.bio}
                       onChange={(e) => handleInputChange("bio", e.target.value)}
-                      placeholder="Team Manager, Developer, etc."
+                      placeholder="Gestor de Residuos, Responsable Ambiental, etc."
                     />
                   </div>
 
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>Location</Label>
+                    <Label>Ubicación</Label>
                     <Input 
                       type="text" 
                       value={formData.location}
                       onChange={(e) => handleInputChange("location", e.target.value)}
-                      placeholder="City, Country"
+                      placeholder="Ciudad, Provincia"
                     />
                   </div>
                 </div>
@@ -586,10 +634,10 @@ export default function UserMetaCard() {
                 <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
               )}
               <Button size="sm" variant="outline" onClick={closeModal} disabled={saving || uploading}>
-                Close
+                Cerrar
               </Button>
               <Button size="sm" onClick={handleSave} disabled={saving || uploading}>
-                {uploading ? "Subiendo foto..." : saving ? "Guardando..." : "Save Changes"}
+                {uploading ? "Subiendo foto..." : saving ? "Guardando..." : "Guardar Cambios"}
               </Button>
             </div>
           </form>

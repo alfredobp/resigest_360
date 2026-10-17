@@ -5,6 +5,7 @@ import React, { useState, useEffect } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { createClient } from "@/lib/supabase/client";
+import { companyService } from "@/services/companyService";
 import { useRouter } from "next/navigation";
 
 interface UserProfile {
@@ -18,12 +19,11 @@ interface UserProfile {
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [companyLogo, setCompanyLogo] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState<string | null>(null);
+  const [imgSrc, setImgSrc] = useState<string>("/images/logo/company-default.svg");
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-
-  useEffect(() => {
-    loadUserProfile();
-  }, []);
 
   const loadUserProfile = async () => {
     try {
@@ -36,18 +36,19 @@ export default function UserDropdown() {
           .from('profiles')
           .select('*')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
+        let avatarUrl = "";
         if (profileData) {
+          avatarUrl = profileData.avatar_url || "";
           setProfile({
             id: user.id,
             email: profileData.email || user.email || "",
             first_name: profileData.first_name || "",
             last_name: profileData.last_name || "",
-            avatar_url: profileData.avatar_url || "",
+            avatar_url: avatarUrl,
           });
         } else {
-          // Fallback to user metadata if profile not found
           setProfile({
             id: user.id,
             email: user.email || "",
@@ -56,6 +57,23 @@ export default function UserDropdown() {
             avatar_url: "",
           });
         }
+
+        // Try getting user company for logo and name
+        try {
+          const comp = await companyService.getUserCompany();
+          if (comp) {
+            const logo = comp.logo_url || null;
+            const name = comp.nombre_comercial || comp.razon_social || null;
+            setCompanyLogo(logo);
+            setCompanyName(name);
+            setImgSrc(logo || avatarUrl || "/images/logo/company-default.svg");
+          } else {
+            setImgSrc(avatarUrl || "/images/logo/company-default.svg");
+          }
+        } catch (compErr) {
+          console.warn("Could not load user company:", compErr);
+          setImgSrc(avatarUrl || "/images/logo/company-default.svg");
+        }
       }
       setLoading(false);
     } catch (err) {
@@ -63,6 +81,19 @@ export default function UserDropdown() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadUserProfile();
+
+    const handleLogoUpdate = () => {
+      loadUserProfile();
+    };
+
+    window.addEventListener("company-logo-updated", handleLogoUpdate);
+    return () => {
+      window.removeEventListener("company-logo-updated", handleLogoUpdate);
+    };
+  }, []);
 
   function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
     e.stopPropagation();
@@ -80,34 +111,37 @@ export default function UserDropdown() {
     router.refresh();
   };
 
-  const displayName = profile?.first_name && profile?.last_name 
+  const displayName = companyName
+    ? companyName
+    : profile?.first_name && profile?.last_name
     ? `${profile.first_name} ${profile.last_name}`
-    : profile?.email?.split('@')[0] || "User";
+    : profile?.email?.split('@')[0] || "Usuario";
 
   return (
     <div className="relative">
       <button
-        onClick={toggleDropdown} 
+        onClick={toggleDropdown}
         className="flex items-center text-gray-700 dark:text-gray-400 dropdown-toggle"
       >
-        <span className="mr-3 overflow-hidden rounded-full h-11 w-11">
+        <span className="mr-3 overflow-hidden rounded-full h-11 w-11 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center justify-center flex-shrink-0 shadow-sm">
           <Image
             width={44}
             height={44}
-            src={profile?.avatar_url || "/images/user/avatar.png"}
-            alt="User avatar"
-            className="object-cover w-full h-full"
+            src={imgSrc}
+            alt={companyName || "Logo de la empresa"}
+            className="object-contain w-full h-full p-1"
+            onError={() => setImgSrc("/images/logo/company-default.svg")}
+            unoptimized
           />
         </span>
 
-        <span className="block mr-1 font-medium text-theme-sm">
-          {loading ? "Loading..." : displayName}
+        <span className="block mr-1 font-medium text-theme-sm truncate max-w-[140px]">
+          {loading ? "Cargando..." : displayName}
         </span>
 
         <svg
-          className={`stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ${
-            isOpen ? "rotate-180" : ""
-          }`}
+          className={`stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""
+            }`}
           width="18"
           height="20"
           viewBox="0 0 18 20"
@@ -161,7 +195,7 @@ export default function UserDropdown() {
                   fill=""
                 />
               </svg>
-              Edit profile
+              Editar perfil
             </DropdownItem>
           </li>
           <li>
@@ -186,14 +220,14 @@ export default function UserDropdown() {
                   fill=""
                 />
               </svg>
-              Account settings
+              Configuración de la cuenta
             </DropdownItem>
           </li>
           <li>
             <DropdownItem
               onItemClick={closeDropdown}
               tag="a"
-              href="/profile"
+              href="/support"
               className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <svg
@@ -211,7 +245,7 @@ export default function UserDropdown() {
                   fill=""
                 />
               </svg>
-              Support
+              Soporte y Manual
             </DropdownItem>
           </li>
         </ul>
@@ -234,7 +268,7 @@ export default function UserDropdown() {
               fill=""
             />
           </svg>
-          Sign out
+          Cerrar sesión
         </button>
       </Dropdown>
     </div>
