@@ -560,12 +560,12 @@ async function getDocumentosIdentificacionByYear(
   if (error) throw error;
   
   const docs = data || [];
-  // Filtrar documentos que tengan estado completado, aceptado, tratado o traslado completado
+  // Filtrar documentos que tengan estado completado, aceptado, tratado o traslado aceptado/cerrado
   return docs.filter(doc => 
     doc.estado === 'completado' ||
     doc.estado === 'aceptado' ||
     doc.estado === 'tratado' ||
-    ['entregado', 'aceptado_en_destino', 'tratado_cerrado'].includes(doc.estado_traslado || '')
+    ['aceptado', 'rechazado_parcial', 'tratado', 'entregado', 'aceptado_en_destino', 'tratado_cerrado'].includes(doc.estado_traslado || '')
   );
 }
 
