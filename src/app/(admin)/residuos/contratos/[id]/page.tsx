@@ -12,7 +12,6 @@ import wasteContractService, { getContractEffectiveStatus, validateContractActiv
 import type { WasteContract } from '@/types/wasteManagement';
 import SignatureModal from '@/components/ui/signature/SignatureModal';
 import { generateContractPDF } from '@/lib/pdfUtils';
-import { CheckCircle2, XCircle, AlertCircle, Building2, MapPin, ShieldCheck } from 'lucide-react';
 
 const STATUS_COLORS = {
   borrador: 'info',
@@ -220,7 +219,7 @@ export default function ContractDetailPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${activation.checklist.hasProducer ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-800 dark:text-red-300'}`}>
-                    {activation.checklist.hasProducer ? <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" /> : <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />}
+                    <span className="font-bold text-sm shrink-0">{activation.checklist.hasProducer ? '✓' : '✕'}</span>
                     <div className="text-xs">
                       <p className="font-semibold">Empresa Productora</p>
                       <p className="opacity-80">{activation.checklist.hasProducer ? (contract.company?.razon_social || 'Asignada') : 'Falta productor'}</p>
@@ -228,7 +227,7 @@ export default function ContractDetailPage() {
                   </div>
 
                   <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${activation.checklist.hasGestor ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-800 dark:text-red-300'}`}>
-                    {activation.checklist.hasGestor ? <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" /> : <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />}
+                    <span className="font-bold text-sm shrink-0">{activation.checklist.hasGestor ? '✓' : '✕'}</span>
                     <div className="text-xs">
                       <p className="font-semibold">Gestor de Tratamiento</p>
                       <p className="opacity-80">{activation.checklist.hasGestor ? (contract.treatment_manager?.razon_social || contract.gestor_company?.razon_social || 'Asignado') : 'Falta gestor'}</p>
@@ -236,7 +235,7 @@ export default function ContractDetailPage() {
                   </div>
 
                   <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${activation.checklist.hasValidDates ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-800 dark:text-red-300'}`}>
-                    {activation.checklist.hasValidDates ? <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" /> : <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />}
+                    <span className="font-bold text-sm shrink-0">{activation.checklist.hasValidDates ? '✓' : '✕'}</span>
                     <div className="text-xs">
                       <p className="font-semibold">Fechas de Vigencia</p>
                       <p className="opacity-80">{activation.checklist.hasValidDates ? 'Inicio y fin especificados' : 'Faltan fechas'}</p>
@@ -244,7 +243,7 @@ export default function ContractDetailPage() {
                   </div>
 
                   <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${activation.checklist.isNotExpired ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-800 dark:text-red-300'}`}>
-                    {activation.checklist.isNotExpired ? <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" /> : <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />}
+                    <span className="font-bold text-sm shrink-0">{activation.checklist.isNotExpired ? '✓' : '✕'}</span>
                     <div className="text-xs">
                       <p className="font-semibold">Vigencia Temporal</p>
                       <p className="opacity-80">{activation.checklist.isNotExpired ? 'No caducado' : 'Fecha fin superada'}</p>
@@ -252,7 +251,7 @@ export default function ContractDetailPage() {
                   </div>
 
                   <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${activation.checklist.hasWasteCodes ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-800 dark:text-red-300'}`}>
-                    {activation.checklist.hasWasteCodes ? <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" /> : <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />}
+                    <span className="font-bold text-sm shrink-0">{activation.checklist.hasWasteCodes ? '✓' : '✕'}</span>
                     <div className="text-xs">
                       <p className="font-semibold">Códigos LER Incluidos</p>
                       <p className="opacity-80">{activation.checklist.hasWasteCodes ? `${(contract.contract_waste_codes?.length || contract.codigos_ler?.length || 0)} residuo(s)` : 'Ningún LER'}</p>
@@ -260,7 +259,7 @@ export default function ContractDetailPage() {
                   </div>
 
                   <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${activation.checklist.hasOperations ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-800 dark:text-red-300'}`}>
-                    {activation.checklist.hasOperations ? <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" /> : <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />}
+                    <span className="font-bold text-sm shrink-0">{activation.checklist.hasOperations ? '✓' : '✕'}</span>
                     <div className="text-xs">
                       <p className="font-semibold">Operación R/D Definida</p>
                       <p className="opacity-80">{activation.checklist.hasOperations ? 'Operación autorizada' : 'Falta operación R/D'}</p>
@@ -270,7 +269,6 @@ export default function ContractDetailPage() {
 
                 {!activation.valid && (
                   <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>Para activar el contrato haga clic en <strong>Editar Contrato</strong> y complete los datos requeridos.</span>
                   </div>
                 )}
@@ -323,8 +321,7 @@ export default function ContractDetailPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Productor */}
             <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30 space-y-3">
-              <div className="flex items-center gap-2 text-foreground font-semibold">
-                <Building2 className="w-4 h-4 text-primary" />
+              <div className="text-foreground font-semibold">
                 <h4>Productor</h4>
               </div>
               {contract.company ? (
@@ -350,8 +347,7 @@ export default function ContractDetailPage() {
 
               {/* Centro de Producción de Origen */}
               <div className="pt-3 border-t border-gray-200 dark:border-gray-800">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-primary" />
+                <div className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
                   <span>Centro de Producción de Origen</span>
                 </div>
                 {contract.producer_center ? (
@@ -372,8 +368,7 @@ export default function ContractDetailPage() {
 
             {/* Gestor */}
             <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30 space-y-3">
-              <div className="flex items-center gap-2 text-foreground font-semibold">
-                <Building2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <div className="text-foreground font-semibold">
                 <h4>Gestor de Tratamiento</h4>
               </div>
               {contract.treatment_manager ? (
@@ -422,8 +417,7 @@ export default function ContractDetailPage() {
 
               {/* Instalación de Destino */}
               <div className="pt-3 border-t border-gray-200 dark:border-gray-800">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <div className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
                   <span>Instalación de Tratamiento (Destino)</span>
                 </div>
                 {contract.gestor_center ? (

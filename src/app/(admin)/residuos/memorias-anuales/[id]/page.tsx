@@ -17,21 +17,6 @@ import Alert from '@/components/ui/alert/Alert';
 import { toast } from '@/context/ToastContext';
 import Badge from '@/components/ui/badge/Badge';
 import Button from '@/components/ui/button/Button';
-import {
-  ArrowLeft,
-  FileText,
-  Download,
-  CheckCircle,
-  AlertCircle,
-  Clock,
-  Archive,
-  FileCheck,
-  Trash2,
-  Edit,
-  Send,
-  Eye,
-  BarChart3,
-} from 'lucide-react';
 
 export default function DetalleMemoriaPage() {
   const router = useRouter();
@@ -162,20 +147,18 @@ export default function DetalleMemoriaPage() {
   };
 
   const getEstadoBadge = (estado: EstadoMemoria) => {
-    const configs: Record<EstadoMemoria, any> = {
-      borrador: { color: 'light' as const, icon: Clock, label: 'Borrador' },
-      revision: { color: 'warning' as const, icon: AlertCircle, label: 'En Revisión' },
-      completada: { color: 'primary' as const, icon: CheckCircle, label: 'Completada' },
-      presentada: { color: 'success' as const, icon: FileCheck, label: 'Presentada' },
-      archivada: { color: 'dark' as const, icon: Archive, label: 'Archivada' },
+    const configs: Record<EstadoMemoria, { color: 'light' | 'warning' | 'primary' | 'success' | 'dark'; label: string }> = {
+      borrador: { color: 'light', label: 'Borrador' },
+      revision: { color: 'warning', label: 'En Revisión' },
+      completada: { color: 'primary', label: 'Completada' },
+      presentada: { color: 'success', label: 'Presentada' },
+      archivada: { color: 'dark', label: 'Archivada' },
     };
 
-    const config = configs[estado];
-    const Icon = config.icon;
+    const config = configs[estado] || { color: 'light', label: estado };
 
     return (
       <Badge variant="light" color={config.color}>
-        <Icon className="h-3 w-3" />
         {config.label}
       </Badge>
     );
@@ -219,7 +202,6 @@ export default function DetalleMemoriaPage() {
           message="No se encontró la memoria anual"
         />
         <Button onClick={() => router.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
           Volver
         </Button>
       </div>
@@ -236,7 +218,7 @@ export default function DetalleMemoriaPage() {
             size="sm"
             onClick={() => router.back()}
           >
-            <ArrowLeft className="h-4 w-4" />
+            Volver
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{memoria.numero_memoria}</h1>
@@ -268,42 +250,30 @@ export default function DetalleMemoriaPage() {
       {/* Resumen */}
       <div className="grid gap-4 md:grid-cols-4">
         <ComponentCard title="Movimientos">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Movimientos</p>
-              <p className="text-2xl font-bold">{memoria.total_movimientos}</p>
-            </div>
-            <FileText className="h-8 w-8 text-muted-foreground" />
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">Movimientos</p>
+            <p className="text-2xl font-bold">{memoria.total_movimientos}</p>
           </div>
         </ComponentCard>
 
         <ComponentCard title="Toneladas">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Toneladas</p>
-              <p className="text-2xl font-bold">{memoria.total_toneladas.toFixed(2)}</p>
-            </div>
-            <BarChart3 className="h-8 w-8 text-purple-500" />
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">Toneladas</p>
+            <p className="text-2xl font-bold">{memoria.total_toneladas.toFixed(2)}</p>
           </div>
         </ComponentCard>
 
         <ComponentCard title="Códigos LER">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Códigos LER</p>
-              <p className="text-2xl font-bold">{memoria.resumen_ler?.length || 0}</p>
-            </div>
-            <FileCheck className="h-8 w-8 text-blue-500" />
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">Códigos LER</p>
+            <p className="text-2xl font-bold">{memoria.resumen_ler?.length || 0}</p>
           </div>
         </ComponentCard>
 
         <ComponentCard title="Año">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Año</p>
-              <p className="text-2xl font-bold">{memoria.año}</p>
-            </div>
-            <Clock className="h-8 w-8 text-green-500" />
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">Año</p>
+            <p className="text-2xl font-bold">{memoria.año}</p>
           </div>
         </ComponentCard>
       </div>
@@ -411,10 +381,7 @@ export default function DetalleMemoriaPage() {
                     Generando...
                   </>
                 ) : (
-                  <>
-                    <Download className="mr-2 h-4 w-4 text-emerald-600" />
-                    Descargar Excel (.xls)
-                  </>
+                  'Descargar Excel (.xls)'
                 )}
               </Button>
 
@@ -425,17 +392,15 @@ export default function DetalleMemoriaPage() {
                 onClick={handleExportCSV}
                 disabled={processingExcel}
               >
-                <Download className="mr-2 h-4 w-4 text-blue-600" />
                 Exportar CSV (.csv)
               </Button>
 
               {/* Descargar PDF */}
               <Button
-                className="w-full justify-start text-purple-700 hover:text-purple-800 hover:bg-purple-50 dark:text-purple-400"
+                className="w-full justify-start text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400"
                 variant="outline"
                 onClick={handleDownloadPDF}
               >
-                <FileText className="mr-2 h-4 w-4 text-purple-600" />
                 Descargar PDF Oficial
               </Button>
 
@@ -446,7 +411,6 @@ export default function DetalleMemoriaPage() {
                   variant="outline"
                   onClick={() => handleChangeEstado('revision')}
                 >
-                  <Send className="mr-2 h-4 w-4" />
                   Enviar a Revisión
                 </Button>
               )}
@@ -458,7 +422,6 @@ export default function DetalleMemoriaPage() {
                     variant="outline"
                     onClick={() => handleChangeEstado('completada')}
                   >
-                    <CheckCircle className="mr-2 h-4 w-4" />
                     Marcar como Completada
                   </Button>
                   <Button
@@ -466,7 +429,6 @@ export default function DetalleMemoriaPage() {
                     variant="outline"
                     onClick={() => handleChangeEstado('borrador')}
                   >
-                    <Edit className="mr-2 h-4 w-4" />
                     Volver a Borrador
                   </Button>
                 </>
@@ -478,7 +440,6 @@ export default function DetalleMemoriaPage() {
                   variant="outline"
                   onClick={() => handleChangeEstado('presentada')}
                 >
-                  <FileCheck className="mr-2 h-4 w-4" />
                   Marcar como Presentada
                 </Button>
               )}
@@ -489,7 +450,6 @@ export default function DetalleMemoriaPage() {
                   variant="outline"
                   onClick={() => handleChangeEstado('archivada')}
                 >
-                  <Archive className="mr-2 h-4 w-4" />
                   Archivar
                 </Button>
               )}
@@ -500,7 +460,6 @@ export default function DetalleMemoriaPage() {
                 variant="outline"
                 onClick={() => router.push('/residuos/documentos-identificacion')}
               >
-                <Eye className="mr-2 h-4 w-4" />
                 Ver Documentos de Identificación
               </Button>
 
@@ -511,7 +470,6 @@ export default function DetalleMemoriaPage() {
                   variant="outline"
                   onClick={handleDelete}
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
                   Eliminar Memoria
                 </Button>
               )}

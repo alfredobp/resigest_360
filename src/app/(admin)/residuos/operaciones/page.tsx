@@ -16,26 +16,6 @@ import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import { toast } from '@/context/ToastContext';
-import {
-  Briefcase,
-  Plus,
-  Search,
-  Filter,
-  Download,
-  DollarSign,
-  TrendingUp,
-  TrendingDown,
-  Truck,
-  ArrowRight,
-  ExternalLink,
-  Scale,
-  Calendar,
-  CheckCircle,
-  Clock,
-  Trash2,
-  Eye,
-  FileSpreadsheet
-} from 'lucide-react';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -274,9 +254,8 @@ export default function OperacionesComercialesPage() {
                 placeholder="Nº Operación, LER, Cliente, Proveedor..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 pl-8 pr-2.5 py-2"
+                className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2"
               />
-              <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-gray-400" />
             </div>
           </div>
         </form>
@@ -291,7 +270,6 @@ export default function OperacionesComercialesPage() {
           </div>
         ) : operations.length === 0 ? (
           <div className="p-12 text-center space-y-3">
-            <Briefcase className="h-10 w-10 text-gray-400 mx-auto" />
             <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">
               No hay operaciones registradas con los filtros seleccionados
             </h3>
@@ -300,7 +278,6 @@ export default function OperacionesComercialesPage() {
             </p>
             <div className="pt-2">
               <Button size="sm" onClick={() => router.push('/residuos/operaciones/nueva')}>
-                <Plus className="h-4 w-4 mr-1" />
                 Nueva Operación
               </Button>
             </div>
@@ -375,7 +352,7 @@ export default function OperacionesComercialesPage() {
                           <span className="text-red-700 dark:text-red-400 truncate max-w-[100px]" title={op.proveedor_razon_social || op.proveedor_comercial?.razon_social || 'Proveedor'}>
                             {op.proveedor_razon_social || op.proveedor_comercial?.razon_social || 'Proveedor'}
                           </span>
-                          <ArrowRight className="h-3 w-3 text-gray-400 shrink-0" />
+                          <span className="text-gray-400 shrink-0">→</span>
                           <span className="text-emerald-700 dark:text-emerald-400 font-semibold truncate max-w-[100px]" title={op.cliente_razon_social || op.cliente_comercial?.razon_social || 'Cliente'}>
                             {op.cliente_razon_social || op.cliente_comercial?.razon_social || 'Cliente'}
                           </span>
@@ -407,10 +384,9 @@ export default function OperacionesComercialesPage() {
                         {op.identification_document_id ? (
                           <Link
                             href={`/residuos/documentos-identificacion/${op.identification_document_id}`}
-                            className="inline-flex items-center gap-1 text-primary hover:underline font-mono text-[11px]"
+                            className="text-brand-600 dark:text-brand-400 hover:underline font-mono text-[11px]"
                           >
-                            DI #{op.identification_document_id}
-                            <ExternalLink className="h-3 w-3" />
+                            DI #{op.identification_document_id} →
                           </Link>
                         ) : (
                           <span className="text-gray-400 text-[11px]">Sin DI vinculado</span>
@@ -419,20 +395,18 @@ export default function OperacionesComercialesPage() {
 
                       {/* Acciones */}
                       <td className="py-3 px-3 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1">
+                        <div className="flex items-center justify-center gap-2">
                           <Link
                             href={`/residuos/operaciones/${op.id}`}
-                            className="p-1 text-gray-400 hover:text-primary transition-colors"
-                            title="Ver detalle de liquidación"
+                            className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium"
                           >
-                            <Eye className="h-4 w-4" />
+                            Ver
                           </Link>
                           <button
                             onClick={() => handleDelete(op.id)}
-                            className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                            title="Eliminar operación"
+                            className="text-xs text-red-600 hover:underline font-medium"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            Eliminar
                           </button>
                         </div>
                       </td>

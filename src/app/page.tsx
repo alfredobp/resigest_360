@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useId } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import Logo from '@/components/common/Logo';
 import { useTheme } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
@@ -40,9 +42,24 @@ import {
 } from 'lucide-react';
 
 export default function LandingPage() {
+  const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const { showToast } = useToast();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Redirigir a /app inmediatamente si el usuario ya tiene sesión iniciada
+  useEffect(() => {
+    try {
+      const supabase = createClient();
+      supabase.auth.getUser().then(({ data }) => {
+        if (data?.user) {
+          router.replace('/app');
+        }
+      });
+    } catch (e) {
+      // Ignorar en entornos sin supabase configurado
+    }
+  }, [router]);
 
   // ROI Calculator state
   const [monthlyTransfers, setMonthlyTransfers] = useState<number>(45);

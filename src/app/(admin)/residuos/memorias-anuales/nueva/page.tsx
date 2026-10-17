@@ -9,7 +9,6 @@ import { Company, TipoMemoria, ProductionCenter } from '@/types/wasteManagement'
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
 import Button from '@/components/ui/button/Button';
-import { AlertCircle, ArrowLeft, Save, FileText } from 'lucide-react';
 
 export default function NuevaMemoriaPage() {
   const router = useRouter();
@@ -143,7 +142,7 @@ export default function NuevaMemoriaPage() {
             size="sm"
             onClick={() => router.back()}
           >
-            <ArrowLeft className="h-4 w-4" />
+            Volver
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Nueva Memoria Anual</h1>
@@ -323,10 +322,7 @@ export default function NuevaMemoriaPage() {
                     Generando...
                   </>
                 ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Generar Memoria
-                  </>
+                  'Generar Memoria'
                 )}
               </Button>
             </div>

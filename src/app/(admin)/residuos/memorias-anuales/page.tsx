@@ -316,14 +316,12 @@ export default function MemoriasAnualesPage() {
       <ComponentCard title="Listado de Memorias Anuales">
         {filteredMemorias.length === 0 ? (
           <div className="text-center py-12">
-            <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-            <h3 className="mt-2 text-sm font-semibold">No hay memorias anuales</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <h3 className="text-base font-semibold text-gray-800 dark:text-white">No hay memorias anuales</h3>
+            <p className="mt-1 text-sm text-gray-500">
               Comienza creando una nueva memoria anual
             </p>
             <div className="mt-6">
               <Button onClick={() => router.push('/residuos/memorias-anuales/nueva')}>
-                <Plus className="mr-2 h-4 w-4" />
                 Nueva Memoria
               </Button>
             </div>
@@ -390,13 +388,14 @@ export default function MemoriasAnualesPage() {
                       {getEstadoBadge(memoria.estado)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1.5">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => router.push(`/residuos/memorias-anuales/${memoria.id}`)}
+                          className="text-xs px-2.5 py-1"
                         >
-                          <Eye className="h-4 w-4" />
+                          Ver
                         </Button>
 
                         {memoria.archivo_excel_url && (
@@ -404,8 +403,9 @@ export default function MemoriasAnualesPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => window.open(memoria.archivo_excel_url, '_blank')}
+                            className="text-xs px-2.5 py-1 text-emerald-700 dark:text-emerald-400"
                           >
-                            <Download className="h-4 w-4" />
+                            Excel
                           </Button>
                         )}
 
@@ -414,8 +414,9 @@ export default function MemoriasAnualesPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleDelete(memoria.id)}
+                            className="text-xs px-2.5 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                           >
-                            <Trash2 className="h-4 w-4 text-red-500" />
+                            Eliminar
                           </Button>
                         )}
                       </div>

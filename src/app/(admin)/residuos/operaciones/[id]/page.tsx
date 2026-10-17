@@ -14,23 +14,6 @@ import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import { toast } from '@/context/ToastContext';
-import {
-  ArrowLeft,
-  Download,
-  DollarSign,
-  TrendingUp,
-  TrendingDown,
-  Truck,
-  CheckCircle,
-  Clock,
-  Trash2,
-  ExternalLink,
-  ShieldCheck,
-  Building2,
-  Calendar,
-  Layers,
-  FileText
-} from 'lucide-react';
 
 const ESTADO_CONFIG: Record<EstadoOperacionComercial, { label: string; color: 'light' | 'info' | 'warning' | 'success' | 'error' | 'primary' }> = {
   borrador: { label: 'Borrador', color: 'light' },
@@ -165,7 +148,6 @@ export default function DetalleOperacionComercialPage() {
       <div className="space-y-4">
         <Alert variant="error" title="No encontrada" message="La operación no existe o no tiene permisos para verla." />
         <Button onClick={() => router.push('/residuos/operaciones')}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
           Volver a Operaciones
         </Button>
       </div>
@@ -182,7 +164,7 @@ export default function DetalleOperacionComercialPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={() => router.push('/residuos/operaciones')}>
-            <ArrowLeft className="h-4 w-4" />
+            Volver
           </Button>
           <div>
             <div className="flex items-center gap-3">
@@ -206,9 +188,8 @@ export default function DetalleOperacionComercialPage() {
             size="sm"
             onClick={handleDownloadPDF}
             disabled={downloadingPDF}
-            className="text-purple-700 hover:text-purple-800 hover:bg-purple-50 dark:text-purple-400"
+            className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400"
           >
-            <Download className="h-4 w-4 mr-1 text-purple-600" />
             {downloadingPDF ? 'Generando PDF...' : 'Liquidación PDF'}
           </Button>
 
@@ -238,7 +219,6 @@ export default function DetalleOperacionComercialPage() {
               onClick={() => handleChangeEstado('liquidada')}
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              <CheckCircle className="h-4 w-4 mr-1" />
               Liquidar Operación
             </Button>
           )}
@@ -249,7 +229,7 @@ export default function DetalleOperacionComercialPage() {
             onClick={handleDelete}
             className="text-red-600 hover:bg-red-50 hover:text-red-700"
           >
-            <Trash2 className="h-4 w-4" />
+            Eliminar
           </Button>
         </div>
       </div>
@@ -382,8 +362,7 @@ export default function DetalleOperacionComercialPage() {
                       href={`/residuos/documentos-identificacion/${operation.identification_document_id}`}
                       className="inline-flex items-center gap-1.5 text-primary font-mono font-semibold hover:underline"
                     >
-                      DI #{operation.identification_document_id} {operation.numero_albaran_gestor ? `(Albarán: ${operation.numero_albaran_gestor})` : ''}
-                      <ExternalLink className="h-3.5 w-3.5" />
+                      DI #{operation.identification_document_id} {operation.numero_albaran_gestor ? `(Albarán: ${operation.numero_albaran_gestor})` : ''} ↗
                     </Link>
                   </div>
                 ) : (

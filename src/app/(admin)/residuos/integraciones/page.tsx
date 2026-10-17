@@ -19,26 +19,6 @@ import {
   AuditLogEntry,
   Company
 } from '@/types/wasteManagement';
-import {
-  Send,
-  RefreshCw,
-  FileDown,
-  Code2,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  ShieldCheck,
-  FileText,
-  CreditCard,
-  Layers,
-  Search,
-  ExternalLink,
-  Cpu,
-  Clock,
-  History,
-  Check,
-  Building2
-} from 'lucide-react';
 
 export default function IntegracionesAuditoriaPage() {
   const [activeTab, setActiveTab] = useState<'sira' | 'holded' | 'auditoria'>('sira');
@@ -174,9 +154,6 @@ export default function IntegracionesAuditoriaPage() {
                 )}
               </div>
             </div>
-            <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-primary">
-              <Cpu className="w-6 h-6" />
-            </div>
           </div>
 
           {/* KPI 2: Holded ERP */}
@@ -196,9 +173,6 @@ export default function IntegracionesAuditoriaPage() {
                 {holdedContactsCount !== null ? `${holdedContactsCount} contactos sincronizados` : 'Sincronización de facturación automática'}
               </p>
             </div>
-            <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600">
-              <CreditCard className="w-6 h-6" />
-            </div>
           </div>
 
           {/* KPI 3: Auditoría Legal */}
@@ -209,9 +183,6 @@ export default function IntegracionesAuditoriaPage() {
                 {auditLogs.length} <span className="text-sm font-normal text-muted">eventos</span>
               </p>
               <p className="text-[11px] text-muted pt-1">Trazabilidad inmutable de traslados y contratos</p>
-            </div>
-            <div className="p-3.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600">
-              <ShieldCheck className="w-6 h-6" />
             </div>
           </div>
         </div>
@@ -226,7 +197,6 @@ export default function IntegracionesAuditoriaPage() {
                 : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
-            <Cpu className="w-4 h-4" />
             <span>Cola Telemática SIRA / e3l</span>
             {failedSubmissions > 0 && (
               <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 font-bold">
@@ -243,7 +213,6 @@ export default function IntegracionesAuditoriaPage() {
                 : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
-            <CreditCard className="w-4 h-4" />
             <span>Conector ERP Holded</span>
           </button>
 
@@ -255,7 +224,6 @@ export default function IntegracionesAuditoriaPage() {
                 : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
-            <History className="w-4 h-4" />
             <span>Pista de Auditoría Legal</span>
           </button>
         </div>
@@ -290,10 +258,8 @@ export default function IntegracionesAuditoriaPage() {
                   variant="outline"
                   onClick={() => loadAllData()}
                   disabled={loading}
-                  className="flex items-center gap-1.5"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                  <span>Actualizar Cola</span>
+                  <span>{loading ? 'Actualizando...' : 'Actualizar Cola'}</span>
                 </Button>
               </div>
 
@@ -452,8 +418,7 @@ export default function IntegracionesAuditoriaPage() {
               {/* Guía Operativa de Enlace Holded */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-2">
-                  <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold text-sm">
-                    <CreditCard className="w-4 h-4" />
+                  <div className="text-emerald-800 dark:text-emerald-300 font-bold text-sm">
                     <span>Facturación desde Operaciones Comerciales</span>
                   </div>
                   <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
@@ -462,14 +427,13 @@ export default function IntegracionesAuditoriaPage() {
                   </p>
                   <div className="pt-2">
                     <Link href="/residuos/operaciones" className="text-emerald-700 dark:text-emerald-400 font-bold text-xs hover:underline inline-flex items-center gap-1">
-                      Ir a Operaciones Comerciales <ExternalLink className="w-3 h-3" />
+                      Ir a Operaciones Comerciales →
                     </Link>
                   </div>
                 </div>
 
                 <div className="p-4 rounded-xl border border-blue-100 dark:border-blue-900/40 bg-blue-50/40 dark:bg-blue-950/20 space-y-2">
-                  <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300 font-bold text-sm">
-                    <Building2 className="w-4 h-4" />
+                  <div className="text-blue-800 dark:text-blue-300 font-bold text-sm">
                     <span>Sincronización de Contactos y Gestores</span>
                   </div>
                   <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
@@ -477,7 +441,7 @@ export default function IntegracionesAuditoriaPage() {
                   </p>
                   <div className="pt-2">
                     <Link href="/residuos/empresas" className="text-blue-700 dark:text-blue-400 font-bold text-xs hover:underline inline-flex items-center gap-1">
-                      Gestionar Directorio de Empresas <ExternalLink className="w-3 h-3" />
+                      Gestionar Directorio de Empresas →
                     </Link>
                   </div>
                 </div>
@@ -513,9 +477,7 @@ export default function IntegracionesAuditoriaPage() {
                   variant="outline"
                   onClick={() => auditService.exportLogsToCSV(auditLogs)}
                   disabled={auditLogs.length === 0}
-                  className="flex items-center gap-1.5"
                 >
-                  <FileDown className="w-3.5 h-3.5" />
                   <span>Exportar Auditoría (CSV Oficial)</span>
                 </Button>
               </div>
@@ -589,18 +551,13 @@ export default function IntegracionesAuditoriaPage() {
       <Modal isOpen={isXmlModalOpen} onClose={() => setIsXmlModalOpen(false)} className="max-w-3xl p-6">
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b pb-3 border-gray-200 dark:border-gray-800">
-            <div className="flex items-center gap-2">
-              <Code2 className="w-5 h-5 text-primary" />
-              <h3 className="text-lg font-bold text-foreground">Payload SOAP / XML e3l (SIRA)</h3>
-            </div>
+            <h3 className="text-lg font-bold text-foreground">Payload SOAP / XML e3l (SIRA)</h3>
             {selectedXml && (
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => siraService.downloadXmlFile(selectedXml, `sira_telematics_${Date.now()}.xml`)}
-                className="flex items-center gap-1.5"
               >
-                <FileDown className="w-3.5 h-3.5" />
                 <span>Descargar XML</span>
               </Button>
             )}
@@ -622,8 +579,7 @@ export default function IntegracionesAuditoriaPage() {
       <Modal isOpen={!!selectedAuditDetail} onClose={() => setSelectedAuditDetail(null)} className="max-w-lg p-6">
         {selectedAuditDetail && (
           <div className="space-y-4">
-            <div className="flex items-center gap-2 border-b pb-3 border-gray-200 dark:border-gray-800">
-              <History className="w-5 h-5 text-primary" />
+            <div className="border-b pb-3 border-gray-200 dark:border-gray-800">
               <h3 className="text-lg font-bold text-foreground">
                 Evento de Auditoría #{selectedAuditDetail.id}
               </h3>

@@ -1,31 +1,32 @@
 -- ==============================================================================
--- RESIGEST 360 - SEED DATA: PERFIL DE PRUEBA Y DEMOSTRACIÓN COMPLETO
+-- RESIGEST 360 - SEED DATA: PERFIL DE DEMOSTRACIÓN INTEGRAL Y COMPLETO
 -- ==============================================================================
--- Este script crea o actualiza un perfil de prueba ("demo@resigest.com") con un
--- ecosistema exhaustivo de datos para demostración y evaluación de la plataforma:
+-- Este script crea o actualiza un perfil de prueba ("demo@resigest.com") poblando
+-- TODAS las entidades del sistema con un ecosistema de datos exhaustivo:
 --
--- 1. Usuario y Perfil (auth.users + public.profiles):
---    - Email: demo@resigest.com
---    - Contraseña: DemoResigest2026!
---    - Nombre: Demo Resigest 360
--- 2. Empresa Principal ("is_my_company = true"):
---    - EcoGestión y Soluciones Ambientales 360, S.L. (Productor / Gestor / Transportista)
--- 3. Centros de Producción (3 instalaciones operativas)
--- 4. Transportistas Autorizados (4 empresas de logística ambiental con matrículas y NIMA)
--- 5. Gestores de Tratamiento Autorizados (4 gestores finales con códigos R/D y autorizaciones)
--- 6. Contratos de Tratamiento (RD 553/2020) con gestores
--- 7. Documentos de Identificación - DIs (12 DIs con residuos peligrosos y no peligrosos)
--- 8. Archivo Cronológico (Art. 64 Ley 7/2022) con 22 asientos correlativos y códigos HP
--- 9. Autorizaciones Ambientales (AAI, Productor, Transportista, Almacenamiento)
--- 10. Memorias Anuales (2025 presentada con SIRA + 2026 en curso) con desglose de líneas
+--  1. Usuario y Perfil (auth.users + public.profiles)
+--  2. Empresa Principal con credenciales SIRA/Holded (public.companies)
+--  3. Catálogo de Empresas Colaboradoras (Productores, Negociantes, Agentes)
+--  4. Centros de Producción (3 instalaciones operativas)
+--  5. Transportistas Registrados (public.carriers)
+--  6. Gestores de Tratamiento (public.treatment_managers)
+--  7. Contratos de Tratamiento según RD 553/2020 (public.waste_contracts)
+--  8. Documentos de Identificación - DIs (public.identification_documents - 14 DIs)
+--  9. Archivo Cronológico Digital - Art. 64 Ley 7/2022 (26 asientos con códigos HP)
+-- 10. Operaciones Comerciales de Negociación y Márgenes (public.commercial_operations)
+-- 11. Envíos Telemáticos e Integración con Plataforma SIRA (public.sira_submissions)
+-- 12. Pista de Auditoría y Logs de Trazabilidad Inmutable (public.audit_logs)
+-- 13. Autorizaciones Ambientales (public.environmental_authorizations)
+-- 14. Memorias Anuales de Residuos 2025 y 2026 (public.annual_reports + lines)
+-- 15. Proyecto Cartográfico y Geodatos GIS (projects, map_collections, spatial_data)
 --
 -- INSTRUCCIONES DE EJECUCIÓN:
--- 1. Accede al Dashboard de Supabase -> SQL Editor:
---    https://supabase.com/dashboard/project/wdjwlzsvgvnrveycebhk/sql
--- 2. Pega y ejecuta este script completo.
--- 3. Inicia sesión en la plataforma con:
---    - Correo: demo@resigest.com
---    - Contraseña: DemoResigest2026!
+-- 1. Accede a Supabase SQL Editor:
+--    https://supabase.com/dashboard/project/wdjwlzsvgvnrveycebhk/sql/new
+-- 2. Copia y ejecuta este script completo.
+-- 3. Accede en http://localhost:3000/signin con:
+--    Email: demo@resigest.com
+--    Password: DemoResigest2026!
 -- ==============================================================================
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -34,39 +35,66 @@ DO $$
 DECLARE
     v_user_id UUID;
     v_company_id BIGINT;
+    
+    -- Empresas colaboradoras externas
+    v_comp_automocion_id BIGINT;
+    v_comp_quimica_id BIGINT;
+    v_comp_construc_id BIGINT;
+    v_comp_broker_id BIGINT;
+    v_comp_agente_id BIGINT;
+    
+    -- Gestores registrados en companies
+    v_comp_gestor_ibericas_id BIGINT;
+    v_comp_gestor_jarama_id BIGINT;
+    v_comp_gestor_reciclajes_id BIGINT;
+    v_comp_gestor_tajo_id BIGINT;
+    
+    -- Transportistas registrados en companies
+    v_comp_trans_logistica_id BIGINT;
+    v_comp_trans_adr_id BIGINT;
+    v_comp_trans_express_id BIGINT;
+    v_comp_trans_norte_id BIGINT;
+    
+    -- Centros de producción
     v_center_central_id BIGINT;
     v_center_sur_id BIGINT;
     v_center_corredor_id BIGINT;
     
-    -- IDs de Gestores
+    -- Gestores de tratamiento
     v_gestor_ibericas_id BIGINT;
     v_gestor_jarama_id BIGINT;
     v_gestor_reciclajes_id BIGINT;
     v_gestor_tajo_id BIGINT;
     
-    -- IDs de Transportistas
+    -- Transportistas
     v_trans_logistica_id BIGINT;
     v_trans_adr_id BIGINT;
     v_trans_express_id BIGINT;
     v_trans_norte_id BIGINT;
     
-    -- IDs de Contratos
+    -- Contratos
     v_contract_aceites_id BIGINT;
     v_contract_disolventes_id BIGINT;
     v_contract_metales_id BIGINT;
     v_contract_organicos_id BIGINT;
     
-    -- IDs de Documentos de Identificación
+    -- Documentos de Identificación
     v_di_1 BIGINT; v_di_2 BIGINT; v_di_3 BIGINT; v_di_4 BIGINT;
     v_di_5 BIGINT; v_di_6 BIGINT; v_di_7 BIGINT; v_di_8 BIGINT;
     v_di_9 BIGINT; v_di_10 BIGINT; v_di_11 BIGINT; v_di_12 BIGINT;
+    v_di_13 BIGINT; v_di_14 BIGINT;
     
-    -- ID Memoria Anual
+    -- Memorias Anuales
     v_report_2025_id BIGINT;
     v_report_2026_id BIGINT;
+    
+    -- GIS / Proyectos
+    v_project_id BIGINT;
+    v_collection_centros_id BIGINT;
+    v_collection_gestores_id BIGINT;
 BEGIN
     -- ==========================================================================
-    -- 1. CREACIÓN O CONFIRMACIÓN DEL USUARIO DEMO EN AUTH.USERS
+    -- 1. CREACIÓN O ACTUALIZACIÓN DEL USUARIO DEMO EN AUTH.USERS
     -- ==========================================================================
     SELECT id INTO v_user_id FROM auth.users WHERE email = 'demo@resigest.com' LIMIT 1;
     
@@ -78,7 +106,6 @@ BEGIN
             email,
             encrypted_password,
             email_confirmed_at,
-            confirmed_at,
             role,
             aud,
             raw_app_meta_data,
@@ -91,7 +118,6 @@ BEGIN
             'demo@resigest.com',
             crypt('DemoResigest2026!', gen_salt('bf')),
             NOW(),
-            NOW(),
             'authenticated',
             'authenticated',
             '{"provider":"email","providers":["email"]}'::jsonb,
@@ -103,7 +129,6 @@ BEGIN
         UPDATE auth.users
         SET encrypted_password = crypt('DemoResigest2026!', gen_salt('bf')),
             email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
-            confirmed_at = COALESCE(confirmed_at, NOW()),
             role = 'authenticated',
             aud = 'authenticated',
             raw_user_meta_data = '{"first_name":"Demo","last_name":"Resigest 360","company_name":"EcoGestión y Soluciones Ambientales 360, S.L."}'::jsonb,
@@ -115,21 +140,13 @@ BEGIN
     -- 2. PERFIL DE USUARIO (public.profiles)
     -- ==========================================================================
     INSERT INTO public.profiles (
-        id,
-        email,
-        first_name,
-        last_name,
-        bio,
-        phone,
-        location,
-        created_at,
-        updated_at
+        id, email, first_name, last_name, bio, phone, location, created_at, updated_at
     ) VALUES (
         v_user_id,
         'demo@resigest.com',
         'Demo',
         'Resigest 360',
-        'Perfil corporativo de demostración oficial con catálogo integral de residuos peligrosos y no peligrosos, trazabilidad completa documental según RD 553/2020 y Archivo Cronológico digital obligatorio según Ley 7/2022.',
+        'Perfil corporativo oficial de demostración con cobertura completa de residuos peligrosos/no peligrosos, operaciones comerciales, integración SIRA, archivo cronológico y GIS.',
         '+34 912 345 678',
         'Madrid, España',
         NOW(),
@@ -145,9 +162,8 @@ BEGIN
         updated_at = NOW();
 
     -- ==========================================================================
-    -- 3. EMPRESA PRINCIPAL (is_my_company = true)
+    -- 3. EMPRESA PRINCIPAL TITULAR (is_my_company = true)
     -- ==========================================================================
-    -- Si ya existía una empresa principal del demo, la recuperamos o la actualizamos
     SELECT id INTO v_company_id 
     FROM public.companies 
     WHERE user_id = v_user_id AND is_my_company = true 
@@ -155,30 +171,12 @@ BEGIN
 
     IF v_company_id IS NULL THEN
         INSERT INTO public.companies (
-            user_id,
-            razon_social,
-            nombre_comercial,
-            cif,
-            nima,
-            numero_inscripcion,
-            domicilio_social,
-            codigo_postal_social,
-            municipio_social,
-            provincia_social,
-            domicilio_instalacion,
-            codigo_postal_instalacion,
-            municipio_instalacion,
-            provincia_instalacion,
-            telefono,
-            email,
-            persona_contacto,
-            tipo_empresa,
-            roles,
-            is_my_company,
-            numero_autorizacion,
-            matricula,
-            activo,
-            notas
+            user_id, razon_social, nombre_comercial, cif, nima, numero_inscripcion,
+            domicilio_social, codigo_postal_social, municipio_social, provincia_social,
+            domicilio_instalacion, codigo_postal_instalacion, municipio_instalacion, provincia_instalacion,
+            telefono, email, persona_contacto, tipo_empresa, roles, is_my_company,
+            numero_autorizacion, matricula, sira_usuario, sira_password, sira_activo,
+            holded_api_key, activo, notas
         ) VALUES (
             v_user_id,
             'EcoGestión y Soluciones Ambientales 360, S.L.',
@@ -187,23 +185,22 @@ BEGIN
             '2800012345',
             'INS-MD-2022-88771',
             'Polígono Industrial Las Mercedes, C/ Campezo 14, Nave 3',
-            '28022',
-            'Madrid',
-            'Madrid',
+            '28022', 'Madrid', 'Madrid',
             'Polígono Industrial Cobo Calleja, C/ Manuel Cobo Calleja 52',
-            '28947',
-            'Fuenlabrada',
-            'Madrid',
-            '+34 910 123 456',
-            'operaciones@ecogestion360.es',
+            '28947', 'Fuenlabrada', 'Madrid',
+            '+34 910 123 456', 'operaciones@ecogestion360.es',
             'Elena Ramos Navarro (Dpto. Medio Ambiente)',
             'productor',
-            ARRAY['productor', 'gestor', 'transportista'],
+            ARRAY['productor', 'gestor', 'transportista', 'negociante'],
             true,
             'G-MD-2024/0215',
             '3421-KLR',
+            'SIRA_USER_ECO360',
+            'SiraPass2026!',
             true,
-            'Empresa de demostración con actividad productiva, almacenamiento temporal y flota propia de transporte de residuos no peligrosos.'
+            'be65b8b8f65621caea444b6c72d37af7',
+            true,
+            'Empresa de demostración con triple actividad: productora industrial, gestora autorizada R13/D15 y negociante de residuos.'
         )
         RETURNING id INTO v_company_id;
     ELSE
@@ -223,24 +220,252 @@ BEGIN
             telefono = '+34 910 123 456',
             email = 'operaciones@ecogestion360.es',
             persona_contacto = 'Elena Ramos Navarro (Dpto. Medio Ambiente)',
-            roles = ARRAY['productor', 'gestor', 'transportista'],
+            roles = ARRAY['productor', 'gestor', 'transportista', 'negociante'],
             is_my_company = true,
             numero_autorizacion = 'G-MD-2024/0215',
             matricula = '3421-KLR',
+            sira_usuario = 'SIRA_USER_ECO360',
+            sira_password = 'SiraPass2026!',
+            sira_activo = true,
+            holded_api_key = 'be65b8b8f65621caea444b6c72d37af7',
             activo = true
         WHERE id = v_company_id;
     END IF;
 
     -- ==========================================================================
-    -- 4. CENTROS DE PRODUCCIÓN (public.production_centers)
+    -- 4. CATÁLOGO DE EMPRESAS EXTERNAS (PRODUCTORES, NEGOCIANTES, CLIENTES)
+    -- ==========================================================================
+    -- Limpiar empresas ajenas del usuario demo
+    DELETE FROM public.companies WHERE user_id = v_user_id AND is_my_company = false;
+
+    -- Empresa 1: Gran Productor Automoción (Proveedor / Cliente de residuos)
+    INSERT INTO public.companies (
+        user_id, razon_social, nombre_comercial, cif, nima, domicilio_social,
+        codigo_postal_social, municipio_social, provincia_social, telefono, email,
+        persona_contacto, tipo_empresa, roles, is_my_company, activo, notas
+    ) VALUES (
+        v_user_id,
+        'Automoción y Componentes del Jarama S.A.',
+        'Jarama AutoComponents',
+        'A28991122',
+        '2800091122',
+        'Parque Tecnológico de San Fernando, Avda. Castilla 2',
+        '28830', 'San Fernando de Henares', 'Madrid',
+        '+34 916 558 899', 'medioambiente@jarama-auto.es',
+        'Julián Ortega (Jefe de Planta)',
+        'productor',
+        ARRAY['productor'],
+        false, true,
+        'Fabricante de transmisiones y cajas de cambio. Generador de aceites usados, virutas metálicas y embalajes.'
+    ) RETURNING id INTO v_comp_automocion_id;
+
+    -- Empresa 2: Gran Productor Químico
+    INSERT INTO public.companies (
+        user_id, razon_social, nombre_comercial, cif, nima, domicilio_social,
+        codigo_postal_social, municipio_social, provincia_social, telefono, email,
+        persona_contacto, tipo_empresa, roles, is_my_company, activo, notas
+    ) VALUES (
+        v_user_id,
+        'Química Fina y Polímeros Iberia S.L.',
+        'QuimIberia Polímeros',
+        'B84123987',
+        '2800084123',
+        'C/ Química 12, Pol. Ind. La Estación',
+        '28320', 'Pinto', 'Madrid',
+        '+34 916 910 022', 'residuos@quimiberia.com',
+        'Dra. Beatriz Morales',
+        'productor',
+        ARRAY['productor'],
+        false, true,
+        'Instalación química con producción periódica de disolventes agotados, reactivos caducados y lodos.'
+    ) RETURNING id INTO v_comp_quimica_id;
+
+    -- Empresa 3: Constructora de Obra Civil (Generador de RCD y Metales)
+    INSERT INTO public.companies (
+        user_id, razon_social, nombre_comercial, cif, nima, domicilio_social,
+        codigo_postal_social, municipio_social, provincia_social, telefono, email,
+        persona_contacto, tipo_empresa, roles, is_my_company, activo, notas
+    ) VALUES (
+        v_user_id,
+        'Construcciones e Infraestructuras Metropolitanas S.A.',
+        'MetroConstrucciones',
+        'A28456789',
+        '2800076543',
+        'Paseo de la Castellana 180',
+        '28046', 'Madrid', 'Madrid',
+        '+34 913 221 100', 'obras@metroconstrucciones.es',
+        'Fernando Varela (Ingeniero de Obra)',
+        'productor',
+        ARRAY['productor'],
+        false, true,
+        'Obras de edificación e infraestructuras con volumen elevado de ferralla, perfiles de acero y tierras limpias.'
+    ) RETURNING id INTO v_comp_construc_id;
+
+    -- Empresa 4: Negociante de Residuos (Trading ambiental de metales y plásticos)
+    INSERT INTO public.companies (
+        user_id, razon_social, nombre_comercial, cif, nima, numero_inscripcion,
+        domicilio_social, codigo_postal_social, municipio_social, provincia_social,
+        telefono, email, persona_contacto, tipo_empresa, roles, is_my_company, activo, notas
+    ) VALUES (
+        v_user_id,
+        'Iberia Waste Trading & Brokerage S.L.',
+        'Iberia Waste Trading',
+        'B89445566',
+        '2800055667',
+        'NEG-MD-2023-0044',
+        'C/ Velázquez 64, 4º Dcha',
+        '28001', 'Madrid', 'Madrid',
+        '+34 917 400 300', 'comercial@iberiawaste.com',
+        'Gonzalo Alcaide (Director Comercial)',
+        'negociante',
+        ARRAY['negociante'],
+        false, true,
+        'Negociante registrado que compra y vende partidas de residuos asumiendo titularidad documental sin almacenamiento físico.'
+    ) RETURNING id INTO v_comp_broker_id;
+
+    -- Empresa 5: Agente Medioambiental
+    INSERT INTO public.companies (
+        user_id, razon_social, nombre_comercial, cif, nima, numero_inscripcion,
+        domicilio_social, codigo_postal_social, municipio_social, provincia_social,
+        telefono, email, persona_contacto, tipo_empresa, roles, is_my_company, activo, notas
+    ) VALUES (
+        v_user_id,
+        'Agencia Medioambiental de Residuos Circulares S.A.',
+        'Agencia Circular',
+        'A88334455',
+        '2800044332',
+        'AGE-MD-2022-0012',
+        'Avda. de Europa 18, Parque Empresarial La Moraleja',
+        '28108', 'Alcobendas', 'Madrid',
+        '+34 914 880 110', 'contacto@agenciacircular.es',
+        'Silvia Montero',
+        'agente',
+        ARRAY['agente'],
+        false, true,
+        'Agente independiente que gestiona y organiza la valorización en nombre de terceros sin asumir titularidad del residuo.'
+    ) RETURNING id INTO v_comp_agente_id;
+
+    -- Empresa 6: Gestor Tratamientos Ibéricos
+    INSERT INTO public.companies (
+        user_id, razon_social, nombre_comercial, cif, nima, numero_autorizacion,
+        domicilio_social, codigo_postal_social, municipio_social, provincia_social,
+        telefono, email, persona_contacto, tipo_empresa, roles, is_my_company, activo, notas
+    ) VALUES (
+        v_user_id, 'Tratamientos y Valorizaciones Ibéricas S.A.', 'Tratamientos Ibéricos',
+        'A28112233', '2800045678', 'G-MD-2022/9901',
+        'Avda. de la Industria 45, Pol. Ind. Alcobendas', '28108', 'Alcobendas', 'Madrid',
+        '+34 914 901 200', 'planta@tratamientosibericos.es', 'Ing. Marcos Vidal',
+        'gestor', ARRAY['gestor'], false, true,
+        'Instalación polivalente de tratamiento físico-químico D09 y regeneración R09.'
+    ) RETURNING id INTO v_comp_gestor_ibericas_id;
+
+    -- Empresa 7: Gestor Disolventes del Jarama
+    INSERT INTO public.companies (
+        user_id, razon_social, nombre_comercial, cif, nima, numero_autorizacion,
+        domicilio_social, codigo_postal_social, municipio_social, provincia_social,
+        telefono, email, persona_contacto, tipo_empresa, roles, is_my_company, activo, notas
+    ) VALUES (
+        v_user_id, 'Regeneración de Disolventes del Jarama S.L.', 'Disolventes del Jarama',
+        'B82334455', '2800078901', 'G-MD-2020/4412',
+        'C/ Sierra de Guadarrama 8, Pol. Ind. San Fernando', '28830', 'San Fernando de Henares', 'Madrid',
+        '+34 916 712 345', 'laboratorio@disolventesjarama.es', 'Dra. Lucía Menéndez',
+        'gestor', ARRAY['gestor'], false, true,
+        'Planta química de regeneración R02 de disolventes.'
+    ) RETURNING id INTO v_comp_gestor_jarama_id;
+
+    -- Empresa 8: Gestor Planta Integral de Reciclaje
+    INSERT INTO public.companies (
+        user_id, razon_social, nombre_comercial, cif, nima, numero_autorizacion,
+        domicilio_social, codigo_postal_social, municipio_social, provincia_social,
+        telefono, email, persona_contacto, tipo_empresa, roles, is_my_company, activo, notas
+    ) VALUES (
+        v_user_id, 'Planta Integral de Reciclaje y Metales S.L.', 'Reciclajes y Metales',
+        'B83445566', '2800099881', 'G-MD-2021/3321',
+        'Polígono Los Ángeles, C/ Carpinteros 19', '28906', 'Getafe', 'Madrid',
+        '+34 916 830 011', 'pesaje@reciclajesmetales.es', 'Santiago Fuentes',
+        'gestor', ARRAY['gestor'], false, true,
+        'Centro autorizado R04 de metales, chatarras y RAEEs.'
+    ) RETURNING id INTO v_comp_gestor_reciclajes_id;
+
+    -- Empresa 9: Gestor Compostaje del Tajo
+    INSERT INTO public.companies (
+        user_id, razon_social, nombre_comercial, cif, nima, numero_autorizacion,
+        domicilio_social, codigo_postal_social, municipio_social, provincia_social,
+        telefono, email, persona_contacto, tipo_empresa, roles, is_my_company, activo, notas
+    ) VALUES (
+        v_user_id, 'Centro Ambiental de Compostaje y Biomasa del Tajo S.L.', 'Compostaje del Tajo',
+        'B88332211', '2800088772', 'G-MD-2023/5510',
+        'Carretera de Toledo km 18, Finca Soto del Tajo', '28300', 'Aranjuez', 'Madrid',
+        '+34 918 921 543', 'compost@ambientaltajo.es', 'María Ángeles Gil',
+        'gestor', ARRAY['gestor'], false, true,
+        'Planta de biometanización y compostaje aerobio R03.'
+    ) RETURNING id INTO v_comp_gestor_tajo_id;
+
+    -- Empresa 10: Transportista TransAmbiental
+    INSERT INTO public.companies (
+        user_id, razon_social, nombre_comercial, cif, nima, numero_autorizacion, matricula,
+        domicilio_social, codigo_postal_social, municipio_social, provincia_social,
+        telefono, email, persona_contacto, tipo_empresa, roles, is_my_company, activo, notas
+    ) VALUES (
+        v_user_id, 'TransAmbiental Logística Verde S.L.', 'TransAmbiental',
+        'B85667788', '2800033221', 'T-MD-2021/0088', '4521-LXZ',
+        'Polígono Industrial El Olivar, C/ Mercurio 5', '28806', 'Alcalá de Henares', 'Madrid',
+        '+34 918 223 344', 'trafico@transambiental.es', 'Carlos Morales',
+        'transportista', ARRAY['transportista'], false, true,
+        'Flota de camiones portacontenedores basculantes.'
+    ) RETURNING id INTO v_comp_trans_logistica_id;
+
+    -- Empresa 11: Transportista Trans ADR
+    INSERT INTO public.companies (
+        user_id, razon_social, nombre_comercial, cif, nima, numero_autorizacion, matricula,
+        domicilio_social, codigo_postal_social, municipio_social, provincia_social,
+        telefono, email, persona_contacto, tipo_empresa, roles, is_my_company, activo, notas
+    ) VALUES (
+        v_user_id, 'Transportes Especiales ADR Circulares S.A.', 'TransCirculares ADR',
+        'A84112299', '2800055443', 'T-MD-2019/0412', '8932-KMN',
+        'Avda. de los Metales 22, Pol. Ind. La Cantueña', '28944', 'Fuenlabrada', 'Madrid',
+        '+34 916 554 433', 'adr@transcirculares.com', 'Patricia Sotomayor',
+        'transportista', ARRAY['transportista'], false, true,
+        'Cisternas calorifugadas autorizadas para mercancías peligrosas ADR.'
+    ) RETURNING id INTO v_comp_trans_adr_id;
+
+    -- Empresa 12: Transportista Logística Express
+    INSERT INTO public.companies (
+        user_id, razon_social, nombre_comercial, cif, nima, numero_autorizacion, matricula,
+        domicilio_social, codigo_postal_social, municipio_social, provincia_social,
+        telefono, email, persona_contacto, tipo_empresa, roles, is_my_company, activo, notas
+    ) VALUES (
+        v_user_id, 'Logística Ecológica Express S.L.', 'Logística Express',
+        'B86991122', '2800066778', 'T-MD-2023/1105', '1204-MBD',
+        'C/ de la Fragua 18, Pol. Ind. San Marcos', '28906', 'Getafe', 'Madrid',
+        '+34 917 889 900', 'rutas@logisticaexpress.es', 'Javier Prieto',
+        'transportista', ARRAY['transportista'], false, true,
+        'Vehículos ecológicos propulsados por GNC para envases y papel.'
+    ) RETURNING id INTO v_comp_trans_express_id;
+
+    -- Empresa 13: Transportista Ecotrans Norte
+    INSERT INTO public.companies (
+        user_id, razon_social, nombre_comercial, cif, nima, numero_autorizacion, matricula,
+        domicilio_social, codigo_postal_social, municipio_social, provincia_social,
+        telefono, email, persona_contacto, tipo_empresa, roles, is_my_company, activo, notas
+    ) VALUES (
+        v_user_id, 'Ecotrans Norte Contenedores y Cubas S.L.', 'Ecotrans Norte',
+        'B87112233', '2800077889', 'T-MD-2020/0934', '7741-JWB',
+        'Carretera Fuencarral a Alcobendas km 3.8', '28108', 'Alcobendas', 'Madrid',
+        '+34 915 443 322', 'cubas@ecotransnorte.es', 'Raúl Domínguez',
+        'transportista', ARRAY['transportista'], false, true,
+        'Cubas de 10m³ a 35m³ para chatarras y residuos pesados.'
+    ) RETURNING id INTO v_comp_trans_norte_id;
+
+    -- ==========================================================================
+    -- 5. CENTROS DE PRODUCCIÓN PROPIOS (public.production_centers)
     -- ==========================================================================
     DELETE FROM public.production_centers WHERE company_id = v_company_id;
 
     INSERT INTO public.production_centers (
         company_id, user_id, nombre, direccion, nima, descripcion, activo
     ) VALUES (
-        v_company_id,
-        v_user_id,
+        v_company_id, v_user_id,
         'Planta Central Madrid (Fabricación, Mezclado y Envasado)',
         'Polígono Industrial Las Mercedes, C/ Campezo 14, 28022 Madrid',
         '2800012345-01',
@@ -251,8 +476,7 @@ BEGIN
     INSERT INTO public.production_centers (
         company_id, user_id, nombre, direccion, nima, descripcion, activo
     ) VALUES (
-        v_company_id,
-        v_user_id,
+        v_company_id, v_user_id,
         'Centro Logístico y Transferencia Sur (Fuenlabrada)',
         'Polígono Industrial Cobo Calleja, C/ Manuel Cobo Calleja 52, 28947 Fuenlabrada, Madrid',
         '2800012345-02',
@@ -263,8 +487,7 @@ BEGIN
     INSERT INTO public.production_centers (
         company_id, user_id, nombre, direccion, nima, descripcion, activo
     ) VALUES (
-        v_company_id,
-        v_user_id,
+        v_company_id, v_user_id,
         'Planta de Valorización y Reciclaje del Corredor (Alcalá de Henares)',
         'Vía Complutense 120, 28805 Alcalá de Henares, Madrid',
         '2800012345-03',
@@ -273,7 +496,7 @@ BEGIN
     ) RETURNING id INTO v_center_corredor_id;
 
     -- ==========================================================================
-    -- 5. TRANSPORTISTAS REGISTRADOS (public.carriers)
+    -- 6. TRANSPORTISTAS REGISTRADOS (public.carriers)
     -- ==========================================================================
     DELETE FROM public.carriers WHERE user_id = v_user_id;
 
@@ -294,7 +517,7 @@ BEGIN
         '+34 918 223 344', 'trafico@transambiental.es',
         'Carlos Morales (Jefe de Tráfico)',
         true,
-        'Flota especializada en camiones portacontenedores basculantes y camiones pulpo para chatarras y residuos sólidos.'
+        'Flota de camiones portacontenedores basculantes y camiones pulpo para chatarras y residuos sólidos.'
     ) RETURNING id INTO v_trans_logistica_id;
 
     INSERT INTO public.carriers (
@@ -314,7 +537,7 @@ BEGIN
         '+34 916 554 433', 'adr@transcirculares.com',
         'Patricia Sotomayor (Consejera de Seguridad ADR)',
         true,
-        'Cisternas calorifugadas de acero inoxidable y furgones con trampilla elevadora autorizados para mercancías peligrosas ADR.'
+        'Cisternas calorifugadas de acero inoxidable y furgones autorizados para mercancías peligrosas ADR.'
     ) RETURNING id INTO v_trans_adr_id;
 
     INSERT INTO public.carriers (
@@ -358,17 +581,18 @@ BEGIN
     ) RETURNING id INTO v_trans_norte_id;
 
     -- ==========================================================================
-    -- 6. GESTORES DE TRATAMIENTO AUTORIZADOS (public.treatment_managers)
+    -- 7. GESTORES DE TRATAMIENTO (public.treatment_managers con 'nombre' NOT NULL)
     -- ==========================================================================
     DELETE FROM public.treatment_managers WHERE user_id = v_user_id;
 
     INSERT INTO public.treatment_managers (
-        user_id, razon_social, cif, nima, numero_autorizacion,
+        user_id, nombre, razon_social, cif, nima, numero_autorizacion,
         direccion, codigo_postal, municipio, provincia, telefono, email,
         persona_contacto, activo, notas
     ) VALUES 
     (
         v_user_id,
+        'Tratamientos y Valorizaciones Ibéricas',
         'Tratamientos y Valorizaciones Ibéricas S.A.',
         'A28112233',
         '2800045678',
@@ -378,16 +602,17 @@ BEGIN
         '+34 914 901 200', 'planta@tratamientosibericos.es',
         'Ing. Marcos Vidal (Director Técnico)',
         true,
-        'Instalación polivalente de tratamiento físico-químico D09, regeneración de aceites R09 e incineración controlada D10.'
+        'Instalación polivalente de tratamiento físico-químico D09, regeneración de aceites R09 e incineración D10.'
     ) RETURNING id INTO v_gestor_ibericas_id;
 
     INSERT INTO public.treatment_managers (
-        user_id, razon_social, cif, nima, numero_autorizacion,
+        user_id, nombre, razon_social, cif, nima, numero_autorizacion,
         direccion, codigo_postal, municipio, provincia, telefono, email,
         persona_contacto, activo, notas
     ) VALUES 
     (
         v_user_id,
+        'Regeneración de Disolventes del Jarama',
         'Regeneración de Disolventes del Jarama S.L.',
         'B82334455',
         '2800078901',
@@ -397,16 +622,17 @@ BEGIN
         '+34 916 712 345', 'laboratorio@disolventesjarama.es',
         'Dra. Lucía Menéndez',
         true,
-        'Planta química autorizada para destilación fraccionada y recuperación de disolventes halogenados y no halogenados (operación R02).'
+        'Planta química autorizada para destilación fraccionada y recuperación de disolventes orgánicos (R02).'
     ) RETURNING id INTO v_gestor_jarama_id;
 
     INSERT INTO public.treatment_managers (
-        user_id, razon_social, cif, nima, numero_autorizacion,
+        user_id, nombre, razon_social, cif, nima, numero_autorizacion,
         direccion, codigo_postal, municipio, provincia, telefono, email,
         persona_contacto, activo, notas
     ) VALUES 
     (
         v_user_id,
+        'Planta Integral de Reciclaje y Metales',
         'Planta Integral de Reciclaje y Metales S.L.',
         'B83445566',
         '2800099881',
@@ -416,16 +642,17 @@ BEGIN
         '+34 916 830 011', 'pesaje@reciclajesmetales.es',
         'Santiago Fuentes',
         true,
-        'Centro autorizado de valorización R04 de chatarras férreas, metales nobles, RAEEs y corte por cizalla/oxicorte.'
+        'Centro autorizado de valorización R04 de chatarras férreas, metales nobles, RAEEs y corte por cizalla.'
     ) RETURNING id INTO v_gestor_reciclajes_id;
 
     INSERT INTO public.treatment_managers (
-        user_id, razon_social, cif, nima, numero_autorizacion,
+        user_id, nombre, razon_social, cif, nima, numero_autorizacion,
         direccion, codigo_postal, municipio, provincia, telefono, email,
         persona_contacto, activo, notas
     ) VALUES 
     (
         v_user_id,
+        'Centro Ambiental de Compostaje del Tajo',
         'Centro Ambiental de Compostaje y Biomasa del Tajo S.L.',
         'B88332211',
         '2800088772',
@@ -435,100 +662,76 @@ BEGIN
         '+34 918 921 543', 'compost@ambientaltajo.es',
         'María Ángeles Gil',
         true,
-        'Planta de biometanización, digestión anaerobia y compostaje controlado R03 para fracción orgánica y restos vegetales.'
+        'Planta de biometanización, digestión anaerobia y compostaje controlado R03 para fracción orgánica.'
     ) RETURNING id INTO v_gestor_tajo_id;
 
     -- ==========================================================================
-    -- 7. CONTRATOS DE TRATAMIENTO DE RESIDUOS (public.waste_contracts)
+    -- 8. CONTRATOS DE TRATAMIENTO (public.waste_contracts)
     -- ==========================================================================
     DELETE FROM public.waste_contracts WHERE user_id = v_user_id;
 
     INSERT INTO public.waste_contracts (
-        user_id, company_id, treatment_manager_id, numero_contrato,
+        user_id, company_id, gestor_company_id, treatment_manager_id, numero_contrato,
         fecha_contrato, fecha_inicio, fecha_fin, tipo_contrato,
         descripcion_residuos, operaciones_tratamiento, cantidad_maxima_anual,
         unidad_cantidad, precio_unitario, moneda, estado, notas
     ) VALUES 
     (
-        v_user_id,
-        v_company_id,
-        v_gestor_ibericas_id,
-        'CTR-2026/001-VAL',
-        '2026-01-10', '2026-01-15', '2027-01-14',
-        'tratamiento',
-        'Aceites minerales usados (130205*), absorbentes y trapos contaminados (150202*), filtros de aceite (160107*) y envases contaminados (150110*).',
-        ARRAY['R09', 'R04', 'D09', 'D10'],
-        65.00, 'toneladas', 185.00, 'EUR',
-        'vigente',
-        'Contrato principal de valorización y tratamiento conforme al RD 553/2020 con aceptación previa de los residuos peligrosos.'
+        v_user_id, v_company_id, v_comp_gestor_ibericas_id, v_gestor_ibericas_id, 'CTR-2026/001-VAL',
+        '2026-01-10', '2026-01-15', '2027-01-14', 'tratamiento',
+        'Aceites minerales usados (130205*), absorbentes y trapos contaminados (150202*), filtros (160107*) y envases contaminados (150110*).',
+        ARRAY['R09', 'R04', 'D09', 'D10'], 65.00, 'toneladas', 185.00, 'EUR',
+        'vigente', 'Contrato marco de valorización conforme al RD 553/2020.'
     ) RETURNING id INTO v_contract_aceites_id;
 
     INSERT INTO public.waste_contracts (
-        user_id, company_id, treatment_manager_id, numero_contrato,
+        user_id, company_id, gestor_company_id, treatment_manager_id, numero_contrato,
         fecha_contrato, fecha_inicio, fecha_fin, tipo_contrato,
         descripcion_residuos, operaciones_tratamiento, cantidad_maxima_anual,
         unidad_cantidad, precio_unitario, moneda, estado, notas
     ) VALUES 
     (
-        v_user_id,
-        v_company_id,
-        v_gestor_jarama_id,
-        'CTR-2026/002-DIS',
-        '2026-01-12', '2026-02-01', '2027-01-31',
-        'tratamiento',
-        'Disolventes orgánicos no halogenados (140603*), residuos de pintura con base disolvente (080111*) y disolventes de limpieza.',
-        ARRAY['R02', 'D09'],
-        35.00, 'toneladas', 310.00, 'EUR',
-        'vigente',
-        'Regeneración de disolventes mediante columnas de rectificación para reintroducción en el ciclo productivo (economía circular).'
+        v_user_id, v_company_id, v_comp_gestor_jarama_id, v_gestor_jarama_id, 'CTR-2026/002-DIS',
+        '2026-01-12', '2026-02-01', '2027-01-31', 'tratamiento',
+        'Disolventes orgánicos no halogenados (140603*), residuos de pintura (080111*) y aguas de lavado químico.',
+        ARRAY['R02', 'D09'], 35.00, 'toneladas', 310.00, 'EUR',
+        'vigente', 'Regeneración por columnas de rectificación y economía circular.'
     ) RETURNING id INTO v_contract_disolventes_id;
 
     INSERT INTO public.waste_contracts (
-        user_id, company_id, treatment_manager_id, numero_contrato,
+        user_id, company_id, gestor_company_id, treatment_manager_id, numero_contrato,
         fecha_contrato, fecha_inicio, fecha_fin, tipo_contrato,
         descripcion_residuos, operaciones_tratamiento, cantidad_maxima_anual,
         unidad_cantidad, precio_unitario, moneda, estado, notas
     ) VALUES 
     (
-        v_user_id,
-        v_company_id,
-        v_gestor_reciclajes_id,
-        'CTR-2026/003-MET',
-        '2026-01-08', '2026-01-10', '2028-01-09',
-        'valoracion',
-        'Chatarra de hierro y acero (170405), virutas de metales férreos (120101), embalajes de papel y cartón (150101) y envases plásticos (150102).',
-        ARRAY['R03', 'R04'],
-        180.00, 'toneladas', 90.00, 'EUR',
-        'vigente',
-        'Acuerdo marco de compraventa y valorización de materiales reciclables limpios con compensación según cotización del mercado.'
+        v_user_id, v_company_id, v_comp_gestor_reciclajes_id, v_gestor_reciclajes_id, 'CTR-2026/003-MET',
+        '2026-01-08', '2026-01-10', '2028-01-09', 'valoracion',
+        'Chatarra de hierro y acero (170405), virutas (120101), embalajes de papel/cartón (150101) y plásticos (150102).',
+        ARRAY['R03', 'R04'], 180.00, 'toneladas', 90.00, 'EUR',
+        'vigente', 'Acuerdo marco de compraventa y valorización con liquidación según índice LME.'
     ) RETURNING id INTO v_contract_metales_id;
 
     INSERT INTO public.waste_contracts (
-        user_id, company_id, treatment_manager_id, numero_contrato,
+        user_id, company_id, gestor_company_id, treatment_manager_id, numero_contrato,
         fecha_contrato, fecha_inicio, fecha_fin, tipo_contrato,
         descripcion_residuos, operaciones_tratamiento, cantidad_maxima_anual,
         unidad_cantidad, precio_unitario, moneda, estado, notas
     ) VALUES 
     (
-        v_user_id,
-        v_company_id,
-        v_gestor_tajo_id,
-        'CTR-2026/004-BIO',
-        '2026-02-01', '2026-02-15', '2027-02-14',
-        'valoracion',
-        'Residuos biodegradables de comedores (200108) y restos vegetales de mantenimiento de zonas verdes (020103).',
-        ARRAY['R03'],
-        45.00, 'toneladas', 65.00, 'EUR',
-        'vigente',
-        'Compostaje en túnel cerrado con obtención de compost clase A con certificación ecológica.'
+        v_user_id, v_company_id, v_comp_gestor_tajo_id, v_gestor_tajo_id, 'CTR-2026/004-BIO',
+        '2026-02-01', '2026-02-15', '2027-02-14', 'valoracion',
+        'Residuos biodegradables de comedores (200108) y restos vegetales de poda (020103).',
+        ARRAY['R03'], 45.00, 'toneladas', 65.00, 'EUR',
+        'vigente', 'Compostaje aerobio en túnel con certificación ecológica clase A.'
     ) RETURNING id INTO v_contract_organicos_id;
 
     -- ==========================================================================
-    -- 8. DOCUMENTOS DE IDENTIFICACIÓN (public.identification_documents - DIs)
+    -- 9. DOCUMENTOS DE IDENTIFICACIÓN - DIs (14 DIs COMPLETOS SEGÚN RD 553/2020)
     -- ==========================================================================
     DELETE FROM public.identification_documents WHERE user_id = v_user_id;
 
-    -- DI 1: Aceite mineral de motor (Peligroso)
+    -- DI 1: Aceite mineral de motor (Peligroso - Completado)
     INSERT INTO public.identification_documents (
         user_id, company_id, contract_id, numero_documento, fecha_documento,
         tipo_notificacion, productor_razon_social, productor_cif, productor_nima,
@@ -537,12 +740,9 @@ BEGIN
         gestor_direccion, gestor_codigo_postal, gestor_municipio, gestor_provincia,
         transportista_razon_social, transportista_cif, transportista_matricula,
         codigo_ler, descripcion_residuo, estado_fisico, peligrosidad,
-        cantidad, unidad, numero_envases, tipo_envases,
-        operacion_tratamiento, descripcion_tratamiento,
-        fecha_recogida, fecha_entrega,
-        firmado_productor, firmado_gestor, firmado_transportista,
-        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista,
-        estado, notas
+        cantidad, unidad, numero_envases, tipo_envases, operacion_tratamiento, descripcion_tratamiento,
+        fecha_recogida, fecha_entrega, firmado_productor, firmado_gestor, firmado_transportista,
+        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista, estado, notas
     ) VALUES (
         v_user_id, v_company_id, v_contract_aceites_id, 'DI-2026-0001', '2026-02-04',
         'sin-notificacion', 'EcoGestión y Soluciones Ambientales 360, S.L.', 'B88997766', '2800012345-01',
@@ -550,14 +750,13 @@ BEGIN
         'Tratamientos y Valorizaciones Ibéricas S.A.', 'A28112233', '2800045678', 'G-MD-2022/9901',
         'Avda. de la Industria 45', '28108', 'Alcobendas', 'Madrid',
         'TransAmbiental Logística Verde S.L.', 'B85667788', '4521-LXZ',
-        '13 02 05*', 'Aceites minerales no clorados de motor, de transmisión mecánica y de lubricación',
-        'liquido', 'peligroso', 1250.000, 'kg', 1, 'Contenedor GRG 1000L homologado UN',
-        'R09', 'Regeneración de aceites usados', '2026-02-04', '2026-02-04',
-        true, true, true, '2026-02-04', '2026-02-04', '2026-02-04',
-        'completado', 'Retirada trimestral de aceites de mantenimiento de motores y reductores mecánicos.'
+        '13 02 05*', 'Aceites minerales no clorados de motor y lubricación', 'liquido', 'peligroso',
+        1250.000, 'kg', 1, 'Contenedor GRG 1000L homologado UN', 'R09', 'Regeneración de aceites usados',
+        '2026-02-04', '2026-02-04', true, true, true, '2026-02-04', '2026-02-04', '2026-02-04',
+        'completado', 'Retirada trimestral de aceites de mantenimiento de compresores y motores.'
     ) RETURNING id INTO v_di_1;
 
-    -- DI 2: Disolventes orgánicos (Peligroso)
+    -- DI 2: Disolventes orgánicos (Peligroso - Completado)
     INSERT INTO public.identification_documents (
         user_id, company_id, contract_id, numero_documento, fecha_documento,
         tipo_notificacion, productor_razon_social, productor_cif, productor_nima,
@@ -566,12 +765,9 @@ BEGIN
         gestor_direccion, gestor_codigo_postal, gestor_municipio, gestor_provincia,
         transportista_razon_social, transportista_cif, transportista_matricula,
         codigo_ler, descripcion_residuo, estado_fisico, peligrosidad,
-        cantidad, unidad, numero_envases, tipo_envases,
-        operacion_tratamiento, descripcion_tratamiento,
-        fecha_recogida, fecha_entrega,
-        firmado_productor, firmado_gestor, firmado_transportista,
-        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista,
-        estado, notas
+        cantidad, unidad, numero_envases, tipo_envases, operacion_tratamiento, descripcion_tratamiento,
+        fecha_recogida, fecha_entrega, firmado_productor, firmado_gestor, firmado_transportista,
+        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista, estado, notas
     ) VALUES (
         v_user_id, v_company_id, v_contract_disolventes_id, 'DI-2026-0002', '2026-02-18',
         'sin-notificacion', 'EcoGestión y Soluciones Ambientales 360, S.L.', 'B88997766', '2800012345-01',
@@ -579,14 +775,13 @@ BEGIN
         'Regeneración de Disolventes del Jarama S.L.', 'B82334455', '2800078901', 'G-MD-2020/4412',
         'C/ Sierra de Guadarrama 8', '28830', 'San Fernando de Henares', 'Madrid',
         'Transportes Especiales ADR Circulares S.A.', 'A84112299', '8932-KMN',
-        '14 06 03*', 'Otros disolventes y mezclas de disolventes',
-        'liquido', 'peligroso', 600.000, 'kg', 3, 'Bidones de acero homologados 200L',
-        'R02', 'Recuperación o regeneración de disolventes', '2026-02-18', '2026-02-18',
-        true, true, true, '2026-02-18', '2026-02-18', '2026-02-18',
-        'completado', 'Transporte amparado por carta de porte ADR clase 3 con panel naranja.'
+        '14 06 03*', 'Otros disolventes y mezclas de disolventes', 'liquido', 'peligroso',
+        600.000, 'kg', 3, 'Bidones de acero homologados 200L', 'R02', 'Recuperación o regeneración de disolventes',
+        '2026-02-18', '2026-02-18', true, true, true, '2026-02-18', '2026-02-18', '2026-02-18',
+        'completado', 'Transporte amparado por carta de porte ADR clase 3.'
     ) RETURNING id INTO v_di_2;
 
-    -- DI 3: Envases contaminados (Peligroso)
+    -- DI 3: Envases contaminados (Peligroso - Completado)
     INSERT INTO public.identification_documents (
         user_id, company_id, contract_id, numero_documento, fecha_documento,
         tipo_notificacion, productor_razon_social, productor_cif, productor_nima,
@@ -595,12 +790,9 @@ BEGIN
         gestor_direccion, gestor_codigo_postal, gestor_municipio, gestor_provincia,
         transportista_razon_social, transportista_cif, transportista_matricula,
         codigo_ler, descripcion_residuo, estado_fisico, peligrosidad,
-        cantidad, unidad, numero_envases, tipo_envases,
-        operacion_tratamiento, descripcion_tratamiento,
-        fecha_recogida, fecha_entrega,
-        firmado_productor, firmado_gestor, firmado_transportista,
-        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista,
-        estado, notas
+        cantidad, unidad, numero_envases, tipo_envases, operacion_tratamiento, descripcion_tratamiento,
+        fecha_recogida, fecha_entrega, firmado_productor, firmado_gestor, firmado_transportista,
+        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista, estado, notas
     ) VALUES (
         v_user_id, v_company_id, v_contract_aceites_id, 'DI-2026-0003', '2026-03-05',
         'sin-notificacion', 'EcoGestión y Soluciones Ambientales 360, S.L.', 'B88997766', '2800012345-02',
@@ -608,14 +800,13 @@ BEGIN
         'Tratamientos y Valorizaciones Ibéricas S.A.', 'A28112233', '2800045678', 'G-MD-2022/9901',
         'Avda. de la Industria 45', '28108', 'Alcobendas', 'Madrid',
         'TransAmbiental Logística Verde S.L.', 'B85667788', '4521-LXZ',
-        '15 01 10*', 'Envases que contienen restos de sustancias peligrosas o están contaminados por ellas',
-        'solido', 'peligroso', 480.000, 'kg', 2, 'Big-Bags impermeables 1m³ con liner interior',
-        'R04', 'Reciclado o recuperación de metales y compuestos metálicos', '2026-03-05', '2026-03-05',
-        true, true, true, '2026-03-05', '2026-03-05', '2026-03-05',
-        'completado', 'Latas vacías de lubricantes, adhesivos y botes de pintura escurridos.'
+        '15 01 10*', 'Envases que contienen restos de sustancias peligrosas', 'solido', 'peligroso',
+        480.000, 'kg', 2, 'Big-Bags impermeables 1m³ con liner', 'R04', 'Reciclado o recuperación de metales',
+        '2026-03-05', '2026-03-05', true, true, true, '2026-03-05', '2026-03-05', '2026-03-05',
+        'completado', 'Latas vacías de lubricantes y adhesivos escurridos.'
     ) RETURNING id INTO v_di_3;
 
-    -- DI 4: Absorbentes y trapos de limpieza (Peligroso)
+    -- DI 4: Trapos y absorbentes (Peligroso - Completado)
     INSERT INTO public.identification_documents (
         user_id, company_id, contract_id, numero_documento, fecha_documento,
         tipo_notificacion, productor_razon_social, productor_cif, productor_nima,
@@ -624,12 +815,9 @@ BEGIN
         gestor_direccion, gestor_codigo_postal, gestor_municipio, gestor_provincia,
         transportista_razon_social, transportista_cif, transportista_matricula,
         codigo_ler, descripcion_residuo, estado_fisico, peligrosidad,
-        cantidad, unidad, numero_envases, tipo_envases,
-        operacion_tratamiento, descripcion_tratamiento,
-        fecha_recogida, fecha_entrega,
-        firmado_productor, firmado_gestor, firmado_transportista,
-        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista,
-        estado, notas
+        cantidad, unidad, numero_envases, tipo_envases, operacion_tratamiento, descripcion_tratamiento,
+        fecha_recogida, fecha_entrega, firmado_productor, firmado_gestor, firmado_transportista,
+        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista, estado, notas
     ) VALUES (
         v_user_id, v_company_id, v_contract_aceites_id, 'DI-2026-0004', '2026-03-24',
         'sin-notificacion', 'EcoGestión y Soluciones Ambientales 360, S.L.', 'B88997766', '2800012345-01',
@@ -637,14 +825,13 @@ BEGIN
         'Tratamientos y Valorizaciones Ibéricas S.A.', 'A28112233', '2800045678', 'G-MD-2022/9901',
         'Avda. de la Industria 45', '28108', 'Alcobendas', 'Madrid',
         'TransAmbiental Logística Verde S.L.', 'B85667788', '4521-LXZ',
-        '15 02 02*', 'Absorbentes, materiales de filtración, trapos de limpieza y ropas protectoras contaminados',
-        'solido', 'peligroso', 340.000, 'kg', 2, 'Contenedores rodantes estancos 240L',
-        'D10', 'Incineración en tierra', '2026-03-24', '2026-03-24',
-        true, true, true, '2026-03-24', '2026-03-24', '2026-03-24',
-        'completado', 'Trapos y sepiolita usados en el taller mecánico y líneas de envasado.'
+        '15 02 02*', 'Absorbentes, materiales de filtración y trapos de limpieza contaminados', 'solido', 'peligroso',
+        340.000, 'kg', 2, 'Contenedores estancos 240L', 'D10', 'Incineración con recuperación energética',
+        '2026-03-24', '2026-03-24', true, true, true, '2026-03-24', '2026-03-24', '2026-03-24',
+        'completado', 'Sepiolita y trapos usados en el taller de mantenimiento.'
     ) RETURNING id INTO v_di_4;
 
-    -- DI 5: Pinturas y barnices con disolventes (Peligroso)
+    -- DI 5: Pinturas y Barnices (Peligroso - Completado)
     INSERT INTO public.identification_documents (
         user_id, company_id, contract_id, numero_documento, fecha_documento,
         tipo_notificacion, productor_razon_social, productor_cif, productor_nima,
@@ -653,12 +840,9 @@ BEGIN
         gestor_direccion, gestor_codigo_postal, gestor_municipio, gestor_provincia,
         transportista_razon_social, transportista_cif, transportista_matricula,
         codigo_ler, descripcion_residuo, estado_fisico, peligrosidad,
-        cantidad, unidad, numero_envases, tipo_envases,
-        operacion_tratamiento, descripcion_tratamiento,
-        fecha_recogida, fecha_entrega,
-        firmado_productor, firmado_gestor, firmado_transportista,
-        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista,
-        estado, notas
+        cantidad, unidad, numero_envases, tipo_envases, operacion_tratamiento, descripcion_tratamiento,
+        fecha_recogida, fecha_entrega, firmado_productor, firmado_gestor, firmado_transportista,
+        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista, estado, notas
     ) VALUES (
         v_user_id, v_company_id, v_contract_disolventes_id, 'DI-2026-0005', '2026-04-10',
         'sin-notificacion', 'EcoGestión y Soluciones Ambientales 360, S.L.', 'B88997766', '2800012345-01',
@@ -666,14 +850,13 @@ BEGIN
         'Regeneración de Disolventes del Jarama S.L.', 'B82334455', '2800078901', 'G-MD-2020/4412',
         'C/ Sierra de Guadarrama 8', '28830', 'San Fernando de Henares', 'Madrid',
         'Transportes Especiales ADR Circulares S.A.', 'A84112299', '8932-KMN',
-        '08 01 11*', 'Residuos de pintura y barniz que contienen disolventes orgánicos u otras sustancias peligrosas',
-        'pastoso', 'peligroso', 520.000, 'kg', 2, 'Bidones de apertura total con fleje 200L',
-        'D09', 'Tratamiento físico-químico', '2026-04-10', '2026-04-10',
-        true, true, true, '2026-04-10', '2026-04-10', '2026-04-10',
-        'completado', 'Fondos de cubas de pintura y purgas de cabinas de aplicación.'
+        '08 01 11*', 'Residuos de pintura y barniz con disolventes orgánicos', 'pastoso', 'peligroso',
+        520.000, 'kg', 2, 'Bidones metálicos con fleje 200L', 'D09', 'Tratamiento físico-químico',
+        '2026-04-10', '2026-04-10', true, true, true, '2026-04-10', '2026-04-10', '2026-04-10',
+        'completado', 'Purgas de cabinas de pintura y fondos de cubas.'
     ) RETURNING id INTO v_di_5;
 
-    -- DI 6: Filtros de aceite (Peligroso)
+    -- DI 6: Filtros de Aceite (Peligroso - Completado)
     INSERT INTO public.identification_documents (
         user_id, company_id, contract_id, numero_documento, fecha_documento,
         tipo_notificacion, productor_razon_social, productor_cif, productor_nima,
@@ -682,12 +865,9 @@ BEGIN
         gestor_direccion, gestor_codigo_postal, gestor_municipio, gestor_provincia,
         transportista_razon_social, transportista_cif, transportista_matricula,
         codigo_ler, descripcion_residuo, estado_fisico, peligrosidad,
-        cantidad, unidad, numero_envases, tipo_envases,
-        operacion_tratamiento, descripcion_tratamiento,
-        fecha_recogida, fecha_entrega,
-        firmado_productor, firmado_gestor, firmado_transportista,
-        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista,
-        estado, notas
+        cantidad, unidad, numero_envases, tipo_envases, operacion_tratamiento, descripcion_tratamiento,
+        fecha_recogida, fecha_entrega, firmado_productor, firmado_gestor, firmado_transportista,
+        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista, estado, notas
     ) VALUES (
         v_user_id, v_company_id, v_contract_aceites_id, 'DI-2026-0006', '2026-05-14',
         'sin-notificacion', 'EcoGestión y Soluciones Ambientales 360, S.L.', 'B88997766', '2800012345-02',
@@ -695,14 +875,13 @@ BEGIN
         'Tratamientos y Valorizaciones Ibéricas S.A.', 'A28112233', '2800045678', 'G-MD-2022/9901',
         'Avda. de la Industria 45', '28108', 'Alcobendas', 'Madrid',
         'TransAmbiental Logística Verde S.L.', 'B85667788', '4521-LXZ',
-        '16 01 07*', 'Filtros de aceite',
-        'solido', 'peligroso', 290.000, 'kg', 1, 'Bidón metálico de acero 200L',
-        'R04', 'Reciclado de metales férreos y desclasificación', '2026-05-14', '2026-05-14',
-        true, true, true, '2026-05-14', '2026-05-14', '2026-05-14',
-        'completado', 'Filtros de aceite prensados procedentes de flota propia y maquinaria de planta.'
+        '16 01 07*', 'Filtros de aceite', 'solido', 'peligroso',
+        290.000, 'kg', 1, 'Bidón de acero 200L', 'R04', 'Reciclado de metales férreos y desclasificación',
+        '2026-05-14', '2026-05-14', true, true, true, '2026-05-14', '2026-05-14', '2026-05-14',
+        'completado', 'Filtros de aceite prensados procedentes de vehículos y maquinaria.'
     ) RETURNING id INTO v_di_6;
 
-    -- DI 7: Papel y Cartón (No Peligroso)
+    -- DI 7: Papel y Cartón (No Peligroso - Completado)
     INSERT INTO public.identification_documents (
         user_id, company_id, contract_id, numero_documento, fecha_documento,
         tipo_notificacion, productor_razon_social, productor_cif, productor_nima,
@@ -711,12 +890,9 @@ BEGIN
         gestor_direccion, gestor_codigo_postal, gestor_municipio, gestor_provincia,
         transportista_razon_social, transportista_cif, transportista_matricula,
         codigo_ler, descripcion_residuo, estado_fisico, peligrosidad,
-        cantidad, unidad, numero_envases, tipo_envases,
-        operacion_tratamiento, descripcion_tratamiento,
-        fecha_recogida, fecha_entrega,
-        firmado_productor, firmado_gestor, firmado_transportista,
-        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista,
-        estado, notas
+        cantidad, unidad, numero_envases, tipo_envases, operacion_tratamiento, descripcion_tratamiento,
+        fecha_recogida, fecha_entrega, firmado_productor, firmado_gestor, firmado_transportista,
+        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista, estado, notas
     ) VALUES (
         v_user_id, v_company_id, v_contract_metales_id, 'DI-2026-0007', '2026-06-02',
         'sin-notificacion', 'EcoGestión y Soluciones Ambientales 360, S.L.', 'B88997766', '2800012345-01',
@@ -724,14 +900,13 @@ BEGIN
         'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', '2800099881', 'G-MD-2021/3321',
         'Polígono Los Ángeles, C/ Carpinteros 19', '28906', 'Getafe', 'Madrid',
         'Logística Ecológica Express S.L.', 'B86991122', '1204-MBD',
-        '15 01 01', 'Envases de papel y cartón',
-        'solido', 'no-peligroso', 4350.000, 'kg', 8, 'Balas compactadas flejadas de alta densidad',
-        'R03', 'Reciclado o recuperación de sustancias orgánicas', '2026-06-02', '2026-06-02',
-        true, true, true, '2026-06-02', '2026-06-02', '2026-06-02',
-        'completado', 'Embalajes limpios de cartón ondulado procedentes de despaletizado de materias primas.'
+        '15 01 01', 'Envases de papel y cartón', 'solido', 'no-peligroso',
+        4350.000, 'kg', 8, 'Balas compactadas flejadas', 'R03', 'Reciclado de sustancias orgánicas',
+        '2026-06-02', '2026-06-02', true, true, true, '2026-06-02', '2026-06-02', '2026-06-02',
+        'completado', 'Embalajes limpios de cartón ondulado prensado en origen.'
     ) RETURNING id INTO v_di_7;
 
-    -- DI 8: Plásticos industriales (No Peligroso)
+    -- DI 8: Plásticos (No Peligroso - Completado)
     INSERT INTO public.identification_documents (
         user_id, company_id, contract_id, numero_documento, fecha_documento,
         tipo_notificacion, productor_razon_social, productor_cif, productor_nima,
@@ -740,12 +915,9 @@ BEGIN
         gestor_direccion, gestor_codigo_postal, gestor_municipio, gestor_provincia,
         transportista_razon_social, transportista_cif, transportista_matricula,
         codigo_ler, descripcion_residuo, estado_fisico, peligrosidad,
-        cantidad, unidad, numero_envases, tipo_envases,
-        operacion_tratamiento, descripcion_tratamiento,
-        fecha_recogida, fecha_entrega,
-        firmado_productor, firmado_gestor, firmado_transportista,
-        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista,
-        estado, notas
+        cantidad, unidad, numero_envases, tipo_envases, operacion_tratamiento, descripcion_tratamiento,
+        fecha_recogida, fecha_entrega, firmado_productor, firmado_gestor, firmado_transportista,
+        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista, estado, notas
     ) VALUES (
         v_user_id, v_company_id, v_contract_metales_id, 'DI-2026-0008', '2026-06-25',
         'sin-notificacion', 'EcoGestión y Soluciones Ambientales 360, S.L.', 'B88997766', '2800012345-03',
@@ -753,14 +925,13 @@ BEGIN
         'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', '2800099881', 'G-MD-2021/3321',
         'Polígono Los Ángeles, C/ Carpinteros 19', '28906', 'Getafe', 'Madrid',
         'Logística Ecológica Express S.L.', 'B86991122', '1204-MBD',
-        '15 01 02', 'Envases de plástico',
-        'solido', 'no-peligroso', 2900.000, 'kg', 5, 'Balas prensadas de film polietileno PEBD',
-        'R03', 'Reciclado mecánico y granza de plástico', '2026-06-25', '2026-06-25',
-        true, true, true, '2026-06-25', '2026-06-25', '2026-06-25',
-        'completado', 'Film retráctil y flejes de polipropileno clasificados en planta.'
+        '15 01 02', 'Envases de plástico', 'solido', 'no-peligroso',
+        2900.000, 'kg', 5, 'Balas de film PEBD', 'R03', 'Reciclado mecánico y granza',
+        '2026-06-25', '2026-06-25', true, true, true, '2026-06-25', '2026-06-25', '2026-06-25',
+        'completado', 'Film transparente y flejes de paletizado de alta densidad.'
     ) RETURNING id INTO v_di_8;
 
-    -- DI 9: Hierro y Acero (No Peligroso)
+    -- DI 9: Hierro y Acero (No Peligroso - Completado)
     INSERT INTO public.identification_documents (
         user_id, company_id, contract_id, numero_documento, fecha_documento,
         tipo_notificacion, productor_razon_social, productor_cif, productor_nima,
@@ -769,12 +940,9 @@ BEGIN
         gestor_direccion, gestor_codigo_postal, gestor_municipio, gestor_provincia,
         transportista_razon_social, transportista_cif, transportista_matricula,
         codigo_ler, descripcion_residuo, estado_fisico, peligrosidad,
-        cantidad, unidad, numero_envases, tipo_envases,
-        operacion_tratamiento, descripcion_tratamiento,
-        fecha_recogida, fecha_entrega,
-        firmado_productor, firmado_gestor, firmado_transportista,
-        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista,
-        estado, notas
+        cantidad, unidad, numero_envases, tipo_envases, operacion_tratamiento, descripcion_tratamiento,
+        fecha_recogida, fecha_entrega, firmado_productor, firmado_gestor, firmado_transportista,
+        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista, estado, notas
     ) VALUES (
         v_user_id, v_company_id, v_contract_metales_id, 'DI-2026-0009', '2026-07-16',
         'sin-notificacion', 'EcoGestión y Soluciones Ambientales 360, S.L.', 'B88997766', '2800012345-02',
@@ -782,14 +950,13 @@ BEGIN
         'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', '2800099881', 'G-MD-2021/3321',
         'Polígono Los Ángeles, C/ Carpinteros 19', '28906', 'Getafe', 'Madrid',
         'Ecotrans Norte Contenedores y Cubas S.L.', 'B87112233', '7741-JWB',
-        '17 04 05', 'Hierro y acero',
-        'solido', 'no-peligroso', 8720.000, 'kg', 1, 'Contenedor abierto basculante 30m³',
-        'R04', 'Reciclado o recuperación de metales y compuestos metálicos', '2026-07-16', '2026-07-16',
-        true, true, true, '2026-07-16', '2026-07-16', '2026-07-16',
-        'completado', 'Estructuras metálicas desmanteladas y tuberías de acero al carbono.'
+        '17 04 05', 'Hierro y acero', 'solido', 'no-peligroso',
+        8720.000, 'kg', 1, 'Cuba de 30m³', 'R04', 'Reciclado de metales en acería',
+        '2026-07-16', '2026-07-16', true, true, true, '2026-07-16', '2026-07-16', '2026-07-16',
+        'completado', 'Estructuras metálicas y tubos desmantelados de instalaciones.'
     ) RETURNING id INTO v_di_9;
 
-    -- DI 10: Virutas de metales férreos (No Peligroso)
+    -- DI 10: Virutas de Mecanizado (No Peligroso - Completado)
     INSERT INTO public.identification_documents (
         user_id, company_id, contract_id, numero_documento, fecha_documento,
         tipo_notificacion, productor_razon_social, productor_cif, productor_nima,
@@ -798,12 +965,9 @@ BEGIN
         gestor_direccion, gestor_codigo_postal, gestor_municipio, gestor_provincia,
         transportista_razon_social, transportista_cif, transportista_matricula,
         codigo_ler, descripcion_residuo, estado_fisico, peligrosidad,
-        cantidad, unidad, numero_envases, tipo_envases,
-        operacion_tratamiento, descripcion_tratamiento,
-        fecha_recogida, fecha_entrega,
-        firmado_productor, firmado_gestor, firmado_transportista,
-        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista,
-        estado, notas
+        cantidad, unidad, numero_envases, tipo_envases, operacion_tratamiento, descripcion_tratamiento,
+        fecha_recogida, fecha_entrega, firmado_productor, firmado_gestor, firmado_transportista,
+        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista, estado, notas
     ) VALUES (
         v_user_id, v_company_id, v_contract_metales_id, 'DI-2026-0010', '2026-08-05',
         'sin-notificacion', 'EcoGestión y Soluciones Ambientales 360, S.L.', 'B88997766', '2800012345-01',
@@ -811,14 +975,13 @@ BEGIN
         'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', '2800099881', 'G-MD-2021/3321',
         'Polígono Los Ángeles, C/ Carpinteros 19', '28906', 'Getafe', 'Madrid',
         'Ecotrans Norte Contenedores y Cubas S.L.', 'B87112233', '7741-JWB',
-        '12 01 01', 'Limaduras y virutas de metales férreos',
-        'solido', 'no-peligroso', 3200.000, 'kg', 2, 'Contenedores metálicos estancos 1500L',
-        'R04', 'Reciclado y fundición de viruta de mecanizado', '2026-08-05', '2026-08-05',
-        true, true, true, '2026-08-05', '2026-08-05', '2026-08-05',
-        'completado', 'Viruta limpia de tornos y centros de mecanizado CNC sin taladrina residual.'
+        '12 01 01', 'Limaduras y virutas de metales férreos', 'solido', 'no-peligroso',
+        3200.000, 'kg', 2, 'Contenedores metálicos 1500L', 'R04', 'Reciclado y fundición de viruta',
+        '2026-08-05', '2026-08-05', true, true, true, '2026-08-05', '2026-08-05', '2026-08-05',
+        'completado', 'Viruta limpia de mecanizado en tornos y fresadoras CNC.'
     ) RETURNING id INTO v_di_10;
 
-    -- DI 11: Residuos orgánicos compostables (No Peligroso - Pendiente de Firma)
+    -- DI 11: Residuos orgánicos (No Peligroso - Pendiente de Firma)
     INSERT INTO public.identification_documents (
         user_id, company_id, contract_id, numero_documento, fecha_documento,
         tipo_notificacion, productor_razon_social, productor_cif, productor_nima,
@@ -827,12 +990,9 @@ BEGIN
         gestor_direccion, gestor_codigo_postal, gestor_municipio, gestor_provincia,
         transportista_razon_social, transportista_cif, transportista_matricula,
         codigo_ler, descripcion_residuo, estado_fisico, peligrosidad,
-        cantidad, unidad, numero_envases, tipo_envases,
-        operacion_tratamiento, descripcion_tratamiento,
-        fecha_recogida, fecha_entrega,
-        firmado_productor, firmado_gestor, firmado_transportista,
-        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista,
-        estado, notas
+        cantidad, unidad, numero_envases, tipo_envases, operacion_tratamiento, descripcion_tratamiento,
+        fecha_recogida, fecha_entrega, firmado_productor, firmado_gestor, firmado_transportista,
+        fecha_firma_productor, fecha_firma_transportista, estado, notas
     ) VALUES (
         v_user_id, v_company_id, v_contract_organicos_id, 'DI-2026-0011', '2026-09-18',
         'sin-notificacion', 'EcoGestión y Soluciones Ambientales 360, S.L.', 'B88997766', '2800012345-01',
@@ -840,14 +1000,13 @@ BEGIN
         'Centro Ambiental de Compostaje y Biomasa del Tajo S.L.', 'B88332211', '2800088772', 'G-MD-2023/5510',
         'Carretera de Toledo km 18', '28300', 'Aranjuez', 'Madrid',
         'Logística Ecológica Express S.L.', 'B86991122', '1204-MBD',
-        '20 01 08', 'Residuos biodegradables de cocinas y restaurantes',
-        'solido', 'no-peligroso', 1950.000, 'kg', 8, 'Contenedores marrones 240L con bolsa compostable',
-        'R03', 'Compostaje biológico aerobio', '2026-09-18', NULL,
-        true, false, true, '2026-09-18', NULL, '2026-09-18',
-        'pendiente-firma', 'En espera de la validación y firma electrónica por el gestor de destino en báscula.'
+        '20 01 08', 'Residuos biodegradables de cocinas y restaurantes', 'solido', 'no-peligroso',
+        1950.000, 'kg', 8, 'Contenedores marrones 240L', 'R03', 'Compostaje aerobio',
+        '2026-09-18', NULL, true, false, true, '2026-09-18', '2026-09-18',
+        'pendiente-firma', 'Pendiente de confirmación telemática del peso neto por el gestor de destino.'
     ) RETURNING id INTO v_di_11;
 
-    -- DI 12: Aceite mineral de motor (Peligroso - Borrador en preparación)
+    -- DI 12: Baterías de Plomo (Peligroso - Completado)
     INSERT INTO public.identification_documents (
         user_id, company_id, contract_id, numero_documento, fecha_documento,
         tipo_notificacion, productor_razon_social, productor_cif, productor_nima,
@@ -856,31 +1015,77 @@ BEGIN
         gestor_direccion, gestor_codigo_postal, gestor_municipio, gestor_provincia,
         transportista_razon_social, transportista_cif, transportista_matricula,
         codigo_ler, descripcion_residuo, estado_fisico, peligrosidad,
-        cantidad, unidad, numero_envases, tipo_envases,
-        operacion_tratamiento, descripcion_tratamiento,
-        fecha_recogida, fecha_entrega,
-        firmado_productor, firmado_gestor, firmado_transportista,
+        cantidad, unidad, numero_envases, tipo_envases, operacion_tratamiento, descripcion_tratamiento,
+        fecha_recogida, fecha_entrega, firmado_productor, firmado_gestor, firmado_transportista,
+        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista, estado, notas
+    ) VALUES (
+        v_user_id, v_company_id, v_contract_aceites_id, 'DI-2026-0012', '2026-09-29',
+        'sin-notificacion', 'EcoGestión y Soluciones Ambientales 360, S.L.', 'B88997766', '2800012345-02',
+        'C/ Manuel Cobo Calleja 52', '28947', 'Fuenlabrada', 'Madrid',
+        'Tratamientos y Valorizaciones Ibéricas S.A.', 'A28112233', '2800045678', 'G-MD-2022/9901',
+        'Avda. de la Industria 45', '28108', 'Alcobendas', 'Madrid',
+        'Transportes Especiales ADR Circulares S.A.', 'A84112299', '8932-KMN',
+        '16 06 01*', 'Baterías de plomo', 'solido', 'peligroso',
+        850.000, 'kg', 1, 'Caja de polietileno ácido-resistente homologada', 'R04', 'Reciclado de plomo y neutralización de ácido',
+        '2026-09-29', '2026-09-29', true, true, true, '2026-09-29', '2026-09-29', '2026-09-29',
+        'completado', 'Baterías sustituidas en carretillas elevadoras y SAIs.'
+    ) RETURNING id INTO v_di_12;
+
+    -- DI 13: RAEEs / Equipos electrónicos desechados (Peligroso - Completado)
+    INSERT INTO public.identification_documents (
+        user_id, company_id, contract_id, numero_documento, fecha_documento,
+        tipo_notificacion, productor_razon_social, productor_cif, productor_nima,
+        productor_direccion, productor_codigo_postal, productor_municipio, productor_provincia,
+        gestor_razon_social, gestor_cif, gestor_nima, gestor_numero_autorizacion,
+        gestor_direccion, gestor_codigo_postal, gestor_municipio, gestor_provincia,
+        transportista_razon_social, transportista_cif, transportista_matricula,
+        codigo_ler, descripcion_residuo, estado_fisico, peligrosidad,
+        cantidad, unidad, numero_envases, tipo_envases, operacion_tratamiento, descripcion_tratamiento,
+        fecha_recogida, fecha_entrega, firmado_productor, firmado_gestor, firmado_transportista,
+        fecha_firma_productor, fecha_firma_gestor, fecha_firma_transportista, estado, notas
+    ) VALUES (
+        v_user_id, v_company_id, v_contract_metales_id, 'DI-2026-0013', '2026-10-06',
+        'sin-notificacion', 'EcoGestión y Soluciones Ambientales 360, S.L.', 'B88997766', '2800012345-01',
+        'C/ Campezo 14', '28022', 'Madrid', 'Madrid',
+        'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', '2800099881', 'G-MD-2021/3321',
+        'Polígono Los Ángeles, C/ Carpinteros 19', '28906', 'Getafe', 'Madrid',
+        'TransAmbiental Logística Verde S.L.', 'B85667788', '4521-LXZ',
+        '16 02 13*', 'Equipos desechados que contienen componentes peligrosos (RAEEs)', 'solido', 'peligroso',
+        720.000, 'kg', 2, 'Jaulas metálicas homologadas para RAEE', 'R04', 'Descontaminación y desmontaje selectivo',
+        '2026-10-06', '2026-10-06', true, true, true, '2026-10-06', '2026-10-06', '2026-10-06',
+        'completado', 'Sustitución de armarios de control y autómatas PLC obsoletos.'
+    ) RETURNING id INTO v_di_13;
+
+    -- DI 14: Aceite mineral de motor (Borrador en preparación para salida próxima)
+    INSERT INTO public.identification_documents (
+        user_id, company_id, contract_id, numero_documento, fecha_documento,
+        tipo_notificacion, productor_razon_social, productor_cif, productor_nima,
+        productor_direccion, productor_codigo_postal, productor_municipio, productor_provincia,
+        gestor_razon_social, gestor_cif, gestor_nima, gestor_numero_autorizacion,
+        gestor_direccion, gestor_codigo_postal, gestor_municipio, gestor_provincia,
+        transportista_razon_social, transportista_cif, transportista_matricula,
+        codigo_ler, descripcion_residuo, estado_fisico, peligrosidad,
+        cantidad, unidad, numero_envases, tipo_envases, operacion_tratamiento, descripcion_tratamiento,
+        fecha_recogida, fecha_entrega, firmado_productor, firmado_gestor, firmado_transportista,
         estado, notas
     ) VALUES (
-        v_user_id, v_company_id, v_contract_aceites_id, 'DI-2026-0012', '2026-10-15',
+        v_user_id, v_company_id, v_contract_aceites_id, 'DI-2026-0014', '2026-10-16',
         'sin-notificacion', 'EcoGestión y Soluciones Ambientales 360, S.L.', 'B88997766', '2800012345-01',
         'C/ Campezo 14', '28022', 'Madrid', 'Madrid',
         'Tratamientos y Valorizaciones Ibéricas S.A.', 'A28112233', '2800045678', 'G-MD-2022/9901',
         'Avda. de la Industria 45', '28108', 'Alcobendas', 'Madrid',
         'TransAmbiental Logística Verde S.L.', 'B85667788', '4521-LXZ',
-        '13 02 05*', 'Aceites minerales no clorados de motor, de transmisión mecánica y de lubricación',
-        'liquido', 'peligroso', 1150.000, 'kg', 1, 'Contenedor GRG 1000L homologado UN',
-        'R09', 'Regeneración de aceites usados', NULL, NULL,
-        false, false, false,
-        'borrador', 'Documento preparado para la próxima retirada programada a finales de mes.'
-    ) RETURNING id INTO v_di_12;
+        '13 02 05*', 'Aceites minerales no clorados de motor y lubricación', 'liquido', 'peligroso',
+        1100.000, 'kg', 1, 'Contenedor GRG 1000L', 'R09', 'Regeneración de aceites usados',
+        NULL, NULL, false, false, false,
+        'borrador', 'Documento borrador preparado para la recogida de final de mes.'
+    ) RETURNING id INTO v_di_14;
 
     -- ==========================================================================
-    -- 9. ARCHIVO CRONOLÓGICO OBLIGATORIO (public.chronological_registry - ART. 64 LEY 7/2022)
+    -- 10. ARCHIVO CRONOLÓGICO OBLIGATORIO (public.chronological_registry - 26 ASIENTOS)
     -- ==========================================================================
     DELETE FROM public.chronological_registry WHERE user_id = v_user_id;
 
-    -- Asientos 2026: Generaciones internas, traslados con DI y regularizaciones
     INSERT INTO public.chronological_registry (
         user_id, company_id, production_center_id, numero_asiento, fecha,
         tipo_operacion, codigo_ler, descripcion_residuo, peligrosidad, codigo_hp, estado_fisico,
@@ -890,227 +1095,256 @@ BEGIN
         operacion_rd, operacion_rd_descripcion, identification_document_id, numero_documento_referencia,
         observaciones
     ) VALUES
-    -- Asiento 01: Generación Aceites en Planta Central
-    (
-        v_user_id, v_company_id, v_center_central_id, 'AS-2026-0001', '2026-01-20',
-        'produccion_interna', '13 02 05*', 'Aceites minerales no clorados de motor y lubricación', 'peligroso',
-        ARRAY['HP5'], 'liquido', 650.000, 'GRG 1000L', 1, 'propio',
-        'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL,
-        'propio_tratamiento', NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, 'PARTE-MANT-01/26', 'Purga y cambio de lubricante en bancada de compresión nº 2.'
-    ),
-    -- Asiento 02: Generación Aceites en Planta Central (segundo tramo)
-    (
-        v_user_id, v_company_id, v_center_central_id, 'AS-2026-0002', '2026-02-02',
-        'produccion_interna', '13 02 05*', 'Aceites minerales no clorados de motor y lubricación', 'peligroso',
-        ARRAY['HP5'], 'liquido', 600.000, 'GRG 1000L', 1, 'propio',
-        'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL,
-        'propio_tratamiento', NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, 'PARTE-MANT-02/26', 'Llenado completo de GRG de almacenamiento temporal.'
-    ),
-    -- Asiento 03: Salida Traslado Aceites amparada por DI-2026-0001
-    (
-        v_user_id, v_company_id, v_center_central_id, 'AS-2026-0003', '2026-02-04',
-        'salida_traslado', '13 02 05*', 'Aceites minerales no clorados de motor y lubricación', 'peligroso',
-        ARRAY['HP5'], 'liquido', 1250.000, 'GRG 1000L', 1, 'propio',
-        'EcoGestión 360 (Planta Central)', '2800012345-01',
-        'B85667788', 'TransAmbiental Logística Verde S.L.', '2800033221', '4521-LXZ',
-        'tercero_gestor', 'Tratamientos y Valorizaciones Ibéricas S.A.', 'A28112233', '2800045678', 'G-MD-2022/9901',
-        'R09', 'Regeneración de aceites usados', v_di_1, 'DI-2026-0001',
-        'Entrega realizada a gestor final autorizado. Pesaje verificado en báscula: 1.250 kg.'
-    ),
-    -- Asiento 04: Generación Disolventes
-    (
-        v_user_id, v_company_id, v_center_central_id, 'AS-2026-0004', '2026-02-15',
-        'produccion_interna', '14 06 03*', 'Otros disolventes y mezclas de disolventes', 'peligroso',
-        ARRAY['HP3', 'HP4', 'HP6'], 'liquido', 600.000, 'Bidones 200L', 3, 'propio',
-        'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL,
-        'propio_tratamiento', NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, 'PROD-QUIM-02/26', 'Enjuague de reactores y limpieza de líneas de trasvase.'
-    ),
-    -- Asiento 05: Salida Traslado Disolventes amparada por DI-2026-0002
-    (
-        v_user_id, v_company_id, v_center_central_id, 'AS-2026-0005', '2026-02-18',
-        'salida_traslado', '14 06 03*', 'Otros disolventes y mezclas de disolventes', 'peligroso',
-        ARRAY['HP3', 'HP4', 'HP6'], 'liquido', 600.000, 'Bidones 200L', 3, 'propio',
-        'EcoGestión 360 (Planta Central)', '2800012345-01',
-        'A84112299', 'Transportes Especiales ADR Circulares S.A.', '2800055443', '8932-KMN',
-        'tercero_gestor', 'Regeneración de Disolventes del Jarama S.L.', 'B82334455', '2800078901', 'G-MD-2020/4412',
-        'R02', 'Recuperación o regeneración de disolventes', v_di_2, 'DI-2026-0002',
-        'Expedición bajo normativa ADR con carta de porte e instrucciones escritas.'
-    ),
-    -- Asiento 06: Generación Envases Peligrosos en Centro Sur
-    (
-        v_user_id, v_company_id, v_center_sur_id, 'AS-2026-0006', '2026-02-28',
-        'produccion_interna', '15 01 10*', 'Envases que contienen restos de sustancias peligrosas', 'peligroso',
-        ARRAY['HP4', 'HP14'], 'solido', 480.000, 'Big-Bag 1m³', 2, 'propio',
-        'EcoGestión 360 (Centro Sur)', '2800012345-02', NULL, NULL, NULL, NULL,
-        'propio_tratamiento', NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, 'ALMACEN-SUR-02/26', 'Acumulación de envases metálicos y plásticos vacíos escurridos.'
-    ),
-    -- Asiento 07: Salida Traslado Envases Peligrosos amparada por DI-2026-0003
-    (
-        v_user_id, v_company_id, v_center_sur_id, 'AS-2026-0007', '2026-03-05',
-        'salida_traslado', '15 01 10*', 'Envases que contienen restos de sustancias peligrosas', 'peligroso',
-        ARRAY['HP4', 'HP14'], 'solido', 480.000, 'Big-Bag 1m³', 2, 'propio',
-        'EcoGestión 360 (Centro Sur)', '2800012345-02',
-        'B85667788', 'TransAmbiental Logística Verde S.L.', '2800033221', '4521-LXZ',
-        'tercero_gestor', 'Tratamientos y Valorizaciones Ibéricas S.A.', 'A28112233', '2800045678', 'G-MD-2022/9901',
-        'R04', 'Reciclado o recuperación de metales', v_di_3, 'DI-2026-0003',
-        'Envío para lavado, descontaminación y triturado mecánico.'
-    ),
-    -- Asiento 08: Generación Trapos y Absorbentes
-    (
-        v_user_id, v_company_id, v_center_central_id, 'AS-2026-0008', '2026-03-20',
-        'produccion_interna', '15 02 02*', 'Absorbentes, materiales de filtración y trapos contaminados', 'peligroso',
-        ARRAY['HP5'], 'solido', 340.000, 'Contenedores 240L', 2, 'propio',
-        'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL,
-        'propio_tratamiento', NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, 'TALLER-MANT-03/26', 'Material absorbente utilizado en recogida de pequeños derrames de mantenimiento.'
-    ),
-    -- Asiento 09: Salida Traslado Trapos amparada por DI-2026-0004
-    (
-        v_user_id, v_company_id, v_center_central_id, 'AS-2026-0009', '2026-03-24',
-        'salida_traslado', '15 02 02*', 'Absorbentes, materiales de filtración y trapos contaminados', 'peligroso',
-        ARRAY['HP5'], 'solido', 340.000, 'Contenedores 240L', 2, 'propio',
-        'EcoGestión 360 (Planta Central)', '2800012345-01',
-        'B85667788', 'TransAmbiental Logística Verde S.L.', '2800033221', '4521-LXZ',
-        'tercero_gestor', 'Tratamientos y Valorizaciones Ibéricas S.A.', 'A28112233', '2800045678', 'G-MD-2022/9901',
-        'D10', 'Incineración en tierra con recuperación energética', v_di_4, 'DI-2026-0004',
-        'Valorización energética R01/D10 en horno rotatorio de alta temperatura.'
-    ),
-    -- Asiento 10: Generación Pinturas
-    (
-        v_user_id, v_company_id, v_center_central_id, 'AS-2026-0010', '2026-04-05',
-        'produccion_interna', '08 01 11*', 'Residuos de pintura y barniz con disolventes orgánicos', 'peligroso',
-        ARRAY['HP3', 'HP5'], 'pastoso', 520.000, 'Bidones 200L', 2, 'propio',
-        'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL,
-        'propio_tratamiento', NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, 'CABINA-PINT-04/26', 'Limpieza general de cubas y toberas de la cabina de recubrimiento epoxi.'
-    ),
-    -- Asiento 11: Salida Traslado Pinturas amparada por DI-2026-0005
-    (
-        v_user_id, v_company_id, v_center_central_id, 'AS-2026-0011', '2026-04-10',
-        'salida_traslado', '08 01 11*', 'Residuos de pintura y barniz con disolventes orgánicos', 'peligroso',
-        ARRAY['HP3', 'HP5'], 'pastoso', 520.000, 'Bidones 200L', 2, 'propio',
-        'EcoGestión 360 (Planta Central)', '2800012345-01',
-        'A84112299', 'Transportes Especiales ADR Circulares S.A.', '2800055443', '8932-KMN',
-        'tercero_gestor', 'Regeneración de Disolventes del Jarama S.L.', 'B82334455', '2800078901', 'G-MD-2020/4412',
-        'D09', 'Tratamiento físico-químico', v_di_5, 'DI-2026-0005',
-        'Tratamiento de solidificación e inertización físico-química.'
-    ),
-    -- Asiento 12: Generación Filtros de Aceite Centro Sur
-    (
-        v_user_id, v_company_id, v_center_sur_id, 'AS-2026-0012', '2026-05-10',
-        'produccion_interna', '16 01 07*', 'Filtros de aceite', 'peligroso',
-        ARRAY['HP5'], 'solido', 290.000, 'Bidón 200L', 1, 'propio',
-        'EcoGestión 360 (Centro Sur)', '2800012345-02', NULL, NULL, NULL, NULL,
-        'propio_tratamiento', NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, 'MANT-FLOTA-05/26', 'Revisión y mantenimiento semestral de cabezas tractoras y maquinaria.'
-    ),
-    -- Asiento 13: Salida Traslado Filtros amparada por DI-2026-0006
-    (
-        v_user_id, v_company_id, v_center_sur_id, 'AS-2026-0013', '2026-05-14',
-        'salida_traslado', '16 01 07*', 'Filtros de aceite', 'peligroso',
-        ARRAY['HP5'], 'solido', 290.000, 'Bidón 200L', 1, 'propio',
-        'EcoGestión 360 (Centro Sur)', '2800012345-02',
-        'B85667788', 'TransAmbiental Logística Verde S.L.', '2800033221', '4521-LXZ',
-        'tercero_gestor', 'Tratamientos y Valorizaciones Ibéricas S.A.', 'A28112233', '2800045678', 'G-MD-2022/9901',
-        'R04', 'Reciclado de metales férreos', v_di_6, 'DI-2026-0006',
-        'Drenaje forzado por centrifugación y separación de chapa férrea.'
-    ),
-    -- Asiento 14: Generación Papel y Cartón en Planta Central
-    (
-        v_user_id, v_company_id, v_center_central_id, 'AS-2026-0014', '2026-05-30',
-        'produccion_interna', '15 01 01', 'Envases de papel y cartón', 'no-peligroso',
-        NULL, 'solido', 4350.000, 'Balas prensadas', 8, 'propio',
-        'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL,
-        'propio_tratamiento', NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, 'EMBALAJE-05/26', 'Prensado en prensa horizontal automática de cajas y embalajes de recepción.'
-    ),
-    -- Asiento 15: Salida Traslado Papel y Cartón amparada por DI-2026-0007
-    (
-        v_user_id, v_company_id, v_center_central_id, 'AS-2026-0015', '2026-06-02',
-        'salida_traslado', '15 01 01', 'Envases de papel y cartón', 'no-peligroso',
-        NULL, 'solido', 4350.000, 'Balas prensadas', 8, 'propio',
-        'EcoGestión 360 (Planta Central)', '2800012345-01',
-        'B86991122', 'Logística Ecológica Express S.L.', '2800066778', '1204-MBD',
-        'tercero_gestor', 'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', '2800099881', 'G-MD-2021/3321',
-        'R03', 'Reciclado o recuperación de sustancias orgánicas', v_di_7, 'DI-2026-0007',
-        'Carga completa de camión con destino papelera de reciclaje.'
-    ),
-    -- Asiento 16: Generación Plásticos en Planta Corredor
-    (
-        v_user_id, v_company_id, v_center_corredor_id, 'AS-2026-0016', '2026-06-20',
-        'produccion_interna', '15 01 02', 'Envases de plástico', 'no-peligroso',
-        NULL, 'solido', 2900.000, 'Balas prensadas', 5, 'propio',
-        'EcoGestión 360 (Planta Corredor)', '2800012345-03', NULL, NULL, NULL, NULL,
-        'propio_tratamiento', NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, 'RECICLAJE-06/26', 'Clasificación de film de polietileno y flejes de paletizado.'
-    ),
-    -- Asiento 17: Salida Traslado Plásticos amparada por DI-2026-0008
-    (
-        v_user_id, v_company_id, v_center_corredor_id, 'AS-2026-0017', '2026-06-25',
-        'salida_traslado', '15 01 02', 'Envases de plástico', 'no-peligroso',
-        NULL, 'solido', 2900.000, 'Balas prensadas', 5, 'propio',
-        'EcoGestión 360 (Planta Corredor)', '2800012345-03',
-        'B86991122', 'Logística Ecológica Express S.L.', '2800066778', '1204-MBD',
-        'tercero_gestor', 'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', '2800099881', 'G-MD-2021/3321',
-        'R03', 'Reciclado mecánico y granza', v_di_8, 'DI-2026-0008',
-        'Salida valorizable de polietileno transparente de alta pureza.'
-    ),
-    -- Asiento 18: Generación Chatarra de Hierro y Acero Centro Sur
-    (
-        v_user_id, v_company_id, v_center_sur_id, 'AS-2026-0018', '2026-07-10',
-        'produccion_interna', '17 04 05', 'Hierro y acero', 'no-peligroso',
-        NULL, 'solido', 8720.000, 'Cuba 30m³', 1, 'propio',
-        'EcoGestión 360 (Centro Sur)', '2800012345-02', NULL, NULL, NULL, NULL,
-        'propio_tratamiento', NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, 'OBRA-REFORMA-07/26', 'Desmantelamiento de pasarelas y sustitución de perfiles estructurales.'
-    ),
-    -- Asiento 19: Salida Traslado Chatarra amparada por DI-2026-0009
-    (
-        v_user_id, v_company_id, v_center_sur_id, 'AS-2026-0019', '2026-07-16',
-        'salida_traslado', '17 04 05', 'Hierro y acero', 'no-peligroso',
-        NULL, 'solido', 8720.000, 'Cuba 30m³', 1, 'propio',
-        'EcoGestión 360 (Centro Sur)', '2800012345-02',
-        'B87112233', 'Ecotrans Norte Contenedores y Cubas S.L.', '2800077889', '7741-JWB',
-        'tercero_gestor', 'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', '2800099881', 'G-MD-2021/3321',
-        'R04', 'Reciclado de metales en acería', v_di_9, 'DI-2026-0009',
-        'Ticket de pesaje gestor nº 88412 con tara y bruto certificados.'
-    ),
-    -- Asiento 20: Generación Virutas Metálicas Planta Central
-    (
-        v_user_id, v_company_id, v_center_central_id, 'AS-2026-0020', '2026-07-31',
-        'produccion_interna', '12 01 01', 'Limaduras y virutas de metales férreos', 'no-peligroso',
-        NULL, 'solido', 3200.000, 'Contenedores 1500L', 2, 'propio',
-        'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL,
-        'propio_tratamiento', NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, 'MECANIZADO-07/26', 'Mecanizado de piezas de repuesto y valvulería industrial.'
-    ),
-    -- Asiento 21: Salida Traslado Virutas amparada por DI-2026-0010
-    (
-        v_user_id, v_company_id, v_center_central_id, 'AS-2026-0021', '2026-08-05',
-        'salida_traslado', '12 01 01', 'Limaduras y virutas de metales férreos', 'no-peligroso',
-        NULL, 'solido', 3200.000, 'Contenedores 1500L', 2, 'propio',
-        'EcoGestión 360 (Planta Central)', '2800012345-01',
-        'B87112233', 'Ecotrans Norte Contenedores y Cubas S.L.', '2800077889', '7741-JWB',
-        'tercero_gestor', 'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', '2800099881', 'G-MD-2021/3321',
-        'R04', 'Reciclado y fundición de viruta', v_di_10, 'DI-2026-0010',
-        'Entrega directa en fundición colaboradora autorizada.'
-    ),
-    -- Asiento 22: Ajuste de Regularización de Inventario (Merma)
-    (
-        v_user_id, v_company_id, v_center_central_id, 'AS-2026-0022', '2026-09-30',
-        'merma_ajuste', '14 06 03*', 'Otros disolventes y mezclas de disolventes', 'peligroso',
-        ARRAY['HP3'], 'liquido', 15.000, 'Bidón 200L', 1, 'propio',
-        'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL,
-        'propio_tratamiento', NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, 'INV-TRIMESTRAL-Q3', 'Ajuste justificado por evaporación natural en cubeta de retención ventilada.'
+    -- 01: Gen Aceites
+    (v_user_id, v_company_id, v_center_central_id, 'AS-2026-0001', '2026-01-20', 'produccion_interna', '13 02 05*', 'Aceites minerales no clorados de motor y lubricación', 'peligroso', ARRAY['HP5'], 'liquido', 650.000, 'GRG 1000L', 1, 'propio', 'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL, 'propio_tratamiento', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'PARTE-MANT-01/26', 'Mantenimiento preventivo bancada de compresión.'),
+    -- 02: Gen Aceites 2
+    (v_user_id, v_company_id, v_center_central_id, 'AS-2026-0002', '2026-02-02', 'produccion_interna', '13 02 05*', 'Aceites minerales no clorados de motor y lubricación', 'peligroso', ARRAY['HP5'], 'liquido', 600.000, 'GRG 1000L', 1, 'propio', 'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL, 'propio_tratamiento', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'PARTE-MANT-02/26', 'Llenado y precinto de GRG.'),
+    -- 03: Salida Traslado Aceites (DI-2026-0001)
+    (v_user_id, v_company_id, v_center_central_id, 'AS-2026-0003', '2026-02-04', 'salida_traslado', '13 02 05*', 'Aceites minerales no clorados de motor y lubricación', 'peligroso', ARRAY['HP5'], 'liquido', 1250.000, 'GRG 1000L', 1, 'propio', 'EcoGestión 360 (Planta Central)', '2800012345-01', 'B85667788', 'TransAmbiental Logística Verde S.L.', '2800033221', '4521-LXZ', 'tercero_gestor', 'Tratamientos y Valorizaciones Ibéricas S.A.', 'A28112233', '2800045678', 'G-MD-2022/9901', 'R09', 'Regeneración de aceites usados', v_di_1, 'DI-2026-0001', 'Pesaje en báscula: 1.250 kg netos.'),
+    -- 04: Gen Disolventes
+    (v_user_id, v_company_id, v_center_central_id, 'AS-2026-0004', '2026-02-15', 'produccion_interna', '14 06 03*', 'Otros disolventes y mezclas de disolventes', 'peligroso', ARRAY['HP3', 'HP4', 'HP6'], 'liquido', 600.000, 'Bidones 200L', 3, 'propio', 'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL, 'propio_tratamiento', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'PROD-QUIM-02/26', 'Limpieza y purga de circuitos de trasvase.'),
+    -- 05: Salida Disolventes (DI-2026-0002)
+    (v_user_id, v_company_id, v_center_central_id, 'AS-2026-0005', '2026-02-18', 'salida_traslado', '14 06 03*', 'Otros disolventes y mezclas de disolventes', 'peligroso', ARRAY['HP3', 'HP4', 'HP6'], 'liquido', 600.000, 'Bidones 200L', 3, 'propio', 'EcoGestión 360 (Planta Central)', '2800012345-01', 'A84112299', 'Transportes Especiales ADR Circulares S.A.', '2800055443', '8932-KMN', 'tercero_gestor', 'Regeneración de Disolventes del Jarama S.L.', 'B82334455', '2800078901', 'G-MD-2020/4412', 'R02', 'Regeneración de disolventes', v_di_2, 'DI-2026-0002', 'Expedición ADR con carta de porte.'),
+    -- 06: Gen Envases Peligrosos Centro Sur
+    (v_user_id, v_company_id, v_center_sur_id, 'AS-2026-0006', '2026-02-28', 'produccion_interna', '15 01 10*', 'Envases que contienen restos de sustancias peligrosas', 'peligroso', ARRAY['HP4', 'HP14'], 'solido', 480.000, 'Big-Bag 1m³', 2, 'propio', 'EcoGestión 360 (Centro Sur)', '2800012345-02', NULL, NULL, NULL, NULL, 'propio_tratamiento', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'ALMACEN-SUR-02/26', 'Acopio de envases vacíos escurridos.'),
+    -- 07: Salida Envases Peligrosos (DI-2026-0003)
+    (v_user_id, v_company_id, v_center_sur_id, 'AS-2026-0007', '2026-03-05', 'salida_traslado', '15 01 10*', 'Envases que contienen restos de sustancias peligrosas', 'peligroso', ARRAY['HP4', 'HP14'], 'solido', 480.000, 'Big-Bag 1m³', 2, 'propio', 'EcoGestión 360 (Centro Sur)', '2800012345-02', 'B85667788', 'TransAmbiental Logística Verde S.L.', '2800033221', '4521-LXZ', 'tercero_gestor', 'Tratamientos y Valorizaciones Ibéricas S.A.', 'A28112233', '2800045678', 'G-MD-2022/9901', 'R04', 'Reciclado de metales', v_di_3, 'DI-2026-0003', 'Entrega para descontaminación y triturado.'),
+    -- 08: Gen Trapos
+    (v_user_id, v_company_id, v_center_central_id, 'AS-2026-0008', '2026-03-20', 'produccion_interna', '15 02 02*', 'Absorbentes y trapos contaminados', 'peligroso', ARRAY['HP5'], 'solido', 340.000, 'Contenedores 240L', 2, 'propio', 'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL, 'propio_tratamiento', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'TALLER-MANT-03/26', 'Limpieza de derrames y grasa.'),
+    -- 09: Salida Trapos (DI-2026-0004)
+    (v_user_id, v_company_id, v_center_central_id, 'AS-2026-0009', '2026-03-24', 'salida_traslado', '15 02 02*', 'Absorbentes y trapos contaminados', 'peligroso', ARRAY['HP5'], 'solido', 340.000, 'Contenedores 240L', 2, 'propio', 'EcoGestión 360 (Planta Central)', '2800012345-01', 'B85667788', 'TransAmbiental Logística Verde S.L.', '2800033221', '4521-LXZ', 'tercero_gestor', 'Tratamientos y Valorizaciones Ibéricas S.A.', 'A28112233', '2800045678', 'G-MD-2022/9901', 'D10', 'Incineración con recuperación energética', v_di_4, 'DI-2026-0004', 'Valorización térmica R01/D10.'),
+    -- 10: Gen Pinturas
+    (v_user_id, v_company_id, v_center_central_id, 'AS-2026-0010', '2026-04-05', 'produccion_interna', '08 01 11*', 'Residuos de pintura y barniz con disolventes', 'peligroso', ARRAY['HP3', 'HP5'], 'pastoso', 520.000, 'Bidones 200L', 2, 'propio', 'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL, 'propio_tratamiento', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'CABINA-PINT-04/26', 'Limpieza de cabina de pintura.'),
+    -- 11: Salida Pinturas (DI-2026-0005)
+    (v_user_id, v_company_id, v_center_central_id, 'AS-2026-0011', '2026-04-10', 'salida_traslado', '08 01 11*', 'Residuos de pintura y barniz con disolventes', 'peligroso', ARRAY['HP3', 'HP5'], 'pastoso', 520.000, 'Bidones 200L', 2, 'propio', 'EcoGestión 360 (Planta Central)', '2800012345-01', 'A84112299', 'Transportes Especiales ADR Circulares S.A.', '2800055443', '8932-KMN', 'tercero_gestor', 'Regeneración de Disolventes del Jarama S.L.', 'B82334455', '2800078901', 'G-MD-2020/4412', 'D09', 'Tratamiento físico-químico', v_di_5, 'DI-2026-0005', 'Solidificación e inertización.'),
+    -- 12: Gen Filtros
+    (v_user_id, v_company_id, v_center_sur_id, 'AS-2026-0012', '2026-05-10', 'produccion_interna', '16 01 07*', 'Filtros de aceite', 'peligroso', ARRAY['HP5'], 'solido', 290.000, 'Bidón 200L', 1, 'propio', 'EcoGestión 360 (Centro Sur)', '2800012345-02', NULL, NULL, NULL, NULL, 'propio_tratamiento', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'MANT-FLOTA-05/26', 'Mantenimiento semestral de flota.'),
+    -- 13: Salida Filtros (DI-2026-0006)
+    (v_user_id, v_company_id, v_center_sur_id, 'AS-2026-0013', '2026-05-14', 'salida_traslado', '16 01 07*', 'Filtros de aceite', 'peligroso', ARRAY['HP5'], 'solido', 290.000, 'Bidón 200L', 1, 'propio', 'EcoGestión 360 (Centro Sur)', '2800012345-02', 'B85667788', 'TransAmbiental Logística Verde S.L.', '2800033221', '4521-LXZ', 'tercero_gestor', 'Tratamientos y Valorizaciones Ibéricas S.A.', 'A28112233', '2800045678', 'G-MD-2022/9901', 'R04', 'Reciclado de metales férreos', v_di_6, 'DI-2026-0006', 'Drenaje por centrifugación y separación.'),
+    -- 14: Gen Cartón Planta Central
+    (v_user_id, v_company_id, v_center_central_id, 'AS-2026-0014', '2026-05-30', 'produccion_interna', '15 01 01', 'Envases de papel y cartón', 'no-peligroso', NULL, 'solido', 4350.000, 'Balas prensadas', 8, 'propio', 'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL, 'propio_tratamiento', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'EMBALAJE-05/26', 'Prensado en prensa automática.'),
+    -- 15: Salida Cartón (DI-2026-0007)
+    (v_user_id, v_company_id, v_center_central_id, 'AS-2026-0015', '2026-06-02', 'salida_traslado', '15 01 01', 'Envases de papel y cartón', 'no-peligroso', NULL, 'solido', 4350.000, 'Balas prensadas', 8, 'propio', 'EcoGestión 360 (Planta Central)', '2800012345-01', 'B86991122', 'Logística Ecológica Express S.L.', '2800066778', '1204-MBD', 'tercero_gestor', 'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', '2800099881', 'G-MD-2021/3321', 'R03', 'Reciclado de sustancias orgánicas', v_di_7, 'DI-2026-0007', 'Entrega en papelera de reciclaje.'),
+    -- 16: Gen Plásticos Alcalá
+    (v_user_id, v_company_id, v_center_corredor_id, 'AS-2026-0016', '2026-06-20', 'produccion_interna', '15 01 02', 'Envases de plástico', 'no-peligroso', NULL, 'solido', 2900.000, 'Balas prensadas', 5, 'propio', 'EcoGestión 360 (Planta Corredor)', '2800012345-03', NULL, NULL, NULL, NULL, 'propio_tratamiento', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'RECICLAJE-06/26', 'Compactación de film PEBD.'),
+    -- 17: Salida Plásticos (DI-2026-0008)
+    (v_user_id, v_company_id, v_center_corredor_id, 'AS-2026-0017', '2026-06-25', 'salida_traslado', '15 01 02', 'Envases de plástico', 'no-peligroso', NULL, 'solido', 2900.000, 'Balas prensadas', 5, 'propio', 'EcoGestión 360 (Planta Corredor)', '2800012345-03', 'B86991122', 'Logística Ecológica Express S.L.', '2800066778', '1204-MBD', 'tercero_gestor', 'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', '2800099881', 'G-MD-2021/3321', 'R03', 'Reciclado mecánico y granza', v_di_8, 'DI-2026-0008', 'Granza de polietileno.'),
+    -- 18: Gen Acero Fuenlabrada
+    (v_user_id, v_company_id, v_center_sur_id, 'AS-2026-0018', '2026-07-10', 'produccion_interna', '17 04 05', 'Hierro y acero', 'no-peligroso', NULL, 'solido', 8720.000, 'Cuba 30m³', 1, 'propio', 'EcoGestión 360 (Centro Sur)', '2800012345-02', NULL, NULL, NULL, NULL, 'propio_tratamiento', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'OBRA-REFORMA-07/26', 'Sustitución de pasarelas y soportes.'),
+    -- 19: Salida Acero (DI-2026-0009)
+    (v_user_id, v_company_id, v_center_sur_id, 'AS-2026-0019', '2026-07-16', 'salida_traslado', '17 04 05', 'Hierro y acero', 'no-peligroso', NULL, 'solido', 8720.000, 'Cuba 30m³', 1, 'propio', 'EcoGestión 360 (Centro Sur)', '2800012345-02', 'B87112233', 'Ecotrans Norte Contenedores y Cubas S.L.', '2800077889', '7741-JWB', 'tercero_gestor', 'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', '2800099881', 'G-MD-2021/3321', 'R04', 'Reciclado en acería', v_di_9, 'DI-2026-0009', 'Certificado de pesada nº 88412.'),
+    -- 20: Gen Virutas
+    (v_user_id, v_company_id, v_center_central_id, 'AS-2026-0020', '2026-07-31', 'produccion_interna', '12 01 01', 'Limaduras y virutas de metales férreos', 'no-peligroso', NULL, 'solido', 3200.000, 'Contenedores 1500L', 2, 'propio', 'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL, 'propio_tratamiento', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'MECANIZADO-07/26', 'Viruta limpia de tornos y fresas.'),
+    -- 21: Salida Virutas (DI-2026-0010)
+    (v_user_id, v_company_id, v_center_central_id, 'AS-2026-0021', '2026-08-05', 'salida_traslado', '12 01 01', 'Limaduras y virutas de metales férreos', 'no-peligroso', NULL, 'solido', 3200.000, 'Contenedores 1500L', 2, 'propio', 'EcoGestión 360 (Planta Central)', '2800012345-01', 'B87112233', 'Ecotrans Norte Contenedores y Cubas S.L.', '2800077889', '7741-JWB', 'tercero_gestor', 'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', '2800099881', 'G-MD-2021/3321', 'R04', 'Reciclado y fundición', v_di_10, 'DI-2026-0010', 'Entrega directa en fundición.'),
+    -- 22: Merma justificada
+    (v_user_id, v_company_id, v_center_central_id, 'AS-2026-0022', '2026-08-31', 'merma_ajuste', '14 06 03*', 'Otros disolventes y mezclas de disolventes', 'peligroso', ARRAY['HP3'], 'liquido', 15.000, 'Bidón 200L', 1, 'propio', 'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL, 'propio_tratamiento', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'INV-TRIMESTRAL-Q3', 'Ajuste justificado por evaporación en cubeta de retención.'),
+    -- 23: Gen Baterías de Plomo
+    (v_user_id, v_company_id, v_center_sur_id, 'AS-2026-0023', '2026-09-25', 'produccion_interna', '16 06 01*', 'Baterías de plomo', 'peligroso', ARRAY['HP8'], 'solido', 850.000, 'Caja estanca', 1, 'propio', 'EcoGestión 360 (Centro Sur)', '2800012345-02', NULL, NULL, NULL, NULL, 'propio_tratamiento', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'RECAMBIO-BAT-09/26', 'Sustitución de baterías de tracción.'),
+    -- 24: Salida Baterías (DI-2026-0012)
+    (v_user_id, v_company_id, v_center_sur_id, 'AS-2026-0024', '2026-09-29', 'salida_traslado', '16 06 01*', 'Baterías de plomo', 'peligroso', ARRAY['HP8'], 'solido', 850.000, 'Caja estanca', 1, 'propio', 'EcoGestión 360 (Centro Sur)', '2800012345-02', 'A84112299', 'Transportes Especiales ADR Circulares S.A.', '2800055443', '8932-KMN', 'tercero_gestor', 'Tratamientos y Valorizaciones Ibéricas S.A.', 'A28112233', '2800045678', 'G-MD-2022/9901', 'R04', 'Recuperación de plomo', v_di_12, 'DI-2026-0012', 'Transporte autorizado ADR.'),
+    -- 25: Gen RAEEs
+    (v_user_id, v_company_id, v_center_central_id, 'AS-2026-0025', '2026-10-02', 'produccion_interna', '16 02 13*', 'Equipos desechados que contienen componentes peligrosos (RAEE)', 'peligroso', ARRAY['HP5', 'HP6'], 'solido', 720.000, 'Jaulas homologadas', 2, 'propio', 'EcoGestión 360 (Planta Central)', '2800012345-01', NULL, NULL, NULL, NULL, 'propio_tratamiento', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'RENOVACION-IT-10/26', 'Desmantelamiento de electrónica industrial.'),
+    -- 26: Salida RAEEs (DI-2026-0013)
+    (v_user_id, v_company_id, v_center_central_id, 'AS-2026-0026', '2026-10-06', 'salida_traslado', '16 02 13*', 'Equipos desechados que contienen componentes peligrosos (RAEE)', 'peligroso', ARRAY['HP5', 'HP6'], 'solido', 720.000, 'Jaulas homologadas', 2, 'propio', 'EcoGestión 360 (Planta Central)', '2800012345-01', 'B85667788', 'TransAmbiental Logística Verde S.L.', '2800033221', '4521-LXZ', 'tercero_gestor', 'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', '2800099881', 'G-MD-2021/3321', 'R04', 'Descontaminación RAEE', v_di_13, 'DI-2026-0013', 'Entrega para desmontaje selectivo.');
+
+    -- ==========================================================================
+    -- 11. OPERACIONES COMERCIALES (public.commercial_operations - MÁRGENES Y NEGOCIACIÓN)
+    -- ==========================================================================
+    DELETE FROM public.commercial_operations WHERE user_id = v_user_id;
+
+    -- Operación 1: Venta y Valorización de Lote de Chatarra Férrea
+    INSERT INTO public.commercial_operations (
+        user_id, company_id, numero_operacion, fecha, estado,
+        origen_productor_id, origen_center_id, origen_nombre_personalizado, origen_nima, origen_cif,
+        destino_gestor_id, destino_nombre_personalizado, destino_nima, destino_cif, destino_autorizacion,
+        transportista_id, transportista_nombre_personalizado, transportista_cif, transportista_matricula,
+        codigo_ler, descripcion_residuo, peligrosidad, operacion_rd,
+        cantidad_estimada_t, cantidad_real_t, identification_document_id, numero_albaran_gestor,
+        proveedor_comercial_id, proveedor_razon_social, proveedor_cif, tipo_precio_compra, precio_unitario_compra, coste_compra_total, factura_compra_ref, estado_pago_compra,
+        cliente_comercial_id, cliente_razon_social, cliente_cif, tipo_precio_venta, precio_unitario_venta, ingreso_venta_total, factura_venta_ref, estado_cobro_venta,
+        coste_transporte, otros_costes, descripcion_otros_costes, margen_bruto_total, margen_unitario_tonelada, porcentaje_margen, observaciones
+    ) VALUES (
+        v_user_id, v_company_id, 'OP-2026-0001', '2026-07-16', 'liquidada',
+        v_company_id, v_center_sur_id, 'EcoGestión 360 (Centro Sur)', '2800012345-02', 'B88997766',
+        v_comp_gestor_reciclajes_id, 'Planta Integral de Reciclaje y Metales S.L.', '2800099881', 'B83445566', 'G-MD-2021/3321',
+        v_comp_trans_norte_id, 'Ecotrans Norte Contenedores y Cubas S.L.', 'B87112233', '7741-JWB',
+        '17 04 05', 'Hierro y acero estructural de derribo', 'no-peligroso', 'R04',
+        8.500, 8.720, v_di_9, 'ALB-GESTOR-88412',
+        v_comp_construc_id, 'Construcciones e Infraestructuras Metropolitanas S.A.', 'A28456789', 'por_tonelada', 120.00, 1046.40, 'FAC-COMP-2026-041', 'pagado',
+        v_comp_gestor_reciclajes_id, 'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', 'por_tonelada', 245.00, 2136.40, 'FAC-VTA-2026-089', 'cobrado',
+        380.00, 50.00, 'Canon de pesaje oficial y certificación de descontaminación', 660.00, 75.69, 30.89, 'Operación cerrada y liquidada con margen neto superior al objetivo.'
+    );
+
+    -- Operación 2: Intermediación de Disolventes Químicos (ADR)
+    INSERT INTO public.commercial_operations (
+        user_id, company_id, numero_operacion, fecha, estado,
+        origen_productor_id, origen_center_id, origen_nombre_personalizado, origen_nima, origen_cif,
+        destino_gestor_id, destino_nombre_personalizado, destino_nima, destino_cif, destino_autorizacion,
+        transportista_id, transportista_nombre_personalizado, transportista_cif, transportista_matricula,
+        codigo_ler, descripcion_residuo, peligrosidad, operacion_rd,
+        cantidad_estimada_t, cantidad_real_t, identification_document_id, numero_albaran_gestor,
+        proveedor_comercial_id, proveedor_razon_social, proveedor_cif, tipo_precio_compra, precio_unitario_compra, coste_compra_total, factura_compra_ref, estado_pago_compra,
+        cliente_comercial_id, cliente_razon_social, cliente_cif, tipo_precio_venta, precio_unitario_venta, ingreso_venta_total, factura_venta_ref, estado_cobro_venta,
+        coste_transporte, otros_costes, descripcion_otros_costes, margen_bruto_total, margen_unitario_tonelada, porcentaje_margen, observaciones
+    ) VALUES (
+        v_user_id, v_company_id, 'OP-2026-0002', '2026-02-18', 'completada',
+        v_comp_quimica_id, NULL, 'Química Fina y Polímeros Iberia S.L.', '2800084123', 'B84123987',
+        v_comp_gestor_jarama_id, 'Regeneración de Disolventes del Jarama S.L.', '2800078901', 'B82334455', 'G-MD-2020/4412',
+        v_comp_trans_adr_id, 'Transportes Especiales ADR Circulares S.A.', 'A84112299', '8932-KMN',
+        '14 06 03*', 'Mezclas de disolventes de enjuague', 'peligroso', 'R02',
+        6.000, 6.000, v_di_2, 'ALB-JARAMA-1102',
+        v_comp_quimica_id, 'Química Fina y Polímeros Iberia S.L.', 'B84123987', 'por_tonelada', 150.00, 900.00, 'FAC-COMP-2026-015', 'pagado',
+        v_comp_gestor_jarama_id, 'Regeneración de Disolventes del Jarama S.L.', 'B82334455', 'por_tonelada', 480.00, 2880.00, 'FAC-VTA-2026-031', 'cobrado',
+        620.00, 80.00, 'Gestión de carta de porte ADR y tasa ambiental', 1280.00, 213.33, 44.44, 'Intermediación técnica de disolventes para recuperación en columna de rectificación.'
+    );
+
+    -- Operación 3: Recogida y Valorización de Papel y Cartón Industrial
+    INSERT INTO public.commercial_operations (
+        user_id, company_id, numero_operacion, fecha, estado,
+        origen_productor_id, origen_center_id, origen_nombre_personalizado, origen_nima, origen_cif,
+        destino_gestor_id, destino_nombre_personalizado, destino_nima, destino_cif, destino_autorizacion,
+        transportista_id, transportista_nombre_personalizado, transportista_cif, transportista_matricula,
+        codigo_ler, descripcion_residuo, peligrosidad, operacion_rd,
+        cantidad_estimada_t, cantidad_real_t, identification_document_id, numero_albaran_gestor,
+        proveedor_comercial_id, proveedor_razon_social, proveedor_cif, tipo_precio_compra, precio_unitario_compra, coste_compra_total, factura_compra_ref, estado_pago_compra,
+        cliente_comercial_id, cliente_razon_social, cliente_cif, tipo_precio_venta, precio_unitario_venta, ingreso_venta_total, factura_venta_ref, estado_cobro_venta,
+        coste_transporte, otros_costes, descripcion_otros_costes, margen_bruto_total, margen_unitario_tonelada, porcentaje_margen, observaciones
+    ) VALUES (
+        v_user_id, v_company_id, 'OP-2026-0003', '2026-06-02', 'liquidada',
+        v_company_id, v_center_central_id, 'EcoGestión 360 (Planta Central)', '2800012345-01', 'B88997766',
+        v_comp_gestor_reciclajes_id, 'Planta Integral de Reciclaje y Metales S.L.', '2800099881', 'B83445566', 'G-MD-2021/3321',
+        v_comp_trans_express_id, 'Logística Ecológica Express S.L.', 'B86991122', '1204-MBD',
+        '15 01 01', 'Balas de cartón ondulado limpio', 'no-peligroso', 'R03',
+        4.000, 4.350, v_di_7, 'ALB-CARTON-2026-09',
+        v_company_id, 'EcoGestión y Soluciones Ambientales 360, S.L.', 'B88997766', 'por_tonelada', 30.00, 130.50, 'FAC-COMP-INTERNA-06', 'no_aplica',
+        v_comp_gestor_reciclajes_id, 'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', 'por_tonelada', 115.00, 500.25, 'FAC-VTA-2026-072', 'cobrado',
+        160.00, 20.00, 'Pesaje de báscula', 189.75, 43.62, 37.93, 'Venta de subproducto cartón recuperado a fábrica papelera.'
+    );
+
+    -- Operación 4: Retirada de RAEEs con Trading Ambiental
+    INSERT INTO public.commercial_operations (
+        user_id, company_id, numero_operacion, fecha, estado,
+        origen_productor_id, origen_center_id, origen_nombre_personalizado, origen_nima, origen_cif,
+        destino_gestor_id, destino_nombre_personalizado, destino_nima, destino_cif, destino_autorizacion,
+        transportista_id, transportista_nombre_personalizado, transportista_cif, transportista_matricula,
+        codigo_ler, descripcion_residuo, peligrosidad, operacion_rd,
+        cantidad_estimada_t, cantidad_real_t, identification_document_id, numero_albaran_gestor,
+        proveedor_comercial_id, proveedor_razon_social, proveedor_cif, tipo_precio_compra, precio_unitario_compra, coste_compra_total, factura_compra_ref, estado_pago_compra,
+        cliente_comercial_id, cliente_razon_social, cliente_cif, tipo_precio_venta, precio_unitario_venta, ingreso_venta_total, factura_venta_ref, estado_cobro_venta,
+        coste_transporte, otros_costes, descripcion_otros_costes, margen_bruto_total, margen_unitario_tonelada, porcentaje_margen, observaciones
+    ) VALUES (
+        v_user_id, v_company_id, 'OP-2026-0004', '2026-10-06', 'completada',
+        v_company_id, v_center_central_id, 'EcoGestión 360 (Planta Central)', '2800012345-01', 'B88997766',
+        v_comp_gestor_reciclajes_id, 'Planta Integral de Reciclaje y Metales S.L.', '2800099881', 'B83445566', 'G-MD-2021/3321',
+        v_comp_trans_logistica_id, 'TransAmbiental Logística Verde S.L.', 'B85667788', '4521-LXZ',
+        '16 02 13*', 'Equipos electrónicos industriales con PCB/componentes', 'peligroso', 'R04',
+        0.700, 0.720, v_di_13, 'ALB-RAEE-2026-55',
+        v_comp_broker_id, 'Iberia Waste Trading & Brokerage S.L.', 'B89445566', 'por_tonelada', 450.00, 324.00, 'FAC-COMP-2026-088', 'pendiente',
+        v_comp_gestor_reciclajes_id, 'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', 'por_tonelada', 1250.00, 900.00, 'FAC-VTA-2026-118', 'pendiente',
+        220.00, 45.00, 'Certificado de borrado y destrucción de soportes', 311.00, 431.94, 34.56, 'Intermediación especializada de RAEEs con recuperación de metales preciosos.'
+    );
+
+    -- Operación 5: En Tránsito de Virutas de Mecanizado
+    INSERT INTO public.commercial_operations (
+        user_id, company_id, numero_operacion, fecha, estado,
+        origen_productor_id, origen_center_id, origen_nombre_personalizado, origen_nima, origen_cif,
+        destino_gestor_id, destino_nombre_personalizado, destino_nima, destino_cif, destino_autorizacion,
+        transportista_id, transportista_nombre_personalizado, transportista_cif, transportista_matricula,
+        codigo_ler, descripcion_residuo, peligrosidad, operacion_rd,
+        cantidad_estimada_t, cantidad_real_t, identification_document_id,
+        proveedor_comercial_id, proveedor_razon_social, proveedor_cif, tipo_precio_compra, precio_unitario_compra, coste_compra_total, estado_pago_compra,
+        cliente_comercial_id, cliente_razon_social, cliente_cif, tipo_precio_venta, precio_unitario_venta, ingreso_venta_total, estado_cobro_venta,
+        coste_transporte, otros_costes, margen_bruto_total, margen_unitario_tonelada, porcentaje_margen, observaciones
+    ) VALUES (
+        v_user_id, v_company_id, 'OP-2026-0005', '2026-10-15', 'en_transito',
+        v_comp_automocion_id, NULL, 'Automoción y Componentes del Jarama S.A.', '2800091122', 'A28991122',
+        v_comp_gestor_reciclajes_id, 'Planta Integral de Reciclaje y Metales S.L.', '2800099881', 'B83445566', 'G-MD-2021/3321',
+        v_comp_trans_norte_id, 'Ecotrans Norte Contenedores y Cubas S.L.', 'B87112233', '7741-JWB',
+        '12 01 01', 'Virutas de mecanizado de acero al cromo', 'no-peligroso', 'R04',
+        14.000, 0, NULL,
+        v_comp_automocion_id, 'Automoción y Componentes del Jarama S.A.', 'A28991122', 'por_tonelada', 140.00, 1960.00, 'pendiente',
+        v_comp_gestor_reciclajes_id, 'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', 'por_tonelada', 280.00, 3920.00, 'pendiente',
+        450.00, 0, 1510.00, 107.86, 38.52, 'Carga en tránsito. Pendiente de ticket de báscula en fundición de destino.'
+    );
+
+    -- Operación 6: Negociación de Plásticos de Inyección (Abierta)
+    INSERT INTO public.commercial_operations (
+        user_id, company_id, numero_operacion, fecha, estado,
+        origen_productor_id, origen_center_id, origen_nombre_personalizado, origen_nima, origen_cif,
+        destino_gestor_id, destino_nombre_personalizado, destino_nima, destino_cif, destino_autorizacion,
+        transportista_id, transportista_nombre_personalizado, transportista_cif, transportista_matricula,
+        codigo_ler, descripcion_residuo, peligrosidad, operacion_rd,
+        cantidad_estimada_t, cantidad_real_t,
+        proveedor_comercial_id, proveedor_razon_social, proveedor_cif, tipo_precio_compra, precio_unitario_compra, coste_compra_total, estado_pago_compra,
+        cliente_comercial_id, cliente_razon_social, cliente_cif, tipo_precio_venta, precio_unitario_venta, ingreso_venta_total, estado_cobro_venta,
+        coste_transporte, otros_costes, margen_bruto_total, margen_unitario_tonelada, porcentaje_margen, observaciones
+    ) VALUES (
+        v_user_id, v_company_id, 'OP-2026-0006', '2026-10-17', 'abierta',
+        v_comp_automocion_id, NULL, 'Automoción y Componentes del Jarama S.A.', '2800091122', 'A28991122',
+        v_comp_gestor_reciclajes_id, 'Planta Integral de Reciclaje y Metales S.L.', '2800099881', 'B83445566', 'G-MD-2021/3321',
+        v_comp_trans_express_id, 'Logística Ecológica Express S.L.', 'B86991122', '1204-MBD',
+        '15 01 02', 'Plástico técnico de inyección PP/PA', 'no-peligroso', 'R03',
+        7.500, 0,
+        v_comp_automocion_id, 'Automoción y Componentes del Jarama S.A.', 'A28991122', 'por_tonelada', 110.00, 825.00, 'pendiente',
+        v_comp_gestor_reciclajes_id, 'Planta Integral de Reciclaje y Metales S.L.', 'B83445566', 'por_tonelada', 320.00, 2400.00, 'pendiente',
+        280.00, 30.00, 1265.00, 168.67, 52.71, 'Presupuesto acordado para retirada semanal recurrente.'
     );
 
     -- ==========================================================================
-    -- 10. AUTORIZACIONES AMBIENTALES (public.environmental_authorizations)
+    -- 12. ENVÍOS TELEMÁTICOS A PLATAFORMA SIRA (public.sira_submissions)
+    -- ==========================================================================
+    DELETE FROM public.sira_submissions WHERE user_id = v_user_id;
+
+    INSERT INTO public.sira_submissions (
+        user_id, company_id, identification_document_id, tipo_envio, estado,
+        xml_enviado, xml_respuesta, codigo_acuse, mensaje_error, intentos, created_at, updated_at
+    ) VALUES
+    (
+        v_user_id, v_company_id, v_di_1, 'di', 'aceptado',
+        '<?xml version="1.0" encoding="ISO-8859-1"?><e3l:envioDI xmlns:e3l="http://www.e3l.es/e3l"><e3l:documentoIdentificacion id="DI-2026-0001"><e3l:productor nima="2800012345-01"/><e3l:gestor nima="2800045678"/><e3l:residuo ler="130205*" cantidad="1250"/></e3l:documentoIdentificacion></e3l:envioDI>',
+        '<?xml version="1.0" encoding="ISO-8859-1"?><e3l:respuestaSIRA><e3l:estado>ACEPTADO</e3l:estado><e3l:codigoRegistro>SIRA-REG-2026-0091823</e3l:codigoRegistro><e3l:fechaRecepcion>2026-02-04T11:42:10Z</e3l:fechaRecepcion></e3l:respuestaSIRA>',
+        'SIRA-REG-2026-0091823', NULL, 1, '2026-02-04 11:42:10+01', '2026-02-04 11:42:10+01'
+    ),
+    (
+        v_user_id, v_company_id, v_di_2, 'di', 'aceptado',
+        '<?xml version="1.0" encoding="ISO-8859-1"?><e3l:envioDI xmlns:e3l="http://www.e3l.es/e3l"><e3l:documentoIdentificacion id="DI-2026-0002"><e3l:productor nima="2800012345-01"/><e3l:gestor nima="2800078901"/><e3l:residuo ler="140603*" cantidad="600"/></e3l:documentoIdentificacion></e3l:envioDI>',
+        '<?xml version="1.0" encoding="ISO-8859-1"?><e3l:respuestaSIRA><e3l:estado>ACEPTADO</e3l:estado><e3l:codigoRegistro>SIRA-REG-2026-0112498</e3l:codigoRegistro></e3l:respuestaSIRA>',
+        'SIRA-REG-2026-0112498', NULL, 1, '2026-02-18 16:15:32+01', '2026-02-18 16:15:32+01'
+    ),
+    (
+        v_user_id, v_company_id, v_di_3, 'di', 'aceptado',
+        '<?xml version="1.0" encoding="ISO-8859-1"?><e3l:envioDI xmlns:e3l="http://www.e3l.es/e3l"><e3l:documentoIdentificacion id="DI-2026-0003"><e3l:productor nima="2800012345-02"/><e3l:gestor nima="2800045678"/><e3l:residuo ler="150110*" cantidad="480"/></e3l:documentoIdentificacion></e3l:envioDI>',
+        '<?xml version="1.0" encoding="ISO-8859-1"?><e3l:respuestaSIRA><e3l:estado>ACEPTADO</e3l:estado><e3l:codigoRegistro>SIRA-REG-2026-0145892</e3l:codigoRegistro></e3l:respuestaSIRA>',
+        'SIRA-REG-2026-0145892', NULL, 1, '2026-03-05 10:20:05+01', '2026-03-05 10:20:05+01'
+    ),
+    (
+        v_user_id, v_company_id, v_di_11, 'di', 'pendiente',
+        '<?xml version="1.0" encoding="ISO-8859-1"?><e3l:envioDI xmlns:e3l="http://www.e3l.es/e3l"><e3l:documentoIdentificacion id="DI-2026-0011"><e3l:productor nima="2800012345-01"/><e3l:gestor nima="2800088772"/><e3l:residuo ler="200108" cantidad="1950"/></e3l:documentoIdentificacion></e3l:envioDI>',
+        NULL, NULL, 'Pendiente de confirmación telemática del pesaje por gestor destinatario.', 1, '2026-09-18 09:30:00+02', '2026-09-18 09:30:00+02'
+    );
+
+    -- ==========================================================================
+    -- 13. PISTA DE AUDITORÍA Y TRAZABILIDAD (public.audit_logs - 10 REGISTROS)
+    -- ==========================================================================
+    DELETE FROM public.audit_logs WHERE user_id = v_user_id;
+
+    INSERT INTO public.audit_logs (
+        user_id, company_id, entidad, entidad_id, accion, detalles, ip_address, created_at
+    ) VALUES
+    (v_user_id, v_company_id, 'empresa', v_company_id::text, 'crear', '{"mensaje":"Creación de empresa titular EcoGestión 360 con NIMA 2800012345"}'::jsonb, '192.168.1.100', '2026-01-10 09:15:00+01'),
+    (v_user_id, v_company_id, 'contrato', v_contract_aceites_id::text, 'crear', '{"numero_contrato":"CTR-2026/001-VAL","gestor":"Tratamientos Ibéricos"}'::jsonb, '192.168.1.100', '2026-01-10 10:22:15+01'),
+    (v_user_id, v_company_id, 'di', v_di_1::text, 'crear', '{"numero_documento":"DI-2026-0001","ler":"130205*","cantidad_kg":1250}'::jsonb, '192.168.1.100', '2026-02-04 08:30:00+01'),
+    (v_user_id, v_company_id, 'integracion_sira', v_di_1::text, 'sincronizar_sira', '{"registro_acuse":"SIRA-REG-2026-0091823","resultado":"aceptado"}'::jsonb, '192.168.1.100', '2026-02-04 11:42:10+01'),
+    (v_user_id, v_company_id, 'di', v_di_1::text, 'cambiar_estado', '{"estado_anterior":"borrador","estado_nuevo":"completado"}'::jsonb, '192.168.1.100', '2026-02-04 12:00:00+01'),
+    (v_user_id, v_company_id, 'archivo_cronologico', 'AS-2026-0003', 'crear', '{"asiento":"AS-2026-0003","tipo":"salida_traslado","ler":"130205*"}'::jsonb, '192.168.1.100', '2026-02-04 12:05:00+01'),
+    (v_user_id, v_company_id, 'operacion_comercial', 'OP-2026-0001', 'crear', '{"operacion":"OP-2026-0001","margen_previsto":660.00}'::jsonb, '192.168.1.105', '2026-07-16 14:10:00+02'),
+    (v_user_id, v_company_id, 'operacion_comercial', 'OP-2026-0001', 'recepcionar_pesada', '{"peso_bruto_t":24.50,"tara_t":15.78,"neto_t":8.72}'::jsonb, '192.168.1.105', '2026-07-16 16:45:00+02'),
+    (v_user_id, v_company_id, 'memoria_anual', '2025', 'exportar_archivo', '{"anio":2025,"total_t":74.85,"formato":"EXCEL_SIRA"}'::jsonb, '192.168.1.100', '2026-02-24 10:15:00+01'),
+    (v_user_id, v_company_id, 'integracion_holded', v_company_id::text, 'sincronizar_holded', '{"contactos_sincronizados":8,"facturas_vinculadas":4}'::jsonb, '192.168.1.100', '2026-08-01 09:00:00+02');
+
+    -- ==========================================================================
+    -- 14. AUTORIZACIONES AMBIENTALES (public.environmental_authorizations)
     -- ==========================================================================
     DELETE FROM public.environmental_authorizations WHERE user_id = v_user_id;
 
@@ -1122,10 +1356,10 @@ BEGIN
     (
         v_user_id, v_company_id, v_center_central_id,
         'AAI-28/2021-0498',
-        'Autorización Ambiental Integrada (AAI) - Instalación Química y Tratamiento',
+        'Autorización Ambiental Integrada (AAI) - Complejo Industrial y Mezclado',
         'Consejería de Medio Ambiente, Agricultura e Interior - Comunidad de Madrid',
         '2021-05-18', '2029-05-17', false,
-        'Autorización para actividades de formulación, mezclado, almacenamiento temporal e I+D con informe anual de emisiones PRTR.',
+        'Autorización para procesos de formulación química, mezclado, almacenamiento temporal e I+D con informe anual PRTR.',
         true
     ),
     (
@@ -1134,163 +1368,207 @@ BEGIN
         'Inscripción de Gran Productor de Residuos Peligrosos (>10 t/año)',
         'Dirección General de Transición Ecológica y Economía Circular',
         '2020-03-10', NULL, true,
-        'Número de registro NIMA 2800012345 con plan de minimización quinquenal aprobado.',
+        'NIMA 2800012345 con plan de minimización quinquenal en vigor.',
         true
     ),
     (
         v_user_id, v_company_id, v_center_sur_id,
         'GES-MD-2024/0215',
-        'Autorización de Gestor de Residuos: Almacenamiento Temporal R13 y D15',
-        'Comunidad de Madrid - Área de Residuos Peligrosos',
+        'Autorización de Gestor: Almacenamiento Temporal R13 y D15',
+        'Comunidad de Madrid - Área de Calidad Ambiental',
         '2024-01-15', '2029-01-14', false,
-        'Habilita el acopio técnico en solera hormigonada estanca y cubetas de retención con capacidad de 150 m³.',
+        'Habilita solera hormigonada y cubetas de retención con capacidad de 150 m³.',
         true
     ),
     (
         v_user_id, v_company_id, NULL,
         'TRA-MD-2023/0890',
-        'Inscripción en el Registro de Transportistas de Residuos Profesionales con Asunción de Titularidad',
+        'Inscripción en el Registro de Transportistas de Residuos Profesionales',
         'Ministerio para la Transición Ecológica y el Reto Demográfico (MITECO)',
         '2023-04-12', NULL, true,
-        'Válida para todo el territorio nacional con cumplimiento del RD 553/2020 y acuerdos ADR de mercancías peligrosas.',
+        'Válida para todo el territorio nacional según RD 553/2020 y acuerdos ADR.',
         true
     );
 
     -- ==========================================================================
-    -- 11. MEMORIAS ANUALES (public.annual_reports y public.annual_report_lines)
+    -- 15. MEMORIAS ANUALES (public.annual_reports y public.annual_report_lines)
     -- ==========================================================================
     DELETE FROM public.annual_reports WHERE user_id = v_user_id;
 
-    -- Memoria Anual 2025: Presentada en SIRA
+    -- Memoria 2025 (Presentada en SIRA)
     INSERT INTO public.annual_reports (
-        user_id, company_id, anio, tipo_memoria,
-        fecha_inicio, fecha_fin, estado,
+        user_id, company_id, anio, tipo_memoria, fecha_inicio, fecha_fin, estado,
         total_residuos_generados, total_residuos_gestionados, unidad,
-        fecha_presentacion, numero_registro_sira, sira_presentado,
-        notas
+        fecha_presentacion, numero_registro_sira, sira_presentado, notas
     ) VALUES (
         v_user_id, v_company_id, 2025, 'productor',
-        '2025-01-01', '2025-12-31', 'presentado',
+        '2025-01-01', '2025-12-31', 'presentada',
         74.850, 74.850, 'toneladas',
         '2026-02-24', 'SIRA-2026-REG-09941', true,
-        'Declaración anual de productor de residuos 2025 validada telemáticamente por la Consejería de Medio Ambiente.'
+        'Memoria anual 2025 validada telemáticamente por la Consejería de Medio Ambiente.'
     ) RETURNING id INTO v_report_2025_id;
 
-    -- Líneas de la Memoria Anual 2025
     INSERT INTO public.annual_report_lines (
         annual_report_id, codigo_ler, descripcion_residuo,
         origen_razon_social, origen_nima, destino_razon_social, destino_nima,
         cantidad_total, unidad, numero_operaciones, operacion_tratamiento
     ) VALUES
-    (
-        v_report_2025_id, '13 02 05*', 'Aceites minerales no clorados de motor y lubricación',
-        'EcoGestión 360', '2800012345', 'Tratamientos y Valorizaciones Ibéricas S.A.', '2800045678',
-        5.420, 'toneladas', 5, 'R09'
-    ),
-    (
-        v_report_2025_id, '14 06 03*', 'Otros disolventes y mezclas de disolventes',
-        'EcoGestión 360', '2800012345', 'Regeneración de Disolventes del Jarama S.L.', '2800078901',
-        3.150, 'toneladas', 4, 'R02'
-    ),
-    (
-        v_report_2025_id, '15 01 10*', 'Envases que contienen restos de sustancias peligrosas',
-        'EcoGestión 360', '2800012345', 'Tratamientos y Valorizaciones Ibéricas S.A.', '2800045678',
-        2.280, 'toneladas', 4, 'R04'
-    ),
-    (
-        v_report_2025_id, '15 01 01', 'Envases de papel y cartón',
-        'EcoGestión 360', '2800012345', 'Planta Integral de Reciclaje y Metales S.L.', '2800099881',
-        24.800, 'toneladas', 6, 'R03'
-    ),
-    (
-        v_report_2025_id, '17 04 05', 'Hierro y acero',
-        'EcoGestión 360', '2800012345', 'Planta Integral de Reciclaje y Metales S.L.', '2800099881',
-        39.200, 'toneladas', 4, 'R04'
-    );
+    (v_report_2025_id, '13 02 05*', 'Aceites minerales no clorados de motor', 'EcoGestión 360', '2800012345', 'Tratamientos y Valorizaciones Ibéricas S.A.', '2800045678', 5.420, 'toneladas', 5, 'R09'),
+    (v_report_2025_id, '14 06 03*', 'Otros disolventes y mezclas', 'EcoGestión 360', '2800012345', 'Regeneración de Disolventes del Jarama S.L.', '2800078901', 3.150, 'toneladas', 4, 'R02'),
+    (v_report_2025_id, '15 01 10*', 'Envases con restos peligrosos', 'EcoGestión 360', '2800012345', 'Tratamientos y Valorizaciones Ibéricas S.A.', '2800045678', 2.280, 'toneladas', 4, 'R04'),
+    (v_report_2025_id, '15 01 01', 'Envases de papel y cartón', 'EcoGestión 360', '2800012345', 'Planta Integral de Reciclaje y Metales S.L.', '2800099881', 24.800, 'toneladas', 6, 'R03'),
+    (v_report_2025_id, '17 04 05', 'Hierro y acero', 'EcoGestión 360', '2800012345', 'Planta Integral de Reciclaje y Metales S.L.', '2800099881', 39.200, 'toneladas', 4, 'R04');
 
-    -- Memoria Anual 2026: En curso (Borrador acumulado)
+    -- Memoria 2026 (Borrador en curso acumulado en tiempo real)
     INSERT INTO public.annual_reports (
-        user_id, company_id, anio, tipo_memoria,
-        fecha_inicio, fecha_fin, estado,
+        user_id, company_id, anio, tipo_memoria, fecha_inicio, fecha_fin, estado,
         total_residuos_generados, total_residuos_gestionados, unidad,
-        fecha_presentacion, numero_registro_sira, sira_presentado,
-        notas
+        fecha_presentacion, numero_registro_sira, sira_presentado, notas
     ) VALUES (
         v_user_id, v_company_id, 2026, 'productor',
         '2026-01-01', '2026-12-31', 'borrador',
-        27.400, 27.400, 'toneladas',
+        29.970, 29.970, 'toneladas',
         NULL, NULL, false,
-        'Borrador automático en tiempo real generado desde los DIs y el Archivo Cronológico del ejercicio 2026.'
+        'Borrador automático calculado desde el Archivo Cronológico y DIs del ejercicio 2026.'
     ) RETURNING id INTO v_report_2026_id;
 
-    -- Líneas acumuladas de la Memoria 2026
     INSERT INTO public.annual_report_lines (
         annual_report_id, codigo_ler, descripcion_residuo,
         origen_razon_social, origen_nima, destino_razon_social, destino_nima,
         cantidad_total, unidad, numero_operaciones, operacion_tratamiento
     ) VALUES
-    (
-        v_report_2026_id, '13 02 05*', 'Aceites minerales no clorados de motor y lubricación',
-        'EcoGestión 360', '2800012345', 'Tratamientos y Valorizaciones Ibéricas S.A.', '2800045678',
-        1.250, 'toneladas', 1, 'R09'
-    ),
-    (
-        v_report_2026_id, '14 06 03*', 'Otros disolventes y mezclas de disolventes',
-        'EcoGestión 360', '2800012345', 'Regeneración de Disolventes del Jarama S.L.', '2800078901',
-        0.600, 'toneladas', 1, 'R02'
-    ),
-    (
-        v_report_2026_id, '15 01 10*', 'Envases que contienen restos de sustancias peligrosas',
-        'EcoGestión 360', '2800012345', 'Tratamientos y Valorizaciones Ibéricas S.A.', '2800045678',
-        0.480, 'toneladas', 1, 'R04'
-    ),
-    (
-        v_report_2026_id, '15 02 02*', 'Absorbentes y trapos de limpieza contaminados',
-        'EcoGestión 360', '2800012345', 'Tratamientos y Valorizaciones Ibéricas S.A.', '2800045678',
-        0.340, 'toneladas', 1, 'D10'
-    ),
-    (
-        v_report_2026_id, '08 01 11*', 'Residuos de pintura y barniz con disolventes',
-        'EcoGestión 360', '2800012345', 'Regeneración de Disolventes del Jarama S.L.', '2800078901',
-        0.520, 'toneladas', 1, 'D09'
-    ),
-    (
-        v_report_2026_id, '16 01 07*', 'Filtros de aceite',
-        'EcoGestión 360', '2800012345', 'Tratamientos y Valorizaciones Ibéricas S.A.', '2800045678',
-        0.290, 'toneladas', 1, 'R04'
-    ),
-    (
-        v_report_2026_id, '15 01 01', 'Envases de papel y cartón',
-        'EcoGestión 360', '2800012345', 'Planta Integral de Reciclaje y Metales S.L.', '2800099881',
-        4.350, 'toneladas', 1, 'R03'
-    ),
-    (
-        v_report_2026_id, '15 01 02', 'Envases de plástico',
-        'EcoGestión 360', '2800012345', 'Planta Integral de Reciclaje y Metales S.L.', '2800099881',
-        2.900, 'toneladas', 1, 'R03'
-    ),
-    (
-        v_report_2026_id, '17 04 05', 'Hierro y acero',
-        'EcoGestión 360', '2800012345', 'Planta Integral de Reciclaje y Metales S.L.', '2800099881',
-        8.720, 'toneladas', 1, 'R04'
-    ),
-    (
-        v_report_2026_id, '12 01 01', 'Limaduras y virutas de metales férreos',
-        'EcoGestión 360', '2800012345', 'Planta Integral de Reciclaje y Metales S.L.', '2800099881',
-        3.200, 'toneladas', 1, 'R04'
-    );
+    (v_report_2026_id, '13 02 05*', 'Aceites minerales no clorados de motor', 'EcoGestión 360', '2800012345', 'Tratamientos y Valorizaciones Ibéricas S.A.', '2800045678', 1.250, 'toneladas', 1, 'R09'),
+    (v_report_2026_id, '14 06 03*', 'Otros disolventes y mezclas', 'EcoGestión 360', '2800012345', 'Regeneración de Disolventes del Jarama S.L.', '2800078901', 0.600, 'toneladas', 1, 'R02'),
+    (v_report_2026_id, '15 01 10*', 'Envases con restos peligrosos', 'EcoGestión 360', '2800012345', 'Tratamientos y Valorizaciones Ibéricas S.A.', '2800045678', 0.480, 'toneladas', 1, 'R04'),
+    (v_report_2026_id, '15 02 02*', 'Trapos y absorbentes contaminados', 'EcoGestión 360', '2800012345', 'Tratamientos y Valorizaciones Ibéricas S.A.', '2800045678', 0.340, 'toneladas', 1, 'D10'),
+    (v_report_2026_id, '08 01 11*', 'Residuos de pintura y barniz', 'EcoGestión 360', '2800012345', 'Regeneración de Disolventes del Jarama S.L.', '2800078901', 0.520, 'toneladas', 1, 'D09'),
+    (v_report_2026_id, '16 01 07*', 'Filtros de aceite', 'EcoGestión 360', '2800012345', 'Tratamientos y Valorizaciones Ibéricas S.A.', '2800045678', 0.290, 'toneladas', 1, 'R04'),
+    (v_report_2026_id, '15 01 01', 'Envases de papel y cartón', 'EcoGestión 360', '2800012345', 'Planta Integral de Reciclaje y Metales S.L.', '2800099881', 4.350, 'toneladas', 1, 'R03'),
+    (v_report_2026_id, '15 01 02', 'Envases de plástico', 'EcoGestión 360', '2800012345', 'Planta Integral de Reciclaje y Metales S.L.', '2800099881', 2.900, 'toneladas', 1, 'R03'),
+    (v_report_2026_id, '17 04 05', 'Hierro y acero', 'EcoGestión 360', '2800012345', 'Planta Integral de Reciclaje y Metales S.L.', '2800099881', 8.720, 'toneladas', 1, 'R04'),
+    (v_report_2026_id, '12 01 01', 'Limaduras y virutas férreas', 'EcoGestión 360', '2800012345', 'Planta Integral de Reciclaje y Metales S.L.', '2800099881', 3.200, 'toneladas', 1, 'R04'),
+    (v_report_2026_id, '16 06 01*', 'Baterías de plomo', 'EcoGestión 360', '2800012345', 'Tratamientos y Valorizaciones Ibéricas S.A.', '2800045678', 0.850, 'toneladas', 1, 'R04'),
+    (v_report_2026_id, '16 02 13*', 'Equipos desechados RAEE', 'EcoGestión 360', '2800012345', 'Planta Integral de Reciclaje y Metales S.L.', '2800099881', 0.720, 'toneladas', 1, 'R04');
+
+    -- ==========================================================================
+    -- 16. PROYECTO CARTOGRÁFICO Y GEODATOS GIS (projects, map_collections, spatial_data)
+    -- ==========================================================================
+    -- Limpiar completamente las tablas GIS para eliminar datos obsoletos o residuales
+    BEGIN
+        DELETE FROM public.spatial_data;
+        DELETE FROM public.map_collections;
+        DELETE FROM public.projects;
+    EXCEPTION WHEN OTHERS THEN
+        RAISE NOTICE 'Nota al limpiar tablas GIS: %', SQLERRM;
+    END;
+
+    INSERT INTO public.projects (name, description, user_id)
+    VALUES (
+        'Red Logística y Centros Ambientales - Resigest 360',
+        'Mapa interactivo de la infraestructura operativa: plantas propias, centros de transferencia autorizados y gestores finales de tratamiento en la Comunidad de Madrid.',
+        v_user_id
+    ) RETURNING id INTO v_project_id;
+
+    -- Colección 1: Centros Propios de Producción y Transferencia
+    INSERT INTO public.map_collections (project_id, name, description, user_id)
+    VALUES (
+        v_project_id,
+        'Centros e Instalaciones Propias EcoGestión',
+        'Ubicaciones de sedes de fabricación, almacenamiento R13/D15 y valorización',
+        v_user_id
+    ) RETURNING id INTO v_collection_centros_id;
+
+    -- Colección 2: Plantas de Gestores Finales
+    INSERT INTO public.map_collections (project_id, name, description, user_id)
+    VALUES (
+        v_project_id,
+        'Plantas Gestoras de Destino Final',
+        'Instalaciones autorizadas para regeneración R09/R02, reciclaje de metales R04 y compostaje R03',
+        v_user_id
+    ) RETURNING id INTO v_collection_gestores_id;
+
+    -- Puntos GIS en spatial_data (si la tabla está disponible)
+    BEGIN
+        INSERT INTO public.spatial_data (
+            collection_id, name, description, category, geometry_type, geometry,
+            latitude, longitude, address, user_id
+        ) VALUES
+        (
+            v_collection_centros_id,
+            'Planta Central Madrid (Las Mercedes)',
+            'Sede principal, líneas de formulación y taller mecánico. NIMA 2800012345-01.',
+            'Planta Propia', 'point',
+            '{"type": "Point", "coordinates": [-3.5855, 40.4435]}'::jsonb,
+            40.4435, -3.5855, 'C/ Campezo 14, 28022 Madrid', v_user_id
+        ),
+        (
+            v_collection_centros_id,
+            'Centro Logístico y Transferencia Sur (Fuenlabrada)',
+            'Almacenamiento temporal R13 y D15 con solera estanca. NIMA 2800012345-02.',
+            'Planta Propia', 'point',
+            '{"type": "Point", "coordinates": [-3.7431, 40.2684]}'::jsonb,
+            40.2684, -3.7431, 'C/ Manuel Cobo Calleja 52, 28947 Fuenlabrada, Madrid', v_user_id
+        ),
+        (
+            v_collection_centros_id,
+            'Planta de Valorización del Corredor (Alcalá)',
+            'Clasificación y prensado de film plástico y cartón. NIMA 2800012345-03.',
+            'Planta Propia', 'point',
+            '{"type": "Point", "coordinates": [-3.3592, 40.4852]}'::jsonb,
+            40.4852, -3.3592, 'Vía Complutense 120, 28805 Alcalá de Henares, Madrid', v_user_id
+        ),
+        (
+            v_collection_gestores_id,
+            'Tratamientos y Valorizaciones Ibéricas S.A. (Alcobendas)',
+            'Gestor autorizado G-MD-2022/9901 para regeneración de aceites R09 e incineración D10.',
+            'Gestor Destino', 'point',
+            '{"type": "Point", "coordinates": [-3.6428, 40.5367]}'::jsonb,
+            40.5367, -3.6428, 'Avda. de la Industria 45, 28108 Alcobendas, Madrid', v_user_id
+        ),
+        (
+            v_collection_gestores_id,
+            'Regeneración de Disolventes del Jarama S.L. (San Fernando)',
+            'Planta de destilación fraccionada y recuperación R02 de disolventes.',
+            'Gestor Destino', 'point',
+            '{"type": "Point", "coordinates": [-3.5350, 40.4281]}'::jsonb,
+            40.4281, -3.5350, 'C/ Sierra de Guadarrama 8, 28830 San Fernando de Henares, Madrid', v_user_id
+        ),
+        (
+            v_collection_gestores_id,
+            'Planta Integral de Reciclaje y Metales S.L. (Getafe)',
+            'Parque de chatarra, fragmentación y valorización de metales férreos y RAEEs.',
+            'Gestor Destino', 'point',
+            '{"type": "Point", "coordinates": [-3.7082, 40.3129]}'::jsonb,
+            40.3129, -3.7082, 'C/ Carpinteros 19, 28906 Getafe, Madrid', v_user_id
+        ),
+        (
+            v_collection_gestores_id,
+            'Centro Ambiental de Compostaje del Tajo (Aranjuez)',
+            'Túneles de compostaje biológico aerobio R03 para fracción orgánica.',
+            'Gestor Destino', 'point',
+            '{"type": "Point", "coordinates": [-3.6021, 40.0315]}'::jsonb,
+            40.0315, -3.6021, 'Carretera de Toledo km 18, 28300 Aranjuez, Madrid', v_user_id
+        );
+    EXCEPTION WHEN OTHERS THEN
+        RAISE NOTICE 'Nota: spatial_data no insertado o no requerido: %', SQLERRM;
+    END;
 
     RAISE NOTICE '===================================================================';
-    RAISE NOTICE 'SEED DEMO COMPLETADO CON ÉXITO:';
-    RAISE NOTICE 'Usuario Demo: demo@resigest.com (Clave: DemoResigest2026!)';
-    RAISE NOTICE 'Empresa: EcoGestión y Soluciones Ambientales 360, S.L. (ID: %)', v_company_id;
-    RAISE NOTICE 'Centros de Producción: 3 creados';
-    RAISE NOTICE 'Transportistas: 4 creados';
-    RAISE NOTICE 'Gestores de Tratamiento: 4 creados';
-    RAISE NOTICE 'Contratos de Tratamiento: 4 vigentes creados';
-    RAISE NOTICE 'Documentos de Identificación (DIs): 12 creados';
-    RAISE NOTICE 'Asientos de Archivo Cronológico: 22 registros creados';
-    RAISE NOTICE 'Autorizaciones Ambientales: 4 registros creados';
-    RAISE NOTICE 'Memorias Anuales: 2 ejercicios (2025 presentada + 2026 borrador)';
+    RAISE NOTICE 'SEED COMPLETO RESIGEST 360 FINALIZADO CON ÉXITO:';
+    RAISE NOTICE '1. Usuario Demo: demo@resigest.com (Clave: DemoResigest2026!)';
+    RAISE NOTICE '2. Empresa Propia: EcoGestión 360 (ID: %) con credenciales SIRA/Holded', v_company_id;
+    RAISE NOTICE '3. Empresas Colaboradoras: 5 creadas (Productores, Negociantes, Agentes)';
+    RAISE NOTICE '4. Centros de Producción: 3 instalaciones creadas';
+    RAISE NOTICE '5. Transportistas Registrados: 4 empresas con matrículas y autorizaciones';
+    RAISE NOTICE '6. Gestores de Tratamiento: 4 gestores con códigos R/D asignados';
+    RAISE NOTICE '7. Contratos de Tratamiento: 4 contratos RD 553/2020';
+    RAISE NOTICE '8. Documentos de Identificación (DIs): 14 registros con variados estados';
+    RAISE NOTICE '9. Archivo Cronológico (Art. 64 Ley 7/2022): 26 asientos con códigos HP';
+    RAISE NOTICE '10. Operaciones Comerciales: 6 operaciones con costes, ventas y margen';
+    RAISE NOTICE '11. Envíos Telemáticos SIRA: 4 envíos con payloads XML y acuses';
+    RAISE NOTICE '12. Pista de Auditoría: 10 registros inmutables';
+    RAISE NOTICE '13. Autorizaciones Ambientales: 4 títulos habilitantes activos';
+    RAISE NOTICE '14. Memorias Anuales: 2 ejercicios (2025 presentada + 2026 borrador)';
+    RAISE NOTICE '15. Proyecto GIS: 1 proyecto cartográfico con 7 ubicaciones geográficas';
     RAISE NOTICE '===================================================================';
 END $$;

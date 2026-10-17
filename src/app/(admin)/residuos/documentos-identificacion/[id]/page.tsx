@@ -25,25 +25,6 @@ import type {
   TipoIncidencia,
   SiraSubmission,
 } from '@/types/wasteManagement';
-import {
-  Truck,
-  Scale,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  FileDown,
-  Building2,
-  MapPin,
-  Calendar,
-  Clock,
-  ArrowRight,
-  ShieldCheck,
-  ShieldAlert,
-  HelpCircle,
-  Code2,
-  Send,
-  RefreshCw,
-} from 'lucide-react';
 
 const OPERACIONES_TRATAMIENTO = [
   { code: 'R01', desc: 'Utilización principal como combustible' },
@@ -376,9 +357,7 @@ export default function DetalleDocumentoIdentificacionPage() {
               variant="outline"
               onClick={handleDownloadPDF}
               disabled={downloading}
-              className="flex items-center gap-1.5"
             >
-              <FileDown className="w-4 h-4" />
               <span>{downloading ? 'Generando...' : 'Descargar PDF Oficial'}</span>
             </Button>
             <Button variant="outline" onClick={() => router.push('/residuos/documentos-identificacion')}>
@@ -399,11 +378,7 @@ export default function DetalleDocumentoIdentificacionPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 1</span>
-                    {tracking.step > 1 ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    ) : (
-                      <Clock className="w-4 h-4 text-primary" />
-                    )}
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{tracking.step > 1 ? '✓' : '●'}</span>
                   </div>
                   <p className="text-xs font-semibold text-foreground">Registrado / Origen</p>
                   <p className="text-[11px] text-muted mt-1">{formatDate(document.fecha_documento)}</p>
@@ -415,13 +390,7 @@ export default function DetalleDocumentoIdentificacionPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 2</span>
-                    {tracking.step > 2 ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    ) : tracking.step === 2 ? (
-                      <Truck className="w-4 h-4 text-blue-600 animate-pulse" />
-                    ) : (
-                      <Truck className="w-4 h-4 text-gray-400" />
-                    )}
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{tracking.step > 2 ? '✓' : (tracking.step === 2 ? '●' : '○')}</span>
                   </div>
                   <p className="text-xs font-semibold text-foreground">En Tránsito</p>
                   <p className="text-[11px] text-muted mt-1">{document.fecha_salida ? formatDateTime(document.fecha_salida) : 'Pendiente salida'}</p>
@@ -433,13 +402,7 @@ export default function DetalleDocumentoIdentificacionPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 3</span>
-                    {tracking.step > 3 ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    ) : tracking.step === 3 ? (
-                      <Scale className="w-4 h-4 text-amber-600" />
-                    ) : (
-                      <Scale className="w-4 h-4 text-gray-400" />
-                    )}
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{tracking.step > 3 ? '✓' : (tracking.step === 3 ? '●' : '○')}</span>
                   </div>
                   <p className="text-xs font-semibold text-foreground">Pesaje en Báscula</p>
                   <p className="text-[11px] text-muted mt-1">{document.peso_destino_kg ? `${document.peso_destino_kg} kg` : 'Pendiente pesaje'}</p>
@@ -451,13 +414,7 @@ export default function DetalleDocumentoIdentificacionPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 4</span>
-                    {document.resultado_recepcion?.includes('rechazado') ? (
-                      <XCircle className="w-4 h-4 text-red-500" />
-                    ) : tracking.step >= 4 ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    ) : (
-                      <Clock className="w-4 h-4 text-gray-400" />
-                    )}
+                    <span className="text-xs font-bold">{document.resultado_recepcion?.includes('rechazado') ? '✕' : (tracking.step >= 4 ? '✓' : '○')}</span>
                   </div>
                   <p className="text-xs font-semibold text-foreground">Dictamen Gestor</p>
                   <p className="text-[11px] text-muted mt-1">{document.resultado_recepcion ? document.resultado_recepcion.replace('_', ' ').toUpperCase() : 'Pendiente'}</p>
@@ -469,11 +426,7 @@ export default function DetalleDocumentoIdentificacionPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 5</span>
-                    {tracking.step === 5 ? (
-                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    ) : (
-                      <Clock className="w-4 h-4 text-gray-400" />
-                    )}
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{tracking.step === 5 ? '✓' : '○'}</span>
                   </div>
                   <p className="text-xs font-semibold text-foreground">Tratado y Cerrado</p>
                   <p className="text-[11px] text-muted mt-1">{document.fecha_tratamiento ? formatDate(document.fecha_tratamiento) : 'Pendiente operación'}</p>
@@ -552,8 +505,7 @@ export default function DetalleDocumentoIdentificacionPage() {
 
             {/* Aviso de Discrepancia Normativa */}
             {tracking.hasDiscrepancy && (
-              <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300">
                 <div>
                   <p className="font-semibold">Atención: Discrepancia de báscula detectada ({tracking.discrepancyMessage})</p>
                   <p className="opacity-90 mt-0.5">
@@ -569,8 +521,7 @@ export default function DetalleDocumentoIdentificacionPage() {
         {document.motivo_incidencia && (
           <ComponentCard title="Registro de Incidencia / Rechazo en Destino">
             <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-900 dark:text-red-200 space-y-2">
-              <div className="flex items-center gap-2">
-                <ShieldAlert className="w-5 h-5 text-red-600" />
+              <div>
                 <h4 className="font-bold text-sm uppercase tracking-wide">
                   {document.resultado_recepcion === 'rechazado_total' ? 'Rechazo Total del Traslado' : 'Rechazo Parcial o Incidencia Notificada'}
                 </h4>
@@ -789,24 +740,21 @@ export default function DetalleDocumentoIdentificacionPage() {
             <div className="flex flex-wrap gap-3">
               {/* Acción 1: Iniciar Salida */}
               {(!document.estado_traslado || document.estado_traslado === 'borrador') && (
-                <Button onClick={() => setIsDepartureModalOpen(true)} className="flex items-center gap-1.5">
-                  <Truck className="w-4 h-4" />
+                <Button onClick={() => setIsDepartureModalOpen(true)}>
                   <span>Iniciar Traslado (Firma Salida)</span>
                 </Button>
               )}
 
               {/* Acción 2: Registrar Recepción y Báscula */}
               {(document.estado_traslado === 'en_transito' || document.estado_traslado === 'recepcionado') && (
-                <Button onClick={() => setIsReceptionModalOpen(true)} className="flex items-center gap-1.5">
-                  <Scale className="w-4 h-4" />
+                <Button onClick={() => setIsReceptionModalOpen(true)}>
                   <span>Registrar Recepción en Báscula</span>
                 </Button>
               )}
 
               {/* Acción 3: Certificar Tratamiento y Cierre */}
               {(document.estado_traslado === 'aceptado' || document.estado_traslado === 'rechazado_parcial') && (
-                <Button onClick={() => setIsTreatmentModalOpen(true)} className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4" />
+                <Button onClick={() => setIsTreatmentModalOpen(true)}>
                   <span>Certificar Tratamiento y Cierre</span>
                 </Button>
               )}
@@ -816,9 +764,7 @@ export default function DetalleDocumentoIdentificacionPage() {
                 variant="outline"
                 onClick={handleDownloadPDF}
                 disabled={downloading}
-                className="flex items-center gap-1.5"
               >
-                <FileDown className="w-4 h-4" />
                 <span>{downloading ? 'Generando PDF...' : 'Descargar PDF Oficial (RD 553/2020)'}</span>
               </Button>
 
@@ -894,9 +840,7 @@ export default function DetalleDocumentoIdentificacionPage() {
                     setSelectedXml(xml);
                     setIsXmlModalOpen(true);
                   }}
-                  className="flex items-center gap-1.5"
                 >
-                  <Code2 className="w-3.5 h-3.5" />
                   <span>Ver XML e3l</span>
                 </Button>
 
@@ -909,9 +853,7 @@ export default function DetalleDocumentoIdentificacionPage() {
                       : siraService.generateDIXml(document);
                     siraService.downloadXmlFile(xml, `DI_${document.numero_documento}_e3l.xml`);
                   }}
-                  className="flex items-center gap-1.5"
                 >
-                  <FileDown className="w-3.5 h-3.5" />
                   <span>Descargar XML</span>
                 </Button>
 
@@ -920,19 +862,8 @@ export default function DetalleDocumentoIdentificacionPage() {
                   variant={siraSubmissions.length > 0 && siraSubmissions[0].estado === 'aceptado' ? "outline" : "primary"}
                   disabled={sendingSira || !myCompany?.sira_usuario}
                   onClick={() => handleSendSira()}
-                  className="flex items-center gap-1.5"
                 >
-                  {sendingSira ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Transmitiendo...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-3.5 h-3.5" />
-                      <span>{siraSubmissions.length > 0 && siraSubmissions[0].estado === 'aceptado' ? 'Re-enviar a SIRA' : 'Transmitir a SIRA'}</span>
-                    </>
-                  )}
+                  <span>{sendingSira ? 'Transmitiendo...' : (siraSubmissions.length > 0 && siraSubmissions[0].estado === 'aceptado' ? 'Re-enviar a SIRA' : 'Transmitir a SIRA')}</span>
                 </Button>
               </div>
             </div>
@@ -1001,8 +932,7 @@ export default function DetalleDocumentoIdentificacionPage() {
       {/* MODAL 1: INICIAR TRASLADO / SALIDA */}
       <Modal isOpen={isDepartureModalOpen} onClose={() => setIsDepartureModalOpen(false)} className="max-w-lg p-6">
         <form onSubmit={handleStartTransit} className="space-y-4">
-          <div className="flex items-center gap-2 border-b pb-3 border-gray-200 dark:border-gray-800">
-            <Truck className="w-5 h-5 text-primary" />
+          <div className="border-b pb-3 border-gray-200 dark:border-gray-800">
             <h3 className="text-lg font-bold text-foreground">Iniciar Traslado / Registro de Salida</h3>
           </div>
           <p className="text-xs text-muted">
@@ -1089,8 +1019,7 @@ export default function DetalleDocumentoIdentificacionPage() {
       {/* MODAL 2: RECEPCIÓN EN BÁSCULA Y DICTAMEN GESTOR */}
       <Modal isOpen={isReceptionModalOpen} onClose={() => setIsReceptionModalOpen(false)} className="max-w-xl p-6">
         <form onSubmit={handleRecordReception} className="space-y-4">
-          <div className="flex items-center gap-2 border-b pb-3 border-gray-200 dark:border-gray-800">
-            <Scale className="w-5 h-5 text-emerald-600" />
+          <div className="border-b pb-3 border-gray-200 dark:border-gray-800">
             <h3 className="text-lg font-bold text-foreground">Recepción en Báscula y Dictamen de Destino</h3>
           </div>
           <p className="text-xs text-muted">
@@ -1224,8 +1153,7 @@ export default function DetalleDocumentoIdentificacionPage() {
       {/* MODAL 3: CERTIFICAR TRATAMIENTO Y CIERRE */}
       <Modal isOpen={isTreatmentModalOpen} onClose={() => setIsTreatmentModalOpen(false)} className="max-w-lg p-6">
         <form onSubmit={handleCompleteTreatment} className="space-y-4">
-          <div className="flex items-center gap-2 border-b pb-3 border-gray-200 dark:border-gray-800">
-            <ShieldCheck className="w-5 h-5 text-emerald-600" />
+          <div className="border-b pb-3 border-gray-200 dark:border-gray-800">
             <h3 className="text-lg font-bold text-foreground">Certificación de Tratamiento y Cierre de DI</h3>
           </div>
           <p className="text-xs text-muted">
@@ -1282,18 +1210,13 @@ export default function DetalleDocumentoIdentificacionPage() {
       <Modal isOpen={isXmlModalOpen} onClose={() => setIsXmlModalOpen(false)} className="max-w-3xl p-6">
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b pb-3 border-gray-200 dark:border-gray-800">
-            <div className="flex items-center gap-2">
-              <Code2 className="w-5 h-5 text-primary" />
-              <h3 className="text-lg font-bold text-foreground">Payload XML E3L (SIRA / e-SIR)</h3>
-            </div>
+            <h3 className="text-lg font-bold text-foreground">Payload XML E3L (SIRA / e-SIR)</h3>
             {selectedXml && (
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => siraService.downloadXmlFile(selectedXml, `DI_${document.numero_documento}_e3l.xml`)}
-                className="flex items-center gap-1.5"
               >
-                <FileDown className="w-3.5 h-3.5" />
                 <span>Descargar XML</span>
               </Button>
             )}

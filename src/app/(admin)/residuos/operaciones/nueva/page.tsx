@@ -19,19 +19,6 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import LerSelector from '@/components/residuos/LerSelector';
-import {
-  ArrowLeft,
-  Save,
-  DollarSign,
-  TrendingUp,
-  TrendingDown,
-  Truck,
-  Building2,
-  FileText,
-  Scale,
-  ShieldCheck,
-  AlertTriangle
-} from 'lucide-react';
 
 export default function NuevaOperacionComercialPage() {
   const router = useRouter();
@@ -175,7 +162,7 @@ export default function NuevaOperacionComercialPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="outline" size="sm" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4" />
+            Volver
           </Button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
@@ -190,9 +177,8 @@ export default function NuevaOperacionComercialPage() {
         <Button
           onClick={() => handleSubmit()}
           disabled={loading}
-          className="bg-primary hover:bg-primary/90 text-white flex items-center gap-1.5"
+          className="bg-primary hover:bg-primary/90 text-white"
         >
-          <Save className="h-4 w-4" />
           {loading ? 'Guardando...' : 'Guardar Operación'}
         </Button>
       </div>
@@ -605,11 +591,13 @@ export default function NuevaOperacionComercialPage() {
                 <span className="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-200">
                   Rentabilidad en Vivo
                 </span>
-                {isRentable ? (
-                  <TrendingUp className="h-5 w-5 text-emerald-600" />
-                ) : (
-                  <TrendingDown className="h-5 w-5 text-red-600" />
-                )}
+                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                  isRentable
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                    : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300'
+                }`}>
+                  {isRentable ? 'Positivo' : 'Negativo'}
+                </span>
               </div>
 
               <div className="py-4 text-center">
@@ -653,9 +641,8 @@ export default function NuevaOperacionComercialPage() {
               type="submit"
               onClick={() => handleSubmit()}
               disabled={loading}
-              className="w-full bg-primary hover:bg-primary/90 text-white flex items-center justify-center gap-2 py-3"
+              className="w-full bg-primary hover:bg-primary/90 text-white py-3 font-semibold"
             >
-              <Save className="h-4 w-4" />
               {loading ? 'Guardando...' : 'Crear Operación'}
             </Button>
           </div>

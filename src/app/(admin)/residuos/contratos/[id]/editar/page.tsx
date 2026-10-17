@@ -28,7 +28,6 @@ import type {
   ProductionCenter,
   ContractWasteCodeFormData,
 } from '@/types/wasteManagement';
-import { Plus, Trash2, ShieldCheck, MapPin, Building2 } from 'lucide-react';
 
 const TIPOS_CONTRATO = [
   { value: 'tratamiento', label: 'Tratamiento' },
@@ -471,8 +470,7 @@ export default function EditarContratoPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Origen (Productor) */}
               <div className="space-y-4 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30">
-                <div className="flex items-center gap-2 text-foreground font-semibold">
-                  <Building2 className="w-4 h-4 text-primary" />
+                <div className="text-foreground font-semibold">
                   <h4>Origen: Empresa Productora</h4>
                 </div>
                 {contract?.company && (
@@ -504,8 +502,7 @@ export default function EditarContratoPage() {
 
               {/* Destino (Gestor) */}
               <div className="space-y-4 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30">
-                <div className="flex items-center gap-2 text-foreground font-semibold">
-                  <Building2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <div className="text-foreground font-semibold">
                   <h4>Destino: Gestor de Tratamiento</h4>
                 </div>
 
@@ -561,8 +558,7 @@ export default function EditarContratoPage() {
 
                     {destAuthScope && (
                       <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300">
-                        <div className="flex items-center gap-1.5 font-semibold">
-                          <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        <div className="font-semibold">
                           <span>Autorizaciones del Gestor</span>
                         </div>
                         <p className="mt-1">
@@ -700,10 +696,10 @@ export default function EditarContratoPage() {
                           <button
                             type="button"
                             onClick={() => handleRemoveWasteCodeRow(idx)}
-                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                            className="text-gray-400 hover:text-red-500 transition-colors px-2 py-1 text-xs font-bold"
                             title="Eliminar fila"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            ✕
                           </button>
                         </td>
                       </tr>
@@ -718,9 +714,8 @@ export default function EditarContratoPage() {
                   variant="outline"
                   size="sm"
                   onClick={handleAddWasteCodeRow}
-                  className="flex items-center gap-1.5 text-xs"
+                  className="text-xs"
                 >
-                  <Plus className="w-3.5 h-3.5" />
                   Añadir Residuo / Operación LER
                 </Button>
                 <datalist id="waste-types-list">

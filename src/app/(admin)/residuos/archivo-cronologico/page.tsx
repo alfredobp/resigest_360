@@ -30,25 +30,6 @@ import { Modal } from '@/components/ui/modal';
 import InputField from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
 import LerSelector from '@/components/residuos/LerSelector';
-import {
-  BookOpen,
-  Calendar,
-  Filter,
-  Download,
-  Plus,
-  RefreshCw,
-  Search,
-  ShieldCheck,
-  AlertTriangle,
-  Scale,
-  Building2,
-  Trash2,
-  ExternalLink,
-  Layers,
-  ArrowUpRight,
-  ArrowDownLeft,
-  X
-} from 'lucide-react';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -255,7 +236,6 @@ export default function ArchivoCronologicoPage() {
               Archivo Cronológico de Residuos
             </h1>
             <Badge variant="light" color="success">
-              <ShieldCheck className="h-3.5 w-3.5 mr-1" />
               Art. 64 Ley 7/2022
             </Badge>
           </div>
@@ -445,9 +425,8 @@ export default function ArchivoCronologicoPage() {
                 placeholder="Nº Asiento, LER, DI, Razón Social..."
                 value={searchTerm}
                 onChange={handleSearchChange}
-                className="w-full text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 pl-9 pr-3 py-2 text-gray-900 dark:text-white placeholder:text-gray-400 focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                className="w-full text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 px-3 py-2 text-gray-900 dark:text-white placeholder:text-gray-400 focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
               />
-              <Search className="h-4 w-4 absolute left-3 top-2.5 text-gray-400" />
             </div>
           </div>
         </form>
@@ -462,7 +441,6 @@ export default function ArchivoCronologicoPage() {
           </div>
         ) : entries.length === 0 ? (
           <div className="p-12 text-center space-y-3">
-            <BookOpen className="h-10 w-10 text-gray-400 mx-auto" />
             <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">
               No hay asientos cronológicos para los filtros seleccionados
             </h3>
@@ -471,11 +449,9 @@ export default function ArchivoCronologicoPage() {
             </p>
             <div className="flex justify-center gap-2 pt-2">
               <Button size="sm" variant="outline" onClick={handleSyncDIs}>
-                <RefreshCw className="h-3.5 w-3.5 mr-1" />
                 Sincronizar DIs
               </Button>
               <Button size="sm" onClick={() => setModalOpen(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1" />
                 Nuevo Asiento
               </Button>
             </div>
@@ -579,8 +555,7 @@ export default function ArchivoCronologicoPage() {
                             href={`/residuos/documentos-identificacion/${entry.identification_document_id}`}
                             className="inline-flex items-center gap-1 text-primary hover:underline font-mono text-[11px]"
                           >
-                            {entry.numero_documento_referencia || `DI #${entry.identification_document_id}`}
-                            <ExternalLink className="h-3 w-3" />
+                            {entry.numero_documento_referencia || `DI #${entry.identification_document_id}`} →
                           </Link>
                         ) : (
                           <span className="text-gray-600 dark:text-gray-400 font-mono text-[11px]">
@@ -595,9 +570,9 @@ export default function ArchivoCronologicoPage() {
                           <button
                             onClick={() => handleDeleteEntry(entry.id)}
                             title="Eliminar asiento manual"
-                            className="text-gray-400 hover:text-red-600 transition-colors p-1"
+                            className="text-xs text-red-600 hover:underline font-medium"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            Eliminar
                           </button>
                         ) : (
                           <span className="text-[10px] text-gray-400" title="Asiento protegido vinculado a DI oficial">
@@ -624,19 +599,12 @@ export default function ArchivoCronologicoPage() {
         <div className="space-y-5">
           {/* Header del Modal */}
           <div className="border-b border-gray-100 dark:border-gray-800 pb-4 pr-10">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 text-primary shrink-0">
-                <BookOpen className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                  Registrar Asiento Manual en Archivo Cronológico
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Conforme a los requisitos legales del Artículo 64 de la Ley 7/2022
-                </p>
-              </div>
-            </div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+              Registrar Asiento Manual en Archivo Cronológico
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Conforme a los requisitos legales del Artículo 64 de la Ley 7/2022
+            </p>
           </div>
 
           <form onSubmit={handleSaveEntry} className="space-y-4">

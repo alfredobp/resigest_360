@@ -69,8 +69,13 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // If user is authenticated and trying to access signin/signup, redirect to dashboard (/app)
-  if (user && (request.nextUrl.pathname.startsWith('/signin') || request.nextUrl.pathname.startsWith('/signup'))) {
+  // If user is authenticated and trying to access root landing (/), signin, or signup, redirect to dashboard (/app)
+  if (
+    user &&
+    (request.nextUrl.pathname === '/' ||
+      request.nextUrl.pathname.startsWith('/signin') ||
+      request.nextUrl.pathname.startsWith('/signup'))
+  ) {
     const url = request.nextUrl.clone()
     url.pathname = '/app'
     return NextResponse.redirect(url)
