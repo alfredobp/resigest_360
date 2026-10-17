@@ -37,7 +37,7 @@ export default function SupportPage() {
     toast.success(`Copiado al portapapeles: ${text}`, label);
   };
 
-  const handleTicketSubmit = (e: React.FormEvent) => {
+  const handleTicketSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ticketForm.name || !ticketForm.email || !ticketForm.subject || !ticketForm.message) {
       toast.warning('Por favor, rellene todos los campos obligatorios.', 'Campos incompletos');
@@ -45,13 +45,22 @@ export default function SupportPage() {
     }
 
     setSubmitting(true);
-    setTimeout(() => {
-      const randomCode = Math.floor(1000 + Math.random() * 9000);
-      const ticketId = `TICK-2026-${randomCode}`;
-      setTicketGenerated(ticketId);
-      setSubmitting(false);
+    try {
+      const response = await fetch('/api/support/ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ticketForm),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al enviar el ticket.');
+      }
+
+      setTicketGenerated(data.ticketId);
       toast.success(
-        `Ticket de soporte ${ticketId} registrado con éxito. Nuestro equipo técnico responderá en menos de 2 horas.`,
+        data.message || `Ticket de soporte ${data.ticketId} registrado con éxito.`,
         'Ticket Enviado'
       );
       setTicketForm({
@@ -63,7 +72,12 @@ export default function SupportPage() {
         subject: '',
         message: '',
       });
-    }, 900);
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Error inesperado al enviar el ticket.';
+      toast.error(errorMsg, 'Error de Envío');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Contenido del manual por módulos

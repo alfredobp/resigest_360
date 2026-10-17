@@ -24,9 +24,21 @@ export async function POST(request: Request) {
       mensaje: message || 'Sin comentarios adicionales',
     });
 
+    // Envío de correos electrónicos vía Resend (notificación comercial + acuse de recibo)
+    const { sendContactEmails } = await import('@/services/emailService');
+    await sendContactEmails({
+      name,
+      email,
+      company,
+      phone,
+      role,
+      volume,
+      message,
+    });
+
     return NextResponse.json({
       success: true,
-      message: '¡Gracias por contactar con Resigest 360! Nos pondremos en contacto contigo en menos de 24 horas laborables.',
+      message: '¡Gracias por contactar con Resigest 360! Hemos enviado una confirmación a tu correo y te contactaremos en menos de 24 horas.',
     });
   } catch (error) {
     console.error('Error al procesar el contacto comercial:', error);

@@ -19,6 +19,19 @@ function formatSafeDateTime(d?: string | null): string {
 }
 
 /**
+ * Trunca el texto con puntos suspensivos si supera el ancho máximo en milímetros.
+ */
+function fitText(doc: jsPDF, text: string, maxWidth: number): string {
+  if (!text) return '-';
+  if (doc.getTextWidth(text) <= maxWidth) return text;
+  let truncated = text;
+  while (truncated.length > 0 && doc.getTextWidth(truncated + '...') > maxWidth) {
+    truncated = truncated.slice(0, -1);
+  }
+  return truncated.length > 0 ? truncated + '...' : text;
+}
+
+/**
  * Carga una imagen desde una URL y la devuelve como Base64 para jsPDF
  */
 async function loadImageAsBase64(url: string): Promise<string | null> {
@@ -883,10 +896,10 @@ export async function generateMemoriaAnualPDF(memoria: MemoriaAnual) {
 
   // Tarjeta de Datos de la Empresa y Centro
   doc.setFillColor(accentBg[0], accentBg[1], accentBg[2]);
-  doc.roundedRect(14, yPos, pageWidth - 28, 30, 2, 2, 'F');
+  doc.roundedRect(14, yPos, pageWidth - 28, 34, 2, 2, 'F');
   doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   doc.setLineWidth(0.3);
-  doc.roundedRect(14, yPos, pageWidth - 28, 30, 2, 2, 'S');
+  doc.roundedRect(14, yPos, pageWidth - 28, 34, 2, 2, 'S');
 
   doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   doc.setFont('helvetica', 'bold');
@@ -895,37 +908,41 @@ export async function generateMemoriaAnualPDF(memoria: MemoriaAnual) {
 
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(8.5);
+
+  // Fila 1: Razón Social y NIF/CIF
   doc.setFont('helvetica', 'bold');
   doc.text('Razón Social:', 20, yPos + 14);
   doc.setFont('helvetica', 'normal');
-  doc.text(memoria.nombre_empresa || '-', 46, yPos + 14);
+  doc.text(fitText(doc, memoria.nombre_empresa || '-', 92), 44, yPos + 14);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('NIF / CIF:', 115, yPos + 14);
+  doc.text('NIF / CIF:', 140, yPos + 14);
   doc.setFont('helvetica', 'normal');
-  doc.text(memoria.nif_empresa || '-', 135, yPos + 14);
+  doc.text(fitText(doc, memoria.nif_empresa || '-', 32), 158, yPos + 14);
 
+  // Fila 2: Instalación / Centro en línea completa para evitar solapamientos
   doc.setFont('helvetica', 'bold');
   doc.text('Instalación / Centro:', 20, yPos + 21);
   doc.setFont('helvetica', 'normal');
-  doc.text(memoria.nombre_centro || 'Sede Principal', 55, yPos + 21);
+  doc.text(fitText(doc, memoria.nombre_centro || 'Sede Principal', 135), 55, yPos + 21);
+
+  // Fila 3: NIMA, Municipio y Estado
+  doc.setFont('helvetica', 'bold');
+  doc.text('NIMA:', 20, yPos + 28);
+  doc.setFont('helvetica', 'normal');
+  doc.text(fitText(doc, memoria.nima || '-', 42), 33, yPos + 28);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('NIMA:', 115, yPos + 21);
+  doc.text('Municipio:', 78, yPos + 28);
   doc.setFont('helvetica', 'normal');
-  doc.text(memoria.nima || '-', 130, yPos + 21);
+  doc.text(fitText(doc, memoria.municipio_centro || '-', 40), 97, yPos + 28);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('Municipio:', 20, yPos + 27);
+  doc.text('Estado:', 140, yPos + 28);
   doc.setFont('helvetica', 'normal');
-  doc.text(memoria.municipio_centro || '-', 40, yPos + 27);
+  doc.text(fitText(doc, (memoria.estado || 'borrador').toUpperCase(), 36), 155, yPos + 28);
 
-  doc.setFont('helvetica', 'bold');
-  doc.text('Estado:', 115, yPos + 27);
-  doc.setFont('helvetica', 'normal');
-  doc.text((memoria.estado || 'borrador').toUpperCase(), 130, yPos + 27);
-
-  yPos += 36;
+  yPos += 40;
 
   // Balance y Totales
   doc.setFillColor(243, 244, 246);
@@ -1074,17 +1091,17 @@ export async function generateCommercialOperationPDF(op: CommercialOperation) {
   doc.setFont('helvetica', 'bold');
   doc.text('Productor (Origen):', 20, yPos + 21);
   doc.setFont('helvetica', 'normal');
-  doc.text(op.origen_nombre_personalizado || op.origen_productor?.razon_social || '-', 56, yPos + 21);
+  doc.text(fitText(doc, op.origen_nombre_personalizado || op.origen_productor?.razon_social || '-', 56), 56, yPos + 21);
 
   doc.setFont('helvetica', 'bold');
   doc.text('Gestor (Destino):', 115, yPos + 21);
   doc.setFont('helvetica', 'normal');
-  doc.text(op.destino_nombre_personalizado || op.destino_gestor?.razon_social || '-', 145, yPos + 21);
+  doc.text(fitText(doc, op.destino_nombre_personalizado || op.destino_gestor?.razon_social || '-', 48), 145, yPos + 21);
 
   doc.setFont('helvetica', 'bold');
   doc.text('Transportista:', 20, yPos + 28);
   doc.setFont('helvetica', 'normal');
-  doc.text(op.transportista_nombre_personalizado || op.transportista?.razon_social || '-', 45, yPos + 28);
+  doc.text(fitText(doc, op.transportista_nombre_personalizado || op.transportista?.razon_social || '-', 67), 45, yPos + 28);
 
   doc.setFont('helvetica', 'bold');
   doc.text('Matrícula:', 115, yPos + 28);

@@ -1,0 +1,232 @@
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:e3l="e3l://esir2014">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <e3l:sendWasteDCS>
+         <wasteDCS 
+    xmlns:wassup="e3l://eterproject.org/3.0/wasteSupport"
+    xmlns:common="e3l://eterproject.org/3.0/common"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    DCSCode="280001234520267547501"
+    DCSPhase="R"
+    DCSYear="2026"
+    DCSDate="2026-10-17"
+    DCSStartDate="2026-09-30"
+    DCSRegional="S"
+    DCSSendtoOriginOrDestinationAuthority="N">
+
+    <!-- 1. Operador del Traslado -->
+    
+    <DCSTransferOperatorData>
+        <entityId>
+            <nationalId>B88997766</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        
+        <entityName>
+            <reason>
+                <reasonName>EcoGestión y Soluciones Ambientales 360, S.L.</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="2800012345" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+            
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="CL" vialDescription="Calle"/>
+                <address>Polígono Industrial Cobo Calleja, C/ Manuel Cobo Calleja 52</address>
+                <CP>00000</CP>
+                <municipality municipalityCode="00000" municipalityName="Desconocido"/>
+                <province provinceCode="28" provinceName="Madrid"/>
+            </spanishAddress>
+        </centerAddress>
+            
+        <centerContact>
+            <phone>+34 910 123 456</phone>
+            <mail>operaciones@ecogestion360.es</mail>
+        </centerContact>
+            
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>2800012345</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>A01</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteTransferOperatorType operatorTypeCode="P01"/>
+        
+    </DCSTransferOperatorData>
+
+    <!-- 2. Productor -->
+    
+    <DCSProducerData>
+        <entityId>
+            <nationalId>B88997766</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        
+        <entityName>
+            <reason>
+                <reasonName>EcoGestión y Soluciones Ambientales 360, S.L.</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="2800012345-01" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+            
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="CL" vialDescription="Calle"/>
+                <address>Calle Isabel II bloque 1 2a</address>
+                <CP>11540</CP>
+                <municipality municipalityCode="00000" municipalityName="Rota"/>
+                <province provinceCode="11" provinceName="Cádiz"/>
+            </spanishAddress>
+        </centerAddress>
+            
+        <centerContact>
+            <phone>999999999</phone>
+            <mail>pendiente@email.com</mail>
+        </centerContact>
+            
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>2800012345-01</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>A01</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteProducerType producerTypeCode="P01"/>
+        
+    </DCSProducerData>
+
+    <!-- 3. Destinatario -->
+    
+    <DCSAdresseeData>
+        <entityId>
+            <nationalId>B82334455</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        
+        <entityName>
+            <reason>
+                <reasonName>Regeneración de Disolventes del Jarama S.L.</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="2800078901" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+            
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="CL" vialDescription="Calle"/>
+                <address>C/ Sierra de Guadarrama 8, Pol. Ind. San Fernando</address>
+                <CP>28830</CP>
+                <municipality municipalityCode="00000" municipalityName="San Fernando de Henares"/>
+                <province provinceCode="28" provinceName="Madrid"/>
+            </spanishAddress>
+        </centerAddress>
+            
+        <centerContact>
+            <phone>+34 916 712 345</phone>
+            <mail>pendiente@email.com</mail>
+        </centerContact>
+            
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>2800078901</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>A01</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteManagerType managerTypeCode="G01"/>
+        
+    </DCSAdresseeData>
+    
+    <!-- 4. Datos del Residuo (Incluye Transportista) -->
+    
+    <DCSResidueData>
+        <DCSProducerResidueIdentification LERCode="01 01 01" xsi:type="wassup:dangerousResidueType">
+            
+        <residueBag>
+             <bagProcess internalIdProcessCode="99"/>
+             <bagResidueId residueCode="999" residueDescription="Residuos de la extracción de minerales metálicos"/>
+        </residueBag>
+            
+        <residueTables xsi:type="wassup:tablesNoDangerousType">
+            <table2>R03</table2>
+        </residueTables>
+        </DCSProducerResidueIdentification>
+        
+        <DCSAdresseeResidueIdentification LERCode="01 01 01" xsi:type="wassup:dangerousResidueType">
+            
+        <residueBag>
+             <bagProcess internalIdProcessCode="99"/>
+             <bagResidueId residueCode="999" residueDescription="Residuos de la extracción de minerales metálicos"/>
+        </residueBag>
+            
+        <residueTables xsi:type="wassup:tablesNoDangerousType">
+            <table2>R03</table2>
+        </residueTables>
+        </DCSAdresseeResidueIdentification>
+        
+        
+        <DCSOtherResidueData>
+            <DCSNT>PENDIENTE-NT</DCSNT>
+            <DCSClearWeight>180</DCSClearWeight>
+            <DCSTransportCharacteristics>Sin características especiales</DCSTransportCharacteristics>
+        </DCSOtherResidueData>
+        
+        <DCSTransporterData>
+            <entityId>
+                <nationalId>B85667788</nationalId>
+            </entityId>
+            <entityFJ entityFJCode="J" />
+            <entityName>
+                <reason>
+                    <reasonName>TransAmbiental Logística Verde S.L.</reasonName>
+                    <reasonAssociation associationCode="99" associationDescription="Otra"/>
+                </reason>
+            </entityName>
+            <entityCenter>
+                <centerID centerCode="2800033221" />
+                <centerEconomicActivity>S/D</centerEconomicActivity>
+                <centerAddress>
+                    <spanishAddress>
+                        <vial vialCode="CL" vialDescription="Calle"/>
+                        <address>Polígono Industrial El Olivar, C/ Mercurio 5</address>
+                        <CP>28806</CP>
+                        <municipality municipalityCode="00000" municipalityName="Alcalá de Henares"/>
+                        <province provinceCode="28" provinceName="Madrid"/>
+                    </spanishAddress>
+                </centerAddress>
+                <centerContact>
+                    <phone>+34 918 223 344</phone>
+                    <mail>transporte@pendiente.com</mail>
+                </centerContact>
+                <wasteCenterAuthorization>
+                    <authorizationId>
+                         <authorizationIdFree>2800033221</authorizationIdFree>
+                    </authorizationId>
+                    <authorizationCode>A01</authorizationCode>
+                </wasteCenterAuthorization>
+            </entityCenter>
+
+            <wasteTransporterType trasporterTypeCode="T01" transporterTypeDescription="Transportista de residuos"/>
+            <DCSTransportWay transportWayCode="01" transportWayDescription="Carretera"/>
+        </DCSTransporterData>
+    </DCSResidueData>
+
+</wasteDCS>
+      </e3l:sendWasteDCS>
+   </soapenv:Body>
+</soapenv:Envelope>

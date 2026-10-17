@@ -31,6 +31,68 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- ==============================================================================
+-- 0. GARANTIZAR EXISTENCIA DE TABLAS GIS (projects, map_collections, spatial_data)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.projects (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  show BOOLEAN DEFAULT true,
+  photo TEXT DEFAULT '',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.map_collections (
+  id BIGSERIAL PRIMARY KEY,
+  project_id BIGINT REFERENCES public.projects(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  photo TEXT DEFAULT '',
+  color TEXT DEFAULT '#3B82F6',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.map_collections ADD COLUMN IF NOT EXISTS project_id BIGINT REFERENCES public.projects(id) ON DELETE CASCADE;
+
+CREATE TABLE IF NOT EXISTS public.spatial_data (
+  id BIGSERIAL PRIMARY KEY,
+  collection_id BIGINT NOT NULL REFERENCES public.map_collections(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  category VARCHAR(100),
+  geometry_type VARCHAR(20) DEFAULT 'point',
+  geometry JSONB,
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
+  address TEXT,
+  photo TEXT,
+  image TEXT,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Habilitar RLS si no está habilitado
+ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.map_collections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.spatial_data ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de seguridad para GIS
+DO $gis_policy$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'projects' AND policyname = 'Users can manage their own projects') THEN
+        CREATE POLICY "Users can manage their own projects" ON public.projects FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'map_collections' AND policyname = 'Users can manage their own collections') THEN
+        CREATE POLICY "Users can manage their own collections" ON public.map_collections FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'spatial_data' AND policyname = 'Users can manage their own spatial data') THEN
+        CREATE POLICY "Users can manage their own spatial data" ON public.spatial_data FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+    END IF;
+END $gis_policy$;
+
 DO $$
 DECLARE
     v_user_id UUID;
