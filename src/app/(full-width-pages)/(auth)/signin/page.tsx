@@ -1,5 +1,6 @@
 import SignInForm from "@/components/auth/SignInForm";
 import { Metadata } from "next";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "Iniciar Sesión | Resigest360",
@@ -7,5 +8,15 @@ export const metadata: Metadata = {
 };
 
 export default function SignIn() {
-  return <SignInForm />;
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[300px] w-full">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
+        </div>
+      }
+    >
+      <SignInForm />
+    </Suspense>
+  );
 }
