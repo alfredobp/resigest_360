@@ -138,9 +138,8 @@ export default function OperacionesComercialesPage() {
             size="sm"
             onClick={() => commercialOperationService.exportToExcelXML(operations)}
             disabled={operations.length === 0}
-            className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400"
+            className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400 font-medium"
           >
-            <Download className="h-4 w-4 mr-1 text-emerald-600" />
             Excel (.xls)
           </Button>
 
@@ -149,18 +148,16 @@ export default function OperacionesComercialesPage() {
             size="sm"
             onClick={() => commercialOperationService.exportToCSV(operations)}
             disabled={operations.length === 0}
-            className="text-blue-700 hover:text-blue-800 hover:bg-blue-50 dark:text-blue-400"
+            className="text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 font-medium"
           >
-            <Download className="h-4 w-4 mr-1 text-blue-600" />
             CSV
           </Button>
 
           <Button
             size="sm"
             onClick={() => router.push('/residuos/operaciones/nueva')}
-            className="bg-primary hover:bg-primary/90 text-white flex items-center gap-1.5"
+            className="bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors"
           >
-            <Plus className="h-4 w-4" />
             Nueva Operación
           </Button>
         </div>
@@ -174,70 +171,50 @@ export default function OperacionesComercialesPage() {
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <ComponentCard title="Facturación de Venta">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Ingresos Totales (Venta)</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                  {stats.facturacion_total.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Volumen: <span className="font-semibold">{stats.toneladas_totales.toFixed(3)} t</span>
-                </p>
-              </div>
-              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl">
-                <DollarSign className="h-6 w-6" />
-              </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Ingresos Totales (Venta)</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                {stats.facturacion_total.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Volumen: <span className="font-semibold text-gray-700 dark:text-gray-300">{stats.toneladas_totales.toFixed(3)} t</span>
+              </p>
             </div>
           </ComponentCard>
 
           <ComponentCard title="Costes Operativos">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Costes Totales</p>
-                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
-                  {stats.costes_totales.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Compra + Fletes + Accesorios
-                </p>
-              </div>
-              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-xl">
-                <Truck className="h-6 w-6" />
-              </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Costes Totales</p>
+              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
+                {stats.costes_totales.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Compra + Fletes + Accesorios
+              </p>
             </div>
           </ComponentCard>
 
           <ComponentCard title="Margen Bruto Total">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Margen Bruto Neto</p>
-                <p className={`text-2xl font-bold mt-1 ${stats.margen_bruto_total >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600'}`}>
-                  {stats.margen_bruto_total.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Rentabilidad agregada del ejercicio
-                </p>
-              </div>
-              <div className={`p-3 rounded-xl ${stats.margen_bruto_total >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                {stats.margen_bruto_total >= 0 ? <TrendingUp className="h-6 w-6" /> : <TrendingDown className="h-6 w-6" />}
-              </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Margen Bruto Neto</p>
+              <p className={`text-2xl font-bold mt-1 ${stats.margen_bruto_total >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600'}`}>
+                {stats.margen_bruto_total.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Rentabilidad agregada del ejercicio
+              </p>
             </div>
           </ComponentCard>
 
           <ComponentCard title="Margen Unitario">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-purple-600 dark:text-purple-400">Margen Unitario Medio</p>
-                <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
-                  {stats.margen_medio_tonelada.toFixed(2)} <span className="text-sm font-normal text-gray-500">€/t</span>
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {stats.total_operaciones} operaciones computadas
-                </p>
-              </div>
-              <div className="p-3 bg-purple-50 dark:bg-purple-900/20 text-purple-600 rounded-xl">
-                <Scale className="h-6 w-6" />
-              </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-purple-600 dark:text-purple-400">Margen Unitario Medio</p>
+              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
+                {stats.margen_medio_tonelada.toFixed(2)} <span className="text-sm font-normal text-gray-500">€/t</span>
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {stats.total_operaciones} operaciones computadas
+              </p>
             </div>
           </ComponentCard>
         </div>

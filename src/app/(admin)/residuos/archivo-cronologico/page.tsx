@@ -271,10 +271,9 @@ export default function ArchivoCronologicoPage() {
             size="sm"
             onClick={handleSyncDIs}
             disabled={syncing}
-            className="flex items-center gap-1.5"
+            className="text-gray-700 hover:text-gray-900 font-medium"
           >
-            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin text-primary' : ''}`} />
-            Sincronizar DIs
+            {syncing ? 'Sincronizando DIs...' : 'Sincronizar DIs'}
           </Button>
 
           <Button
@@ -282,9 +281,8 @@ export default function ArchivoCronologicoPage() {
             size="sm"
             onClick={() => exportChronologicalToExcelXML(entries)}
             disabled={entries.length === 0}
-            className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400"
+            className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400 font-medium"
           >
-            <Download className="h-4 w-4 mr-1 text-emerald-600" />
             Excel (.xls)
           </Button>
 
@@ -293,18 +291,16 @@ export default function ArchivoCronologicoPage() {
             size="sm"
             onClick={() => exportChronologicalToCSV(entries)}
             disabled={entries.length === 0}
-            className="text-blue-700 hover:text-blue-800 hover:bg-blue-50 dark:text-blue-400"
+            className="text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 font-medium"
           >
-            <Download className="h-4 w-4 mr-1 text-blue-600" />
             CSV Art. 64
           </Button>
 
           <Button
             size="sm"
             onClick={() => setModalOpen(true)}
-            className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-white"
+            className="bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors"
           >
-            <Plus className="h-4 w-4" />
             Nuevo Asiento Manual
           </Button>
         </div>
@@ -322,75 +318,53 @@ export default function ArchivoCronologicoPage() {
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <ComponentCard title="Total Asientos">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Asientos Registrados</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.total_asientos}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Total computado: <span className="font-semibold">{stats.total_t.toFixed(3)} t</span>
-                </p>
-              </div>
-              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl">
-                <BookOpen className="h-6 w-6" />
-              </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Asientos Registrados</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.total_asientos}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Total computado: <span className="font-semibold text-gray-700 dark:text-gray-300">{stats.total_t.toFixed(3)} t</span>
+              </p>
             </div>
           </ComponentCard>
 
           <ComponentCard title="Residuos Peligrosos">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Residuos Peligrosos</p>
-                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
-                  {(stats.kg_peligrosos / 1000).toFixed(3)} <span className="text-sm font-normal text-gray-500">t</span>
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {stats.kg_peligrosos.toLocaleString('es-ES')} kg
-                </p>
-              </div>
-              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-xl">
-                <AlertTriangle className="h-6 w-6" />
-              </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Residuos Peligrosos</p>
+              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
+                {(stats.kg_peligrosos / 1000).toFixed(3)} <span className="text-sm font-normal text-gray-500">t</span>
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {stats.kg_peligrosos.toLocaleString('es-ES')} kg
+              </p>
             </div>
           </ComponentCard>
 
           <ComponentCard title="Residuos No Peligrosos">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">No Peligrosos</p>
-                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                  {(stats.kg_no_peligrosos / 1000).toFixed(3)} <span className="text-sm font-normal text-gray-500">t</span>
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {stats.kg_no_peligrosos.toLocaleString('es-ES')} kg
-                </p>
-              </div>
-              <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-xl">
-                <Scale className="h-6 w-6" />
-              </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">No Peligrosos</p>
+              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                {(stats.kg_no_peligrosos / 1000).toFixed(3)} <span className="text-sm font-normal text-gray-500">t</span>
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {stats.kg_no_peligrosos.toLocaleString('es-ES')} kg
+              </p>
             </div>
           </ComponentCard>
 
           <ComponentCard title="Flujos de Movimiento">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Flujos Registrados</p>
-                <div className="flex items-center gap-3 mt-1.5 text-xs">
-                  <span className="flex items-center text-blue-600 font-medium">
-                    <ArrowUpRight className="h-3.5 w-3.5 mr-0.5" />
-                    Salidas: {stats.por_operacion.salida_traslado.count}
-                  </span>
-                  <span className="flex items-center text-emerald-600 font-medium">
-                    <ArrowDownLeft className="h-3.5 w-3.5 mr-0.5" />
-                    Entradas: {stats.por_operacion.entrada_recepcion.count}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Producción interna: {stats.por_operacion.produccion_interna.count}
-                </p>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Flujos Registrados</p>
+              <div className="flex items-center gap-3 mt-1.5 text-xs">
+                <span className="text-brand-600 dark:text-brand-400 font-semibold">
+                  Salidas: {stats.por_operacion.salida_traslado.count}
+                </span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                  Entradas: {stats.por_operacion.entrada_recepcion.count}
+                </span>
               </div>
-              <div className="p-3 bg-purple-50 dark:bg-purple-900/20 text-purple-600 rounded-xl">
-                <Layers className="h-6 w-6" />
-              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Producción interna: {stats.por_operacion.produccion_interna.count}
+              </p>
             </div>
           </ComponentCard>
         </div>

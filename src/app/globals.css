@@ -38,18 +38,23 @@
   --color-white: #ffffff;
   --color-black: #101828;
 
-  --color-brand-25: #f2f7ff;
-  --color-brand-50: #ecf3ff;
-  --color-brand-100: #dde9ff;
-  --color-brand-200: #c2d6ff;
-  --color-brand-300: #9cb9ff;
-  --color-brand-400: #7592ff;
-  --color-brand-500: #465fff;
-  --color-brand-600: #3641f5;
-  --color-brand-700: #2a31d8;
-  --color-brand-800: #252dae;
-  --color-brand-900: #262e89;
-  --color-brand-950: #161950;
+  --color-brand-25: #f4fbf7;
+  --color-brand-50: #ecfdf5;
+  --color-brand-100: #d1fae5;
+  --color-brand-200: #a7f3d0;
+  --color-brand-300: #6ee7b7;
+  --color-brand-400: #34d399;
+  --color-brand-500: #059669;
+  --color-brand-600: #047857;
+  --color-brand-700: #065f46;
+  --color-brand-800: #064e3b;
+  --color-brand-900: #022c22;
+  --color-brand-950: #011d17;
+
+  --color-primary: #059669;
+  --color-primary-hover: #047857;
+  --color-primary-light: #ecfdf5;
+  --color-primary-dark: #064e3b;
 
   --color-blue-light-25: #f5fbff;
   --color-blue-light-50: #f0f9ff;
@@ -76,7 +81,7 @@
   --color-gray-800: #1d2939;
   --color-gray-900: #101828;
   --color-gray-950: #0c111d;
-  --color-gray-dark: #1a2231;
+  --color-gray-dark: #0b0f19;
 
   --color-orange-25: #fffaf5;
   --color-orange-50: #fff6ed;
@@ -148,7 +153,7 @@
     0px 20px 24px -4px rgba(16, 24, 40, 0.08),
     0px 8px 8px -4px rgba(16, 24, 40, 0.03);
   --shadow-datepicker: -5px 0 0 #262d3c, 5px 0 0 #262d3c;
-  --shadow-focus-ring: 0px 0px 0px 4px rgba(70, 95, 255, 0.12);
+  --shadow-focus-ring: 0px 0px 0px 4px rgba(5, 150, 105, 0.16);
   --shadow-slider-navigation:
     0px 1px 2px 0px rgba(16, 24, 40, 0.1), 0px 1px 3px 0px rgba(16, 24, 40, 0.1);
   --shadow-tooltip:
@@ -183,12 +188,16 @@
   ::file-selector-button {
     border-color: var(--color-gray-200, currentColor);
   }
+  ::selection {
+    background-color: #10b981;
+    color: #ffffff;
+  }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
   body {
-    @apply relative font-normal font-outfit z-1 bg-gray-50;
+    @apply relative font-normal font-outfit z-1 bg-gray-50 dark:bg-gray-950;
   }
 }
 

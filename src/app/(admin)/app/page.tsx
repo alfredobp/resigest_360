@@ -8,26 +8,6 @@ import MonthlyWasteChart from '@/components/dashboard/MonthlyWasteChart';
 import ComponentCard from '@/components/common/ComponentCard';
 import Badge from '@/components/ui/badge/Badge';
 import Button from '@/components/ui/button/Button';
-import {
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  ShieldCheck,
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  Scale,
-  Truck,
-  Building2,
-  FileText,
-  Plus,
-  ArrowRight,
-  ExternalLink,
-  Layers,
-  FileSpreadsheet,
-  AlertOctagon,
-  ArrowUpRight
-} from 'lucide-react';
 
 export default function ExecutiveDashboardPage() {
   const router = useRouter();
@@ -101,9 +81,8 @@ export default function ExecutiveDashboardPage() {
           <Button
             size="sm"
             onClick={() => router.push('/residuos/documentos-identificacion/nuevo')}
-            className="bg-primary hover:bg-primary/90 text-white flex items-center gap-1.5"
+            className="bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors"
           >
-            <Plus className="h-4 w-4" />
             Nuevo Traslado (DI)
           </Button>
 
@@ -111,9 +90,8 @@ export default function ExecutiveDashboardPage() {
             variant="outline"
             size="sm"
             onClick={() => router.push('/residuos/operaciones/nueva')}
-            className="flex items-center gap-1.5 text-blue-700 dark:text-blue-400"
+            className="text-brand-600 dark:text-brand-400 font-medium hover:bg-brand-50 dark:hover:bg-brand-950/40"
           >
-            <DollarSign className="h-4 w-4" />
             Nueva Operación
           </Button>
 
@@ -121,9 +99,8 @@ export default function ExecutiveDashboardPage() {
             variant="outline"
             size="sm"
             onClick={() => router.push('/residuos/archivo-cronologico')}
-            className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400"
+            className="text-emerald-700 dark:text-emerald-400 font-medium hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
           >
-            <FileSpreadsheet className="h-4 w-4" />
             Archivo Cronológico
           </Button>
         </div>
@@ -133,12 +110,9 @@ export default function ExecutiveDashboardPage() {
       {hasAlerts ? (
         <div className="bg-amber-50/70 dark:bg-amber-950/20 rounded-2xl p-5 border border-amber-200 dark:border-amber-900/50 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-              <h2 className="text-sm font-bold text-amber-900 dark:text-amber-300">
-                Atención Requerida: {alertas.totalCriticas} Excepciones Críticas y {alertas.totalAdvertencias} Advertencias
-              </h2>
-            </div>
+            <h2 className="text-sm font-bold text-amber-900 dark:text-amber-300">
+              Atención Requerida: {alertas.totalCriticas} Excepciones Críticas y {alertas.totalAdvertencias} Advertencias
+            </h2>
             <span className="text-xs text-amber-800 dark:text-amber-400 font-medium">
               Normativa RD 553/2020 & Ley 7/2022
             </span>
@@ -148,64 +122,61 @@ export default function ExecutiveDashboardPage() {
             {alertas.disEnTransitoCount > 0 && (
               <Link
                 href="/residuos/documentos-identificacion"
-                className="p-2.5 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-amber-200 dark:border-amber-800/60 flex items-center justify-between hover:shadow-sm transition-all"
+                className="p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-amber-200 dark:border-amber-800/60 flex items-center justify-between hover:shadow-sm transition-all"
               >
                 <div>
                   <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">DIs en Tránsito</span>
-                  <p className="text-base font-bold text-blue-600 dark:text-blue-400">{alertas.disEnTransitoCount}</p>
+                  <p className="text-lg font-bold text-brand-600 dark:text-brand-400">{alertas.disEnTransitoCount}</p>
                 </div>
-                <Truck className="h-4 w-4 text-blue-500" />
+                <span className="text-xs font-semibold text-brand-600 dark:text-brand-400">Revisar →</span>
               </Link>
             )}
 
             {alertas.disDiscrepanciaCount > 0 && (
               <Link
                 href="/residuos/documentos-identificacion"
-                className="p-2.5 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-red-200 dark:border-red-900/60 flex items-center justify-between hover:shadow-sm transition-all"
+                className="p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-red-200 dark:border-red-900/60 flex items-center justify-between hover:shadow-sm transition-all"
               >
                 <div>
                   <span className="text-[11px] font-semibold text-red-700 dark:text-red-400">Discrepancias Báscula &gt;5%</span>
-                  <p className="text-base font-bold text-red-600 dark:text-red-400">{alertas.disDiscrepanciaCount}</p>
+                  <p className="text-lg font-bold text-red-600 dark:text-red-400">{alertas.disDiscrepanciaCount}</p>
                 </div>
-                <AlertOctagon className="h-4 w-4 text-red-500" />
+                <span className="text-xs font-semibold text-red-600 dark:text-red-400">Ver →</span>
               </Link>
             )}
 
             {alertas.contratosCaducadosCount > 0 && (
               <Link
                 href="/residuos/contratos"
-                className="p-2.5 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-red-200 dark:border-red-900/60 flex items-center justify-between hover:shadow-sm transition-all"
+                className="p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-red-200 dark:border-red-900/60 flex items-center justify-between hover:shadow-sm transition-all"
               >
                 <div>
                   <span className="text-[11px] font-semibold text-red-700 dark:text-red-400">Contratos Caducados</span>
-                  <p className="text-base font-bold text-red-600 dark:text-red-400">{alertas.contratosCaducadosCount}</p>
+                  <p className="text-lg font-bold text-red-600 dark:text-red-400">{alertas.contratosCaducadosCount}</p>
                 </div>
-                <Clock className="h-4 w-4 text-red-500" />
+                <span className="text-xs font-semibold text-red-600 dark:text-red-400">Renovar →</span>
               </Link>
             )}
 
             {alertas.contratosPorVencerCount > 0 && (
               <Link
                 href="/residuos/contratos"
-                className="p-2.5 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-amber-200 dark:border-amber-800/60 flex items-center justify-between hover:shadow-sm transition-all"
+                className="p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-amber-200 dark:border-amber-800/60 flex items-center justify-between hover:shadow-sm transition-all"
               >
                 <div>
                   <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">Vencimiento &lt;60 días</span>
-                  <p className="text-base font-bold text-amber-600 dark:text-amber-400">{alertas.contratosPorVencerCount}</p>
+                  <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{alertas.contratosPorVencerCount}</p>
                 </div>
-                <ShieldCheck className="h-4 w-4 text-amber-500" />
+                <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">Atender →</span>
               </Link>
             )}
           </div>
         </div>
       ) : (
         <div className="bg-emerald-50/70 dark:bg-emerald-950/20 rounded-2xl p-4 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-xs font-semibold text-emerald-900 dark:text-emerald-300">
-              Todos los traslados, contratos y autorizaciones se encuentran en plena conformidad normativa. Sin excepciones activas.
-            </span>
-          </div>
+          <span className="text-xs font-semibold text-emerald-900 dark:text-emerald-300">
+            Todos los traslados, contratos y autorizaciones se encuentran en plena conformidad normativa. Sin excepciones activas.
+          </span>
           <Badge variant="light" color="success" size="sm">
             Conformidad 100%
           </Badge>
@@ -347,10 +318,10 @@ export default function ExecutiveDashboardPage() {
 
             <Link
               href="/residuos/archivo-cronologico"
-              className="text-xs text-primary font-medium hover:underline flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800"
+              className="text-xs text-brand-600 dark:text-brand-400 font-medium hover:underline flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800"
             >
               <span>Ver Libro de Registro Cronológico</span>
-              <ArrowRight className="h-3.5 w-3.5" />
+              <span>→</span>
             </Link>
           </div>
         </div>
@@ -364,7 +335,7 @@ export default function ExecutiveDashboardPage() {
               <h3 className="text-sm font-bold text-gray-900 dark:text-white">
                 Últimos Traslados y Documentos de Identificación
               </h3>
-              <Link href="/residuos/documentos-identificacion" className="text-xs text-primary hover:underline">
+              <Link href="/residuos/documentos-identificacion" className="text-xs text-brand-600 dark:text-brand-400 font-medium hover:underline">
                 Ver todos →
               </Link>
             </div>
@@ -381,7 +352,7 @@ export default function ExecutiveDashboardPage() {
                           {di.numero_documento}
                         </span>
                         {di.estado_traslado && (
-                          <span className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-1.5 py-0.5 rounded-full font-semibold">
+                          <span className="text-[10px] bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 px-2 py-0.5 rounded-full font-semibold">
                             {di.estado_traslado}
                           </span>
                         )}
@@ -396,7 +367,7 @@ export default function ExecutiveDashboardPage() {
                         {new Date(di.fecha_documento).toLocaleDateString('es-ES')}
                       </span>
                       <div>
-                        <Link href={`/residuos/documentos-identificacion/${di.id}`} className="text-xs text-primary hover:underline font-medium">
+                        <Link href={`/residuos/documentos-identificacion/${di.id}`} className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium">
                           Detalle
                         </Link>
                       </div>
@@ -417,46 +388,34 @@ export default function ExecutiveDashboardPage() {
 
             <Link
               href="/residuos/archivo-cronologico"
-              className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-semibold text-gray-800 dark:text-gray-200"
+              className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-semibold text-gray-800 dark:text-gray-200 group"
             >
-              <div className="flex items-center gap-2.5">
-                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                <span>Libro de Registro Cronológico</span>
-              </div>
-              <ArrowRight className="h-3.5 w-3.5 text-gray-400" />
+              <span>Libro de Registro Cronológico</span>
+              <span className="text-gray-400 group-hover:text-brand-500 transition-colors">→</span>
             </Link>
 
             <Link
               href="/residuos/operaciones"
-              className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-semibold text-gray-800 dark:text-gray-200"
+              className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-semibold text-gray-800 dark:text-gray-200 group"
             >
-              <div className="flex items-center gap-2.5">
-                <DollarSign className="h-4 w-4 text-blue-600" />
-                <span>Operaciones Comerciales y Márgenes</span>
-              </div>
-              <ArrowRight className="h-3.5 w-3.5 text-gray-400" />
+              <span>Operaciones Comerciales y Márgenes</span>
+              <span className="text-gray-400 group-hover:text-brand-500 transition-colors">→</span>
             </Link>
 
             <Link
               href="/residuos/memorias-anuales"
-              className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-semibold text-gray-800 dark:text-gray-200"
+              className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-semibold text-gray-800 dark:text-gray-200 group"
             >
-              <div className="flex items-center gap-2.5">
-                <FileText className="h-4 w-4 text-purple-600" />
-                <span>Memorias Anuales de Residuos</span>
-              </div>
-              <ArrowRight className="h-3.5 w-3.5 text-gray-400" />
+              <span>Memorias Anuales de Residuos</span>
+              <span className="text-gray-400 group-hover:text-brand-500 transition-colors">→</span>
             </Link>
 
             <Link
               href="/residuos/empresas"
-              className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-semibold text-gray-800 dark:text-gray-200"
+              className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-semibold text-gray-800 dark:text-gray-200 group"
             >
-              <div className="flex items-center gap-2.5">
-                <Building2 className="h-4 w-4 text-amber-600" />
-                <span>Empresas, Roles y Autorizaciones</span>
-              </div>
-              <ArrowRight className="h-3.5 w-3.5 text-gray-400" />
+              <span>Empresas, Roles y Autorizaciones</span>
+              <span className="text-gray-400 group-hover:text-brand-500 transition-colors">→</span>
             </Link>
           </div>
         </div>

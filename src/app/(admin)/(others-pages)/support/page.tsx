@@ -298,49 +298,45 @@ export default function SupportPage() {
         <nav className="flex flex-wrap gap-2 sm:gap-4">
           <button
             onClick={() => setActiveTab('support')}
-            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-all ${
+            className={`border-b-2 px-4 py-3 text-sm font-semibold transition-all ${
               activeTab === 'support'
                 ? 'border-brand-500 text-brand-600 dark:border-brand-400 dark:text-brand-400'
                 : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
             }`}
           >
-            <HelpCircle className="h-4 w-4" />
             <span>Atención y Canales de Contacto</span>
           </button>
 
           <button
             onClick={() => setActiveTab('manual')}
-            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-all ${
+            className={`border-b-2 px-4 py-3 text-sm font-semibold transition-all ${
               activeTab === 'manual'
                 ? 'border-brand-500 text-brand-600 dark:border-brand-400 dark:text-brand-400'
                 : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
             }`}
           >
-            <BookOpen className="h-4 w-4" />
             <span>Manual de Instrucciones del Usuario</span>
           </button>
 
           <button
             onClick={() => setActiveTab('legal')}
-            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-all ${
+            className={`border-b-2 px-4 py-3 text-sm font-semibold transition-all ${
               activeTab === 'legal'
                 ? 'border-brand-500 text-brand-600 dark:border-brand-400 dark:text-brand-400'
                 : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
             }`}
           >
-            <ShieldCheck className="h-4 w-4" />
             <span>Condiciones Legales y Normativa</span>
           </button>
 
           <button
             onClick={() => setActiveTab('faq')}
-            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-all ${
+            className={`border-b-2 px-4 py-3 text-sm font-semibold transition-all ${
               activeTab === 'faq'
                 ? 'border-brand-500 text-brand-600 dark:border-brand-400 dark:text-brand-400'
                 : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
             }`}
           >
-            <MessageSquare className="h-4 w-4" />
             <span>Preguntas Frecuentes (FAQ)</span>
           </button>
         </nav>

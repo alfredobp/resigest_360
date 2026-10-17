@@ -21,6 +21,7 @@ interface ToastContextType {
   error: (message: string, title?: string, duration?: number) => void;
   warning: (message: string, title?: string, duration?: number) => void;
   info: (message: string, title?: string, duration?: number) => void;
+  showToast: (message: string, type?: ToastType) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -140,6 +141,10 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [addToast]);
 
+  const showToast = useCallback((message: string, type: ToastType = 'info') => {
+    addToast(type, message);
+  }, [addToast]);
+
   return (
     <ToastContext.Provider
       value={{
@@ -150,6 +155,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         error,
         warning,
         info,
+        showToast,
       }}
     >
       {children}

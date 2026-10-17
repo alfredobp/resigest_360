@@ -17,19 +17,6 @@ import Alert from '@/components/ui/alert/Alert';
 import { toast } from '@/context/ToastContext';
 import Badge from '@/components/ui/badge/Badge';
 import Button from '@/components/ui/button/Button';
-import {
-  FileText,
-  Plus,
-  Eye,
-  Trash2,
-  Download,
-  CheckCircle,
-  AlertCircle,
-  Clock,
-  Archive,
-  FileCheck,
-  BarChart3,
-} from 'lucide-react';
 
 export default function MemoriasAnualesPage() {
   const router = useRouter();
@@ -149,19 +136,17 @@ export default function MemoriasAnualesPage() {
 
   const getEstadoBadge = (estado: EstadoMemoria) => {
     const configs: Record<EstadoMemoria, any> = {
-      borrador: { color: 'light' as const, icon: Clock, label: 'Borrador' },
-      revision: { color: 'warning' as const, icon: AlertCircle, label: 'En Revisión' },
-      completada: { color: 'primary' as const, icon: CheckCircle, label: 'Completada' },
-      presentada: { color: 'success' as const, icon: FileCheck, label: 'Presentada' },
-      archivada: { color: 'dark' as const, icon: Archive, label: 'Archivada' },
+      borrador: { color: 'light' as const, label: 'Borrador' },
+      revision: { color: 'warning' as const, label: 'En Revisión' },
+      completada: { color: 'primary' as const, label: 'Completada' },
+      presentada: { color: 'success' as const, label: 'Presentada' },
+      archivada: { color: 'dark' as const, label: 'Archivada' },
     };
 
     const config = configs[estado];
-    const Icon = config.icon;
 
     return (
       <Badge variant="light" color={config.color}>
-        <Icon className="h-3 w-3" />
         {config.label}
       </Badge>
     );
@@ -203,7 +188,6 @@ export default function MemoriasAnualesPage() {
           </p>
         </div>
         <Button onClick={() => router.push('/residuos/memorias-anuales/nueva')}>
-          <Plus className="mr-2 h-4 w-4" />
           Nueva Memoria
         </Button>
       </div>
@@ -229,42 +213,30 @@ export default function MemoriasAnualesPage() {
       {stats && (
         <div className="grid gap-4 md:grid-cols-4">
           <ComponentCard title='Total Memorias'>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Memorias</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
-              </div>
-              <FileText className="h-8 w-8 text-muted-foreground" />
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Total Memorias</p>
+              <p className="text-2xl font-bold mt-1">{stats.total}</p>
             </div>
           </ComponentCard>
 
           <ComponentCard title='Completadas'>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Completadas</p>
-                <p className="text-2xl font-bold">{stats.por_estado?.completada || 0}</p>
-              </div>
-              <CheckCircle className="h-8 w-8 text-green-500" />
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Completadas</p>
+              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{stats.por_estado?.completada || 0}</p>
             </div>
           </ComponentCard>
 
           <ComponentCard title='Presentadas'>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Presentadas</p>
-                <p className="text-2xl font-bold">{stats.por_estado?.presentada || 0}</p>
-              </div>
-              <FileCheck className="h-8 w-8 text-blue-500" />
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Presentadas</p>
+              <p className="text-2xl font-bold text-brand-600 dark:text-brand-400 mt-1">{stats.por_estado?.presentada || 0}</p>
             </div>
           </ComponentCard>
 
           <ComponentCard title='Total Toneladas'>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Toneladas</p>
-                <p className="text-2xl font-bold">{stats.total_toneladas.toFixed(2)}</p>
-              </div>
-              <BarChart3 className="h-8 w-8 text-purple-500" />
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Total Toneladas</p>
+              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">{stats.total_toneladas.toFixed(2)} t</p>
             </div>
           </ComponentCard>
         </div>

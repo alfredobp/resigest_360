@@ -14,14 +14,14 @@ import AutorizacionModal from '@/components/residuos/AutorizacionModal';
 import companyService from '@/services/companyService';
 import type { Company, CompanyRole } from '@/types/wasteManagement';
 
-const ROLE_BADGE_CONFIG: Record<CompanyRole, { label: string; color: 'primary' | 'success' | 'warning' | 'info' | 'light' | 'error'; icon: string }> = {
-  gestor: { label: 'Gestor', color: 'success', icon: '♻️' },
-  transportista: { label: 'Transportista', color: 'info', icon: '🚚' },
-  productor: { label: 'Productor', color: 'warning', icon: '🏭' },
-  negociante: { label: 'Negociante', color: 'primary', icon: '💼' },
-  agente: { label: 'Agente', color: 'primary', icon: '🤝' },
-  cliente: { label: 'Cliente', color: 'light', icon: '👤' },
-  proveedor: { label: 'Proveedor', color: 'light', icon: '📦' },
+const ROLE_BADGE_CONFIG: Record<CompanyRole, { label: string; color: 'primary' | 'success' | 'warning' | 'info' | 'light' | 'error' }> = {
+  gestor: { label: 'Gestor', color: 'success' },
+  transportista: { label: 'Transportista', color: 'info' },
+  productor: { label: 'Productor', color: 'warning' },
+  negociante: { label: 'Negociante', color: 'primary' },
+  agente: { label: 'Agente', color: 'primary' },
+  cliente: { label: 'Cliente', color: 'light' },
+  proveedor: { label: 'Proveedor', color: 'light' },
 };
 
 function EmpresasContent() {
@@ -168,35 +168,35 @@ function EmpresasContent() {
                 size="sm"
                 onClick={() => setSelectedRole('gestor')}
               >
-                ♻️ Gestores ({companies.filter(c => getCompanyRoles(c).includes('gestor')).length})
+                Gestores ({companies.filter(c => getCompanyRoles(c).includes('gestor')).length})
               </Button>
               <Button
                 variant={selectedRole === 'transportista' ? 'primary' : 'outline'}
                 size="sm"
                 onClick={() => setSelectedRole('transportista')}
               >
-                🚚 Transportistas ({companies.filter(c => getCompanyRoles(c).includes('transportista')).length})
+                Transportistas ({companies.filter(c => getCompanyRoles(c).includes('transportista')).length})
               </Button>
               <Button
                 variant={selectedRole === 'productor' ? 'primary' : 'outline'}
                 size="sm"
                 onClick={() => setSelectedRole('productor')}
               >
-                🏭 Productores ({companies.filter(c => getCompanyRoles(c).includes('productor')).length})
+                Productores ({companies.filter(c => getCompanyRoles(c).includes('productor')).length})
               </Button>
               <Button
                 variant={selectedRole === 'cliente' ? 'primary' : 'outline'}
                 size="sm"
                 onClick={() => setSelectedRole('cliente')}
               >
-                👤 Clientes ({companies.filter(c => getCompanyRoles(c).includes('cliente')).length})
+                Clientes ({companies.filter(c => getCompanyRoles(c).includes('cliente')).length})
               </Button>
               <Button
                 variant={selectedRole === 'proveedor' ? 'primary' : 'outline'}
                 size="sm"
                 onClick={() => setSelectedRole('proveedor')}
               >
-                📦 Proveedores ({companies.filter(c => getCompanyRoles(c).includes('proveedor')).length})
+                Proveedores ({companies.filter(c => getCompanyRoles(c).includes('proveedor')).length})
               </Button>
             </div>
 
@@ -252,17 +252,16 @@ function EmpresasContent() {
                           </span>
                         )}
                         {company.is_my_company && (
-                          <Badge color="primary">🏢 Empresa Titular</Badge>
+                          <Badge color="primary">Empresa Titular</Badge>
                         )}
                       </div>
 
                       {/* Badges de Roles Múltiples */}
                       <div className="flex flex-wrap gap-1.5 pt-1">
                         {roles.map((roleKey) => {
-                          const config = ROLE_BADGE_CONFIG[roleKey] || { label: roleKey, color: 'light', icon: '🏷️' };
+                          const config = ROLE_BADGE_CONFIG[roleKey] || { label: roleKey, color: 'light' };
                           return (
                             <Badge key={roleKey} color={config.color}>
-                              <span className="mr-1">{config.icon}</span>
                               {config.label}
                             </Badge>
                           );
@@ -354,7 +353,7 @@ function EmpresasContent() {
                         }}
                         className="border-brand-200 text-brand-700 hover:bg-brand-50 dark:border-brand-800 dark:text-brand-300"
                       >
-                        📜 Autorizaciones
+                        Autorizaciones
                       </Button>
 
                       {!company.is_my_company && (

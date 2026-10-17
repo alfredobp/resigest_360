@@ -13,7 +13,6 @@ import { toast } from '@/context/ToastContext';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import type { Company, CompanyFormData, ProductionCenter, ProductionCenterFormData } from '@/types/wasteManagement';
-import { Trash2, Plus, MapPin, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 const TIPOS_EMPRESA = [
   { value: 'productor', label: 'Productor' },
@@ -275,12 +274,12 @@ export default function MiEmpresaPage() {
                   <label className="block text-sm font-medium">CIF / NIF *</label>
                   {formData.cif.trim() !== '' && (
                     companyService.validateCIF(formData.cif) ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> CIF Válido
+                      <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> CIF Válido
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-xs text-red-500 font-medium">
-                        <AlertCircle className="w-3.5 h-3.5" /> Formato incorrecto (Ej: B12345678)
+                      <span className="inline-flex items-center gap-1.5 text-xs text-red-500 font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span> Formato incorrecto (Ej: B12345678)
                       </span>
                     )
                   )}
@@ -299,12 +298,12 @@ export default function MiEmpresaPage() {
                   <label className="block text-sm font-medium">NIMA</label>
                   {(formData.nima || '').trim() !== '' && (
                     companyService.validateNIMA(formData.nima || '') ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> NIMA Válido ({(formData.nima || '').trim().length} car.)
+                      <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> NIMA Válido ({(formData.nima || '').trim().length} car.)
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium">
-                        <AlertCircle className="w-3.5 h-3.5" /> NIMA incompleto ({(formData.nima || '').trim().length}/10 car.)
+                      <span className="inline-flex items-center gap-1.5 text-xs text-amber-600 font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> NIMA incompleto ({(formData.nima || '').trim().length}/10 car.)
                       </span>
                     )
                   )}
@@ -474,11 +473,10 @@ export default function MiEmpresaPage() {
           </ComponentCard>
 
           {/* Configuración SIRA (Junta de Andalucía) */}
-          <ComponentCard title="Configuración SIRA (Junta de Andalucía)" className="mt-6 border-blue-200 bg-blue-50/30 dark:border-blue-900/30">
+          <ComponentCard title="Configuración SIRA (Junta de Andalucía)" className="mt-6 border-emerald-200/80 bg-emerald-50/20 dark:border-emerald-900/40 dark:bg-emerald-950/10">
             <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-blue-100/60 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs leading-relaxed space-y-2">
-                <div className="flex items-center gap-2 font-semibold text-sm text-blue-900 dark:text-blue-100">
-                  <Info className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <div className="p-4 rounded-xl bg-emerald-100/50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-950 dark:text-emerald-200 text-xs leading-relaxed space-y-2">
+                <div className="font-semibold text-sm text-emerald-900 dark:text-emerald-100">
                   ¿Qué es la conexión SIRA y cómo funciona?
                 </div>
                 <p>
@@ -491,8 +489,8 @@ export default function MiEmpresaPage() {
 
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h4 className="font-semibold text-blue-800 dark:text-blue-300">Conexión con el Web Service</h4>
-                  <p className="text-sm text-blue-600/70 dark:text-blue-400/70">
+                  <h4 className="font-semibold text-gray-900 dark:text-white">Conexión con el Web Service</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
                     Configura las credenciales para el envío directo de DI a la plataforma SIRA.
                   </p>
                 </div>
@@ -619,19 +617,13 @@ export default function MiEmpresaPage() {
               <Button
                 onClick={() => setShowCenterForm(!showCenterForm)}
                 variant={showCenterForm ? "outline" : "primary"}
-                className="flex items-center gap-2"
               >
-                {showCenterForm ? 'Cancelar' : (
-                  <>
-                    <Plus className="w-5 h-5" />
-                    Nuevo Centro
-                  </>
-                )}
+                {showCenterForm ? 'Cancelar' : 'Nuevo Centro'}
               </Button>
             </div>
 
             {showCenterForm && (
-              <ComponentCard title="Agregar Nuevo Centro de Producción" className="mb-6 border-primary/20 bg-primary/5">
+              <ComponentCard title="Agregar Nuevo Centro de Producción" className="mb-6 border-brand-500/20 bg-brand-50/10">
                 <form onSubmit={handleAddCenter} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="md:col-span-2">
@@ -709,32 +701,31 @@ export default function MiEmpresaPage() {
             {productionCenters.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {productionCenters.map((center) => (
-                  <div key={center.id} className="bg-white dark:bg-dark-1 rounded-xl p-6 border border-stroke dark:border-strokedark shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-start gap-4">
-                        <div className="p-3 bg-primary/10 rounded-lg">
-                          <MapPin className="w-6 h-6 text-primary" />
+                  <div key={center.id} className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-start gap-4">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-bold text-lg text-gray-900 dark:text-white">{center.nombre}</h3>
+                          <span className="px-2 py-0.5 text-xs font-mono font-semibold rounded bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-400 border border-brand-200 dark:border-brand-800/60">
+                            NIMA: {center.nima}
+                          </span>
                         </div>
-                        <div>
-                          <h3 className="font-bold text-lg text-foreground">{center.nombre}</h3>
-                          <p className="text-sm text-primary font-medium mt-1">NIMA: {center.nima}</p>
-                          <p className="text-sm text-muted mt-2">
-                            {center.direccion}
-                            {(center.municipio || center.provincia) && (
-                              <>, {[center.municipio, center.provincia].filter(Boolean).join(', ')}</>
-                            )}
-                          </p>
-                          {center.descripcion && (
-                            <p className="text-sm text-muted mt-3 italic">&ldquo;{center.descripcion}&rdquo;</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                          {center.direccion}
+                          {(center.municipio || center.provincia) && (
+                            <>, {[center.municipio, center.provincia].filter(Boolean).join(', ')}</>
                           )}
-                        </div>
+                        </p>
+                        {center.descripcion && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 italic">&ldquo;{center.descripcion}&rdquo;</p>
+                        )}
                       </div>
                       <button
                         onClick={() => handleDeleteCenter(center.id)}
-                        className="text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                        className="text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900/40 transition-colors shrink-0"
                         title="Eliminar centro"
                       >
-                        <Trash2 className="w-5 h-5" />
+                        Eliminar
                       </button>
                     </div>
                   </div>

@@ -206,42 +206,42 @@ export default function DocumentosIdentificacionPage() {
               size="sm"
               onClick={() => setFilterStatus('en_transito')}
             >
-              🚚 En Tránsito ({documents.filter(d => d.estado_traslado === 'en_transito').length})
+              En Tránsito ({documents.filter(d => d.estado_traslado === 'en_transito').length})
             </Button>
             <Button
               variant={filterStatus === 'recepcionado' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('recepcionado')}
             >
-              ⚖️ En Báscula ({documents.filter(d => d.estado_traslado === 'recepcionado').length})
+              En Báscula ({documents.filter(d => d.estado_traslado === 'recepcionado').length})
             </Button>
             <Button
               variant={filterStatus === 'aceptado' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('aceptado')}
             >
-              ✅ Aceptados ({documents.filter(d => d.estado_traslado === 'aceptado').length})
+              Aceptados ({documents.filter(d => d.estado_traslado === 'aceptado').length})
             </Button>
             <Button
               variant={filterStatus === 'incidencias' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('incidencias')}
             >
-              ⚠️ Incidencias ({documents.filter(d => d.estado_traslado === 'rechazado_parcial' || d.estado_traslado === 'rechazado_total').length})
+              Incidencias ({documents.filter(d => d.estado_traslado === 'rechazado_parcial' || d.estado_traslado === 'rechazado_total').length})
             </Button>
             <Button
               variant={filterStatus === 'tratado' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('tratado')}
             >
-              🏁 Tratados ({documents.filter(d => d.estado_traslado === 'tratado').length})
+              Tratados ({documents.filter(d => d.estado_traslado === 'tratado').length})
             </Button>
             <Button
               variant={filterStatus === 'borrador' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('borrador')}
             >
-              📝 Borradores ({documents.filter(d => !d.estado_traslado || d.estado_traslado === 'borrador').length})
+              Borradores ({documents.filter(d => !d.estado_traslado || d.estado_traslado === 'borrador').length})
             </Button>
           </div>
 
