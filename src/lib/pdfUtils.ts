@@ -1,5 +1,7 @@
 import jsPDF from 'jspdf';
+import QRCode from 'qrcode';
 import type { WasteContract, IdentificationDocument, MemoriaAnual, CommercialOperation } from '@/types/wasteManagement';
+import type { DecaDocument } from '@/types/deca';
 
 /**
  * Funciones auxiliares para formateo seguro de fechas
@@ -1222,6 +1224,378 @@ export async function generateCommercialOperationPDF(op: CommercialOperation) {
     14,
     pageHeight - 9
   );
+
+  return doc;
+}
+
+/**
+ * Genera el PDF oficial del Documento Electrónico de Control Administrativo (DeCA)
+ * Conforme a la Orden FOM/2861/2012, Ley 9/2025 y Resolución de 5 de junio de 2026.
+ */
+export async function generateDecaPDF(deca: DecaDocument, inspectionUrl: string): Promise<jsPDF> {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  const primaryColor = [15, 23, 42];     // Slate 900
+  const blueAccent = [30, 64, 175];       // Blue 800
+  const secondaryColor = [71, 85, 105];   // Slate 600
+  const lightBg = [248, 250, 252];       // Slate 50
+  const borderColor = [226, 232, 240];   // Slate 200
+
+  // Generar código QR como imagen DataURL
+  let qrDataUrl = '';
+  try {
+    qrDataUrl = await QRCode.toDataURL(inspectionUrl, {
+      margin: 1,
+      width: 250,
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff',
+      },
+    });
+  } catch (err) {
+    console.warn('Error generando QR para DeCA:', err);
+  }
+
+  // --- CABECERA PRINCIPAL ---
+  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.rect(0, 0, pageWidth, 6, 'F');
+
+  let yPos = 14;
+
+  // Título e identificación
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.text('DOCUMENTO ELECTRÓNICO DE CONTROL ADMINISTRATIVO (DeCA)', 14, yPos);
+  
+  yPos += 5;
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+  doc.text('Transporte de Mercancías por Carretera | Orden FOM/2861/2012, Disp. Transitoria 8ª Ley 9/2025 y Res. 5 junio 2026', 14, yPos);
+
+  yPos += 7;
+
+  // Caja de cabecera con datos del documento y QR de inspección
+  const headerBoxHeight = 32;
+  doc.setFillColor(lightBg[0], lightBg[1], lightBg[2]);
+  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+  doc.roundedRect(14, yPos, pageWidth - 28, headerBoxHeight, 2, 2, 'FD');
+
+  // Datos izquierda
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.text('Nº DE DOCUMENTO:', 18, yPos + 7);
+  doc.setFont('helvetica', 'normal');
+  doc.text(deca.numero_deca || 'DECA-BORRADOR', 56, yPos + 7);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('VERSIÓN VIGENTE:', 18, yPos + 14);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(blueAccent[0], blueAccent[1], blueAccent[2]);
+  doc.text(`Versión ${deca.version} ${deca.is_vigente ? '(Vigente)' : '(Histórica)'}`, 56, yPos + 14);
+
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text('FECHA TRANSPORTE:', 18, yPos + 21);
+  doc.setFont('helvetica', 'normal');
+  doc.text(formatSafeDate(deca.fecha_transporte), 56, yPos + 21);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('ESTADO SERVICIO:', 18, yPos + 27);
+  doc.setFont('helvetica', 'normal');
+  doc.text((deca.estado || 'VIGENTE').toUpperCase(), 56, yPos + 27);
+
+  // QR a la derecha dentro de la caja
+  if (qrDataUrl) {
+    const qrSize = 26;
+    const qrX = pageWidth - 14 - qrSize - 4;
+    doc.addImage(qrDataUrl, 'PNG', qrX, yPos + 3, qrSize, qrSize);
+
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(blueAccent[0], blueAccent[1], blueAccent[2]);
+    doc.text('INSPECCIÓN EN RUTA', qrX + (qrSize / 2), yPos + 31, { align: 'center' });
+  }
+
+  yPos += headerBoxHeight + 6;
+
+  // Función para títulos de sección
+  const drawSectionTitle = (title: string, y: number): number => {
+    doc.setFillColor(241, 245, 249);
+    doc.rect(14, y, pageWidth - 28, 5.5, 'F');
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(blueAccent[0], blueAccent[1], blueAccent[2]);
+    doc.text(title.toUpperCase(), 17, y + 4);
+    return y + 7.5;
+  };
+
+  // --- SECCIÓN 1: CARGADOR CONTRACTUAL Y TRANSPORTISTA EFECTIVO ---
+  yPos = drawSectionTitle('1. Partes Intervinientes en el Contrato de Transporte', yPos);
+
+  const colWidth = (pageWidth - 32) / 2;
+
+  // Columna Izquierda: Cargador Contractual
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+  doc.roundedRect(14, yPos, colWidth, 34, 1.5, 1.5, 'FD');
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.text('CARGADOR CONTRACTUAL', 18, yPos + 5.5);
+
+  doc.setFontSize(7.5);
+  doc.text('Razón Social:', 18, yPos + 11);
+  doc.setFont('helvetica', 'normal');
+  doc.text(fitText(doc, deca.cargador_razon_social || '-', colWidth - 28), 38, yPos + 11);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('NIF / CIF:', 18, yPos + 17);
+  doc.setFont('helvetica', 'normal');
+  doc.text(deca.cargador_nif || '-', 38, yPos + 17);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Domicilio:', 18, yPos + 23);
+  doc.setFont('helvetica', 'normal');
+  doc.text(fitText(doc, deca.cargador_domicilio || '-', colWidth - 28), 38, yPos + 23);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Población:', 18, yPos + 29);
+  doc.setFont('helvetica', 'normal');
+  doc.text(
+    fitText(
+      doc,
+      `${deca.cargador_codigo_postal || ''} ${deca.cargador_municipio || ''} (${deca.cargador_provincia || ''})`,
+      colWidth - 28
+    ),
+    38,
+    yPos + 29
+  );
+
+  // Columna Derecha: Transportista Efectivo
+  const colRightX = 14 + colWidth + 4;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+  doc.roundedRect(colRightX, yPos, colWidth, 34, 1.5, 1.5, 'FD');
+
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.text('TRANSPORTISTA EFECTIVO', colRightX + 4, yPos + 5.5);
+
+  doc.setFontSize(7.5);
+  doc.text('Razón Social:', colRightX + 4, yPos + 11);
+  doc.setFont('helvetica', 'normal');
+  doc.text(fitText(doc, deca.transportista_razon_social || '-', colWidth - 28), colRightX + 24, yPos + 11);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('NIF / CIF:', colRightX + 4, yPos + 17);
+  doc.setFont('helvetica', 'normal');
+  doc.text(deca.transportista_nif || '-', colRightX + 24, yPos + 17);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Autorización:', colRightX + 4, yPos + 23);
+  doc.setFont('helvetica', 'normal');
+  doc.text(deca.transportista_autorizacion || deca.transportista_nima || 'Inscrito en registro', colRightX + 24, yPos + 23);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Domicilio:', colRightX + 4, yPos + 29);
+  doc.setFont('helvetica', 'normal');
+  doc.text(
+    fitText(
+      doc,
+      `${deca.transportista_domicilio || ''} ${deca.transportista_municipio || ''}`,
+      colWidth - 28
+    ),
+    colRightX + 24,
+    yPos + 29
+  );
+
+  yPos += 39;
+
+  // --- SECCIÓN 2: LUGARES DE ORIGEN Y DESTINO ---
+  yPos = drawSectionTitle('2. Puntos de Carga (Origen) y Entrega (Destino)', yPos);
+
+  // Origen
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+  doc.roundedRect(14, yPos, colWidth, 24, 1.5, 1.5, 'FD');
+
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('LUGAR DE ORIGEN (CARGA)', 18, yPos + 5.5);
+
+  doc.setFontSize(7.5);
+  doc.text('Dirección:', 18, yPos + 11);
+  doc.setFont('helvetica', 'normal');
+  doc.text(fitText(doc, deca.origen_direccion || '-', colWidth - 28), 34, yPos + 11);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Municipio:', 18, yPos + 17);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${deca.origen_municipio || '-'} (${deca.origen_provincia || '-'})`, 34, yPos + 17);
+
+  if (deca.origen_nima) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('NIMA:', 18, yPos + 22);
+    doc.setFont('helvetica', 'normal');
+    doc.text(deca.origen_nima, 34, yPos + 22);
+  }
+
+  // Destino
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+  doc.roundedRect(colRightX, yPos, colWidth, 24, 1.5, 1.5, 'FD');
+
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('LUGAR DE DESTINO (ENTREGA)', colRightX + 4, yPos + 5.5);
+
+  doc.setFontSize(7.5);
+  doc.text('Dirección:', colRightX + 4, yPos + 11);
+  doc.setFont('helvetica', 'normal');
+  doc.text(fitText(doc, deca.destino_direccion || '-', colWidth - 28), colRightX + 20, yPos + 11);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Municipio:', colRightX + 4, yPos + 17);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${deca.destino_municipio || '-'} (${deca.destino_provincia || '-'})`, colRightX + 20, yPos + 17);
+
+  if (deca.destino_nima) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('NIMA:', colRightX + 4, yPos + 22);
+    doc.setFont('helvetica', 'normal');
+    doc.text(deca.destino_nima, colRightX + 20, yPos + 22);
+  }
+
+  yPos += 29;
+
+  // --- SECCIÓN 3: MERCANCÍA TRANSPORTADA Y PESO ---
+  yPos = drawSectionTitle('3. Mercancía Transportada y Cantidad', yPos);
+
+  const goodsBoxHeight = 27;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+  doc.roundedRect(14, yPos, pageWidth - 28, goodsBoxHeight, 1.5, 1.5, 'FD');
+
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Naturaleza / Descripción:', 18, yPos + 6);
+  doc.setFont('helvetica', 'normal');
+  doc.text(fitText(doc, deca.naturaleza_mercancia || 'Mercancía de transporte general', pageWidth - 80), 56, yPos + 6);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Peso Declarado:', 18, yPos + 12);
+  doc.setFont('helvetica', 'normal');
+  doc.text(
+    deca.peso_kg ? `${deca.peso_kg.toLocaleString('es-ES')} kg` : deca.magnitud_alternativa || 'No determinado',
+    56,
+    yPos + 12
+  );
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Código LER (Residuo):', 18, yPos + 18);
+  doc.setFont('helvetica', 'normal');
+  doc.text(deca.codigo_ler ? `${deca.codigo_ler} - ${deca.descripcion_ler || ''}` : 'No aplica (Mercancía ordinaria)', 56, yPos + 18);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Doc. Identificación (DI):', 18, yPos + 24);
+  doc.setFont('helvetica', 'normal');
+  doc.text(deca.numero_di || 'N/A', 56, yPos + 24);
+
+  if (deca.numero_nt) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Notificación Traslado (NT):', 120, yPos + 24);
+    doc.setFont('helvetica', 'normal');
+    doc.text(deca.numero_nt, 160, yPos + 24);
+  }
+
+  yPos += goodsBoxHeight + 5;
+
+  // --- SECCIÓN 4: VEHÍCULO, CONDUCTOR Y FECHA ---
+  yPos = drawSectionTitle('4. Vehículo y Datos Operativos', yPos);
+
+  const vehBoxHeight = 22;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+  doc.roundedRect(14, yPos, pageWidth - 28, vehBoxHeight, 1.5, 1.5, 'FD');
+
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Matrícula Tractora:', 18, yPos + 6);
+  doc.setFont('helvetica', 'normal');
+  doc.text(deca.matricula_tractora || 'PENDIENTE', 50, yPos + 6);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Matrícula Remolque/Semi:', 100, yPos + 6);
+  doc.setFont('helvetica', 'normal');
+  doc.text(deca.matricula_remolque || 'No lleva / No consta', 140, yPos + 6);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Conductor Asignado:', 18, yPos + 12);
+  doc.setFont('helvetica', 'normal');
+  doc.text(deca.conductor_nombre || 'Conductor de la empresa transportista', 50, yPos + 12);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('DNI / Autorización:', 100, yPos + 12);
+  doc.setFont('helvetica', 'normal');
+  doc.text(deca.conductor_dni || deca.autorizacion_especial || '-', 140, yPos + 12);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Hora Salida / Cierre:', 18, yPos + 18);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${deca.hora_salida || 'Antes de inicio'} - ${deca.hora_cierre || 'En curso'}`, 50, yPos + 18);
+
+  yPos += vehBoxHeight + 5;
+
+  // --- SECCIÓN 5: OBSERVACIONES Y RESERVAS ---
+  yPos = drawSectionTitle('5. Observaciones y Reservas de las Partes', yPos);
+
+  const obsHeight = 18;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+  doc.roundedRect(14, yPos, pageWidth - 28, obsHeight, 1.5, 1.5, 'FD');
+
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  const obsText = deca.observaciones_reservas || 'Sin observaciones ni reservas consignadas al inicio del transporte.';
+  const obsLines = doc.splitTextToSize(obsText, pageWidth - 36);
+  doc.text(obsLines, 18, yPos + 6);
+
+  yPos += obsHeight + 6;
+
+  // --- PIE DE PÁGINA NORMATIVO ---
+  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+  doc.line(14, pageHeight - 16, pageWidth - 14, pageHeight - 16);
+
+  doc.setFontSize(6.8);
+  doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+  doc.text(
+    'Documento Electrónico de Control Administrativo (DeCA). Válido para inspección en carretera conforme a la Orden FOM/2861/2012 y Resolución de 5 de junio de 2026.',
+    14,
+    pageHeight - 11
+  );
+  doc.text(
+    `Custodia legal obligatoria mínima: 1 año. Generado por RESIGEST 360 el ${new Date().toLocaleDateString('es-ES')} a las ${new Date().toLocaleTimeString('es-ES')}.`,
+    14,
+    pageHeight - 7
+  );
+  doc.text(`URL de comprobación: ${inspectionUrl}`, pageWidth - 14, pageHeight - 7, { align: 'right' });
 
   return doc;
 }

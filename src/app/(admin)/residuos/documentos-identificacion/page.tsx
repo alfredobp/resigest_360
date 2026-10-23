@@ -12,6 +12,8 @@ import identificationDocumentService, { getTrackingStatusMeta } from '@/services
 import siraService from '@/services/siraService';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
+import { decaService } from '@/services/decaService';
+import { Truck, CheckCircle2, X } from 'lucide-react';
 import type { IdentificationDocument, Company, ProductionCenter, EstadoTraslado } from '@/types/wasteManagement';
 
 const STATUS_COLORS = {
@@ -39,6 +41,18 @@ export default function DocumentosIdentificacionPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterCenter, setFilterCenter] = useState<string>('all');
 
+  // Modal DeCA rápido
+  const [decaModalDoc, setDecaModalDoc] = useState<IdentificationDocument | null>(null);
+  const [decaSubmitting, setDecaSubmitting] = useState(false);
+  const [cargadorRazonSocial, setCargadorRazonSocial] = useState('');
+  const [cargadorNif, setCargadorNif] = useState('');
+  const [cargadorDomicilio, setCargadorDomicilio] = useState('');
+  const [cargadorMunicipio, setCargadorMunicipio] = useState('');
+  const [cargadorProvincia, setCargadorProvincia] = useState('');
+  const [matriculaTractora, setMatriculaTractora] = useState('');
+  const [matriculaRemolque, setMatriculaRemolque] = useState('');
+  const [observacionesDeCA, setObservacionesDeCA] = useState('');
+
   useEffect(() => {
     loadData();
   }, []);
@@ -65,6 +79,46 @@ export default function DocumentosIdentificacionPage() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOpenDecaModal = (doc: IdentificationDocument) => {
+    setDecaModalDoc(doc);
+    // Por defecto, sugerir como cargador contractual la empresa propia del usuario o el productor
+    setCargadorRazonSocial(myCompany?.razon_social || doc.productor_razon_social);
+    setCargadorNif(myCompany?.cif || doc.productor_cif);
+    setCargadorDomicilio(myCompany?.domicilio_social || doc.productor_direccion || '');
+    setCargadorMunicipio(myCompany?.municipio_social || doc.productor_municipio || '');
+    setCargadorProvincia(myCompany?.provincia_social || doc.productor_provincia || '');
+    setMatriculaTractora(doc.transportista_matricula || myCompany?.matricula || '');
+    setMatriculaRemolque('');
+    setObservacionesDeCA(`Generado automáticamente desde DI ${doc.numero_documento}`);
+  };
+
+  const handleGenerateDecaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!decaModalDoc) return;
+
+    try {
+      setDecaSubmitting(true);
+      const newDeca = await decaService.createFromIdentificationDocument(decaModalDoc, {
+        cargador_razon_social: cargadorRazonSocial,
+        cargador_nif: cargadorNif,
+        cargador_domicilio: cargadorDomicilio,
+        cargador_municipio: cargadorMunicipio,
+        cargador_provincia: cargadorProvincia,
+        matricula_tractora: matriculaTractora,
+        matricula_remolque: matriculaRemolque,
+        observaciones_reservas: observacionesDeCA,
+      });
+
+      toast.success(`¡Documento DeCA ${newDeca.numero_deca} generado con éxito!`);
+      setDecaModalDoc(null);
+      router.push('/residuos/deca');
+    } catch (err: any) {
+      toast.error(`Error al emitir DeCA: ${err.message}`);
+    } finally {
+      setDecaSubmitting(false);
     }
   };
 
@@ -375,6 +429,16 @@ export default function DocumentosIdentificacionPage() {
                         Ver Detalle y Trazabilidad
                       </Button>
 
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenDecaModal(doc)}
+                        className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 flex items-center justify-center gap-1.5"
+                      >
+                        <Truck className="w-3.5 h-3.5" />
+                        ⚡ Generar DeCA
+                      </Button>
+
                       {(!doc.estado_traslado || doc.estado_traslado === 'borrador') && (
                         <Button
                           variant="outline"
@@ -405,6 +469,135 @@ export default function DocumentosIdentificacionPage() {
           </div>
         )}
       </div>
+
+      {/* MODAL: Emisión rápida de DeCA desde DI */}
+      {decaModalDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl my-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl">
+                  <Truck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white">Generar DeCA desde DI</h3>
+                  <p className="text-xs text-slate-500 font-mono">DI: {decaModalDoc.numero_documento} | LER {decaModalDoc.codigo_ler}</p>
+                </div>
+              </div>
+              <button onClick={() => setDecaModalDoc(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleGenerateDecaSubmit} className="space-y-4">
+              <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/20 rounded-xl p-3 text-xs text-emerald-800 dark:text-emerald-300">
+                ✅ <strong>Datos precargados del DI:</strong> Transportista ({decaModalDoc.transportista_razon_social || 'N/A'}), Origen ({decaModalDoc.productor_municipio}), Destino ({decaModalDoc.gestor_municipio}), Residuo y Peso ({decaModalDoc.cantidad} {decaModalDoc.unidad}).
+              </div>
+
+              {/* Cargador Contractual */}
+              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase">
+                    Cargador Contractual (Quien encarga y paga el transporte) *
+                  </label>
+                  <span className="text-[10px] text-slate-400">Orden FOM/2861/2012</span>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Razón Social *</label>
+                    <input
+                      type="text"
+                      required
+                      value={cargadorRazonSocial}
+                      onChange={(e) => setCargadorRazonSocial(e.target.value)}
+                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">NIF / CIF *</label>
+                    <input
+                      type="text"
+                      required
+                      value={cargadorNif}
+                      onChange={(e) => setCargadorNif(e.target.value)}
+                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 font-mono"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Domicilio *</label>
+                    <input
+                      type="text"
+                      required
+                      value={cargadorDomicilio}
+                      onChange={(e) => setCargadorDomicilio(e.target.value)}
+                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Matrículas */}
+              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 space-y-2">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase">
+                  Vehículo Asignado
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Matrícula Tractora *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="1234-BBB"
+                      value={matriculaTractora}
+                      onChange={(e) => setMatriculaTractora(e.target.value)}
+                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Matrícula Remolque/Semi</label>
+                    <input
+                      type="text"
+                      placeholder="R-1234-BBB (Opcional)"
+                      value={matriculaRemolque}
+                      onChange={(e) => setMatriculaRemolque(e.target.value)}
+                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Observaciones */}
+              <div>
+                <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Observaciones o reservas</label>
+                <textarea
+                  rows={2}
+                  value={observacionesDeCA}
+                  onChange={(e) => setObservacionesDeCA(e.target.value)}
+                  className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDecaModalDoc(null)}
+                  className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 dark:text-slate-300"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={decaSubmitting}
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-medium px-5 py-2 rounded-xl text-xs shadow-md shadow-blue-600/30 transition flex items-center gap-1.5"
+                >
+                  {decaSubmitting ? 'Generando...' : 'Emitir DeCA y Generar QR'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }

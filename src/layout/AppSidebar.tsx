@@ -25,6 +25,7 @@ import {
 } from "../icons/index";
 import Logo from "@/components/common/Logo";
 import adminPlatformService from "@/services/adminPlatformService";
+import { useSandbox } from "@/context/SandboxContext";
 
 type NavItem = {
   name: string;
@@ -76,7 +77,15 @@ const navItems: NavItem[] = [
     name: "Transportistas",
     path: "/residuos/transportistas",
   },
-
+  {
+    icon: (
+      <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 17a2 2 0 100 4 2 2 0 000-4zm10 0a2 2 0 100 4 2 2 0 000-4zM3 4h11v11H3V4zm11 4h4l3 3v4h-7V8z" />
+      </svg>
+    ),
+    name: "Control DeCA",
+    path: "/residuos/deca",
+  },
   {
     icon: <PaperPlaneIcon />,
     name: "Documentos de Identificación",
@@ -142,22 +151,30 @@ const othersItems: NavItem[] = [
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
+  const { isPathVisible, profile, profileLabel } = useSandbox();
   const pathname = usePathname();
 
   const renderMenuItems = (
-    navItems: NavItem[],
+    navItemsList: NavItem[],
     menuType: "main" | "others"
-  ) => (
-    <ul className="flex flex-col gap-4">
-      {navItems.map((nav, index) => (
-        <li key={nav.name}>
-          {nav.subItems ? (
-            <button
-              onClick={() => handleSubmenuToggle(index, menuType)}
-              className={`menu-item group  ${openSubmenu?.type === menuType && openSubmenu?.index === index
-                ? "menu-item-active"
-                : "menu-item-inactive"
-                } cursor-pointer ${!isExpanded && !isHovered
+  ) => {
+    const filteredList = navItemsList.filter((nav) => {
+      if (nav.path) return isPathVisible(nav.path);
+      if (nav.subItems) return nav.subItems.some((s) => isPathVisible(s.path));
+      return true;
+    });
+
+    return (
+      <ul className="flex flex-col gap-4">
+        {filteredList.map((nav, index) => (
+          <li key={nav.name}>
+            {nav.subItems ? (
+              <button
+                onClick={() => handleSubmenuToggle(index, menuType)}
+                className={`menu-item group  ${openSubmenu?.type === menuType && openSubmenu?.index === index
+                  ? "menu-item-active"
+                  : "menu-item-inactive"
+                  } cursor-pointer ${!isExpanded && !isHovered
                   ? "lg:justify-center"
                   : "lg:justify-start"
                 }`}
@@ -259,7 +276,8 @@ const AppSidebar: React.FC = () => {
         </li>
       ))}
     </ul>
-  );
+    );
+  };
 
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -396,9 +414,21 @@ const AppSidebar: React.FC = () => {
                 {renderMenuItems(adminNavItems, "main")}
               </div>
             )}
+
+            {/* Indicador de perfil Sandbox activo (Provisional) */}
+            {profile !== 'all' && (isExpanded || isHovered || isMobileOpen) && (
+              <div className="mt-2 p-3 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-blue-700 dark:text-blue-300">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                  <span>Sandbox: {profileLabel}</span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  Menú simplificado para este tipo de usuario.
+                </p>
+              </div>
+            )}
           </div>
         </nav>
-
       </div>
     </aside>
   );
