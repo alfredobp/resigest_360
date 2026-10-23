@@ -1245,5 +1245,47 @@ export interface AuditLogEntry {
   created_at: string;
 }
 
+// =====================================================
+// MODO ADMINISTRADOR DE PLATAFORMA (SUPERADMIN)
+// =====================================================
 
+export interface PlatformOverviewStats {
+  totalCompanies: number;
+  myCompanies: number;
+  totalUsers: number;
+  totalDIs: number;
+  totalContracts: number;
+  totalCenters: number;
+  totalToneladas: number;
+}
 
+export interface PlatformCompanyRecord extends Company {
+  user_email?: string;
+  user_name?: string;
+  user_created_at?: string;
+  centers_count?: number;
+  dis_count?: number;
+  contracts_count?: number;
+}
+
+export interface CompanyAuditDetail {
+  company: Company;
+  userProfile?: {
+    id: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    role?: string;
+    created_at?: string;
+  } | null;
+  productionCenters: ProductionCenter[];
+  recentDIs: IdentificationDocument[];
+  contracts: WasteContract[];
+  authorizations: any[];
+  stats: {
+    totalDIs: number;
+    totalContracts: number;
+    totalCenters: number;
+    totalTonsEstimated: number;
+  };
+}

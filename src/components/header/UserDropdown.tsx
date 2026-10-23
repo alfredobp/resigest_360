@@ -6,6 +6,7 @@ import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { createClient } from "@/lib/supabase/client";
 import { companyService } from "@/services/companyService";
+import adminPlatformService from "@/services/adminPlatformService";
 import { useRouter } from "next/navigation";
 
 interface UserProfile {
@@ -14,11 +15,13 @@ interface UserProfile {
   first_name: string;
   last_name: string;
   avatar_url?: string;
+  role?: string;
 }
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState<string | null>(null);
   const [imgSrc, setImgSrc] = useState<string>("/images/logo/company-default.svg");
@@ -56,6 +59,14 @@ export default function UserDropdown() {
             last_name: user.user_metadata?.last_name || "",
             avatar_url: "",
           });
+        }
+
+        // Check admin status
+        try {
+          const adminStatus = await adminPlatformService.checkIsAdmin(user.email, user.id);
+          setIsAdmin(adminStatus);
+        } catch {
+          setIsAdmin(false);
         }
 
         // Try getting user company for logo and name
@@ -164,15 +175,41 @@ export default function UserDropdown() {
         className="absolute right-0 mt-[17px] flex w-[260px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
       >
         <div>
-          <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
-            {displayName}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
+              {displayName}
+            </span>
+            {isAdmin && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary uppercase">
+                Admin
+              </span>
+            )}
+          </div>
           <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
             {profile?.email || ""}
           </span>
         </div>
 
         <ul className="flex flex-col gap-1 pt-4 pb-3 border-b border-gray-200 dark:border-gray-800">
+          {isAdmin && (
+            <li>
+              <DropdownItem
+                onItemClick={closeDropdown}
+                tag="a"
+                href="/platform-admin"
+                className="flex items-center gap-3 px-3 py-2 font-medium text-primary rounded-lg group text-theme-sm hover:bg-primary/10 hover:text-primary dark:text-primary dark:hover:bg-primary/20"
+              >
+                <svg
+                  className="w-5 h-5 stroke-current"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                Modo Administrador
+              </DropdownItem>
+            </li>
+          )}
           <li>
             <DropdownItem
               onItemClick={closeDropdown}

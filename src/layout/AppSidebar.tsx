@@ -24,6 +24,7 @@ import {
   InfoIcon
 } from "../icons/index";
 import Logo from "@/components/common/Logo";
+import adminPlatformService from "@/services/adminPlatformService";
 
 type NavItem = {
   name: string;
@@ -31,6 +32,18 @@ type NavItem = {
   path?: string;
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
 };
+
+const adminNavItems: NavItem[] = [
+  {
+    icon: (
+      <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+      </svg>
+    ),
+    name: "Modo Admin / Empresas",
+    path: "/platform-admin",
+  },
+];
 
 const navItems: NavItem[] = [
   {
@@ -248,6 +261,12 @@ const AppSidebar: React.FC = () => {
     </ul>
   );
 
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    adminPlatformService.checkIsAdmin().then(setIsAdmin).catch(() => setIsAdmin(false));
+  }, []);
+
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: "main" | "others";
     index: number;
@@ -360,7 +379,23 @@ const AppSidebar: React.FC = () => {
               {renderMenuItems(navItems, "main")}
             </div>
 
-
+            {isAdmin && (
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                <h2
+                  className={`mb-4 text-xs uppercase flex leading-[20px] font-bold text-primary ${!isExpanded && !isHovered
+                    ? "lg:justify-center"
+                    : "justify-start"
+                    }`}
+                >
+                  {isExpanded || isHovered || isMobileOpen ? (
+                    "Administración"
+                  ) : (
+                    <HorizontaLDots />
+                  )}
+                </h2>
+                {renderMenuItems(adminNavItems, "main")}
+              </div>
+            )}
           </div>
         </nav>
 
