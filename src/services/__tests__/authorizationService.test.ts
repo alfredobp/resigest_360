@@ -19,7 +19,7 @@ describe('authorizationService - Autorizaciones Ambientales y Matriz LER', () =>
   const validFormData: EnvironmentalAuthorizationFormData = {
     company_id: 1,
     numero_autorizacion: 'AUT-2026-MAD-001',
-    tipo_autorizacion: 'gestor',
+    titulo: 'Autorización Gestor R03',
     es_indefinida: true,
     waste_codes: [
       {
@@ -300,10 +300,90 @@ describe('authorizationService - Autorizaciones Ambientales y Matriz LER', () =>
       const result = await authorizationService.update(10, {
         company_id: 1,
         numero_autorizacion: 'AUT-001',
-        tipo_autorizacion: 'gestor',
+        titulo: 'Autorización Actualizada',
       });
 
       expect(result.id).toBe(10);
+    });
+
+    it('getAuthorizedScope debe manejar error en query o data vacía', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-auth-1' } },
+      });
+
+      // Caso con error
+      let queryObjError: any = {};
+      queryObjError.then = (resolve: any) => resolve({ data: null, error: { message: 'DB error' } });
+      mockSupabase.from.mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnValue(queryObjError),
+            }),
+          }),
+        }),
+      });
+
+      const resError = await authorizationService.getAuthorizedScope(1);
+      expect(resError.hasAnyAuthorizationConfigured).toBe(false);
+
+      // Caso data vacía y sin transferDateStr
+      let queryObjEmpty: any = {};
+      queryObjEmpty.then = (resolve: any) => resolve({ data: [], error: null });
+      mockSupabase.from.mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnValue(queryObjEmpty),
+            }),
+          }),
+        }),
+      });
+
+      const resEmpty = await authorizationService.getAuthorizedScope(1);
+      expect(resEmpty.hasAnyAuthorizationConfigured).toBe(false);
+    });
+
+    it('getAuthorizedScope debe manejar auth sin waste_codes y waste_codes con campos nulos', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-auth-1' } },
+      });
+
+      const mockData = [
+        {
+          id: 1,
+          es_indefinida: true,
+          waste_codes: null, // no es array
+        },
+        {
+          id: 2,
+          es_indefinida: true,
+          waste_codes: [
+            {
+              codigo_ler: '15 01 01',
+              descripcion_ler: null,
+              operaciones_tratamiento: null,
+            },
+          ],
+        },
+      ];
+
+      let queryObj: any = {};
+      queryObj.then = (resolve: any) => resolve({ data: mockData, error: null });
+      mockSupabase.from.mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnValue(queryObj),
+            }),
+          }),
+        }),
+      });
+
+      const res = await authorizationService.getAuthorizedScope(1);
+      expect(res.hasAnyAuthorizationConfigured).toBe(true);
+      expect(res.authorizedLers['15 01 01']).toEqual([]);
+      expect(res.lerDescriptions['15 01 01']).toBeUndefined();
     });
   });
 
