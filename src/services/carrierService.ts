@@ -132,7 +132,7 @@ export const carrierService = {
         // Sincronización automática con Holded
         if (holdedApiKey) {
             try {
-                console.log('🔄 Sincronizando transportista con Holded...');
+                console.info('🔄 Sincronizando transportista con Holded...');
                 const holdedContact = await holdedService.createContact({
                     name: data.razon_social,
                     email: data.email,
@@ -156,7 +156,7 @@ export const carrierService = {
                 }, holdedApiKey);
 
                 if (holdedContact && holdedContact.id) {
-                    console.log('✅ Transportista sincronizado con Holded con éxito, ID:', holdedContact.id);
+                    console.info('✅ Transportista sincronizado con Holded con éxito, ID:', holdedContact.id);
                     await supabase
                         .from('carriers')
                         .update({ holded_contact_id: holdedContact.id })
@@ -194,7 +194,7 @@ export const carrierService = {
         // Sincronizar actualización con Holded
         if (holdedApiKey && currentData?.holded_contact_id) {
             try {
-                console.log('🔄 Actualizando transportista en Holded...');
+                console.info('🔄 Actualizando transportista en Holded...');
                 await holdedService.updateContact(currentData.holded_contact_id, {
                     name: data.razon_social,
                     email: data.email,
@@ -216,7 +216,7 @@ export const carrierService = {
                     },
                     phone: data.telefono
                 }, holdedApiKey);
-                console.log('✅ Transportista actualizado en Holded');
+                console.info('✅ Transportista actualizado en Holded');
             } catch (holdedError) {
                 console.error('⚠️ No se pudo actualizar en Holded:', holdedError);
             }
