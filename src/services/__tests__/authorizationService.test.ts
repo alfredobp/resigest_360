@@ -532,5 +532,73 @@ describe('authorizationService - Autorizaciones Ambientales y Matriz LER', () =>
 
       await expect(authorizationService.delete(10)).rejects.toThrow('Error al eliminar autorización: Delete error');
     });
+
+    it('create debe manejar valores por defecto cuando no se pasan waste_codes, activo ni es_indefinida', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-auth-1' } },
+      });
+
+      const singleMock = jest.fn().mockResolvedValue({
+        data: { id: 25, user_id: 'user-auth-1', activo: true, es_indefinida: false },
+        error: null,
+      });
+      const insertMock = jest.fn().mockReturnValue({ select: jest.fn().mockReturnValue({ single: singleMock }) });
+      mockSupabase.from.mockReturnValue({ insert: insertMock });
+
+      const result = await authorizationService.create({
+        company_id: 1,
+        numero_autorizacion: 'AUT-DEF-001',
+        tipo_autorizacion: 'transportista',
+      });
+
+      expect(result.id).toBe(25);
+      expect(insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activo: true,
+          es_indefinida: false,
+        })
+      );
+    });
+
+    it('update debe permitir vaciar la lista de códigos LER si se pasa array vacío', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-auth-1' } },
+      });
+
+      const singleMock = jest.fn().mockResolvedValue({ data: { id: 10 }, error: null });
+      const updateAuthMock = jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            select: jest.fn().mockReturnValue({ single: singleMock }),
+          }),
+        }),
+      });
+
+      const deleteCodesMock = jest.fn().mockReturnValue({
+        eq: jest.fn().mockResolvedValue({ error: null }),
+      });
+      const insertCodesMock = jest.fn().mockResolvedValue({ error: null });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'environmental_authorizations') {
+          return { update: updateAuthMock };
+        }
+        if (table === 'authorization_waste_codes') {
+          return { delete: deleteCodesMock, insert: insertCodesMock };
+        }
+        return {};
+      });
+
+      const result = await authorizationService.update(10, {
+        company_id: 1,
+        numero_autorizacion: 'AUT-001',
+        tipo_autorizacion: 'gestor',
+        waste_codes: [],
+      });
+
+      expect(deleteCodesMock).toHaveBeenCalled();
+      expect(insertCodesMock).not.toHaveBeenCalled();
+      expect(result.id).toBe(10);
+    });
   });
 });
