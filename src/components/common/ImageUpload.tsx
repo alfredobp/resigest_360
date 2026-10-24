@@ -78,9 +78,9 @@ export default function ImageUpload({
 
       onChange(data.publicUrl);
 
-    } catch (error: any) {
-      console.error('Error uploading image:', error);
-      setError(error.message || 'Error al subir la imagen');
+    } catch (err: any) {
+      console.error('Error uploading image:', err);
+      setError(err.message || 'Error al subir la imagen');
     } finally {
       setUploading(false);
     }

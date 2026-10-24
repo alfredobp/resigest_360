@@ -96,7 +96,7 @@ export default defineConfig([
         { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
       ],
       '@typescript-eslint/no-inferrable-types': 'warn',
-      '@typescript-eslint/no-empty-function': 'warn',
+      '@typescript-eslint/no-empty-function': ['warn', { allow: ['arrowFunctions'] }],
       '@typescript-eslint/no-empty-object-type': 'warn',
       '@typescript-eslint/ban-ts-comment': [
         'warn',
@@ -114,6 +114,16 @@ export default defineConfig([
         'error',
         { functions: false, classes: true, variables: false, typedefs: false },
       ],
+    },
+  },
+
+  // ---------------------------------------------------------------------------
+  // Excepciones: componentes de ejemplo / demo del template UI
+  // ---------------------------------------------------------------------------
+  {
+    files: ['src/components/example/**', 'src/components/form/form-elements/**'],
+    rules: {
+      'no-console': 'off',
     },
   },
 

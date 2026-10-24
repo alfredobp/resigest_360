@@ -47,13 +47,26 @@ describe('wasteTypeService - Catálogo oficial de tipos de residuo (LER)', () =>
       expect(mockFrom).toHaveBeenCalledTimes(1);
     });
 
-    it('debe usar el catálogo fallback cuando Supabase devuelve error', async () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-
+    it('debe usar el catálogo fallback cuando Supabase devuelve un objeto de error', async () => {
       mockOrder.mockResolvedValue({
         data: null,
         error: { message: 'Database error connecting to waste_types' },
       });
+      mockEq.mockReturnValue({ order: mockOrder });
+      mockSelect.mockReturnValue({ eq: mockEq });
+      mockFrom.mockReturnValue({ select: mockSelect });
+
+      const { default: service } = await import('../wasteTypeService');
+
+      const result = await service.getAll();
+
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it('debe capturar la excepción y emitir advertencia si la llamada a Supabase arroja un error', async () => {
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      mockOrder.mockRejectedValue(new Error('Fatal network connection failure'));
       mockEq.mockReturnValue({ order: mockOrder });
       mockSelect.mockReturnValue({ eq: mockEq });
       mockFrom.mockReturnValue({ select: mockSelect });

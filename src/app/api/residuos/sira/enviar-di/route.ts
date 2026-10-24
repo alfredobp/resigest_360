@@ -44,8 +44,8 @@ export async function POST(req: NextRequest) {
         const companyData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
         const { sira_usuario, sira_password } = companyData || {};
 
-        console.log(`🔐 Intentando envío SIRA para DI ${doc.numero_documento}`);
-        console.log(`📍 Empresa: ${doc.productor_razon_social} (ID: ${doc.company_id})`);
+        console.info(`🔐 Intentando envío SIRA para DI ${doc.numero_documento}`);
+        console.info(`📍 Empresa: ${doc.productor_razon_social} (ID: ${doc.company_id})`);
 
         if (!sira_usuario || !sira_password) {
             console.warn('❌ SIRA: Credenciales incompletas en la base de datos:', {

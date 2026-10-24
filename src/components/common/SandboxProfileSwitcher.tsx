@@ -10,7 +10,7 @@ import { useSandbox } from '@/context/SandboxContext';
 import type { SandboxProfileType } from '@/types/deca';
 import { Sparkles, Truck, Factory, BatteryCharging, ShieldAlert, Building2, ChevronDown, Check, Info } from 'lucide-react';
 
-const PROFILES: Array<{ id: SandboxProfileType; label: string; icon: any; desc: string }> = [
+const PROFILES: Array<{ id: SandboxProfileType; label: string; icon: React.ComponentType<{ className?: string }>; desc: string }> = [
   {
     id: 'all',
     label: 'Modo Completo (Admin)',

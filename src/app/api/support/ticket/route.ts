@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       message,
     });
 
-    console.log(`[TICKET SOPORTE CREADO]: ${ticketId} por ${email}`, {
+    console.info(`[TICKET SOPORTE CREADO]: ${ticketId} por ${email}`, {
       teamSent: emailResult.teamResult.success,
       userSent: emailResult.userResult.success,
     });

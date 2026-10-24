@@ -341,27 +341,32 @@ export default function CompanyAuditModal({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                      {auditDetail.recentDIs.map(di => (
-                        <tr key={di.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                          <td className="px-4 py-3 font-mono font-medium text-gray-900 dark:text-white">
-                            {di.numero_documento}
-                          </td>
-                          <td className="px-4 py-3 font-mono">
-                            {di.codigo_ler}
-                          </td>
-                          <td className="px-4 py-3 font-semibold">
-                            {(di as any).cantidad ?? (di as any).cantidad_estimada ?? 0} {(di as any).unidad || (di as any).unidad_medida || 't'}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="capitalize">{di.estado_traslado || 'pendiente'}</span>
-                          </td>
-                          <td className="px-4 py-3 text-gray-500">
-                            {((di as any).fecha_recogida || (di as any).fecha_traslado || (di as any).fecha_salida || di.created_at)
-                              ? new Date((di as any).fecha_recogida || (di as any).fecha_traslado || (di as any).fecha_salida || di.created_at).toLocaleDateString('es-ES')
-                              : ''}
-                          </td>
-                        </tr>
-                      ))}
+                      {auditDetail.recentDIs.map(di => {
+                        const diRecord = di as unknown as Record<string, unknown>;
+                        const cantidad = diRecord.cantidad ?? diRecord.cantidad_estimada ?? 0;
+                        const unidad = String(diRecord.unidad || diRecord.unidad_medida || 't');
+                        const rawFecha = (diRecord.fecha_recogida || diRecord.fecha_traslado || diRecord.fecha_salida || di.created_at) as string | undefined;
+
+                        return (
+                          <tr key={di.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                            <td className="px-4 py-3 font-mono font-medium text-gray-900 dark:text-white">
+                              {di.numero_documento}
+                            </td>
+                            <td className="px-4 py-3 font-mono">
+                              {di.codigo_ler}
+                            </td>
+                            <td className="px-4 py-3 font-semibold">
+                              {String(cantidad)} {unidad}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="capitalize">{di.estado_traslado || 'pendiente'}</span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-500">
+                              {rawFecha ? new Date(rawFecha).toLocaleDateString('es-ES') : ''}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

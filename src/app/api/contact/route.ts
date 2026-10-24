@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     }
 
     // Registro comercial para seguimiento de leads de ventas
-    console.log('[LEAD COMERCIAL RECIBIDO - RESIGEST 360]:', {
+    console.info('[LEAD COMERCIAL RECIBIDO - RESIGEST 360]:', {
       fecha: new Date().toISOString(),
       nombre: name,
       empresa: company || 'No especificada',

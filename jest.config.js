@@ -32,6 +32,7 @@ module.exports = {
     'src/services/productionCenterService.ts',
     'src/lib/validations/sira.ts',
     'src/services/wasteTypeService.ts',
+    'src/services/identificationDocumentService.ts',
     '!src/**/*.d.ts',
   ],
   coverageReporters: ['text', 'lcov', 'clover'],
@@ -49,6 +50,12 @@ module.exports = {
       statements: 80
     },
     './src/services/wasteTypeService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/identificationDocumentService.ts': {
       branches: 80,
       functions: 80,
       lines: 80,

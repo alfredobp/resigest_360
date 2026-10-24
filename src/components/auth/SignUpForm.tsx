@@ -74,15 +74,15 @@ export default function SignUpForm() {
   const handleGoogleSignUp = async () => {
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error: oAuthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
-      if (error) {
-        setError(error.message);
+      if (oAuthError) {
+        setError(oAuthError.message);
       }
     } catch {
       setError("Error al conectar con Google");
