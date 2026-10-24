@@ -367,6 +367,38 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
       await expect(companyService.delete(1)).resolves.toBeUndefined();
       expect(deleteMock).toHaveBeenCalled();
     });
+
+    it('debe manejar errores en create, update, softDelete y delete', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+      const failSingle = jest.fn().mockResolvedValue({ data: null, error: { message: 'DB Error' } });
+
+      mockSupabase.from.mockReturnValue({
+        select: jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ maybeSingle: jest.fn().mockResolvedValue({ data: null }) }) }) }),
+        insert: jest.fn().mockReturnValue({ select: jest.fn().mockReturnValue({ single: failSingle }) }),
+        update: jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ select: jest.fn().mockReturnValue({ single: failSingle }), error: { message: 'Soft delete error' } }) }),
+        delete: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: { message: 'Delete error' } }) }),
+      });
+
+      await expect(companyService.create({ cif: 'B111' } as any)).rejects.toThrow('Error al crear empresa: DB Error');
+      await expect(companyService.update(1, {})).rejects.toThrow('Error al actualizar empresa: DB Error');
+      await expect(companyService.softDelete(1)).rejects.toThrow('Error al desactivar empresa: Soft delete error');
+      await expect(companyService.delete(1)).rejects.toThrow('Error al eliminar empresa: Delete error');
+    });
+
+    it('debe manejar errores en getAllContacts, getAll, getByRole y search', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'u1' } } });
+      const failQuery = jest.fn().mockReturnValue({
+        order: jest.fn().mockResolvedValue({ data: null, error: { message: 'Query fail' } }),
+      });
+
+      mockSupabase.from.mockReturnValue({
+        select: failQuery,
+      });
+
+      await expect(companyService.getAllContacts()).rejects.toThrow('Error al obtener empresas: Query fail');
+      await expect(companyService.getAll()).rejects.toThrow('Error al obtener empresas: Query fail');
+      await expect(companyService.getByRole('gestor')).rejects.toThrow('Error al obtener empresas por rol: Query fail');
+    });
   });
 
   describe('uploadLogo y hasCompany', () => {
