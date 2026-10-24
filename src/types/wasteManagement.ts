@@ -1005,14 +1005,14 @@ export interface ChronologicalStats {
   kg_peligrosos: number;
   kg_no_peligrosos: number;
   por_operacion: Record<TipoOperacionCronologica, { count: number; kg: number; t: number }>;
-  resumen_ler: {
+  resumen_ler: Array<{
     codigo_ler: string;
     descripcion: string;
     peligrosidad: string;
     cantidad_kg: number;
     cantidad_t: number;
     movimientos: number;
-  }[];
+  }>;
 }
 
 // =====================================================

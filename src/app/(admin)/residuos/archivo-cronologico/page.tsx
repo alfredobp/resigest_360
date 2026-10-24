@@ -10,16 +10,16 @@ import {
   syncAllClosedDIs,
   exportChronologicalToCSV,
   exportChronologicalToExcelXML,
-  ChronologicalFilter
+  type ChronologicalFilter
 } from '@/services/chronologicalRegistryService';
 import productionCenterService from '@/services/productionCenterService';
 import companyService from '@/services/companyService';
 import {
-  ChronologicalEntry,
-  ChronologicalStats,
-  ChronologicalEntryFormData,
-  TipoOperacionCronologica,
-  ProductionCenter
+  type ChronologicalEntry,
+  type ChronologicalStats,
+  type ChronologicalEntryFormData,
+  type TipoOperacionCronologica,
+  type ProductionCenter
 } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
@@ -436,7 +436,7 @@ export default function ArchivoCronologicoPage() {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
         {loading ? (
           <div className="p-12 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3" />
             <p className="text-sm text-gray-500">Cargando libro cronológico oficial...</p>
           </div>
         ) : entries.length === 0 ? (
@@ -594,7 +594,7 @@ export default function ArchivoCronologicoPage() {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         className="max-w-2xl p-6 sm:p-7 max-h-[88vh] overflow-y-auto"
-        showCloseButton={true}
+        showCloseButton
       >
         <div className="space-y-5">
           {/* Header del Modal */}

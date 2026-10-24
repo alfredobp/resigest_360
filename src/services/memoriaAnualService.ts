@@ -5,15 +5,15 @@
 
 import { createClient } from '@/lib/supabase/client';
 import {
-  MemoriaAnual,
-  EstadoMemoria,
-  TipoMemoria,
-  ResumenLER,
-  EntradaMemoriaProductor,
-  EntradaMemoriaGestorEntrada,
-  EntradaMemoriaGestorSalida,
-  EntradaMemoriaNegocianteTransportistaAgente,
-  IdentificationDocument
+  type MemoriaAnual,
+  type EstadoMemoria,
+  type TipoMemoria,
+  type ResumenLER,
+  type EntradaMemoriaProductor,
+  type EntradaMemoriaGestorEntrada,
+  type EntradaMemoriaGestorSalida,
+  type EntradaMemoriaNegocianteTransportistaAgente,
+  type IdentificationDocument
 } from '@/types/wasteManagement';
 
 // =====================================================
@@ -464,12 +464,12 @@ export async function getStats(año?: number): Promise<{
   const { data: memorias, error } = await query;
 
   if (error) throw error;
-  if (!memorias) return {
+  if (!memorias) {return {
     total: 0,
     por_estado: {} as any,
     por_tipo: {} as any,
     total_toneladas: 0
-  };
+  };}
 
   const stats = {
     total: memorias.length,
@@ -728,7 +728,7 @@ export function exportMemoriaToCSV(memoria: MemoriaAnual, excelData: any): void 
     ]);
   }
 
-  const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n');
+  const csvContent = `\uFEFF${  [headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n')}`;
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

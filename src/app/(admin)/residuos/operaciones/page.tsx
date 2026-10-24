@@ -4,12 +4,12 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import commercialOperationService, {
-  CommercialOperationFilter
+  type CommercialOperationFilter
 } from '@/services/commercialOperationService';
 import {
-  CommercialOperation,
-  CommercialOperationStats,
-  EstadoOperacionComercial
+  type CommercialOperation,
+  type CommercialOperationStats,
+  type EstadoOperacionComercial
 } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
@@ -265,7 +265,7 @@ export default function OperacionesComercialesPage() {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
         {loading ? (
           <div className="p-12 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3" />
             <p className="text-sm text-gray-500">Cargando operaciones comerciales...</p>
           </div>
         ) : operations.length === 0 ? (

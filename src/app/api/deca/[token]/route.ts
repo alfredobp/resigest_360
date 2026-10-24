@@ -5,7 +5,7 @@
 // sin pantalla de inicio de sesión ni pulsaciones adicionales."
 // ==============================================================================
 
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { decaService } from '@/services/decaService';
 import { generateDecaPDF } from '@/lib/pdfUtils';
 

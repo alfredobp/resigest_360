@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createMemoria, CreateMemoriaData } from '@/services/memoriaAnualService';
+import { createMemoria, type CreateMemoriaData } from '@/services/memoriaAnualService';
 import { companyService } from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
-import { Company, TipoMemoria, ProductionCenter } from '@/types/wasteManagement';
+import { type Company, type TipoMemoria, type ProductionCenter } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
 import Button from '@/components/ui/button/Button';
@@ -121,7 +121,7 @@ export default function NuevaMemoriaPage() {
     return years;
   };
 
-  const getTiposDisponibles = (): { value: TipoMemoria; label: string }[] => {
+  const getTiposDisponibles = (): Array<{ value: TipoMemoria; label: string }> => {
     return [
       { value: 'productor', label: 'Memoria Anual de Productores' },
       { value: 'gestor', label: 'Memoria Anual de Gestores' },
@@ -318,7 +318,7 @@ export default function NuevaMemoriaPage() {
               >
                 {loading ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
                     Generando...
                   </>
                 ) : (

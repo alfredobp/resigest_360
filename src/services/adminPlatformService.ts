@@ -383,7 +383,7 @@ export const adminPlatformService = {
       c.created_at ? new Date(c.created_at).toLocaleDateString('es-ES') : ''
     ]);
 
-    const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n');
+    const csvContent = `\uFEFF${  [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n')}`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -399,7 +399,7 @@ export const adminPlatformService = {
    * Exportar el expediente y datos completos de una empresa a JSON estructurado
    */
   exportCompanyDataJSON(detail: CompanyAuditDetail): void {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(detail, null, 2));
+    const dataStr = `data:text/json;charset=utf-8,${  encodeURIComponent(JSON.stringify(detail, null, 2))}`;
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute('href', dataStr);
     const sanitizedName = (detail.company.razon_social || 'empresa').toLowerCase().replace(/[^a-z0-9]/g, '_');

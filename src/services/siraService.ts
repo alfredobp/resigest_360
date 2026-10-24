@@ -3,7 +3,7 @@
 // Servicio para comunicación SOAP con la plataforma SIRA
 // =====================================================
 
-import { IdentificationDocument, SiraSubmission, SiraSubmissionStatus } from '@/types/wasteManagement';
+import { IdentificationDocument, type SiraSubmission, type SiraSubmissionStatus } from '@/types/wasteManagement';
 import { createClient } from '@/lib/supabase/client';
 
 // ============================================================================
@@ -78,7 +78,7 @@ const generateEntityBlock = (
   typeTag: string,
   typeAttr: string,
   typeValue: string,
-  extraChild: string = ''
+  extraChild = ''
 ): string => {
   const clean = (val: any) => val ? escapeXml(String(val)).trim() : '';
 

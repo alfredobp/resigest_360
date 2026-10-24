@@ -218,7 +218,7 @@ export const companyService = {
         ...companyData,
         user_id: userData.user.id,
         tipo_empresa: primaryType,
-        roles: roles,
+        roles,
         is_my_company: companyData.is_my_company ?? false,
         activo: companyData.activo ?? true,
       })

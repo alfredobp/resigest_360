@@ -488,7 +488,7 @@ export default function EditarContratoPage() {
                       { value: '', label: '-- Centro general / Sede principal --' },
                       ...producerCenters.map(c => ({
                         value: c.id.toString(),
-                        label: `${c.nombre} (${c.municipio || ''}${c.nima ? ' - NIMA: ' + c.nima : ''})`,
+                        label: `${c.nombre} (${c.municipio || ''}${c.nima ? ` - NIMA: ${  c.nima}` : ''})`,
                       })),
                     ]}
                     defaultValue={formData.producer_center_id?.toString() || ''}
@@ -530,7 +530,7 @@ export default function EditarContratoPage() {
                           { value: '', label: '-- Seleccionar Gestor --' },
                           ...filteredGestores.map((g) => ({
                             value: g.id.toString(),
-                            label: `${g.razon_social} (${g.cif})${g.nima ? ' - NIMA: ' + g.nima : ''}`,
+                            label: `${g.razon_social} (${g.cif})${g.nima ? ` - NIMA: ${  g.nima}` : ''}`,
                           })),
                         ]}
                         defaultValue={formData.gestor_company_id?.toString() || ''}
@@ -548,7 +548,7 @@ export default function EditarContratoPage() {
                           { value: '', label: '-- Instalación general / Sede principal --' },
                           ...gestorCenters.map(c => ({
                             value: c.id.toString(),
-                            label: `${c.nombre} (${c.municipio || ''}${c.nima ? ' - NIMA: ' + c.nima : ''})`,
+                            label: `${c.nombre} (${c.municipio || ''}${c.nima ? ` - NIMA: ${  c.nima}` : ''})`,
                           })),
                         ]}
                         defaultValue={formData.gestor_center_id?.toString() || ''}
@@ -632,7 +632,7 @@ export default function EditarContratoPage() {
                       <th className="px-3 py-2.5 text-left w-36">Operación *</th>
                       <th className="px-3 py-2.5 text-left w-32">Cant. Anual (t)</th>
                       <th className="px-3 py-2.5 text-left w-32">Precio (€/t)</th>
-                      <th className="px-3 py-2.5 text-center w-12"></th>
+                      <th className="px-3 py-2.5 text-center w-12" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">

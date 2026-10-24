@@ -10,7 +10,7 @@ import { useSandbox } from '@/context/SandboxContext';
 import type { SandboxProfileType } from '@/types/deca';
 import { Sparkles, Truck, Factory, BatteryCharging, ShieldAlert, Building2, ChevronDown, Check, Info } from 'lucide-react';
 
-const PROFILES: { id: SandboxProfileType; label: string; icon: any; desc: string }[] = [
+const PROFILES: Array<{ id: SandboxProfileType; label: string; icon: any; desc: string }> = [
   {
     id: 'all',
     label: 'Modo Completo (Admin)',
@@ -63,7 +63,7 @@ export default function SandboxProfileSwitcher() {
         className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-xs font-medium hover:bg-blue-100/70 transition shadow-sm"
         title="Cambiar perfil simulado en Sandbox"
       >
-        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
         <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Sandbox:</span>
         <div className="flex items-center gap-1.5 font-semibold">
           <ActiveIcon className="w-3.5 h-3.5" />
@@ -74,7 +74,7 @@ export default function SandboxProfileSwitcher() {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)}></div>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-100">
             <div className="px-2.5 py-2 border-b border-slate-100 dark:border-slate-800 mb-1">
               <div className="flex items-center justify-between">

@@ -83,7 +83,7 @@ Atributos del elemento wasteDCS:
         console.log('   3. Validar el XML generado');
         console.log('   4. Reportar errores de validación');
 
-        console.log('\n' + '='.repeat(60));
+        console.log(`\n${  '='.repeat(60)}`);
 
     } catch (error) {
         console.error('❌ Error en validación:', error);

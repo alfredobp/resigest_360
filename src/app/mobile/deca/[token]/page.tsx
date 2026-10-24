@@ -86,7 +86,7 @@ export default function DecaDriverMobilePage({
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4" />
         <p className="text-slate-300 font-medium text-lg">Cargando Documento de Control (DeCA)...</p>
         <p className="text-slate-500 text-sm mt-1">Preparando código QR oficial para inspección</p>
       </div>
@@ -160,7 +160,7 @@ export default function DecaDriverMobilePage({
       <main className="space-y-4 my-auto">
         <div className="bg-white rounded-3xl p-5 shadow-2xl text-center border-4 border-blue-500">
           <div className="text-slate-900 text-xs font-bold uppercase tracking-wider mb-2 flex items-center justify-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             Código QR Oficial para Inspección
           </div>
 

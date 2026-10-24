@@ -1,7 +1,7 @@
 import ComponentCard from "@/components/common/ComponentCard";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import Alert from "@/components/ui/alert/Alert";
-import { Metadata } from "next";
+import { type Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
@@ -21,7 +21,7 @@ export default function Alerts() {
             variant="success"
             title="Success Message"
             message="Be cautious when performing this action."
-            showLink={true}
+            showLink
             linkHref="/"
             linkText="Learn more"
           />
@@ -37,7 +37,7 @@ export default function Alerts() {
             variant="warning"
             title="Warning Message"
             message="Be cautious when performing this action."
-            showLink={true}
+            showLink
             linkHref="/"
             linkText="Learn more"
           />
@@ -53,7 +53,7 @@ export default function Alerts() {
             variant="error"
             title="Error Message"
             message="Be cautious when performing this action."
-            showLink={true}
+            showLink
             linkHref="/"
             linkText="Learn more"
           />
@@ -69,7 +69,7 @@ export default function Alerts() {
             variant="info"
             title="Info Message"
             message="Be cautious when performing this action."
-            showLink={true}
+            showLink
             linkHref="/"
             linkText="Learn more"
           />

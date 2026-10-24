@@ -8,7 +8,9 @@
     "build": "next build && npm run copy-wasm",
     "copy-wasm": "node -e \"const fs = require('fs'); const path = require('path'); const src = path.join('public', 'wasm'); const dest = path.join('.next', 'static', 'wasm'); fs.mkdirSync(dest, { recursive: true }); fs.readdirSync(src).forEach(file => { fs.copyFileSync(path.join(src, file), path.join(dest, file)); console.log('Copied', file); });\"",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.19",

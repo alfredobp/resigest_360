@@ -9,10 +9,10 @@ import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import identificationDocumentService from '@/services/identificationDocumentService';
 import {
-  CommercialOperationFormData,
-  Company,
-  ProductionCenter,
-  IdentificationDocument,
+  type CommercialOperationFormData,
+  type Company,
+  type ProductionCenter,
+  type IdentificationDocument,
   TipoPrecioOperacion
 } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
@@ -58,7 +58,7 @@ export default function NuevaOperacionComercialPage() {
         companyService.getUserCompany()
       ]);
 
-      let allComps = [...comps];
+      const allComps = [...comps];
       if (myComp && !allComps.some(c => c.id === myComp.id)) {
         allComps.unshift(myComp);
       }
@@ -149,7 +149,7 @@ export default function NuevaOperacionComercialPage() {
       router.push(`/residuos/operaciones/${created.id}`);
     } catch (err: any) {
       console.error(err);
-      setError('Error al crear la operación comercial: ' + (err.message || ''));
+      setError(`Error al crear la operación comercial: ${  err.message || ''}`);
       setLoading(false);
     }
   };

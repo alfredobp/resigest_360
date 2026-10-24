@@ -6,8 +6,8 @@ import { useRouter, useParams } from 'next/navigation';
 import commercialOperationService from '@/services/commercialOperationService';
 import { generateCommercialOperationPDF } from '@/lib/pdfUtils';
 import {
-  CommercialOperation,
-  EstadoOperacionComercial
+  type CommercialOperation,
+  type EstadoOperacionComercial
 } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
@@ -136,7 +136,7 @@ export default function DetalleOperacionComercialPage() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center space-y-3">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto"></div>
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto" />
           <p className="text-sm text-gray-500">Cargando operación comercial...</p>
         </div>
       </div>

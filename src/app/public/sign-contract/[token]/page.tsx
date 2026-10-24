@@ -73,7 +73,7 @@ function PublicSignatureContent() {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
                     <p className="text-gray-500">Cargando contrato...</p>
                 </div>
             </div>
@@ -206,7 +206,7 @@ function PublicSignatureContent() {
                                 Garabatee su firma abajo
                             </h3>
                             <div className="flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${loading ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`}></span>
+                                <span className={`w-2 h-2 rounded-full ${loading ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`} />
                                 <span className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">
                                     {loading ? 'Guardando...' : 'Sistema Seguro'}
                                 </span>
@@ -245,7 +245,7 @@ export default function PublicSignaturePage() {
             fallback={
                 <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
                     <div className="text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
                         <p className="text-sm text-gray-500 dark:text-gray-400">Cargando documento para firma...</p>
                     </div>
                 </div>

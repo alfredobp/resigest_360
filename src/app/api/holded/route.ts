@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 
 const HOLDED_API_URL = 'https://api.holded.com/api/invoicing/v1';
 
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
     try {
         let url = '';
-        let method = 'POST';
+        const method = 'POST';
 
         switch (action) {
             case 'createContact':
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
         }
 
         const response = await fetch(url, {
-            method: method,
+            method,
             headers: {
                 'key': apiKey,
                 'Content-Type': 'application/json'

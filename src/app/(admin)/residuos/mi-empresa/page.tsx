@@ -218,7 +218,7 @@ export default function MiEmpresaPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
           <p className="text-muted">Cargando datos de la empresa...</p>
         </div>
       </div>
@@ -275,11 +275,11 @@ export default function MiEmpresaPage() {
                   {formData.cif.trim() !== '' && (
                     companyService.validateCIF(formData.cif) ? (
                       <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-semibold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> CIF Válido
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> CIF Válido
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 text-xs text-red-500 font-semibold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span> Formato incorrecto (Ej: B12345678)
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Formato incorrecto (Ej: B12345678)
                       </span>
                     )
                   )}
@@ -299,11 +299,11 @@ export default function MiEmpresaPage() {
                   {(formData.nima || '').trim() !== '' && (
                     companyService.validateNIMA(formData.nima || '') ? (
                       <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-semibold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> NIMA Válido ({(formData.nima || '').trim().length} car.)
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> NIMA Válido ({(formData.nima || '').trim().length} car.)
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 text-xs text-amber-600 font-semibold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> NIMA incompleto ({(formData.nima || '').trim().length}/10 car.)
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> NIMA incompleto ({(formData.nima || '').trim().length}/10 car.)
                       </span>
                     )
                   )}
@@ -503,7 +503,7 @@ export default function MiEmpresaPage() {
                       checked={formData.sira_activo}
                       onChange={(e) => setFormData(prev => ({ ...prev, sira_activo: e.target.checked }))}
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary" />
                   </label>
                   <span className="text-xs font-medium uppercase tracking-wider text-primary">Activado</span>
                 </div>

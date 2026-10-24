@@ -50,7 +50,7 @@ export default function CompanyAuditModal({
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-4xl p-6 sm:p-8">
       {loading || !auditDetail ? (
         <div className="flex flex-col items-center justify-center py-16 space-y-4">
-          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
           <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
             Cargando auditoría y registros de la empresa...
           </p>

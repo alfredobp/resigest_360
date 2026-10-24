@@ -342,7 +342,7 @@ export default function DecaManagementPage() {
               {loading ? (
                 <tr>
                   <td colSpan={8} className="text-center py-10 text-slate-400">
-                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-2 align-middle"></div>
+                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-2 align-middle" />
                     Cargando documentos de control...
                   </td>
                 </tr>

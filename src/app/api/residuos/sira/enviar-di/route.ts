@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { siraService } from '@/services/siraService';
 import * as fs from 'fs';
@@ -221,7 +221,7 @@ export async function POST(req: NextRequest) {
             .from('identification_documents')
             .update({
                 estado: 'pendiente-firma',
-                notas: (doc.notas || '') + `\n[SIRA] Enviado con éxito. ID SIRA: ${siraId}`
+                notas: `${doc.notas || ''  }\n[SIRA] Enviado con éxito. ID SIRA: ${siraId}`
             })
             .eq('id', documentId);
 

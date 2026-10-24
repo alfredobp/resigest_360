@@ -31,7 +31,7 @@ type NavItem = {
   name: string;
   icon: React.ReactNode;
   path?: string;
-  subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
+  subItems?: Array<{ name: string; path: string; pro?: boolean; new?: boolean }>;
 };
 
 const adminNavItems: NavItem[] = [
@@ -188,7 +188,7 @@ const AppSidebar: React.FC = () => {
                 {nav.icon}
               </span>
               {(isExpanded || isHovered || isMobileOpen) && (
-                <span className={`menu-item-text`}>{nav.name}</span>
+                <span className="menu-item-text">{nav.name}</span>
               )}
               {(isExpanded || isHovered || isMobileOpen) && (
                 <ChevronDownIcon
@@ -216,7 +216,7 @@ const AppSidebar: React.FC = () => {
                   {nav.icon}
                 </span>
                 {(isExpanded || isHovered || isMobileOpen) && (
-                  <span className={`menu-item-text`}>{nav.name}</span>
+                  <span className="menu-item-text">{nav.name}</span>
                 )}
               </Link>
             )
@@ -369,10 +369,7 @@ const AppSidebar: React.FC = () => {
       >
         <Link href="/app">
           {isExpanded || isHovered || isMobileOpen ? (
-            <>
-              <Logo width={231} height={99} />
-
-            </>
+            <Logo width={231} height={99} />
           ) : (
             <LogoReduced width={60} height={60} />
           )}
@@ -419,7 +416,7 @@ const AppSidebar: React.FC = () => {
             {profile !== 'all' && (isExpanded || isHovered || isMobileOpen) && (
               <div className="mt-2 p-3 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs">
                 <div className="flex items-center gap-1.5 font-bold text-blue-700 dark:text-blue-300">
-                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                   <span>Sandbox: {profileLabel}</span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">

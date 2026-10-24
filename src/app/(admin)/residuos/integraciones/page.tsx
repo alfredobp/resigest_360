@@ -14,10 +14,10 @@ import auditService from '@/services/auditService';
 import companyService from '@/services/companyService';
 import holdedService from '@/services/holdedService';
 import {
-  SiraSubmission,
-  SiraSubmissionStatus,
-  AuditLogEntry,
-  Company
+  type SiraSubmission,
+  type SiraSubmissionStatus,
+  type AuditLogEntry,
+  type Company
 } from '@/types/wasteManagement';
 
 export default function IntegracionesAuditoriaPage() {

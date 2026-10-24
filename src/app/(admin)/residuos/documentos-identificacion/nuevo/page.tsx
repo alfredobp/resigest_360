@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { siraValidationSchema } from '@/lib/validations/sira'; // IMPORT AÑADIDO
-import { z } from 'zod'; // IMPORT AÑADIDO
+import { type z } from 'zod'; // IMPORT AÑADIDO
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
@@ -955,7 +955,7 @@ export default function NuevoDocumentoIdentificacionPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 bg-muted/10 p-4 border rounded-md">
                 <div className="md:col-span-2 flex items-center gap-2 mb-2">
                   <span className="text-xs font-bold uppercase text-primary/80 tracking-wider">Datos para SIRA (Requeridos)</span>
-                  <div className="h-px flex-1 bg-border"></div>
+                  <div className="h-px flex-1 bg-border" />
                 </div>
 
                 <div>

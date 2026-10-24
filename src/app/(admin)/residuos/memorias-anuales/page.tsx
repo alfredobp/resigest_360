@@ -11,7 +11,7 @@ import {
 import productionCenterService from '@/services/productionCenterService';
 import companyService from '@/services/companyService';
 import { createClient } from '@/lib/supabase/client';
-import { MemoriaAnual, EstadoMemoria, TipoMemoria, ProductionCenter } from '@/types/wasteManagement';
+import { type MemoriaAnual, type EstadoMemoria, type TipoMemoria, type ProductionCenter } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
 import { toast } from '@/context/ToastContext';
@@ -172,7 +172,7 @@ export default function MemoriasAnualesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }

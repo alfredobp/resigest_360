@@ -35,7 +35,7 @@ export default function RadioButtons() {
           checked={selectedValue === "option3"}
           onChange={handleRadioChange}
           label="Disabled"
-          disabled={true}
+          disabled
         />
       </div>
     </ComponentCard>

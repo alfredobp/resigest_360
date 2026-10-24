@@ -698,7 +698,7 @@ export interface ContractActivationValidation {
  */
 export function validateContractActivation(
   contract: Omit<Partial<WasteContract>, 'contract_waste_codes'> & {
-    contract_waste_codes?: (Partial<ContractWasteCode> | ContractWasteCodeFormData)[];
+    contract_waste_codes?: Array<Partial<ContractWasteCode> | ContractWasteCodeFormData>;
   }
 ): ContractActivationValidation {
   const errors: string[] = [];

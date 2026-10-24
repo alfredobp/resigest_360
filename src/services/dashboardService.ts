@@ -33,13 +33,13 @@ export interface ExecutiveDashboardData {
     toneladasNoPeligrosas: number;
     totalDIs: number;
     disCompletados: number;
-    topLER: {
+    topLER: Array<{
       codigo_ler: string;
       descripcion: string;
       toneladas: number;
       porcentaje: number;
       peligroso: boolean;
-    }[];
+    }>;
   };
   comercial: {
     totalOperaciones: number;
