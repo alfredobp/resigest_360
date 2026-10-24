@@ -27,7 +27,7 @@ describe('auditService - Trazabilidad y Registro de Auditoría', () => {
         id: 1,
         user_id: 'user-audit-123',
         company_id: 10,
-        entidad: 'documentos_identificacion',
+        entidad: 'di',
         entidad_id: '55',
         accion: 'crear',
         detalles: { numero_documento: 'DI-001' },
@@ -42,7 +42,7 @@ describe('auditService - Trazabilidad y Registro de Auditoría', () => {
 
       const result = await auditService.logAction({
         company_id: 10,
-        entidad: 'documentos_identificacion',
+        entidad: 'di',
         entidad_id: 55,
         accion: 'crear',
         detalles: { numero_documento: 'DI-001' },
@@ -54,7 +54,7 @@ describe('auditService - Trazabilidad y Registro de Auditoría', () => {
         expect.objectContaining({
           user_id: 'user-audit-123',
           company_id: 10,
-          entidad: 'documentos_identificacion',
+          entidad: 'di',
           entidad_id: '55',
           accion: 'crear',
           ip_address: '192.168.1.1',
@@ -72,7 +72,7 @@ describe('auditService - Trazabilidad y Registro de Auditoría', () => {
         id: 2,
         user_id: null,
         company_id: null,
-        entidad: 'contratos',
+        entidad: 'contrato',
         entidad_id: null,
         accion: 'actualizar',
         detalles: {},
@@ -86,7 +86,7 @@ describe('auditService - Trazabilidad y Registro de Auditoría', () => {
       mockSupabase.from.mockReturnValue({ insert: insertMock });
 
       const result = await auditService.logAction({
-        entidad: 'contratos',
+        entidad: 'contrato',
         accion: 'actualizar',
       });
 
@@ -114,7 +114,7 @@ describe('auditService - Trazabilidad y Registro de Auditoría', () => {
       mockSupabase.from.mockReturnValue({ insert: insertMock });
 
       const result = await auditService.logAction({
-        entidad: 'contratos',
+        entidad: 'contrato',
         accion: 'crear',
       });
 
@@ -132,8 +132,8 @@ describe('auditService - Trazabilidad y Registro de Auditoría', () => {
       mockSupabase.auth.getUser.mockRejectedValue(new Error('Auth service network crash'));
 
       const result = await auditService.logAction({
-        entidad: 'usuarios',
-        accion: 'login',
+        entidad: 'empresa',
+        accion: 'crear',
       });
 
       expect(result).toBeNull();
