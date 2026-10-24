@@ -387,12 +387,14 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
 
     it('debe manejar errores en getAllContacts, getAll, getByRole y search', async () => {
       mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'u1' } } });
-      const failQuery = jest.fn().mockReturnValue({
-        order: jest.fn().mockResolvedValue({ data: null, error: { message: 'Query fail' } }),
-      });
+      const failPromise = Promise.resolve({ data: null, error: { message: 'Query fail' } });
+      const chainable: any = {
+        eq: jest.fn().mockImplementation(() => chainable),
+        order: jest.fn().mockImplementation(() => failPromise),
+      };
 
       mockSupabase.from.mockReturnValue({
-        select: failQuery,
+        select: jest.fn().mockReturnValue(chainable),
       });
 
       await expect(companyService.getAllContacts()).rejects.toThrow('Error al obtener empresas: Query fail');
