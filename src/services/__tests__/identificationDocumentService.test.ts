@@ -282,11 +282,11 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
 
       await identificationDocumentService.recordDeparture(1, {
         fecha_salida: '2026-10-24T08:00:00Z',
-        matricula_vehiculo: '1234-XYZ',
+        transportista_matricula: '1234-XYZ',
       });
 
       expect(spyUpdate).toHaveBeenCalledWith(1, expect.objectContaining({
-        matricula_vehiculo: '1234-XYZ',
+        transportista_matricula: '1234-XYZ',
         estado_traslado: 'en_transito',
         firmado_transportista: true,
       }));
@@ -305,6 +305,7 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
       jest.spyOn(identificationDocumentService, 'update').mockResolvedValue(updatedDoc);
 
       const result = await identificationDocumentService.recordReception(1, {
+        fecha_llegada_destino: '2026-10-24T12:00:00Z',
         peso_destino_kg: 1950,
         resultado_recepcion: 'aceptado',
       });
@@ -335,6 +336,7 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
 
       // Prueba con sync fallido en aceptado
       await identificationDocumentService.recordReception(1, {
+        fecha_llegada_destino: '2026-10-24T12:00:00Z',
         peso_destino_kg: 950,
         resultado_recepcion: 'aceptado',
       });
@@ -346,6 +348,7 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
       // Prueba con rechazado_total
       jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({ id: 1, estado_traslado: 'rechazado_total' } as any);
       const resTotal = await identificationDocumentService.recordReception(1, {
+        fecha_llegada_destino: '2026-10-24T12:00:00Z',
         peso_destino_kg: 0,
         resultado_recepcion: 'rechazado_total',
       });
@@ -354,6 +357,7 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
       // Prueba con resultado_recepcion 'recepcionado' genérico
       jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({ id: 1, estado_traslado: 'recepcionado' } as any);
       const resGenerico = await identificationDocumentService.recordReception(1, {
+        fecha_llegada_destino: '2026-10-24T12:00:00Z',
         peso_destino_kg: 500,
         resultado_recepcion: 'otro' as any,
       });

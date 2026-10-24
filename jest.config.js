@@ -33,6 +33,8 @@ module.exports = {
     'src/lib/validations/sira.ts',
     'src/services/wasteTypeService.ts',
     'src/services/identificationDocumentService.ts',
+    'src/services/decaService.ts',
+    'src/services/auditService.ts',
     '!src/**/*.d.ts',
   ],
   coverageReporters: ['text', 'lcov', 'clover'],
@@ -56,6 +58,18 @@ module.exports = {
       statements: 80
     },
     './src/services/identificationDocumentService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/decaService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/auditService.ts': {
       branches: 80,
       functions: 80,
       lines: 80,
