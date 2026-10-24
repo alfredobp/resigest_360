@@ -37,6 +37,7 @@ module.exports = {
     'src/services/auditService.ts',
     'src/services/companyService.ts',
     'src/services/carrierService.ts',
+    'src/services/authorizationService.ts',
     '!src/**/*.d.ts',
   ],
   coverageReporters: ['text', 'lcov', 'clover'],
@@ -84,6 +85,12 @@ module.exports = {
       statements: 80
     },
     './src/services/carrierService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/authorizationService.ts': {
       branches: 80,
       functions: 80,
       lines: 80,
