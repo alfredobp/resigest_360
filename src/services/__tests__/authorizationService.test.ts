@@ -548,7 +548,7 @@ describe('authorizationService - Autorizaciones Ambientales y Matriz LER', () =>
       const result = await authorizationService.create({
         company_id: 1,
         numero_autorizacion: 'AUT-DEF-001',
-        tipo_autorizacion: 'transportista',
+        titulo: 'Autorización por Defecto',
       });
 
       expect(result.id).toBe(25);
@@ -592,7 +592,7 @@ describe('authorizationService - Autorizaciones Ambientales y Matriz LER', () =>
       const result = await authorizationService.update(10, {
         company_id: 1,
         numero_autorizacion: 'AUT-001',
-        tipo_autorizacion: 'gestor',
+        titulo: 'Autorización Gestor',
         waste_codes: [],
       });
 
