@@ -184,17 +184,17 @@ const ToastContainer: React.FC<{
       aria-live="polite"
       className="fixed top-5 right-5 z-[999999] flex flex-col gap-2.5 max-w-sm sm:max-w-md w-full pointer-events-none px-4 sm:px-0 transition-all"
     >
-      {toasts.map((toast) => (
-        <ToastCard key={toast.id} toast={toast} onDismiss={() => onDismiss(toast.id)} />
+      {toasts.map((t) => (
+        <ToastCard key={t.id} item={t} onDismiss={() => onDismiss(t.id)} />
       ))}
     </div>
   );
 };
 
 const ToastCard: React.FC<{
-  toast: ToastItem;
+  item: ToastItem;
   onDismiss: () => void;
-}> = ({ toast, onDismiss }) => {
+}> = ({ item, onDismiss }) => {
   const config = {
     success: {
       border: 'border-emerald-500/30 dark:border-emerald-500/30',
@@ -228,7 +228,7 @@ const ToastCard: React.FC<{
       defaultTitle: 'Información',
       accentBar: 'bg-sky-500',
     },
-  }[toast.type];
+  }[item.type];
 
   return (
     <div
@@ -246,10 +246,10 @@ const ToastCard: React.FC<{
       {/* Message and Title */}
       <div className="flex-1 min-w-0 pr-2">
         <h5 className="text-sm font-semibold text-gray-900 dark:text-white leading-tight">
-          {toast.title || config.defaultTitle}
+          {item.title || config.defaultTitle}
         </h5>
         <p className="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line leading-relaxed break-words">
-          {toast.message}
+          {item.message}
         </p>
       </div>
 

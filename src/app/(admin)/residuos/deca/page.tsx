@@ -8,27 +8,22 @@
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { decaService } from '@/services/decaService';
-import type { DecaDocument, DecaFormData, DecaEstado } from '@/types/deca';
+import type { DecaDocument, DecaFormData } from '@/types/deca';
 import { toast } from '@/context/ToastContext';
 import {
   Truck,
   Plus,
   QrCode,
   Download,
-  Share2,
   CheckCircle2,
   Clock,
-  AlertCircle,
   Search,
   RefreshCw,
   ExternalLink,
   History,
-  FileCheck2,
   FileText,
   Copy,
   Check,
-  ChevronRight,
-  MapPin,
   Calendar,
   X
 } from 'lucide-react';
@@ -342,7 +337,7 @@ export default function DecaManagementPage() {
               {loading ? (
                 <tr>
                   <td colSpan={8} className="text-center py-10 text-slate-400">
-                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-2 align-middle"></div>
+                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-2 align-middle" />
                     Cargando documentos de control...
                   </td>
                 </tr>

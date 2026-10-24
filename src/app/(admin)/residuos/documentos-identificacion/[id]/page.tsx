@@ -22,7 +22,6 @@ import type {
   RecordReceptionPayload,
   CompleteTreatmentPayload,
   ResultadoRecepcion,
-  TipoIncidencia,
   SiraSubmission,
 } from '@/types/wasteManagement';
 

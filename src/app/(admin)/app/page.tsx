@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import dashboardService, { ExecutiveDashboardData } from '@/services/dashboardService';
+import dashboardService, { type ExecutiveDashboardData } from '@/services/dashboardService';
 import MonthlyWasteChart from '@/components/dashboard/MonthlyWasteChart';
 import ComponentCard from '@/components/common/ComponentCard';
 import Badge from '@/components/ui/badge/Badge';
@@ -13,7 +13,7 @@ export default function ExecutiveDashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [executiveData, setExecutiveData] = useState<ExecutiveDashboardData | null>(null);
-  const [monthlyData, setMonthlyData] = useState<{ name: string; value: number }[]>([]);
+  const [monthlyData, setMonthlyData] = useState<Array<{ name: string; value: number }>>([]);
   const [recentDIs, setRecentDIs] = useState<any[]>([]);
 
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function ExecutiveDashboardPage() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center space-y-3">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto"></div>
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto" />
           <p className="text-sm text-gray-500">Cargando Centro de Control Ejecutivo...</p>
         </div>
       </div>

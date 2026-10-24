@@ -133,7 +133,7 @@ export const treatmentManagerService = {
         // Sincronización automática con Holded
         if (holdedApiKey) {
             try {
-                console.log('🔄 Sincronizando gestor con Holded...');
+                console.info('🔄 Sincronizando gestor con Holded...');
                 const holdedContact = await holdedService.createContact({
                     name: data.razon_social || data.nombre,
                     email: data.email,
@@ -157,7 +157,7 @@ export const treatmentManagerService = {
                 }, holdedApiKey);
 
                 if (holdedContact && holdedContact.id) {
-                    console.log('✅ Gestor sincronizado con Holded con éxito, ID:', holdedContact.id);
+                    console.info('✅ Gestor sincronizado con Holded con éxito, ID:', holdedContact.id);
                     // Guardar el ID de Holded localmente
                     await supabase
                         .from('treatment_managers')
@@ -197,7 +197,7 @@ export const treatmentManagerService = {
         // Sincronizar actualización con Holded
         if (holdedApiKey && currentData?.holded_contact_id) {
             try {
-                console.log('🔄 Actualizando gestor en Holded...');
+                console.info('🔄 Actualizando gestor en Holded...');
                 await holdedService.updateContact(currentData.holded_contact_id, {
                     name: data.razon_social || data.nombre,
                     email: data.email,
@@ -219,7 +219,7 @@ export const treatmentManagerService = {
                     },
                     phone: data.telefono
                 }, holdedApiKey);
-                console.log('✅ Gestor actualizado en Holded');
+                console.info('✅ Gestor actualizado en Holded');
             } catch (holdedError) {
                 console.error('⚠️ No se pudo actualizar en Holded:', holdedError);
             }

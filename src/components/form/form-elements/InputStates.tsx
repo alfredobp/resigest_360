@@ -59,7 +59,7 @@ export default function InputStates() {
           <Input
             type="text"
             defaultValue="disabled@example.com"
-            disabled={true}
+            disabled
             placeholder="Disabled email"
             hint="This field is disabled."
           />

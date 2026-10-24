@@ -5,13 +5,11 @@ import { useRouter } from 'next/navigation';
 import {
   getAllMemorias,
   deleteMemoria,
-  updateEstado,
   getStats
 } from '@/services/memoriaAnualService';
 import productionCenterService from '@/services/productionCenterService';
 import companyService from '@/services/companyService';
-import { createClient } from '@/lib/supabase/client';
-import { MemoriaAnual, EstadoMemoria, TipoMemoria, ProductionCenter } from '@/types/wasteManagement';
+import { type MemoriaAnual, type EstadoMemoria, type TipoMemoria, type ProductionCenter } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
 import { toast } from '@/context/ToastContext';
@@ -117,23 +115,6 @@ export default function MemoriasAnualesPage() {
     }
   };
 
-  const handleChangeEstado = async (id: number, nuevoEstado: EstadoMemoria) => {
-    try {
-      await updateEstado(id, nuevoEstado);
-      const msg = 'Estado actualizado correctamente';
-      setSuccess(msg);
-      toast.success(msg);
-      loadMemorias();
-      loadStats();
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      const msg = err?.message || 'Error al actualizar el estado';
-      setError(msg);
-      toast.error(msg);
-      setTimeout(() => setError(null), 3000);
-    }
-  };
-
   const getEstadoBadge = (estado: EstadoMemoria) => {
     const configs: Record<EstadoMemoria, any> = {
       borrador: { color: 'light' as const, label: 'Borrador' },
@@ -172,7 +153,7 @@ export default function MemoriasAnualesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }

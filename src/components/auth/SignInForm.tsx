@@ -26,13 +26,13 @@ export default function SignInForm() {
 
     try {
       const supabase = createClient();
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) {
-        setError(error.message);
+      if (signInError) {
+        setError(signInError.message);
         setLoading(false);
         return;
       }
@@ -45,7 +45,7 @@ export default function SignInForm() {
 
       router.push(destination);
       router.refresh();
-    } catch (err) {
+    } catch {
       setError("An unexpected error occurred");
       setLoading(false);
     }

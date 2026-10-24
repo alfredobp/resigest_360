@@ -17,7 +17,7 @@ interface EmpresaModalProps {
   defaultRole?: CompanyRole;
 }
 
-const AVAILABLE_ROLES: { id: CompanyRole; label: string; icon: string; description: string }[] = [
+const AVAILABLE_ROLES: Array<{ id: CompanyRole; label: string; icon: string; description: string }> = [
   { id: 'gestor', label: 'Gestor Autorizado', icon: '♻️', description: 'Instalación o entidad que recibe y valoriza/elimina residuos' },
   { id: 'transportista', label: 'Transportista', icon: '🚚', description: 'Empresa o transportista autorizado con vehículos de recogida' },
   { id: 'productor', label: 'Productor', icon: '🏭', description: 'Centro o entidad que genera residuos en su actividad' },

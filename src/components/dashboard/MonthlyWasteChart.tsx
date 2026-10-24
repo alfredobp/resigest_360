@@ -1,5 +1,5 @@
 "use client";
-import { ApexOptions } from "apexcharts";
+import { type ApexOptions } from "apexcharts";
 import dynamic from "next/dynamic";
 
 // Dynamically import the ReactApexChart component
@@ -8,7 +8,7 @@ const ReactApexChart = dynamic(() => import("react-apexcharts"), {
 });
 
 interface MonthlyWasteChartProps {
-    data: { name: string; value: number }[];
+    data: Array<{ name: string; value: number }>;
 }
 
 export default function MonthlyWasteChart({ data }: MonthlyWasteChartProps) {

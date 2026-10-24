@@ -182,7 +182,7 @@ export const wasteContractService = {
    * Obtener contratos de una empresa específica (si pertenece al tenant)
    */
   async getByCompany(companyId: number): Promise<WasteContract[]> {
-    const { userId, companyIds } = await getTenantContext();
+    const { companyIds } = await getTenantContext();
 
     if (!companyIds.includes(companyId)) {
       return [];
@@ -698,7 +698,7 @@ export interface ContractActivationValidation {
  */
 export function validateContractActivation(
   contract: Omit<Partial<WasteContract>, 'contract_waste_codes'> & {
-    contract_waste_codes?: (Partial<ContractWasteCode> | ContractWasteCodeFormData)[];
+    contract_waste_codes?: Array<Partial<ContractWasteCode> | ContractWasteCodeFormData>;
   }
 ): ContractActivationValidation {
   const errors: string[] = [];

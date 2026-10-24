@@ -33,13 +33,13 @@ export interface ExecutiveDashboardData {
     toneladasNoPeligrosas: number;
     totalDIs: number;
     disCompletados: number;
-    topLER: {
+    topLER: Array<{
       codigo_ler: string;
       descripcion: string;
       toneladas: number;
       porcentaje: number;
       peligroso: boolean;
-    }[];
+    }>;
   };
   comercial: {
     totalOperaciones: number;
@@ -63,7 +63,6 @@ export const dashboardService = {
 
     const todayStr = new Date().toISOString().split('T')[0];
     const today = new Date();
-    const in60Days = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     // Cargar en paralelo DIs, Contratos, Autorizaciones y Operaciones Comerciales
     const [disRes, contractsRes, authsRes, opsRes] = await Promise.all([

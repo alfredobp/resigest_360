@@ -171,7 +171,7 @@ export default function UserInfoCard() {
       closeModal();
     } catch (err: any) {
       console.error("Error saving profile:", err);
-      setError("Error al guardar los cambios: " + (err.message || "Error interno"));
+      setError(`Error al guardar los cambios: ${  err.message || "Error interno"}`);
       setSaving(false);
     }
   };

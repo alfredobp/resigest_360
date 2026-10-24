@@ -32,7 +32,7 @@ export default function NotificationDropdown() {
             !notifying ? "hidden" : "flex"
           }`}
         >
-          <span className="absolute inline-flex w-full h-full bg-orange-400 rounded-full opacity-75 animate-ping"></span>
+          <span className="absolute inline-flex w-full h-full bg-orange-400 rounded-full opacity-75 animate-ping" />
         </span>
         <svg
           className="fill-current"
@@ -93,7 +93,7 @@ export default function NotificationDropdown() {
                   alt="User"
                   className="w-full overflow-hidden rounded-full"
                 />
-                <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900"></span>
+                <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900" />
               </span>
 
               <span className="block">
@@ -109,7 +109,7 @@ export default function NotificationDropdown() {
 
                 <span className="flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400">
                   <span>Project</span>
-                  <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                  <span className="w-1 h-1 bg-gray-400 rounded-full" />
                   <span>5 min ago</span>
                 </span>
               </span>
@@ -129,7 +129,7 @@ export default function NotificationDropdown() {
                   alt="User"
                   className="w-full overflow-hidden rounded-full"
                 />
-                <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900"></span>
+                <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900" />
               </span>
 
               <span className="block">
@@ -145,7 +145,7 @@ export default function NotificationDropdown() {
 
                 <span className="flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400">
                   <span>Project</span>
-                  <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                  <span className="w-1 h-1 bg-gray-400 rounded-full" />
                   <span>8 min ago</span>
                 </span>
               </span>
@@ -166,7 +166,7 @@ export default function NotificationDropdown() {
                   alt="User"
                   className="w-full overflow-hidden rounded-full"
                 />
-                <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900"></span>
+                <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900" />
               </span>
 
               <span className="block">
@@ -182,7 +182,7 @@ export default function NotificationDropdown() {
 
                 <span className="flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400">
                   <span>Project</span>
-                  <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                  <span className="w-1 h-1 bg-gray-400 rounded-full" />
                   <span>15 min ago</span>
                 </span>
               </span>
@@ -203,7 +203,7 @@ export default function NotificationDropdown() {
                   alt="User"
                   className="w-full overflow-hidden rounded-full"
                 />
-                <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-error-500 dark:border-gray-900"></span>
+                <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-error-500 dark:border-gray-900" />
               </span>
 
               <span className="block">
@@ -219,7 +219,7 @@ export default function NotificationDropdown() {
 
                 <span className="flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400">
                   <span>Project</span>
-                  <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                  <span className="w-1 h-1 bg-gray-400 rounded-full" />
                   <span>1 hr ago</span>
                 </span>
               </span>
@@ -239,7 +239,7 @@ export default function NotificationDropdown() {
                   alt="User"
                   className="w-full overflow-hidden rounded-full"
                 />
-                <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900"></span>
+                <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900" />
               </span>
 
               <span className="block">
@@ -255,7 +255,7 @@ export default function NotificationDropdown() {
 
                 <span className="flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400">
                   <span>Project</span>
-                  <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                  <span className="w-1 h-1 bg-gray-400 rounded-full" />
                   <span>5 min ago</span>
                 </span>
               </span>
@@ -275,7 +275,7 @@ export default function NotificationDropdown() {
                   alt="User"
                   className="w-full overflow-hidden rounded-full"
                 />
-                <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900"></span>
+                <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900" />
               </span>
 
               <span className="block">
@@ -291,7 +291,7 @@ export default function NotificationDropdown() {
 
                 <span className="flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400">
                   <span>Project</span>
-                  <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                  <span className="w-1 h-1 bg-gray-400 rounded-full" />
                   <span>8 min ago</span>
                 </span>
               </span>
@@ -311,7 +311,7 @@ export default function NotificationDropdown() {
                   alt="User"
                   className="w-full overflow-hidden rounded-full"
                 />
-                <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900"></span>
+                <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900" />
               </span>
 
               <span className="block">
@@ -327,7 +327,7 @@ export default function NotificationDropdown() {
 
                 <span className="flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400">
                   <span>Project</span>
-                  <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                  <span className="w-1 h-1 bg-gray-400 rounded-full" />
                   <span>15 min ago</span>
                 </span>
               </span>
@@ -348,7 +348,7 @@ export default function NotificationDropdown() {
                   alt="User"
                   className="overflow-hidden rounded-full"
                 />
-                <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-error-500 dark:border-gray-900"></span>
+                <span className="absolute bottom-0 right-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-error-500 dark:border-gray-900" />
               </span>
 
               <span className="block">
@@ -364,7 +364,7 @@ export default function NotificationDropdown() {
 
                 <span className="flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400">
                   <span>Project</span>
-                  <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                  <span className="w-1 h-1 bg-gray-400 rounded-full" />
                   <span>1 hr ago</span>
                 </span>
               </span>

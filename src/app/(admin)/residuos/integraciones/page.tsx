@@ -8,16 +8,15 @@ import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import { Modal } from '@/components/ui/modal';
-import Input from '@/components/form/input/InputField';
 import siraService from '@/services/siraService';
 import auditService from '@/services/auditService';
 import companyService from '@/services/companyService';
 import holdedService from '@/services/holdedService';
 import {
-  SiraSubmission,
-  SiraSubmissionStatus,
-  AuditLogEntry,
-  Company
+  type SiraSubmission,
+  type SiraSubmissionStatus,
+  type AuditLogEntry,
+  type Company
 } from '@/types/wasteManagement';
 
 export default function IntegracionesAuditoriaPage() {

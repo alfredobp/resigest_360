@@ -13,22 +13,8 @@ import siraService from '@/services/siraService';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import { decaService } from '@/services/decaService';
-import { Truck, CheckCircle2, X } from 'lucide-react';
-import type { IdentificationDocument, Company, ProductionCenter, EstadoTraslado } from '@/types/wasteManagement';
-
-const STATUS_COLORS = {
-  borrador: 'info',
-  'pendiente-firma': 'warning',
-  completado: 'success',
-  cancelado: 'error',
-} as const;
-
-const STATUS_LABELS = {
-  borrador: 'Borrador',
-  'pendiente-firma': 'Pendiente Firma',
-  completado: 'Completado',
-  cancelado: 'Cancelado',
-};
+import { Truck, X } from 'lucide-react';
+import type { IdentificationDocument, Company, ProductionCenter } from '@/types/wasteManagement';
 
 export default function DocumentosIdentificacionPage() {
   const router = useRouter();
@@ -136,19 +122,6 @@ export default function DocumentosIdentificacionPage() {
     }
   };
 
-  const handleChangeStatus = async (id: number, newStatus: 'borrador' | 'pendiente-firma' | 'completado' | 'cancelado') => {
-    try {
-      setLoading(true);
-      await identificationDocumentService.updateStatus(id, newStatus);
-      await loadData();
-      toast.success(`Estado actualizado a "${newStatus}" correctamente.`);
-    } catch (err: any) {
-      toast.error(`Error al cambiar estado: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSendToSira = async (id: number) => {
     if (!confirm('¿Deseas enviar este documento a SIRA (Junta de Andalucía)?')) {
       return;
@@ -197,7 +170,7 @@ export default function DocumentosIdentificacionPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
           <p className="text-muted">Cargando documentos...</p>
         </div>
       </div>

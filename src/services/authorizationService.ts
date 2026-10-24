@@ -7,7 +7,6 @@ import { createClient } from '@/lib/supabase/client';
 import type {
   EnvironmentalAuthorization,
   EnvironmentalAuthorizationFormData,
-  AuthorizationWasteCode,
 } from '@/types/wasteManagement';
 
 const supabase = createClient();

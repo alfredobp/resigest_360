@@ -41,7 +41,7 @@ export default function SignUpForm() {
 
     try {
       const supabase = createClient();
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      const { error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -65,7 +65,7 @@ export default function SignUpForm() {
       setTimeout(() => {
         router.push("/signin");
       }, 2000);
-    } catch (err) {
+    } catch {
       setError("Error al crear la cuenta. Inténtalo de nuevo.");
       setLoading(false);
     }
@@ -74,17 +74,17 @@ export default function SignUpForm() {
   const handleGoogleSignUp = async () => {
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error: oAuthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
-      if (error) {
-        setError(error.message);
+      if (oAuthError) {
+        setError(oAuthError.message);
       }
-    } catch (err) {
+    } catch {
       setError("Error al conectar con Google");
     }
   };
@@ -164,7 +164,7 @@ export default function SignUpForm() {
             </div>
             <div className="relative py-3 sm:py-5">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200 dark:border-gray-800"></div>
+                <div className="w-full border-t border-gray-200 dark:border-gray-800" />
               </div>
               <div className="relative flex justify-center text-sm">
                 <span className="p-2 text-gray-400 bg-white dark:bg-gray-900 sm:px-5 sm:py-2">

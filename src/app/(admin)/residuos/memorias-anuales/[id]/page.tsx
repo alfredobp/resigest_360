@@ -11,7 +11,7 @@ import {
   exportMemoriaToCSV
 } from '@/services/memoriaAnualService';
 import { generateMemoriaAnualPDF } from '@/lib/pdfUtils';
-import { MemoriaAnual, EstadoMemoria, ResumenLER } from '@/types/wasteManagement';
+import { type MemoriaAnual, type EstadoMemoria, type ResumenLER } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
 import { toast } from '@/context/ToastContext';
@@ -188,7 +188,7 @@ export default function DetalleMemoriaPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }
@@ -377,7 +377,7 @@ export default function DetalleMemoriaPage() {
               >
                 {processingExcel ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-600 mr-2"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-600 mr-2" />
                     Generando...
                   </>
                 ) : (

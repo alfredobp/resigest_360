@@ -5,11 +5,8 @@
  * con los esquemas oficiales E3L v3.6 de MITECO
  */
 
-import { readFileSync } from 'fs';
-import { join } from 'path';
-
 // Datos de prueba para generar un XML de ejemplo
-const testDocument = {
+const _testDocument = {
     numero_documento: 'TEST-2026-001',
     fecha_recogida: '2026-01-25',
     company: {
@@ -83,7 +80,7 @@ Atributos del elemento wasteDCS:
         console.log('   3. Validar el XML generado');
         console.log('   4. Reportar errores de validación');
 
-        console.log('\n' + '='.repeat(60));
+        console.log(`\n${  '='.repeat(60)}`);
 
     } catch (error) {
         console.error('❌ Error en validación:', error);

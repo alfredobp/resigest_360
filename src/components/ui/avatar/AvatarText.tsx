@@ -15,7 +15,7 @@ const AvatarText: React.FC<AvatarTextProps> = ({ name, className = "" }) => {
     .slice(0, 2);
 
   // Generate a consistent pastel color based on the name
-  const getColorClass = (name: string) => {
+  const getColorClass = (str: string) => {
     const colors = [
       "bg-brand-100 text-brand-600",
       "bg-pink-100 text-pink-600",
@@ -27,7 +27,7 @@ const AvatarText: React.FC<AvatarTextProps> = ({ name, className = "" }) => {
       "bg-error-100 text-error-600",
     ];
 
-    const index = name
+    const index = str
       .split("")
       .reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return colors[index % colors.length];

@@ -1,26 +1,16 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useParams, useSearchParams, useRouter } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import wasteContractService from '@/services/wasteContractService';
 import type { WasteContract } from '@/types/wasteManagement';
 import SignaturePad from '@/components/ui/signature/SignaturePad';
-import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
-import Button from '@/components/ui/button/Button';
 import ComponentCard from '@/components/common/ComponentCard';
-
-const STATUS_LABELS = {
-    borrador: 'Borrador',
-    vigente: 'Vigente',
-    finalizado: 'Finalizado',
-    cancelado: 'Cancelado',
-};
 
 function PublicSignatureContent() {
     const params = useParams();
     const searchParams = useSearchParams();
-    const router = useRouter();
     const token = params?.token as string;
     const roleParam = searchParams?.get('role') as 'productor' | 'gestor' | null;
 
@@ -41,7 +31,7 @@ function PublicSignatureContent() {
             setLoading(true);
             const data = await wasteContractService.getBySigningToken(token);
             setContract(data);
-        } catch (err: any) {
+        } catch {
             setError('El enlace de firma es inválido o el contrato ya no está disponible.');
         } finally {
             setLoading(false);
@@ -61,19 +51,11 @@ function PublicSignatureContent() {
         }
     };
 
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('es-ES', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-        });
-    };
-
     if (loading && !contract) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
                     <p className="text-gray-500">Cargando contrato...</p>
                 </div>
             </div>
@@ -206,7 +188,7 @@ function PublicSignatureContent() {
                                 Garabatee su firma abajo
                             </h3>
                             <div className="flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${loading ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`}></span>
+                                <span className={`w-2 h-2 rounded-full ${loading ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`} />
                                 <span className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">
                                     {loading ? 'Guardando...' : 'Sistema Seguro'}
                                 </span>
@@ -245,7 +227,7 @@ export default function PublicSignaturePage() {
             fallback={
                 <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
                     <div className="text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
                         <p className="text-sm text-gray-500 dark:text-gray-400">Cargando documento para firma...</p>
                     </div>
                 </div>

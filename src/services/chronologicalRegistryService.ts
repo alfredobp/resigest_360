@@ -4,11 +4,11 @@
 
 import { createClient } from '@/lib/supabase/client';
 import {
-  ChronologicalEntry,
-  ChronologicalEntryFormData,
-  ChronologicalStats,
-  TipoOperacionCronologica,
-  IdentificationDocument
+  type ChronologicalEntry,
+  type ChronologicalEntryFormData,
+  type ChronologicalStats,
+  type TipoOperacionCronologica,
+  type IdentificationDocument
 } from '@/types/wasteManagement';
 
 export interface ChronologicalFilter {
@@ -307,7 +307,7 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
 
     if (error) console.error('Error al actualizar asiento desde DI:', error);
     return updated;
-  } else {
+  } 
     const { data: created, error } = await supabase
       .from('chronological_registry')
       .insert([{ ...payload, numero_asiento }])
@@ -316,7 +316,7 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
 
     if (error) console.error('Error al crear asiento desde DI:', error);
     return created;
-  }
+  
 }
 
 // =====================================================
@@ -411,7 +411,7 @@ export function exportChronologicalToCSV(entries: ChronologicalEntry[]): void {
     `"${(e.observaciones || '').replace(/"/g, '""')}"`
   ]);
 
-  const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n');
+  const csvContent = `\uFEFF${  [headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n')}`;
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

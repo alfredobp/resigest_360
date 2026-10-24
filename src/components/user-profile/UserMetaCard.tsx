@@ -177,15 +177,15 @@ export default function UserMetaCard() {
       }
 
       // Upload new avatar
-      const { data, error } = await supabase.storage
+      const { data, error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(fileName, avatarFile, {
           cacheControl: '3600',
           upsert: false
         });
 
-      if (error) {
-        throw error;
+      if (uploadError) {
+        throw uploadError;
       }
 
       // Get public URL
@@ -343,7 +343,7 @@ export default function UserMetaCard() {
                   </p>
                 )}
                 {profile?.bio && profile?.location && (
-                  <div className="hidden h-3.5 w-px bg-gray-300 dark:bg-gray-700 xl:block"></div>
+                  <div className="hidden h-3.5 w-px bg-gray-300 dark:bg-gray-700 xl:block" />
                 )}
                 {profile?.location && (
                   <p className="text-sm text-gray-500 dark:text-gray-400">

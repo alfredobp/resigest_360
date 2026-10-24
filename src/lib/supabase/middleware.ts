@@ -23,7 +23,7 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({
             request,
           })
@@ -62,7 +62,6 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/public/') // Public signature and other public pages
   ) {
     // Store the original URL to redirect back after login
-    const redirectUrl = request.url
     const url = request.nextUrl.clone()
     url.pathname = '/signin'
     url.searchParams.set('redirectedFrom', request.nextUrl.pathname)

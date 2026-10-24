@@ -9,11 +9,10 @@ import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import identificationDocumentService from '@/services/identificationDocumentService';
 import {
-  CommercialOperationFormData,
-  Company,
-  ProductionCenter,
-  IdentificationDocument,
-  TipoPrecioOperacion
+  type CommercialOperationFormData,
+  type Company,
+  type ProductionCenter,
+  type IdentificationDocument
 } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
@@ -26,8 +25,8 @@ export default function NuevaOperacionComercialPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Catálogos
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [centers, setCenters] = useState<ProductionCenter[]>([]);
+  const [, setCompanies] = useState<Company[]>([]);
+  const [, setCenters] = useState<ProductionCenter[]>([]);
   const [documents, setDocuments] = useState<IdentificationDocument[]>([]);
 
   // Form State
@@ -58,7 +57,7 @@ export default function NuevaOperacionComercialPage() {
         companyService.getUserCompany()
       ]);
 
-      let allComps = [...comps];
+      const allComps = [...comps];
       if (myComp && !allComps.some(c => c.id === myComp.id)) {
         allComps.unshift(myComp);
       }
@@ -149,7 +148,7 @@ export default function NuevaOperacionComercialPage() {
       router.push(`/residuos/operaciones/${created.id}`);
     } catch (err: any) {
       console.error(err);
-      setError('Error al crear la operación comercial: ' + (err.message || ''));
+      setError(`Error al crear la operación comercial: ${  err.message || ''}`);
       setLoading(false);
     }
   };

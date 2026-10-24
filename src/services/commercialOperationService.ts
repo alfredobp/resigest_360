@@ -4,10 +4,10 @@
 
 import { createClient } from '@/lib/supabase/client';
 import {
-  CommercialOperation,
-  CommercialOperationFormData,
-  CommercialOperationStats,
-  EstadoOperacionComercial
+  type CommercialOperation,
+  type CommercialOperationFormData,
+  type CommercialOperationStats,
+  type EstadoOperacionComercial
 } from '@/types/wasteManagement';
 import { holdedService } from './holdedService';
 import { auditService } from './auditService';
@@ -368,7 +368,7 @@ export const commercialOperationService = {
       ];
     });
 
-    const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n');
+    const csvContent = `\uFEFF${  [headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n')}`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

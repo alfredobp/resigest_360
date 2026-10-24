@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
-import { AuditLogAction, AuditLogEntity, AuditLogEntry } from '@/types/wasteManagement';
+import { type AuditLogAction, type AuditLogEntity, type AuditLogEntry } from '@/types/wasteManagement';
 
 export const auditService = {
   /**
@@ -142,7 +142,7 @@ export const auditService = {
       ...rows.map(r => r.map(val => `"${String(val)}"`).join(';'))
     ].join('\r\n');
 
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([`\uFEFF${  csvContent}`], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
