@@ -16,6 +16,21 @@ import type {
 } from '@/types/wasteManagement';
 
 describe('authorizationService - Autorizaciones Ambientales y Matriz LER', () => {
+  const validFormData: EnvironmentalAuthorizationFormData = {
+    company_id: 1,
+    numero_autorizacion: 'AUT-2026-MAD-001',
+    tipo_autorizacion: 'gestor',
+    es_indefinida: true,
+    waste_codes: [
+      {
+        codigo_ler: '15 01 01',
+        descripcion_ler: 'Envases de papel',
+        operaciones_tratamiento: ['R03'],
+        capacidad_anual_toneladas: 5000,
+      },
+    ],
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -215,13 +230,22 @@ describe('authorizationService - Autorizaciones Ambientales y Matriz LER', () =>
       consoleWarnSpy.mockRestore();
     });
 
-    it('debe manejar cuando la consulta devuelve array vacío o error en getAuthorizedScope', async () => {
+    it('debe manejar autorizaciones sin fecha de vencimiento y registrar error si falla la inserción de códigos', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
       mockSupabase.auth.getUser.mockResolvedValue({
         data: { user: { id: 'user-auth-1' } },
       });
 
+      // 1. Auth sin fecha_vencimiento ni es_indefinida
+      const authSinVencimiento = {
+        id: 99,
+        es_indefinida: false,
+        fecha_vencimiento: null,
+        waste_codes: [],
+      };
       let queryObj: any = {};
-      queryObj.then = (resolve: any) => resolve({ data: [], error: { message: 'No scope' } });
+      queryObj.then = (resolve: any) => resolve({ data: [authSinVencimiento], error: null });
       mockSupabase.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnValue({
@@ -232,27 +256,58 @@ describe('authorizationService - Autorizaciones Ambientales y Matriz LER', () =>
         }),
       });
 
-      const result = await authorizationService.getAuthorizedScope(5);
-      expect(result.hasAnyAuthorizationConfigured).toBe(false);
+      const scope = await authorizationService.getAuthorizedScope(1);
+      expect(scope.authorizations).toHaveLength(1);
+
+      // 2. create con fallo en códigos de residuo
+      const singleMock = jest.fn().mockResolvedValue({ data: { id: 10 }, error: null });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'environmental_authorizations') {
+          return { insert: jest.fn().mockReturnValue({ select: jest.fn().mockReturnValue({ single: singleMock }) }) };
+        }
+        if (table === 'authorization_waste_codes') {
+          return { insert: jest.fn().mockResolvedValue({ error: { message: 'Waste code insert error' } }) };
+        }
+        return {};
+      });
+
+      await authorizationService.create({
+        ...validFormData,
+        activo: false,
+        es_indefinida: false,
+      });
+
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('update debe funcionar si waste_codes es undefined', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-auth-1' } },
+      });
+
+      const singleMock = jest.fn().mockResolvedValue({ data: { id: 10 }, error: null });
+      mockSupabase.from.mockReturnValue({
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnValue({
+              select: jest.fn().mockReturnValue({ single: singleMock }),
+            }),
+          }),
+        }),
+      });
+
+      const result = await authorizationService.update(10, {
+        company_id: 1,
+        numero_autorizacion: 'AUT-001',
+        tipo_autorizacion: 'gestor',
+      });
+
+      expect(result.id).toBe(10);
     });
   });
 
   describe('create, update y delete', () => {
-    const validFormData: EnvironmentalAuthorizationFormData = {
-      company_id: 1,
-      numero_autorizacion: 'AUT-2026-MAD-001',
-      tipo_autorizacion: 'gestor',
-      es_indefinida: true,
-      waste_codes: [
-        {
-          codigo_ler: '15 01 01',
-          descripcion_ler: 'Envases de papel',
-          operaciones_tratamiento: ['R03'],
-          capacidad_anual_toneladas: 5000,
-        },
-      ],
-    };
-
     it('create debe fallar si no hay usuario autenticado', async () => {
       mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
 
