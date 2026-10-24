@@ -63,7 +63,6 @@ export const dashboardService = {
 
     const todayStr = new Date().toISOString().split('T')[0];
     const today = new Date();
-    const in60Days = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     // Cargar en paralelo DIs, Contratos, Autorizaciones y Operaciones Comerciales
     const [disRes, contractsRes, authsRes, opsRes] = await Promise.all([

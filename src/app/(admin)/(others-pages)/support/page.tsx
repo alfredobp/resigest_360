@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import PageBreadcrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
@@ -28,7 +27,6 @@ export default function SupportPage() {
 
   const officialEmail = 'soporte@resigest360.com';
   const urgentEmail = 'urgencias@resigest360.com';
-  const legalEmail = 'legal@resigest360.com';
   const dpoEmail = 'dpo@resigest360.com';
   const phoneSupport = '+34 900 836 360';
 

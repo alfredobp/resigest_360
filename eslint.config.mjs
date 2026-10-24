@@ -15,7 +15,7 @@ export default defineConfig([
       // --- Errores / código muerto ---
       'no-debugger': 'error',
       'no-unreachable': 'error',
-      'no-duplicate-imports': 'error',
+      'no-duplicate-imports': ['error', { allowSeparateTypeImports: true }],
       'no-self-compare': 'error',
       'no-template-curly-in-string': 'warn',
       'no-unmodified-loop-condition': 'error',

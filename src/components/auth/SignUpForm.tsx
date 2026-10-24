@@ -41,7 +41,7 @@ export default function SignUpForm() {
 
     try {
       const supabase = createClient();
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      const { error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -65,7 +65,7 @@ export default function SignUpForm() {
       setTimeout(() => {
         router.push("/signin");
       }, 2000);
-    } catch (err) {
+    } catch {
       setError("Error al crear la cuenta. Inténtalo de nuevo.");
       setLoading(false);
     }
@@ -84,7 +84,7 @@ export default function SignUpForm() {
       if (error) {
         setError(error.message);
       }
-    } catch (err) {
+    } catch {
       setError("Error al conectar con Google");
     }
   };

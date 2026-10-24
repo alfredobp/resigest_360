@@ -449,8 +449,6 @@ export default function NuevoDocumentoIdentificacionPage() {
     }
 
     // Datos validados y listos
-    const dataToSubmit = validationResult.data;
-
     try {
       setSaving(true);
       const created = await identificationDocumentService.create(formData);

@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
         // 2. Obtener credenciales de SIRA de la empresa
         const companyData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
-        const { sira_usuario, sira_password, sira_activo } = companyData || {};
+        const { sira_usuario, sira_password } = companyData || {};
 
         console.log(`🔐 Intentando envío SIRA para DI ${doc.numero_documento}`);
         console.log(`📍 Empresa: ${doc.productor_razon_social} (ID: ${doc.company_id})`);
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
                     accion: 'sincronizar_sira',
                     detalles: { error: 'Credenciales de SIRA no configuradas para esta empresa' }
                 });
-            } catch (ignore) {}
+            } catch { /* best-effort: no bloquear el flujo principal */ }
 
             return NextResponse.json({
                 error: 'Credenciales de SIRA no configuradas para esta empresa. Por favor, configúralas en Mi Empresa.'
@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
                             mensaje_error: errorMessage
                         })
                         .eq('id', submissionId);
-                } catch (ignore) {}
+                } catch { /* best-effort: no bloquear el flujo principal */ }
             }
 
             // Registrar fallo en audit_logs
@@ -193,7 +193,7 @@ export async function POST(req: NextRequest) {
                         submission_id: submissionId
                     }
                 });
-            } catch (ignore) {}
+            } catch { /* best-effort: no bloquear el flujo principal */ }
 
             return NextResponse.json({
                 error: 'SIRA ha rechazado el documento',
@@ -214,7 +214,7 @@ export async function POST(req: NextRequest) {
                         xml_respuesta: responseText
                     })
                     .eq('id', submissionId);
-            } catch (ignore) {}
+            } catch { /* best-effort: no bloquear el flujo principal */ }
         }
 
         await supabase
@@ -240,7 +240,7 @@ export async function POST(req: NextRequest) {
                     submission_id: submissionId
                 }
             });
-        } catch (ignore) {}
+        } catch { /* best-effort: no bloquear el flujo principal */ }
 
         return NextResponse.json({
             success: true,
@@ -262,7 +262,7 @@ export async function POST(req: NextRequest) {
                         mensaje_error: error.message
                     })
                     .eq('id', submissionId);
-            } catch (ignore) {}
+            } catch { /* best-effort: no bloquear el flujo principal */ }
         }
 
         return NextResponse.json({ error: error.message || 'Error interno del servidor' }, { status: 500 });

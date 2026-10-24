@@ -12,8 +12,7 @@ import {
   type CommercialOperationFormData,
   type Company,
   type ProductionCenter,
-  type IdentificationDocument,
-  TipoPrecioOperacion
+  type IdentificationDocument
 } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
@@ -26,8 +25,8 @@ export default function NuevaOperacionComercialPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Catálogos
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [centers, setCenters] = useState<ProductionCenter[]>([]);
+  const [, setCompanies] = useState<Company[]>([]);
+  const [, setCenters] = useState<ProductionCenter[]>([]);
   const [documents, setDocuments] = useState<IdentificationDocument[]>([]);
 
   // Form State

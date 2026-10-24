@@ -46,7 +46,7 @@ export default function PlatformAdminPage() {
 
   // Modal de auditoría
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
+  const [, setSelectedCompanyId] = useState<number | null>(null);
   const [auditDetail, setAuditDetail] = useState<CompanyAuditDetail | null>(null);
   const [loadingAudit, setLoadingAudit] = useState(false);
 

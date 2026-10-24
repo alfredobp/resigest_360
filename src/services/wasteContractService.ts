@@ -182,7 +182,7 @@ export const wasteContractService = {
    * Obtener contratos de una empresa específica (si pertenece al tenant)
    */
   async getByCompany(companyId: number): Promise<WasteContract[]> {
-    const { userId, companyIds } = await getTenantContext();
+    const { companyIds } = await getTenantContext();
 
     if (!companyIds.includes(companyId)) {
       return [];

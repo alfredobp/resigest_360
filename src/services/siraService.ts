@@ -3,7 +3,7 @@
 // Servicio para comunicación SOAP con la plataforma SIRA
 // =====================================================
 
-import { IdentificationDocument, type SiraSubmission, type SiraSubmissionStatus } from '@/types/wasteManagement';
+import { type SiraSubmission, type SiraSubmissionStatus } from '@/types/wasteManagement';
 import { createClient } from '@/lib/supabase/client';
 
 // ============================================================================

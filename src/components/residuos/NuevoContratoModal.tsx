@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
-import Select from '@/components/form/Select';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import wasteContractService, { validateContractActivation } from '@/services/wasteContractService';
@@ -51,7 +50,7 @@ export default function NuevoContratoModal({
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showGestorForm, setShowGestorForm] = useState(false);
-  const [wasteTypes, setWasteTypes] = useState<WasteType[]>([]);
+  const [, setWasteTypes] = useState<WasteType[]>([]);
   const [producerCenters, setProducerCenters] = useState<ProductionCenter[]>([]);
   const [gestorCenters, setGestorCenters] = useState<ProductionCenter[]>([]);
   const [destAuthScope, setDestAuthScope] = useState<AuthorizedScopeResult | null>(null);

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useId } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -15,7 +15,6 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   XCircle,
-  Clock,
   ArrowRight,
   Truck,
   Building2,
@@ -27,18 +26,12 @@ import {
   Mail,
   MapPin,
   Sparkles,
-  Scale,
   Award,
-  Users,
   Sun,
   Moon,
   Menu,
   X,
-  Play,
-  FileText,
-  AlertTriangle,
-  Send,
-  HelpCircle
+  Send
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -56,7 +49,7 @@ export default function LandingPage() {
           router.replace('/app');
         }
       });
-    } catch (e) {
+    } catch {
       // Ignorar en entornos sin supabase configurado
     }
   }, [router]);
@@ -1151,7 +1144,7 @@ export default function LandingPage() {
             <div className="p-6 rounded-3xl bg-slate-50 dark:bg-gray-800/60 border border-slate-200 dark:border-gray-800 space-y-4">
               <div className="flex text-amber-400 gap-1 text-sm">★★★★★</div>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 italic leading-relaxed">
-                "Antes de Resigest 360 dedicábamos dos semanas enteras en enero para recopilar datos de la Memoria Anual. Este año la generamos en una sola mañana sin un solo error de cuadre."
+                &ldquo;Antes de Resigest 360 dedicábamos dos semanas enteras en enero para recopilar datos de la Memoria Anual. Este año la generamos en una sola mañana sin un solo error de cuadre.&rdquo;
               </p>
               <div className="pt-3 border-t border-slate-200 dark:border-gray-700 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-sm">
@@ -1167,7 +1160,7 @@ export default function LandingPage() {
             <div className="p-6 rounded-3xl bg-slate-50 dark:bg-gray-800/60 border border-slate-200 dark:border-gray-800 space-y-4">
               <div className="flex text-amber-400 gap-1 text-sm">★★★★★</div>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 italic leading-relaxed">
-                "La firma digital móvil para los transportistas ha sido un cambio radical. Ya no tenemos que perseguir albaranes manchados o extraviados; todo queda firmado al segundo en la nube."
+                &ldquo;La firma digital móvil para los transportistas ha sido un cambio radical. Ya no tenemos que perseguir albaranes manchados o extraviados; todo queda firmado al segundo en la nube.&rdquo;
               </p>
               <div className="pt-3 border-t border-slate-200 dark:border-gray-700 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-teal-600 text-white font-bold flex items-center justify-center text-sm">
@@ -1183,7 +1176,7 @@ export default function LandingPage() {
             <div className="p-6 rounded-3xl bg-slate-50 dark:bg-gray-800/60 border border-slate-200 dark:border-gray-800 space-y-4">
               <div className="flex text-amber-400 gap-1 text-sm">★★★★★</div>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 italic leading-relaxed">
-                "El control de rentabilidad comercial y el margen por tonelada nos permite saber exactamente qué operaciones nos dejan beneficio real teniendo en cuenta los portes y el coste del gestor."
+                &ldquo;El control de rentabilidad comercial y el margen por tonelada nos permite saber exactamente qué operaciones nos dejan beneficio real teniendo en cuenta los portes y el coste del gestor.&rdquo;
               </p>
               <div className="pt-3 border-t border-slate-200 dark:border-gray-700 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-sm">

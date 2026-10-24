@@ -9,7 +9,7 @@ interface LogoProps {
 export default function LogoReduced({ width = 231, height = 99, className = "" }: LogoProps) {
   return (
    
-<svg width ={width} height={height} viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg">
+<svg width ={width} height={height} className={className} viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg">
 
 <defs>
     <style>{`

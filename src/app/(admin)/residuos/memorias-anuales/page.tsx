@@ -5,12 +5,10 @@ import { useRouter } from 'next/navigation';
 import {
   getAllMemorias,
   deleteMemoria,
-  updateEstado,
   getStats
 } from '@/services/memoriaAnualService';
 import productionCenterService from '@/services/productionCenterService';
 import companyService from '@/services/companyService';
-import { createClient } from '@/lib/supabase/client';
 import { type MemoriaAnual, type EstadoMemoria, type TipoMemoria, type ProductionCenter } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
@@ -111,23 +109,6 @@ export default function MemoriasAnualesPage() {
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       const msg = err?.message || 'Error al eliminar la memoria anual';
-      setError(msg);
-      toast.error(msg);
-      setTimeout(() => setError(null), 3000);
-    }
-  };
-
-  const handleChangeEstado = async (id: number, nuevoEstado: EstadoMemoria) => {
-    try {
-      await updateEstado(id, nuevoEstado);
-      const msg = 'Estado actualizado correctamente';
-      setSuccess(msg);
-      toast.success(msg);
-      loadMemorias();
-      loadStats();
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      const msg = err?.message || 'Error al actualizar el estado';
       setError(msg);
       toast.error(msg);
       setTimeout(() => setError(null), 3000);

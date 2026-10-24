@@ -1,4 +1,4 @@
-name: CI - Code Quality
+name: CI - Code Quality & Tests
 
 on:
   push:
@@ -40,9 +40,22 @@ jobs:
       - name: ESLint Check
         run: npm run lint
 
-  # Nota: El bloque para pruebas unitarias/integración se añadirá en el siguiente paso
-  # test:
-  #   name: Run Tests
-  #   needs: code-quality
-  #   runs-on: ubuntu-latest
-  #   steps: ...
+  tests:
+    name: Unit Tests & Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Tests with Coverage
+        run: npm run test:ci

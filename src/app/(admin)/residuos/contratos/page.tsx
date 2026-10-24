@@ -13,7 +13,6 @@ import wasteContractService, { getContractEffectiveStatus } from '@/services/was
 import companyService from '@/services/companyService';
 import type { WasteContract, Company } from '@/types/wasteManagement';
 import { generateContractPDF } from '@/lib/pdfUtils';
-import jsPDF from 'jspdf';
 
 const STATUS_COLORS = {
   borrador: 'info',
@@ -22,14 +21,6 @@ const STATUS_COLORS = {
   finalizado: 'light',
   cancelado: 'error',
 } as const;
-
-const STATUS_LABELS = {
-  borrador: 'Borrador',
-  vigente: 'Vigente',
-  caducado: 'Caducado',
-  finalizado: 'Finalizado',
-  cancelado: 'Cancelado',
-};
 
 export default function ContratosPage() {
   const router = useRouter();

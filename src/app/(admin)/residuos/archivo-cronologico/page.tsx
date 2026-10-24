@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   getChronologicalEntries,
@@ -27,8 +27,6 @@ import { toast } from '@/context/ToastContext';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import { Modal } from '@/components/ui/modal';
-import InputField from '@/components/form/input/InputField';
-import Select from '@/components/form/Select';
 import LerSelector from '@/components/residuos/LerSelector';
 
 const CURRENT_YEAR = new Date().getFullYear();

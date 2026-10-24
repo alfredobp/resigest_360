@@ -1,11 +1,9 @@
 "use client";
 import Logo from "@/components/common/Logo";
 import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
-import NotificationDropdown from "@/components/header/NotificationDropdown";
 import UserDropdown from "@/components/header/UserDropdown";
 import SandboxProfileSwitcher from "@/components/common/SandboxProfileSwitcher";
 import { useSidebar } from "@/context/SidebarContext";
-import Image from "next/image";
 import Link from "next/link";
 import React, { useState ,useEffect,useRef} from "react";
 

@@ -7,10 +7,11 @@
 // ==============================================================================
 
 import React, { useEffect, useState, use } from 'react';
+import Link from 'next/link';
 import QRCode from 'qrcode';
 import { decaService } from '@/services/decaService';
 import type { DecaDocument } from '@/types/deca';
-import { Download, Share2, CheckCircle2, AlertTriangle, Truck, MapPin, Package, FileText, ArrowRight } from 'lucide-react';
+import { Download, Share2, CheckCircle2, AlertTriangle, Truck, MapPin, Package, ArrowRight } from 'lucide-react';
 
 export default function DecaDriverMobilePage({
   params,
@@ -100,12 +101,12 @@ export default function DecaDriverMobilePage({
           <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-3" />
           <h1 className="text-xl font-bold text-white mb-2">No se pudo cargar el documento</h1>
           <p className="text-slate-400 text-sm mb-4">{error}</p>
-          <a
+          <Link
             href="/"
             className="inline-block bg-slate-800 hover:bg-slate-700 text-slate-200 px-5 py-2.5 rounded-xl text-sm font-medium transition"
           >
             Ir a Inicio
-          </a>
+          </Link>
         </div>
       </div>
     );

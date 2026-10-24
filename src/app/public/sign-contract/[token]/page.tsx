@@ -1,26 +1,16 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useParams, useSearchParams, useRouter } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import wasteContractService from '@/services/wasteContractService';
 import type { WasteContract } from '@/types/wasteManagement';
 import SignaturePad from '@/components/ui/signature/SignaturePad';
-import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
-import Button from '@/components/ui/button/Button';
 import ComponentCard from '@/components/common/ComponentCard';
-
-const STATUS_LABELS = {
-    borrador: 'Borrador',
-    vigente: 'Vigente',
-    finalizado: 'Finalizado',
-    cancelado: 'Cancelado',
-};
 
 function PublicSignatureContent() {
     const params = useParams();
     const searchParams = useSearchParams();
-    const router = useRouter();
     const token = params?.token as string;
     const roleParam = searchParams?.get('role') as 'productor' | 'gestor' | null;
 
@@ -41,7 +31,7 @@ function PublicSignatureContent() {
             setLoading(true);
             const data = await wasteContractService.getBySigningToken(token);
             setContract(data);
-        } catch (err: any) {
+        } catch {
             setError('El enlace de firma es inválido o el contrato ya no está disponible.');
         } finally {
             setLoading(false);
@@ -59,14 +49,6 @@ function PublicSignatureContent() {
         } finally {
             setLoading(false);
         }
-    };
-
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('es-ES', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-        });
     };
 
     if (loading && !contract) {

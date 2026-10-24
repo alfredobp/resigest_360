@@ -60,7 +60,7 @@ export default function EditarContratoPage() {
   const [saving, setSaving] = useState(false);
   const [contract, setContract] = useState<WasteContract | null>(null);
   const [gestores, setGestores] = useState<Company[]>([]);
-  const [internalGestores, setInternalGestores] = useState<TreatmentManager[]>([]);
+  const [, setInternalGestores] = useState<TreatmentManager[]>([]);
   const [wasteTypes, setWasteTypes] = useState<WasteType[]>([]);
   const [producerCenters, setProducerCenters] = useState<ProductionCenter[]>([]);
   const [gestorCenters, setGestorCenters] = useState<ProductionCenter[]>([]);

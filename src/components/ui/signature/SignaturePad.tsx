@@ -15,7 +15,6 @@ interface SignaturePadProps {
 const SignaturePad: React.FC<SignaturePadProps> = ({
     onSave,
     onClear,
-    width = 500,
     height = 200,
     penColor = "#000",
     lineWidth = 2,

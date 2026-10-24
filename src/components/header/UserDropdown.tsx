@@ -1,6 +1,5 @@
 "use client";
 import Image from "next/image";
-import Link from "next/link";
 import React, { useState, useEffect } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
@@ -22,7 +21,7 @@ export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [companyLogo, setCompanyLogo] = useState<string | null>(null);
+  const [, setCompanyLogo] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState<string | null>(null);
   const [imgSrc, setImgSrc] = useState<string>("/images/logo/company-default.svg");
   const [loading, setLoading] = useState(true);

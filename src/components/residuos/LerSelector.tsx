@@ -25,12 +25,10 @@ export const LerSelector: React.FC<LerSelectorProps> = ({
   onSelectWasteType,
   placeholder = 'Buscar por código LER (ej: 15 01) o residuo (ej: cartón)...',
   disabled = false,
-  required = false,
   error = false,
   hint,
   className = '',
   showDetails = false,
-  compact = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');

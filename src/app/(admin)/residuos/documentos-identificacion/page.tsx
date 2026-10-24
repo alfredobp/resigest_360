@@ -13,22 +13,8 @@ import siraService from '@/services/siraService';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import { decaService } from '@/services/decaService';
-import { Truck, CheckCircle2, X } from 'lucide-react';
-import type { IdentificationDocument, Company, ProductionCenter, EstadoTraslado } from '@/types/wasteManagement';
-
-const STATUS_COLORS = {
-  borrador: 'info',
-  'pendiente-firma': 'warning',
-  completado: 'success',
-  cancelado: 'error',
-} as const;
-
-const STATUS_LABELS = {
-  borrador: 'Borrador',
-  'pendiente-firma': 'Pendiente Firma',
-  completado: 'Completado',
-  cancelado: 'Cancelado',
-};
+import { Truck, X } from 'lucide-react';
+import type { IdentificationDocument, Company, ProductionCenter } from '@/types/wasteManagement';
 
 export default function DocumentosIdentificacionPage() {
   const router = useRouter();
@@ -133,19 +119,6 @@ export default function DocumentosIdentificacionPage() {
       toast.success('Documento de identificación eliminado correctamente.');
     } catch (err: any) {
       toast.error(`Error al eliminar: ${err.message}`);
-    }
-  };
-
-  const handleChangeStatus = async (id: number, newStatus: 'borrador' | 'pendiente-firma' | 'completado' | 'cancelado') => {
-    try {
-      setLoading(true);
-      await identificationDocumentService.updateStatus(id, newStatus);
-      await loadData();
-      toast.success(`Estado actualizado a "${newStatus}" correctamente.`);
-    } catch (err: any) {
-      toast.error(`Error al cambiar estado: ${err.message}`);
-    } finally {
-      setLoading(false);
     }
   };
 
