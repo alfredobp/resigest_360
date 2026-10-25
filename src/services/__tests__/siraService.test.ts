@@ -114,8 +114,10 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       expect(xml).toContain('<reasonName>Productor Químico S.A.</reasonName>');
       expect(xml).toContain('<nationalId>A87654321</nationalId>');
       expect(xml).toContain('<nationalId>B99887766</nationalId>');
-      expect(xml).toContain('LERCode="15 01 10*"');
-      expect(xml).toContain('<DCSClearWeight>1.5</DCSClearWeight>');
+      expect(xml).toContain('LERCode="150110"');
+      expect(xml).toContain('<table5>HP4</table5>');
+      expect(xml).toContain('<DCSNT>NT99999999999999999999999</DCSNT>');
+      expect(xml).toContain('<DCSClearWeight>1.500</DCSClearWeight>');
     });
 
     it('debe generar XML con valores por defecto si faltan datos en el documento', () => {
@@ -129,7 +131,8 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       const xml = siraService.generateDIXml(minDoc);
 
       expect(xml).toContain('DCSCode="DI-MIN-001"');
-      expect(xml).toContain('LERCode="20 01 01"');
+      expect(xml).toContain('LERCode="200101"');
+      expect(xml).toContain('xsi:type="wassup:noDangerousResidueType"');
       expect(xml).toContain('<nationalId>A00000000</nationalId>'); // Dummy transportista CIF
     });
   });

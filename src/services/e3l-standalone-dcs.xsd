@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:waste="e3l://eterproject.org/3.0/waste"
+           xmlns:wassup="e3l://eterproject.org/3.0/wasteSupport"
+           xmlns:common="e3l://eterproject.org/3.0/common">
+    <xs:import namespace="e3l://eterproject.org/3.0/waste" schemaLocation="e3l-waste.xsd"/>
+    <xs:import namespace="e3l://eterproject.org/3.0/wasteSupport" schemaLocation="e3l-wasteSupport.xsd"/>
+    <xs:import namespace="e3l://eterproject.org/3.0/common" schemaLocation="e3l-common.xsd"/>
+    <xs:element name="wasteDCS" type="waste:wasteDCSType"/>
+</xs:schema>
