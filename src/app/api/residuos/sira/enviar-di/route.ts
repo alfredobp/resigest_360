@@ -22,7 +22,11 @@ export async function POST(req: NextRequest) {
         }
 
         const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            return NextResponse.json({ error: 'No autorizado. Se requiere inicio de sesión.' }, { status: 401 });
+        }
 
         // 1. Obtener los datos del documento con sus relaciones
         const { data: doc, error: docError } = await supabase
@@ -33,11 +37,12 @@ export async function POST(req: NextRequest) {
                 production_center:production_centers(*)
             `)
             .eq('id', documentId)
+            .eq('user_id', user.id)
             .single();
 
         if (docError || !doc) {
-            console.error('DI Not Found:', docError);
-            return NextResponse.json({ error: 'Documento no encontrado' }, { status: 404 });
+            console.error('DI Not Found or access denied:', docError);
+            return NextResponse.json({ error: 'Documento no encontrado o no tiene permisos para acceder a él' }, { status: 404 });
         }
 
         // 2. Obtener credenciales de SIRA de la empresa

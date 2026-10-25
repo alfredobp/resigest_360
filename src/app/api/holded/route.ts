@@ -1,16 +1,47 @@
 import { type NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
 const HOLDED_API_URL = 'https://api.holded.com/api/invoicing/v1';
+const SAFE_ID = /^[\w-]{1,64}$/;
+
+/**
+ * Resuelve la API Key de Holded en el servidor a partir de las empresas del usuario autenticado
+ * (aislamiento multi-tenant). La clave nunca se acepta desde el cliente ni desde variables de entorno.
+ */
+async function resolveHoldedKey(): Promise<{ apiKey: string } | { response: NextResponse }> {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+        return { response: NextResponse.json({ error: 'No autorizado. Se requiere inicio de sesión.' }, { status: 401 }) };
+    }
+
+    const { data: companies, error } = await supabase
+        .from('companies')
+        .select('holded_api_key')
+        .eq('user_id', user.id)
+        .not('holded_api_key', 'is', null)
+        .order('is_my_company', { ascending: false })
+        .limit(1);
+
+    const apiKey = companies?.[0]?.holded_api_key;
+    if (error || !apiKey) {
+        return { response: NextResponse.json({ error: 'Holded API Key no configurada' }, { status: 400 }) };
+    }
+    return { apiKey };
+}
+
+function upstreamError(label: string, error: unknown) {
+    console.error(`Error en Holded API Proxy (${label}):`, error);
+    return NextResponse.json({ error: 'Error al comunicar con Holded' }, { status: 502 });
+}
 
 export async function GET(req: NextRequest) {
+    const resolved = await resolveHoldedKey();
+    if ('response' in resolved) return resolved.response;
+
     const { searchParams } = new URL(req.url);
     const action = searchParams.get('action');
-    // Priorizamos la clave que viene del header, sino usamos la del env
-    const apiKey = req.headers.get('x-holded-key') || process.env.HOLDED_API_KEY;
-
-    if (!apiKey) {
-        return NextResponse.json({ error: 'Holded API Key no configurada' }, { status: 500 });
-    }
 
     try {
         let url = '';
@@ -18,18 +49,19 @@ export async function GET(req: NextRequest) {
             case 'listContacts':
                 url = `${HOLDED_API_URL}/contacts`;
                 break;
-            case 'getContact':
+            case 'getContact': {
                 const id = searchParams.get('id');
-                if (!id) return NextResponse.json({ error: 'ID de contacto requerido' }, { status: 400 });
+                if (!id || !SAFE_ID.test(id)) return NextResponse.json({ error: 'ID de contacto inválido' }, { status: 400 });
                 url = `${HOLDED_API_URL}/contacts/${id}`;
                 break;
+            }
             default:
                 return NextResponse.json({ error: 'Acción no válida' }, { status: 400 });
         }
 
         const response = await fetch(url, {
             headers: {
-                'key': apiKey,
+                'key': resolved.apiKey,
                 'Content-Type': 'application/json'
             }
         });
@@ -37,37 +69,40 @@ export async function GET(req: NextRequest) {
         const data = await response.json();
         return NextResponse.json(data, { status: response.status });
 
-    } catch (error: any) {
-        console.error('Error en Holded API Proxy (GET):', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error) {
+        return upstreamError('GET', error);
     }
 }
 
 export async function POST(req: NextRequest) {
+    const resolved = await resolveHoldedKey();
+    if ('response' in resolved) return resolved.response;
+
     const { searchParams } = new URL(req.url);
     const action = searchParams.get('action');
-    const apiKey = req.headers.get('x-holded-key') || process.env.HOLDED_API_KEY;
-    const body = await req.json();
 
-    if (!apiKey) {
-        return NextResponse.json({ error: 'Holded API Key no configurada' }, { status: 500 });
+    let body: unknown;
+    try {
+        body = await req.json();
+    } catch {
+        return NextResponse.json({ error: 'Cuerpo de petición inválido' }, { status: 400 });
     }
 
     try {
         let url = '';
-        const method = 'POST';
 
         switch (action) {
             case 'createContact':
                 url = `${HOLDED_API_URL}/contacts`;
                 break;
-            case 'updateContact':
+            case 'updateContact': {
                 const contactId = searchParams.get('id');
-                if (!contactId) return NextResponse.json({ error: 'ID de contacto requerido' }, { status: 400 });
+                if (!contactId || !SAFE_ID.test(contactId)) return NextResponse.json({ error: 'ID de contacto inválido' }, { status: 400 });
                 url = `${HOLDED_API_URL}/contacts/${contactId}`;
-                // Holded usa POST para actualizar si los campos están presentes, 
+                // Holded usa POST para actualizar si los campos están presentes,
                 // pero a veces se requiere PUT. La documentación v1 suele usar POST para creación/actualización.
                 break;
+            }
             case 'createInvoice':
                 url = `${HOLDED_API_URL}/documents/invoice`;
                 break;
@@ -79,9 +114,9 @@ export async function POST(req: NextRequest) {
         }
 
         const response = await fetch(url, {
-            method,
+            method: 'POST',
             headers: {
-                'key': apiKey,
+                'key': resolved.apiKey,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(body)
@@ -90,8 +125,7 @@ export async function POST(req: NextRequest) {
         const data = await response.json();
         return NextResponse.json(data, { status: response.status });
 
-    } catch (error: any) {
-        console.error('Error en Holded API Proxy (POST):', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error) {
+        return upstreamError('POST', error);
     }
 }

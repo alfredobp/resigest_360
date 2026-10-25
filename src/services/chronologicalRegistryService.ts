@@ -420,6 +420,9 @@ export function exportChronologicalToCSV(entries: ChronologicalEntry[]): void {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  if (typeof URL.revokeObjectURL === 'function') {
+    URL.revokeObjectURL(url);
+  }
 }
 
 // =====================================================
@@ -509,4 +512,7 @@ export function exportChronologicalToExcelXML(entries: ChronologicalEntry[]): vo
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  if (typeof URL.revokeObjectURL === 'function') {
+    URL.revokeObjectURL(url);
+  }
 }

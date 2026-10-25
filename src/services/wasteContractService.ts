@@ -310,22 +310,14 @@ export const wasteContractService = {
    * Obtener contrato por token de firma pública
    */
   async getBySigningToken(token: string): Promise<WasteContract | null> {
-    const { data, error } = await supabase
-      .from('waste_contracts')
-      .select(`
-        *,
-        company:companies!waste_contracts_company_id_fkey(*),
-        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
-        treatment_manager:treatment_managers(*)
-      `)
-      .eq('signing_token', token)
-      .single();
+    // RPC SECURITY DEFINER: solo devuelve el contrato cuyo token exacto se proporciona (sin credenciales de empresa)
+    const { data, error } = await supabase.rpc('get_contract_by_signing_token', { p_token: token });
 
     if (error) {
       throw new Error(`Error al obtener contrato por token: ${error.message}`);
     }
 
-    return data as WasteContract;
+    return (data as WasteContract | null) ?? null;
   },
 
   /**
@@ -646,29 +638,12 @@ export const wasteContractService = {
       .from('images')
       .getPublicUrl(filePath);
 
-    // 3. Actualizar registro del contrato usando el token (ya que el usuario no está autenticado)
-    const now = new Date().toISOString();
-    const updateData: any = {};
-
-    if (role === 'productor') {
-      updateData.firma_productor_url = publicUrl;
-      updateData.fecha_firma_productor = now;
-    } else {
-      updateData.firma_gestor_url = publicUrl;
-      updateData.fecha_firma_gestor = now;
-    }
-
-    const { data, error: updateError } = await supabase
-      .from('waste_contracts')
-      .update(updateData)
-      .eq('signing_token', token)
-      .select(`
-        *,
-        company:companies!waste_contracts_company_id_fkey(*),
-        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
-        treatment_manager:treatment_managers(*)
-      `)
-      .single();
+    // 3. Registrar la firma mediante RPC segura (el usuario no está autenticado)
+    const { data, error: updateError } = await supabase.rpc('sign_contract_by_signing_token', {
+      p_token: token,
+      p_role: role,
+      p_signature_url: publicUrl,
+    });
 
     if (updateError) {
       throw new Error(`Error al actualizar firma: ${updateError.message}`);

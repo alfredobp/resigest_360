@@ -467,6 +467,9 @@ export const siraService = {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    if (typeof URL.revokeObjectURL === 'function') {
+      URL.revokeObjectURL(url);
+    }
   }
 };
 

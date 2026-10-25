@@ -8,6 +8,7 @@ const mockSupabase = {
     getUser: jest.fn(),
   },
   from: jest.fn(),
+  rpc: jest.fn(),
   storage: {
     from: jest.fn(() => mockStorageFrom),
   },
@@ -64,6 +65,57 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
 
       await expect(wasteContractService.getAll()).rejects.toThrow('Usuario no autenticado');
+    });
+  });
+
+  describe('Firma pública por token (RPC)', () => {
+    const pngBase64 = 'data:image/png;base64,iVBORw0KGgo=';
+
+    it('getBySigningToken usa la RPC y devuelve el contrato', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: { id: 5 }, error: null });
+      const result = await wasteContractService.getBySigningToken('tok');
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('get_contract_by_signing_token', { p_token: 'tok' });
+      expect(result).toEqual({ id: 5 });
+    });
+
+    it('getBySigningToken devuelve null si no hay contrato y lanza ante error', async () => {
+      mockSupabase.rpc.mockResolvedValueOnce({ data: null, error: null });
+      expect(await wasteContractService.getBySigningToken('x')).toBeNull();
+      mockSupabase.rpc.mockResolvedValueOnce({ data: null, error: { message: 'boom' } });
+      await expect(wasteContractService.getBySigningToken('x')).rejects.toThrow('Error al obtener contrato por token: boom');
+    });
+
+    it('signContractByToken firma vía RPC con el rol indicado', async () => {
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: { id: 7 }, error: null })
+        .mockResolvedValueOnce({ data: { id: 7, firma_productor_url: 'http://sig' }, error: null });
+      mockStorageFrom.upload.mockResolvedValue({ error: null });
+      mockStorageFrom.getPublicUrl.mockReturnValue({ data: { publicUrl: 'http://sig' } });
+
+      const result = await wasteContractService.signContractByToken('tok', pngBase64, 'productor');
+
+      expect(mockSupabase.rpc).toHaveBeenLastCalledWith('sign_contract_by_signing_token', {
+        p_token: 'tok',
+        p_role: 'productor',
+        p_signature_url: 'http://sig',
+      });
+      expect(result).toEqual({ id: 7, firma_productor_url: 'http://sig' });
+    });
+
+    it('signContractByToken falla si el token no es válido, la subida falla o la RPC falla', async () => {
+      mockSupabase.rpc.mockResolvedValueOnce({ data: null, error: null });
+      await expect(wasteContractService.signContractByToken('x', pngBase64, 'gestor')).rejects.toThrow('Contrato no encontrado o token inválido');
+
+      mockSupabase.rpc.mockResolvedValueOnce({ data: { id: 7 }, error: null });
+      mockStorageFrom.upload.mockResolvedValueOnce({ error: { message: 'storage' } });
+      await expect(wasteContractService.signContractByToken('x', pngBase64, 'gestor')).rejects.toThrow('Error al subir firma: storage');
+
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: { id: 7 }, error: null })
+        .mockResolvedValueOnce({ data: null, error: { message: 'ya firmado' } });
+      mockStorageFrom.upload.mockResolvedValueOnce({ error: null });
+      mockStorageFrom.getPublicUrl.mockReturnValue({ data: { publicUrl: 'u' } });
+      await expect(wasteContractService.signContractByToken('x', pngBase64, 'gestor')).rejects.toThrow('Error al actualizar firma: ya firmado');
     });
   });
 
@@ -537,33 +589,14 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
   describe('getBySigningToken', () => {
     it('debe obtener un contrato por token de firma', async () => {
       const mockContract = { id: 88, signing_token: 'valid-token' };
-
-      mockSupabase.from.mockImplementation((table: string) => {
-        if (table === 'waste_contracts') {
-          return {
-            select: jest.fn().mockReturnThis(),
-            eq: jest.fn().mockReturnThis(),
-            single: jest.fn().mockResolvedValue({ data: mockContract, error: null }),
-          };
-        }
-        return null;
-      });
+      mockSupabase.rpc.mockResolvedValue({ data: mockContract, error: null });
 
       const res = await wasteContractService.getBySigningToken('valid-token');
       expect(res).toEqual(mockContract);
     });
 
     it('debe lanzar error si la búsqueda por token falla', async () => {
-      mockSupabase.from.mockImplementation((table: string) => {
-        if (table === 'waste_contracts') {
-          return {
-            select: jest.fn().mockReturnThis(),
-            eq: jest.fn().mockReturnThis(),
-            single: jest.fn().mockResolvedValue({ data: null, error: { message: 'Invalid token' } }),
-          };
-        }
-        return null;
-      });
+      mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: 'Invalid token' } });
 
       await expect(wasteContractService.getBySigningToken('bad-token')).rejects.toThrow(
         'Error al obtener contrato por token: Invalid token'
@@ -947,19 +980,9 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
         data: { publicUrl: 'https://storage/pub-sign.png' },
       });
 
-      const updateChain = {
-        update: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        select: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({
-          data: { id: 77, firma_gestor_url: 'https://storage/pub-sign.png' },
-          error: null,
-        }),
-      };
-
-      mockSupabase.from.mockImplementation((table: string) => {
-        if (table === 'waste_contracts') return updateChain;
-        return null;
+      mockSupabase.rpc.mockResolvedValue({
+        data: { id: 77, firma_gestor_url: 'https://storage/pub-sign.png' },
+        error: null,
       });
 
       const res = await wasteContractService.signContractByToken('token-abc', dummySignature, 'gestor');
@@ -986,17 +1009,7 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       mockStorageFrom.upload.mockResolvedValue({ error: null });
       mockStorageFrom.getPublicUrl.mockReturnValue({ data: { publicUrl: 'url' } });
 
-      const updateChain = {
-        update: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        select: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({ data: null, error: { message: 'Token update fail' } }),
-      };
-
-      mockSupabase.from.mockImplementation((table: string) => {
-        if (table === 'waste_contracts') return updateChain;
-        return null;
-      });
+      mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: 'Token update fail' } });
 
       await expect(
         wasteContractService.signContractByToken('tok', dummySignature, 'productor')

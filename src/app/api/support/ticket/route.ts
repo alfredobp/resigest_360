@@ -1,20 +1,43 @@
 import { NextResponse } from 'next/server';
+import { randomInt } from 'crypto';
+import { createClient } from '@/lib/supabase/server';
 import { sendSupportTicketEmails } from '@/services/emailService';
+import { supportTicketSchema } from '@/lib/validations/publicForms';
+import { rateLimit } from '@/lib/rateLimit';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { name, email, company, modulo, priority, subject, message } = body;
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    if (!name || !email || !subject || !message) {
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'No autorizado. Se requiere inicio de sesión.' },
+        { status: 401 }
+      );
+    }
+
+    if (!rateLimit(`ticket:${user.id}`, 5, 60_000)) {
+      return NextResponse.json(
+        { error: 'Demasiados tickets en poco tiempo. Inténtalo de nuevo en unos minutos.' },
+        { status: 429 }
+      );
+    }
+
+    const body = await request.json().catch(() => null);
+    const parsed = supportTicketSchema.safeParse(body);
+
+    if (!parsed.success) {
       return NextResponse.json(
         { error: 'Por favor, complete todos los campos obligatorios (nombre, correo, asunto y mensaje).' },
         { status: 400 }
       );
     }
 
+    const { name, email, company, modulo, priority, subject, message } = parsed.data;
+
     // Generar código de ticket único con prefijo de año
-    const randomCode = Math.floor(1000 + Math.random() * 9000);
+    const randomCode = randomInt(1000, 10000);
     const ticketId = `TICK-2026-${randomCode}`;
 
     // Envío del ticket tanto a soporte técnico como al cliente
@@ -42,7 +65,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error al tramitar ticket de soporte:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Ocurrió un error al procesar el ticket de soporte.' },
+      { error: 'Ocurrió un error al procesar el ticket de soporte.' },
       { status: 500 }
     );
   }

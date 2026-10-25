@@ -1,16 +1,32 @@
 import { NextResponse } from 'next/server';
+import { contactFormSchema } from '@/lib/validations/publicForms';
+import { rateLimit, clientIp } from '@/lib/rateLimit';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { name, company, email, phone, role, volume, message } = body;
-
-    if (!name || !email) {
+    if (!rateLimit(`contact:${clientIp(request.headers)}`, 5, 60_000)) {
       return NextResponse.json(
-        { error: 'El nombre y correo electrónico son obligatorios.' },
+        { error: 'Demasiadas solicitudes. Inténtalo de nuevo en unos minutos.' },
+        { status: 429 }
+      );
+    }
+
+    const body = await request.json().catch(() => null);
+    const parsed = contactFormSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'El nombre y un correo electrónico válido son obligatorios.' },
         { status: 400 }
       );
     }
+
+    // Honeypot: los bots rellenan "website". Respondemos éxito sin enviar nada.
+    if (parsed.data.website) {
+      return NextResponse.json({ success: true });
+    }
+
+    const { name, company, email, phone, role, volume, message } = parsed.data;
 
     // Registro comercial para seguimiento de leads de ventas
     console.info('[LEAD COMERCIAL RECIBIDO - RESIGEST 360]:', {

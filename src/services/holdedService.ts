@@ -47,9 +47,9 @@ export const holdedService = {
         try {
             const response = await fetch('/api/holded?action=createContact', {
                 method: 'POST',
+                // La clave se resuelve en el servidor (no se envía desde el cliente)
                 headers: {
-                    'Content-Type': 'application/json',
-                    'x-holded-key': apiKey // Pasamos la clave por una cabecera personalizada al proxy
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(contactData),
             });
@@ -95,8 +95,7 @@ export const holdedService = {
             const response = await fetch(`/api/holded?action=updateContact&id=${contactId}`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'x-holded-key': apiKey
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(contactData),
             });
@@ -116,9 +115,7 @@ export const holdedService = {
     async listContacts(apiKey?: string) {
         if (!apiKey) return [];
         try {
-            const response = await fetch('/api/holded?action=listContacts', {
-                headers: { 'x-holded-key': apiKey }
-            });
+            const response = await fetch('/api/holded?action=listContacts');
             const result = await response.json();
             if (!response.ok) throw new Error(result.error || 'Error al listar contactos de Holded');
             return result;
@@ -137,8 +134,7 @@ export const holdedService = {
             const response = await fetch('/api/holded?action=createInvoice', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'x-holded-key': apiKey
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(invoiceData),
             });
@@ -168,8 +164,7 @@ export const holdedService = {
             const response = await fetch('/api/holded?action=createRecurringInvoice', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'x-holded-key': apiKey
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(recurringData),
             });

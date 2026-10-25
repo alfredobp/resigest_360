@@ -100,13 +100,13 @@ export async function GET(
         'Content-Type': 'application/pdf',
         'Content-Disposition': `inline; filename="${filename}"`,
         'Content-Length': pdfBuffer.byteLength.toString(),
-        'Cache-Control': 'public, max-age=600',
+        'Cache-Control': 'private, no-store',
       },
     });
   } catch (error: any) {
     console.error('Error sirviendo PDF DeCA para inspección:', error);
     return NextResponse.json(
-      { error: 'Error interno al generar el documento de inspección', details: error.message },
+      { error: 'Error interno al generar el documento de inspección' },
       { status: 500 }
     );
   }

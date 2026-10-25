@@ -1,6 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Rutas API accesibles sin sesión (formulario comercial y descarga de inspección DeCA por token)
+export const PUBLIC_API_PREFIXES = ['/api/contact', '/api/deca/']
+
 export async function updateSession(request: NextRequest) {
   // Check if environment variables are set
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -49,6 +52,20 @@ export async function updateSession(request: NextRequest) {
     console.error('Error getting user:', error)
   }
 
+  const pathname = request.nextUrl.pathname
+
+  // API protegida por defecto: sin sesión responde 401 JSON (no redirección)
+  if (
+    !user &&
+    pathname.startsWith('/api/') &&
+    !PUBLIC_API_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  ) {
+    return NextResponse.json(
+      { error: 'No autorizado. Se requiere inicio de sesión.' },
+      { status: 401 }
+    )
+  }
+
   // Protected routes - redirect to signin if not authenticated
   if (
     !user &&
@@ -57,7 +74,7 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/signup') &&
     !request.nextUrl.pathname.startsWith('/error-404') &&
     !request.nextUrl.pathname.startsWith('/auth/') &&
-    !request.nextUrl.pathname.startsWith('/api/') &&
+    !request.nextUrl.pathname.startsWith('/api/') && // Gestionado arriba (401 para API)
     !request.nextUrl.pathname.startsWith('/map/') && // Public map viewer
     !request.nextUrl.pathname.startsWith('/public/') && // Public signature and other public pages
     !request.nextUrl.pathname.startsWith('/mockups/') // Design mockups showcase

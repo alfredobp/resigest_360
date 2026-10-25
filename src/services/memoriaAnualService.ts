@@ -681,6 +681,9 @@ export function exportMemoriaToExcelXML(memoria: MemoriaAnual, excelData: any): 
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  if (typeof URL.revokeObjectURL === 'function') {
+    URL.revokeObjectURL(url);
+  }
 }
 
 // =====================================================
@@ -737,5 +740,8 @@ export function exportMemoriaToCSV(memoria: MemoriaAnual, excelData: any): void 
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  if (typeof URL.revokeObjectURL === 'function') {
+    URL.revokeObjectURL(url);
+  }
 }
 

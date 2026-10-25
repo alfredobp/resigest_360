@@ -59,7 +59,6 @@ describe('holdedService', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-holded-key': 'test-api-key',
                 },
                 body: JSON.stringify(contactData),
             });
@@ -117,7 +116,6 @@ describe('holdedService', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-holded-key': 'api-key',
                 },
                 body: JSON.stringify({ name: 'Nuevo Nombre' }),
             });
@@ -162,9 +160,7 @@ describe('holdedService', () => {
 
             const result = await holdedService.listContacts('key-123');
 
-            expect(global.fetch).toHaveBeenCalledWith('/api/holded?action=listContacts', {
-                headers: { 'x-holded-key': 'key-123' },
-            });
+            expect(global.fetch).toHaveBeenCalledWith('/api/holded?action=listContacts');
             expect(result).toEqual(mockContacts);
         });
 
@@ -209,7 +205,6 @@ describe('holdedService', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-holded-key': 'api-key-inv',
                 },
                 body: JSON.stringify(invoiceData),
             });
@@ -274,7 +269,6 @@ describe('holdedService', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-holded-key': 'key-recurring',
                 },
                 body: JSON.stringify(recurringData),
             });

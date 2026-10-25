@@ -137,7 +137,7 @@ export const companyService = {
     return (data as Company[]).filter((c) => {
       const hasInRoles = Array.isArray(c.roles) && c.roles.includes(role as any);
       const isTipo = c.tipo_empresa === role;
-      const isOwner = user ? c.user_id === user.id : true;
+      const isOwner = user ? c.user_id === user.id : false;
       return (hasInRoles || isTipo) && isOwner;
     });
   },
