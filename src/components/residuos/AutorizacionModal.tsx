@@ -7,7 +7,7 @@ import Label from '@/components/form/Label';
 import Alert from '@/components/ui/alert/Alert';
 import LerSelector from '@/components/residuos/LerSelector';
 import authorizationService from '@/services/authorizationService';
-import { validateRequired } from '@/lib/validations/formValidation';
+import { validateRequired, scrollToFirstError } from '@/lib/validations/formValidation';
 import type {
   Company,
   ProductionCenter,
@@ -164,6 +164,7 @@ export default function AutorizacionModal({
     if (Object.keys(errorsMap).length > 0) {
       setFieldErrors(errorsMap);
       setError('Por favor, completa los campos requeridos marcados en rojo.');
+      scrollToFirstError(errorsMap, 'auth_');
       return;
     }
 
@@ -244,11 +245,12 @@ export default function AutorizacionModal({
           {/* Datos Generales */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="auth_num" required>
+              <Label htmlFor="auth_numeroAutorizacion" required>
                 Nº de Autorización Ambiental
               </Label>
               <Input
-                id="auth_num"
+                id="auth_numeroAutorizacion"
+                name="numeroAutorizacion"
                 value={numeroAutorizacion}
                 onChange={(e) => {
                   setNumeroAutorizacion(e.target.value);

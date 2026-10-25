@@ -13,6 +13,7 @@ import {
     validateCIF,
     validateNIMA,
     validateEmail,
+    scrollToFirstError,
 } from '@/lib/validations/formValidation';
 import type { TreatmentManager, TreatmentManagerFormData } from '@/types/wasteManagement';
 
@@ -159,6 +160,8 @@ export default function GestorModal({
 
         if (Object.keys(errorsMap).length > 0) {
             setFieldErrors(errorsMap);
+            setError('Por favor, completa los campos requeridos marcados en rojo.');
+            scrollToFirstError(errorsMap, 'gestor_');
             return;
         }
 

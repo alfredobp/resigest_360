@@ -187,3 +187,66 @@ export function validateForm<T extends Record<string, any>>(
     errors,
   };
 }
+
+/**
+ * Desplaza la vista (scroll) de forma suave al primer campo con error y le otorga el foco.
+ * Busca por id con prefijo opcional, id directo, atributo name o selector aria-invalid.
+ * 
+ * @param errors Mapa de errores del formulario { [campo]: mensaje }
+ * @param prefix Prefijo opcional de ID utilizado en el formulario (ej: 'carrier_', 'empresa_', 'gestor_')
+ * @returns true si encontró el elemento y ejecutó el scroll, false en caso contrario
+ */
+export function scrollToFirstError(
+  errors: Record<string, any>,
+  prefix?: string,
+  retryDelayMs: number = 50
+): boolean {
+  if (typeof document === 'undefined') return false;
+
+  const errorKeys = Object.keys(errors);
+  if (errorKeys.length === 0) return false;
+
+  const performScrollAndFocus = (): boolean => {
+    if (typeof document === 'undefined') return false;
+
+    for (const field of errorKeys) {
+      if (!errors[field]) continue;
+
+      const candidates = [
+        prefix ? `#${prefix}${field}` : null,
+        `#${field}`,
+        `[name="${field}"]`,
+        `[data-field="${field}"]`,
+      ].filter(Boolean) as string[];
+
+      for (const selector of candidates) {
+        const el = document.querySelector(selector) as HTMLElement | null;
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if (typeof el.focus === 'function') {
+            el.focus({ preventScroll: true });
+          }
+          return true;
+        }
+      }
+    }
+
+    const firstInvalid = document.querySelector('[aria-invalid="true"]') as HTMLElement | null;
+    if (firstInvalid) {
+      firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (typeof firstInvalid.focus === 'function') {
+        firstInvalid.focus({ preventScroll: true });
+      }
+      return true;
+    }
+
+    return false;
+  };
+
+  const found = performScrollAndFocus();
+  if (!found && retryDelayMs > 0 && typeof window !== 'undefined') {
+    setTimeout(performScrollAndFocus, retryDelayMs);
+  }
+
+  return found;
+}

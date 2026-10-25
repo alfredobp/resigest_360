@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import {
   validateForm,
+  scrollToFirstError,
   type FormValidationSchema,
 } from '@/lib/validations/formValidation';
 
@@ -92,7 +93,7 @@ export function useFormValidation<T extends Record<string, any>>({
    * Valida todo el formulario (ej: en onSubmit).
    * Retorna true si es válido o false si hay errores.
    */
-  const validate = useCallback((): boolean => {
+  const validate = useCallback((prefix?: string): boolean => {
     const result = validateForm(formData, schema);
     setErrors(result.errors);
 
@@ -102,6 +103,10 @@ export function useFormValidation<T extends Record<string, any>>({
       allTouched[key as keyof T] = true;
     }
     setTouched(allTouched);
+
+    if (!result.isValid) {
+      scrollToFirstError(result.errors, prefix);
+    }
 
     return result.isValid;
   }, [formData, schema]);

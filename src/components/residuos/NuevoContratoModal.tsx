@@ -8,7 +8,7 @@ import Label from '@/components/form/Label';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import wasteContractService, { validateContractActivation } from '@/services/wasteContractService';
-import { validateRequired } from '@/lib/validations/formValidation';
+import { validateRequired, scrollToFirstError } from '@/lib/validations/formValidation';
 import companyService from '@/services/companyService';
 import wasteTypeService from '@/services/wasteTypeService';
 import treatmentManagerService from '@/services/treatmentManagerService';
@@ -241,6 +241,7 @@ export default function NuevoContratoModal({
     if (Object.keys(errorsMap).length > 0) {
       setFieldErrors(errorsMap);
       setError('Por favor, completa los campos requeridos marcados en rojo.');
+      scrollToFirstError(errorsMap);
       return;
     }
 

@@ -40,7 +40,7 @@ const TextArea: React.FC<TextareaProps> = ({
   if (disabled) {
     textareaClasses += ` bg-gray-100 opacity-50 text-gray-500 border-gray-300 cursor-not-allowed dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700`;
   } else if (error) {
-    textareaClasses += ` bg-transparent text-error-800 border-error-500 focus:border-error-500 focus:ring-3 focus:ring-error-500/10 dark:text-error-400 dark:border-error-500`;
+    textareaClasses += ` bg-error-50/30 text-error-900 border-error-500 ring-1 ring-error-500/50 focus:border-error-500 focus:ring-3 focus:ring-error-500/20 dark:bg-error-950/30 dark:text-error-300 dark:border-error-500 dark:focus:border-error-400`;
   } else {
     textareaClasses += ` bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800`;
   }

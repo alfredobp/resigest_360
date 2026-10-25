@@ -8,6 +8,7 @@ import {
   validatePostalCode,
   validateDateRange,
   validateForm,
+  scrollToFirstError,
 } from '../formValidation';
 
 describe('formValidation - Motor de Validación y Reglas', () => {
@@ -206,6 +207,90 @@ describe('formValidation - Motor de Validación y Reglas', () => {
   describe('VALIDATION_MESSAGES helper', () => {
     it('debe generar mensaje con nombre de campo', () => {
       expect(VALIDATION_MESSAGES.REQUIRED_FIELD('Razón Social')).toBe('El campo Razón Social es obligatorio');
+    });
+  });
+
+  describe('scrollToFirstError', () => {
+    let originalDocument: any;
+
+    beforeEach(() => {
+      originalDocument = (global as any).document;
+    });
+
+    afterEach(() => {
+      (global as any).document = originalDocument;
+      jest.restoreAllMocks();
+    });
+
+    it('debe retornar false si document es undefined', () => {
+      delete (global as any).document;
+      expect(scrollToFirstError({ razon_social: 'error' })).toBe(false);
+    });
+
+    it('debe retornar false si no hay errores', () => {
+      expect(scrollToFirstError({})).toBe(false);
+    });
+
+    it('debe encontrar el elemento por prefijo e invocar scrollIntoView y focus', () => {
+      const mockElement = {
+        scrollIntoView: jest.fn(),
+        focus: jest.fn(),
+      };
+      (global as any).document = {
+        querySelector: jest.fn((sel: string) => {
+          if (sel === '#carrier_razon_social') return mockElement;
+          return null;
+        }),
+      };
+
+      const result = scrollToFirstError({ razon_social: 'Este campo es requerido' }, 'carrier_');
+      expect(result).toBe(true);
+      expect(mockElement.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
+      expect(mockElement.focus).toHaveBeenCalledWith({ preventScroll: true });
+    });
+
+    it('debe encontrar el elemento por name si no tiene prefijo en el id', () => {
+      const mockElement = {
+        scrollIntoView: jest.fn(),
+        focus: jest.fn(),
+      };
+      (global as any).document = {
+        querySelector: jest.fn((sel: string) => {
+          if (sel === '[name="email"]') return mockElement;
+          return null;
+        }),
+      };
+
+      const result = scrollToFirstError({ email: 'Email no válido' });
+      expect(result).toBe(true);
+      expect(mockElement.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
+      expect(mockElement.focus).toHaveBeenCalledWith({ preventScroll: true });
+    });
+
+    it('debe recurrir al selector aria-invalid="true" como fallback', () => {
+      const mockElement = {
+        scrollIntoView: jest.fn(),
+        focus: jest.fn(),
+      };
+      (global as any).document = {
+        querySelector: jest.fn((sel: string) => {
+          if (sel === '[aria-invalid="true"]') return mockElement;
+          return null;
+        }),
+      };
+
+      const result = scrollToFirstError({ unknown_field: 'Error desconocido' });
+      expect(result).toBe(true);
+      expect(mockElement.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
+      expect(mockElement.focus).toHaveBeenCalledWith({ preventScroll: true });
+    });
+
+    it('debe retornar false si no se encuentra ningún elemento en el DOM', () => {
+      (global as any).document = {
+        querySelector: jest.fn(() => null),
+      };
+      const result = scrollToFirstError({ campo_inexistente: 'Error' });
+      expect(result).toBe(false);
     });
   });
 });

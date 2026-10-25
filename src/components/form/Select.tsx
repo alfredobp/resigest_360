@@ -65,7 +65,7 @@ const Select: React.FC<SelectProps> = ({
 
   // Error state classes vs Normal state
   if (error) {
-    selectClasses += ` text-error-800 border-error-500 focus:ring-error-500/10 dark:text-error-400 dark:border-error-500`;
+    selectClasses += ` bg-error-50/30 text-error-900 border-error-500 ring-1 ring-error-500/50 focus:border-error-500 focus:ring-3 focus:ring-error-500/20 dark:bg-error-950/30 dark:text-error-300 dark:border-error-500 dark:focus:border-error-400`;
   } else {
     selectClasses += ` border-gray-300 focus:border-brand-300 focus:ring-brand-500/10 dark:border-gray-700 dark:focus:border-brand-800 ${currentVal
         ? "text-gray-800 dark:text-white/90"

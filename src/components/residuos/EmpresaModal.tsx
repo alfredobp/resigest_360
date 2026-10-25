@@ -13,6 +13,7 @@ import {
   validateCIF,
   validateNIMA,
   validateEmail,
+  scrollToFirstError,
 } from '@/lib/validations/formValidation';
 import type { Company, CompanyFormData, CompanyRole } from '@/types/wasteManagement';
 
@@ -195,6 +196,8 @@ export default function EmpresaModal({
 
     if (Object.keys(errorsMap).length > 0) {
       setFieldErrors(errorsMap);
+      setError('Por favor, completa los campos requeridos marcados en rojo.');
+      scrollToFirstError(errorsMap, 'empresa_');
       return;
     }
 
