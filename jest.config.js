@@ -47,6 +47,13 @@ module.exports = {
     'src/app/api/holded/route.ts',
     'src/services/quickSearchService.ts',
     'src/lib/authErrors.ts',
+    'src/services/chronologicalRegistryService.ts',
+    'src/services/commercialOperationService.ts',
+    'src/services/dashboardService.ts',
+    'src/services/emailService.ts',
+    'src/services/adminPlatformService.ts',
+    'src/services/siraService.ts',
+    'src/services/memoriaAnualService.ts',
     '!src/**/*.d.ts',
   ],
   coverageReporters: ['text', 'lcov', 'clover'],
@@ -154,6 +161,48 @@ module.exports = {
       statements: 80
     },
     './src/lib/authErrors.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/chronologicalRegistryService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/commercialOperationService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/dashboardService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/emailService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/adminPlatformService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/siraService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/memoriaAnualService.ts': {
       branches: 80,
       functions: 80,
       lines: 80,
