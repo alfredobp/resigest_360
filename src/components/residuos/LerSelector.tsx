@@ -6,6 +6,8 @@ import type { WasteType } from '@/types/wasteManagement';
 import { Search, AlertTriangle, CheckCircle, ChevronDown, X } from 'lucide-react';
 
 export interface LerSelectorProps {
+  id?: string;
+  name?: string;
   value?: string;
   onChange: (codigoLer: string, wasteType?: WasteType) => void;
   onSelectWasteType?: (wasteType: WasteType) => void;
@@ -20,6 +22,8 @@ export interface LerSelectorProps {
 }
 
 export const LerSelector: React.FC<LerSelectorProps> = ({
+  id,
+  name: _name,
   value = '',
   onChange,
   onSelectWasteType,
@@ -112,10 +116,29 @@ export const LerSelector: React.FC<LerSelectorProps> = ({
     }
   };
 
+  const listboxId = `${id || 'ler'}-listbox`;
+
   return (
     <div className={`relative w-full ${className}`} ref={containerRef}>
       {/* Botón / Input disparador del Selector */}
       <div
+        id={id}
+        role="combobox"
+        tabIndex={disabled ? -1 : 0}
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? listboxId : undefined}
+        aria-haspopup="listbox"
+        aria-invalid={error ? "true" : undefined}
+        aria-required={required ? "true" : undefined}
+        onKeyDown={(e) => {
+          if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            setIsOpen(!isOpen);
+            if (!isOpen) {
+              setTimeout(() => inputRef.current?.focus(), 50);
+            }
+          }
+        }}
         onClick={() => {
           if (!disabled) {
             setIsOpen(!isOpen);
@@ -199,7 +222,11 @@ export const LerSelector: React.FC<LerSelectorProps> = ({
           </div>
 
           {/* Lista de resultados */}
-          <div className="overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800 flex-1">
+          <div
+            id={listboxId}
+            role="listbox"
+            className="overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800 flex-1"
+          >
             {loading ? (
               <div className="p-4 text-center text-xs text-gray-400">Cargando catálogo LER...</div>
             ) : filteredList.length === 0 ? (
@@ -272,7 +299,7 @@ export const LerSelector: React.FC<LerSelectorProps> = ({
       )}
 
       {/* Error o Hint */}
-      {(hint || (error && required)) && (
+      {(hint || error) && (
         <p className={`mt-1 text-xs flex items-center gap-1.5 ${error ? 'text-error-500 font-medium' : 'text-gray-500'}`}>
           {error && (
             <svg className="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20">
