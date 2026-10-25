@@ -59,7 +59,8 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/auth/') &&
     !request.nextUrl.pathname.startsWith('/api/') &&
     !request.nextUrl.pathname.startsWith('/map/') && // Public map viewer
-    !request.nextUrl.pathname.startsWith('/public/') // Public signature and other public pages
+    !request.nextUrl.pathname.startsWith('/public/') && // Public signature and other public pages
+    !request.nextUrl.pathname.startsWith('/mockups/') // Design mockups showcase
   ) {
     // Store the original URL to redirect back after login
     const url = request.nextUrl.clone()

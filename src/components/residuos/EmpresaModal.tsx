@@ -189,14 +189,15 @@ export default function EmpresaModal({
       if (emailErr) errorsMap.email = emailErr;
     }
 
-    if (!formData.roles || formData.roles.length === 0) {
-      setError('Debes seleccionar al menos un rol para la empresa.');
-      return;
-    }
+    const rolesEmpty = !formData.roles || formData.roles.length === 0;
 
-    if (Object.keys(errorsMap).length > 0) {
+    if (Object.keys(errorsMap).length > 0 || rolesEmpty) {
       setFieldErrors(errorsMap);
-      setError('Por favor, completa los campos requeridos marcados en rojo.');
+      if (rolesEmpty) {
+        setError('Debes seleccionar al menos un rol para la empresa.');
+      } else {
+        setError('Por favor, completa los campos requeridos marcados en rojo.');
+      }
       scrollToFirstError(errorsMap, 'empresa_');
       return;
     }

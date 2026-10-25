@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ResiGest 360 - Propuesta de Rediseño Visual y Experiencia UI/UX</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              400: '#34d399',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              900: '#064e3b',
+              950: '#022c22'
+            },
+            amberAlert: '#f59e0b',
+            redAlert: '#ef4444'
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .glass-card {
+      background: rgba(17, 24, 39, 0.7);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .light .glass-card {
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .badge-ler {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .pulse-glow {
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.25);
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.3); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(156, 163, 175, 0.5); }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased transition-colors duration-200">
+
+  <!-- Top Banner de Navegación de la Propuesta -->
+  <header class="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-brand-500/20">
+        <i data-lucide="recycle" class="w-5 h-5 text-slate-950"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="font-extrabold text-base tracking-tight text-white">ResiGest <span class="text-brand-400">360</span></span>
+          <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20">Rediseño UI v3.0</span>
+        </div>
+        <p class="text-xs text-slate-400">Mockup Interactivo de Alta Fidelidad</p>
+      </div>
+    </div>
+
+    <!-- Pestañas de Pantallas a Comparar -->
+    <nav class="flex items-center bg-slate-950/70 p-1 rounded-xl border border-slate-800">
+      <button onclick="switchScreen('dashboard')" id="btn-dashboard" class="screen-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-500 text-slate-950 shadow transition-all flex items-center gap-1.5">
+        <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i>
+        <span>1. Dashboard Ejecutivo</span>
+      </button>
+      <button onclick="switchScreen('kanban')" id="btn-kanban" class="screen-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all flex items-center gap-1.5">
+        <i data-lucide="kanban" class="w-3.5 h-3.5"></i>
+        <span>2. Flujo DIs & Báscula</span>
+      </button>
+      <button onclick="switchScreen('archivo')" id="btn-archivo" class="screen-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all flex items-center gap-1.5">
+        <i data-lucide="book-open-check" class="w-3.5 h-3.5"></i>
+        <span>3. Libro Cronológico</span>
+      </button>
+      <button onclick="switchScreen('mobile')" id="btn-mobile" class="screen-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all flex items-center gap-1.5">
+        <i data-lucide="smartphone" class="w-3.5 h-3.5"></i>
+        <span>4. Terminal Báscula & Móvil</span>
+      </button>
+    </nav>
+
+    <!-- Herramientas y Switch de Tema -->
+    <div class="flex items-center gap-2">
+      <span class="text-xs text-slate-400 hidden sm:inline">RD 553/2020 Compliance Ready</span>
+      <button onclick="toggleDarkMode()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors" title="Cambiar Tema Claro/Oscuro">
+        <i data-lucide="sun-medium" class="w-4 h-4"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- PANTALLA 1: DASHBOARD EJECUTIVO -->
+  <section id="screen-dashboard" class="screen-content p-6 max-w-7xl mx-auto space-y-6">
+    <!-- Hero / Semáforo Normativo Activo -->
+    <div class="rounded-2xl p-5 bg-gradient-to-r from-slate-900 via-slate-900/90 to-brand-950/40 border border-slate-800 shadow-xl relative overflow-hidden">
+      <div class="absolute right-0 top-0 w-96 h-full bg-brand-500/5 blur-3xl pointer-events-none"></div>
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              99.2% Cumplimiento Normativo
+            </span>
+            <span class="text-xs text-slate-400">Tenant: <strong class="text-white">EcoGestión Integral del Norte S.L.</strong></span>
+          </div>
+          <h1 class="text-2xl font-black text-white tracking-tight">Centro de Control de Residuos & Trazabilidad</h1>
+          <p class="text-sm text-slate-400 mt-1">Supervisión en tiempo real de entradas, báscula, contratos vigentes y transmisiones telemáticas SIRA.</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+          <button class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-brand-500 hover:bg-brand-400 text-slate-950 shadow-md shadow-brand-500/20 transition-all flex items-center gap-2">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            Nuevo Traslado (DI)
+          </button>
+          <button class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all flex items-center gap-2">
+            <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-400"></i>
+            Exportar Memoria Anual
+          </button>
+          <button class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition-all flex items-center gap-2">
+            <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+            <span>3 Alertas Pendientes</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Métricas Clave con Sparklines & Variaciones -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- KPI 1 -->
+      <div class="glass-card rounded-2xl p-5 relative overflow-hidden hover:border-brand-500/50 transition-all">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+          <span>Residuos Gestionados (Mes)</span>
+          <span class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400"><i data-lucide="scale" class="w-4 h-4"></i></span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span class="text-3xl font-black text-white">1,482.6</span>
+          <span class="text-xs font-bold text-slate-400">Ton</span>
+        </div>
+        <div class="flex items-center justify-between mt-3 text-xs">
+          <span class="inline-flex items-center gap-1 text-emerald-400 font-bold">
+            <i data-lucide="trending-up" class="w-3.5 h-3.5"></i> +14.2%
+          </span>
+          <span class="text-slate-400">Peligrosos: <strong class="text-amber-400">18.4%</strong></span>
+        </div>
+      </div>
+
+      <!-- KPI 2 -->
+      <div class="glass-card rounded-2xl p-5 relative overflow-hidden hover:border-brand-500/50 transition-all">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+          <span>Traslados Activos (DIs)</span>
+          <span class="p-1.5 rounded-lg bg-blue-500/10 text-blue-400"><i data-lucide="truck" class="w-4 h-4"></i></span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span class="text-3xl font-black text-white">47</span>
+          <span class="text-xs font-bold text-slate-400">en ruta hoy</span>
+        </div>
+        <div class="flex items-center justify-between mt-3 text-xs">
+          <span class="text-slate-400">9 en Báscula Destino</span>
+          <span class="text-brand-400 font-semibold cursor-pointer hover:underline">Ver mapa →</span>
+        </div>
+      </div>
+
+      <!-- KPI 3 -->
+      <div class="glass-card rounded-2xl p-5 relative overflow-hidden hover:border-brand-500/50 transition-all">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+          <span>Discrepancia Media Báscula</span>
+          <span class="p-1.5 rounded-lg bg-amber-500/10 text-amber-400"><i data-lucide="gauge" class="w-4 h-4"></i></span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span class="text-3xl font-black text-emerald-400">0.82%</span>
+          <span class="text-xs font-bold text-slate-400">margen tolerable</span>
+        </div>
+        <div class="flex items-center justify-between mt-3 text-xs">
+          <span class="text-amber-400 font-medium">1 caso &gt; 5% detectado</span>
+          <span class="text-slate-400">RD 553/2020</span>
+        </div>
+      </div>
+
+      <!-- KPI 4 -->
+      <div class="glass-card rounded-2xl p-5 relative overflow-hidden hover:border-brand-500/50 transition-all">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+          <span>Margen Bruto Intermediación</span>
+          <span class="p-1.5 rounded-lg bg-purple-500/10 text-purple-400"><i data-lucide="dollar-sign" class="w-4 h-4"></i></span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span class="text-3xl font-black text-white">48,290€</span>
+          <span class="text-xs font-bold text-slate-400">32.6€/Ton</span>
+        </div>
+        <div class="flex items-center justify-between mt-3 text-xs">
+          <span class="text-emerald-400 font-semibold">+8.4% vs mes ant.</span>
+          <span class="text-slate-400">100% Facturado</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gráfico Sankey / Balance de Masas y Trazabilidad en Tiempo Real -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 glass-card rounded-2xl p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <i data-lucide="git-merge" class="w-4 h-4 text-brand-400"></i>
+              Balance de Masas & Operaciones de Tratamiento (R / D)
+            </h2>
+            <p class="text-xs text-slate-400">Flujo de entrada hacia valorización (R3/R4/R5) vs eliminación (D1/D5)</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 border border-slate-700">Este Trimestre</span>
+          </div>
+        </div>
+
+        <!-- Diagrama Visual de Flujo de Masas -->
+        <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-4">
+          <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-semibold text-slate-300">
+            <div class="w-full sm:w-1/3 p-3 rounded-xl bg-slate-800/80 border border-slate-700 text-center">
+              <span class="text-slate-400 block text-[11px]">ENTRADA BRUTA</span>
+              <span class="text-lg font-black text-white">1,482.6 T</span>
+              <span class="text-[10px] text-emerald-400 block">100% Pesado Báscula</span>
+            </div>
+            <i data-lucide="arrow-right" class="w-5 h-5 text-brand-400 hidden sm:block"></i>
+            <div class="w-full sm:w-1/3 p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/60 text-center">
+              <span class="text-emerald-300 block text-[11px]">VALORIZACIÓN (R)</span>
+              <span class="text-lg font-black text-emerald-400">1,215.8 T</span>
+              <span class="text-[10px] text-emerald-300 font-bold block">82.0% Economía Circular</span>
+            </div>
+            <i data-lucide="arrow-right" class="w-5 h-5 text-amber-400 hidden sm:block"></i>
+            <div class="w-full sm:w-1/3 p-3 rounded-xl bg-amber-950/30 border border-amber-900/50 text-center">
+              <span class="text-amber-300 block text-[11px]">ELIMINACIÓN (D)</span>
+              <span class="text-lg font-black text-amber-400">266.8 T</span>
+              <span class="text-[10px] text-slate-400 block">Impuesto Vertedero Aplicado</span>
+            </div>
+          </div>
+
+          <!-- Barra de Proporción Interactiva -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs text-slate-400 font-medium">
+              <span>Distribución por Tratamiento</span>
+              <span>82% R (Reciclaje/Recup.) | 18% D (Depósito)</span>
+            </div>
+            <div class="h-3 w-full bg-slate-800 rounded-full overflow-hidden flex">
+              <div class="h-full bg-gradient-to-r from-brand-600 to-emerald-400" style="width: 82%"></div>
+              <div class="h-full bg-amber-500" style="width: 18%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabla Rápida de Principales LERs -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead>
+              <tr class="text-slate-400 border-b border-slate-800">
+                <th class="py-2 font-semibold">Código LER</th>
+                <th class="py-2 font-semibold">Descripción Residuo</th>
+                <th class="py-2 font-semibold">Toneladas</th>
+                <th class="py-2 font-semibold">Destino Principal</th>
+                <th class="py-2 font-semibold text-right">Tasa R/D</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 text-slate-300">
+              <tr>
+                <td class="py-2.5 font-mono font-bold text-white flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-blue-400"></span> 15 01 02
+                </td>
+                <td class="py-2.5">Envases de plástico industrial</td>
+                <td class="py-2.5 font-bold">482.0 T</td>
+                <td class="py-2.5 text-slate-400">Plásticos Reciclados Cantabria</td>
+                <td class="py-2.5 text-right font-bold text-emerald-400">R03 (100%)</td>
+              </tr>
+              <tr>
+                <td class="py-2.5 font-mono font-bold text-amber-400 flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-amber-400"></span> 13 02 05*
+                </td>
+                <td class="py-2.5">Aceites minerales no clorados de motor</td>
+                <td class="py-2.5 font-bold">120.4 T</td>
+                <td class="py-2.5 text-slate-400">Regeneradora Ibérica S.A.</td>
+                <td class="py-2.5 text-right font-bold text-emerald-400">R09 (Regen.)</td>
+              </tr>
+              <tr>
+                <td class="py-2.5 font-mono font-bold text-white flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-slate-400"></span> 17 09 04
+                </td>
+                <td class="py-2.5">RCDs mezclados sin sustancias peligrosas</td>
+                <td class="py-2.5 font-bold">610.2 T</td>
+                <td class="py-2.5 text-slate-400">Áridos y Reciclados del Norte</td>
+                <td class="py-2.5 text-right font-bold text-emerald-400">R05 (Árido Rec.)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Alertas Normativas Accionables -->
+      <div class="glass-card rounded-2xl p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="shield-alert" class="w-4 h-4 text-amber-400"></i>
+            Control por Excepción
+          </h2>
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">Acción Requerida</span>
+        </div>
+
+        <div class="space-y-3">
+          <!-- Alerta 1: Báscula Discrepancia -->
+          <div class="p-3.5 rounded-xl bg-red-950/30 border border-red-800/50 hover:border-red-600 transition-all">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="p-1 rounded bg-red-500/20 text-red-400"><i data-lucide="alert-octagon" class="w-3.5 h-3.5"></i></span>
+                <span class="text-xs font-bold text-red-300">Discrepancia Báscula &gt; 5%</span>
+              </div>
+              <span class="text-[10px] font-mono font-bold text-red-400">+1,420 kg (+11.8%)</span>
+            </div>
+            <p class="text-xs text-slate-300 mt-2">DI-2026-0941 (15 01 10* Envases con restos peligrosos). Rechazo parcial en destino.</p>
+            <div class="mt-3 flex items-center justify-between">
+              <span class="text-[10px] text-slate-400">Hace 38 min</span>
+              <button class="text-xs font-bold text-red-400 hover:text-red-300 flex items-center gap-1">Gestionar Acta →</button>
+            </div>
+          </div>
+
+          <!-- Alerta 2: Contrato por Vencer -->
+          <div class="p-3.5 rounded-xl bg-amber-950/30 border border-amber-800/50 hover:border-amber-600 transition-all">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="p-1 rounded bg-amber-500/20 text-amber-400"><i data-lucide="file-clock" class="w-3.5 h-3.5"></i></span>
+                <span class="text-xs font-bold text-amber-300">Contrato de Tratamiento por Vencer</span>
+              </div>
+              <span class="text-[10px] font-bold text-amber-400">Vence en 12 días</span>
+            </div>
+            <p class="text-xs text-slate-300 mt-2">Gestor: EcoVidrio Soluciones S.L. (CT-2025-081). Bloqueará nuevos DIs si expira.</p>
+            <div class="mt-3 flex items-center justify-between">
+              <span class="text-[10px] text-slate-400">Autorización E-0418</span>
+              <button class="text-xs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1">Renovar Anexo →</button>
+            </div>
+          </div>
+
+          <!-- Alerta 3: SIRA Sincronización -->
+          <div class="p-3.5 rounded-xl bg-blue-950/30 border border-blue-800/50 hover:border-blue-600 transition-all">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="p-1 rounded bg-blue-500/20 text-blue-400"><i data-lucide="cloud-upload" class="w-3.5 h-3.5"></i></span>
+                <span class="text-xs font-bold text-blue-300">SIRA Telemático</span>
+              </div>
+              <span class="text-[10px] font-bold text-blue-400">5 NTs pendientes</span>
+            </div>
+            <p class="text-xs text-slate-300 mt-2">Notificaciones de traslado listas para firma electrónica del representante.</p>
+            <div class="mt-3 flex items-center justify-between">
+              <span class="text-[10px] text-slate-400">Plazo límite: 10 días</span>
+              <button class="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1">Transmitir Lote →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PANTALLA 2: KANBAN DE DIS Y CONTROL DE BÁSCULA -->
+  <section id="screen-kanban" class="screen-content hidden p-6 max-w-7xl mx-auto space-y-6">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+          <i data-lucide="kanban" class="w-6 h-6 text-brand-400"></i>
+          Flujo Logístico de Traslados (RD 553/2020)
+        </h1>
+        <p class="text-sm text-slate-400">Vista tipo Pipeline por fases: Notificación Previa, Ruta, Pesaje en Báscula y Certificado.</p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <div class="relative">
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+          <input type="text" placeholder="Buscar DI, matrícula, LER..." class="bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500">
+        </div>
+        <button class="px-3 py-1.5 bg-brand-500 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5">
+          <i data-lucide="plus" class="w-3.5 h-3.5"></i> Crear Traslado
+        </button>
+      </div>
+    </div>
+
+    <!-- Columnas Kanban -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 overflow-x-auto pb-4">
+      <!-- Columna 1: Borrador / NT -->
+      <div class="bg-slate-900/60 rounded-2xl p-3 border border-slate-800 space-y-3 min-w-[240px]">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-slate-400"></span> 1. Borrador / NT (4)
+          </span>
+          <i data-lucide="more-horizontal" class="w-4 h-4 text-slate-500"></i>
+        </div>
+
+        <div class="space-y-2">
+          <!-- Card 1 -->
+          <div class="p-3 rounded-xl bg-slate-800/80 border border-slate-700/80 hover:border-slate-500 transition-all space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="badge-ler text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-slate-200">15 01 01</span>
+              <span class="text-[10px] text-slate-400 font-mono">DI-2026-0945</span>
+            </div>
+            <p class="text-xs font-semibold text-white">Cartón y papel prensado</p>
+            <div class="text-[11px] text-slate-400 space-y-0.5">
+              <p>🏢 Origen: Almacén Logístico Norte</p>
+              <p>🎯 Destino: Papelera Ibérica</p>
+            </div>
+            <div class="pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
+              <span class="font-bold text-slate-300">Est: 8,500 kg</span>
+              <button class="text-brand-400 hover:underline">Firmar NT →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Columna 2: Notificado SIRA -->
+      <div class="bg-slate-900/60 rounded-2xl p-3 border border-slate-800 space-y-3 min-w-[240px]">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-xs font-bold text-blue-400 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-blue-400"></span> 2. Notificado SIRA (6)
+          </span>
+          <i data-lucide="more-horizontal" class="w-4 h-4 text-slate-500"></i>
+        </div>
+
+        <div class="space-y-2">
+          <!-- Card 2 -->
+          <div class="p-3 rounded-xl bg-slate-800/80 border border-blue-900/40 hover:border-blue-500 transition-all space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="badge-ler text-[11px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">⚠️ 13 02 05*</span>
+              <span class="text-[10px] text-slate-400 font-mono">DI-2026-0943</span>
+            </div>
+            <p class="text-xs font-semibold text-white">Aceite usado de automoción</p>
+            <div class="text-[11px] text-slate-400 space-y-0.5">
+              <p>🏢 Taller Central Santander</p>
+              <p>🚛 Cisterna TransEcológica</p>
+            </div>
+            <div class="pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
+              <span class="font-bold text-slate-300">Cisterna 12,000 L</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">SIRA OK</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Columna 3: En Ruta / DeCA Generado -->
+      <div class="bg-slate-900/60 rounded-2xl p-3 border border-slate-800 space-y-3 min-w-[240px]">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span> 3. En Ruta / Albarán (8)
+          </span>
+          <i data-lucide="more-horizontal" class="w-4 h-4 text-slate-500"></i>
+        </div>
+
+        <div class="space-y-2">
+          <!-- Card 3 -->
+          <div class="p-3 rounded-xl bg-slate-800/80 border border-amber-900/40 hover:border-amber-500 transition-all space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="badge-ler text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-slate-200">17 01 07</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300 font-bold">⚡ DeCA Activo</span>
+            </div>
+            <p class="text-xs font-semibold text-white">Hormigón y áridos limpios</p>
+            <div class="text-[11px] text-slate-400 space-y-0.5">
+              <p>🚛 Matrícula: <strong>4891-KML</strong></p>
+              <p>📍 Destino: Planta Reciclaje Áridos</p>
+            </div>
+            <div class="pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
+              <span class="font-bold text-slate-300">Pesada Salida: 24.2 T</span>
+              <button class="text-xs font-bold text-amber-400 hover:underline">Ver GPS →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Columna 4: En Báscula Destino -->
+      <div class="bg-slate-900/60 rounded-2xl p-3 border border-slate-800 space-y-3 min-w-[240px]">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-xs font-bold text-purple-400 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-purple-400"></span> 4. En Báscula (3)
+          </span>
+          <i data-lucide="more-horizontal" class="w-4 h-4 text-slate-500"></i>
+        </div>
+
+        <div class="space-y-2">
+          <!-- Card 4 con Discrepancia -->
+          <div class="p-3 rounded-xl bg-slate-800/80 border border-red-500/60 shadow-lg shadow-red-500/10 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="badge-ler text-[11px] font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30">⚠️ 15 01 10*</span>
+              <span class="text-[10px] text-red-400 font-bold animate-pulse">Discrepancia &gt;5%</span>
+            </div>
+            <p class="text-xs font-semibold text-white">Envases contaminados con restos</p>
+            <div class="text-[11px] text-slate-400 space-y-1 bg-slate-900/80 p-2 rounded-lg">
+              <div class="flex justify-between">
+                <span>Salida Declarada:</span> <strong class="text-slate-200">12,000 kg</strong>
+              </div>
+              <div class="flex justify-between">
+                <span>Báscula Destino:</span> <strong class="text-red-400">13,420 kg (+11.8%)</strong>
+              </div>
+            </div>
+            <div class="pt-1 flex gap-2">
+              <button class="flex-1 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 text-[10px] font-bold rounded-lg border border-red-500/40">
+                Aceptar con Reserva
+              </button>
+              <button class="flex-1 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-[10px] font-bold rounded-lg">
+                Rechazar Lote
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Columna 5: Tratado & Certificado -->
+      <div class="bg-slate-900/60 rounded-2xl p-3 border border-slate-800 space-y-3 min-w-[240px]">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span> 5. Tratado (142)
+          </span>
+          <i data-lucide="more-horizontal" class="w-4 h-4 text-slate-500"></i>
+        </div>
+
+        <div class="space-y-2">
+          <!-- Card 5 -->
+          <div class="p-3 rounded-xl bg-slate-800/80 border border-emerald-900/40 hover:border-emerald-500 transition-all space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="badge-ler text-[11px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">12 01 01</span>
+              <span class="text-[10px] text-emerald-400 font-bold flex items-center gap-1"><i data-lucide="check-circle" class="w-3 h-3"></i> Cerrado</span>
+            </div>
+            <p class="text-xs font-semibold text-white">Limaduras de metales férreos</p>
+            <div class="text-[11px] text-slate-400 space-y-0.5">
+              <p>🎯 Gestor: Fundición Metalúrgica</p>
+              <p>⚖️ Peso Final: 18,340 kg (R04)</p>
+            </div>
+            <div class="pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
+              <span class="text-[10px] text-slate-400">Sincronizado al Libro</span>
+              <button class="text-brand-400 hover:underline">Descargar Certificado</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PANTALLA 3: ARCHIVO CRONOLÓGICO -->
+  <section id="screen-archivo" class="screen-content hidden p-6 max-w-7xl mx-auto space-y-6">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-2xl font-black text-white tracking-tight">Archivo Cronológico Oficial</h1>
+          <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+            <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Artículo 64 Ley 7/2022
+          </span>
+        </div>
+        <p class="text-sm text-slate-400 mt-1">Libro de registro preceptivo inmutable, sincronizado automáticamente con DIs cerrados y báscula.</p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 flex items-center gap-2">
+          <i data-lucide="download" class="w-4 h-4 text-emerald-400"></i>
+          Exportar Excel Oficial / XML
+        </button>
+        <button class="px-3.5 py-2 bg-brand-500 hover:bg-brand-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-2">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          Nuevo Asiento Manual
+        </button>
+      </div>
+    </div>
+
+    <!-- Filtros Inteligentes de Auditoría -->
+    <div class="glass-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs text-slate-400 font-semibold mr-1">Filtros:</span>
+        <select class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none">
+          <option>Ejercicio 2026 (En Curso)</option>
+          <option>Ejercicio 2025</option>
+        </select>
+        <select class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none">
+          <option>Todos los Centros de Producción</option>
+          <option>Planta Santander (NIMA: 3900018921)</option>
+          <option>Planta Torrelavega (NIMA: 3900024410)</option>
+        </select>
+        <select class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none">
+          <option>Tipo Operación: Todas</option>
+          <option>Salida / Traslado Gestor</option>
+          <option>Producción Interna</option>
+          <option>Entrada Recepción</option>
+        </select>
+      </div>
+      <div class="flex items-center gap-2 text-xs text-slate-400">
+        <span>Mostrando <strong>1,420</strong> asientos auditados</span>
+      </div>
+    </div>
+
+    <!-- Tabla de Asientos con Estilo Premium -->
+    <div class="glass-card rounded-2xl overflow-hidden border border-slate-800">
+      <table class="w-full text-left text-xs">
+        <thead class="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[11px] border-b border-slate-800">
+          <tr>
+            <th class="p-3.5 font-semibold">Fecha Asiento</th>
+            <th class="p-3.5 font-semibold">Tipo Operación</th>
+            <th class="p-3.5 font-semibold">Código LER</th>
+            <th class="p-3.5 font-semibold">Descripción Residuo</th>
+            <th class="p-3.5 font-semibold">Cantidad (kg)</th>
+            <th class="p-3.5 font-semibold">Tratamiento</th>
+            <th class="p-3.5 font-semibold">Documento Traza</th>
+            <th class="p-3.5 font-semibold text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-800/60 text-slate-200">
+          <tr class="hover:bg-slate-900/40 transition-colors">
+            <td class="p-3.5 font-mono text-slate-300">25/10/2026 09:14</td>
+            <td class="p-3.5">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">Salida Traslado</span>
+            </td>
+            <td class="p-3.5 font-mono font-bold text-amber-400">13 02 05* (P)</td>
+            <td class="p-3.5 text-slate-300">Aceites minerales no clorados de motor</td>
+            <td class="p-3.5 font-mono font-bold text-white">4,250 kg</td>
+            <td class="p-3.5"><span class="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold">R09</span></td>
+            <td class="p-3.5 font-mono text-brand-400 cursor-pointer hover:underline">DI-2026-0941</td>
+            <td class="p-3.5 text-right">
+              <button class="p-1 hover:text-white text-slate-400"><i data-lucide="eye" class="w-4 h-4"></i></button>
+            </td>
+          </tr>
+          <tr class="hover:bg-slate-900/40 transition-colors">
+            <td class="p-3.5 font-mono text-slate-300">24/10/2026 16:30</td>
+            <td class="p-3.5">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Entrada Recepción</span>
+            </td>
+            <td class="p-3.5 font-mono font-bold text-slate-200">15 01 02 (NP)</td>
+            <td class="p-3.5 text-slate-300">Envases de plástico industrial</td>
+            <td class="p-3.5 font-mono font-bold text-white">12,180 kg</td>
+            <td class="p-3.5"><span class="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold">R03</span></td>
+            <td class="p-3.5 font-mono text-brand-400 cursor-pointer hover:underline">DI-2026-0938</td>
+            <td class="p-3.5 text-right">
+              <button class="p-1 hover:text-white text-slate-400"><i data-lucide="eye" class="w-4 h-4"></i></button>
+            </td>
+          </tr>
+          <tr class="hover:bg-slate-900/40 transition-colors">
+            <td class="p-3.5 font-mono text-slate-300">24/10/2026 11:20</td>
+            <td class="p-3.5">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">Producción Interna</span>
+            </td>
+            <td class="p-3.5 font-mono font-bold text-amber-400">11 01 13* (P)</td>
+            <td class="p-3.5 text-slate-300">Residuos de desengrase con sustancias peligrosas</td>
+            <td class="p-3.5 font-mono font-bold text-white">850 kg</td>
+            <td class="p-3.5"><span class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 font-bold">Almacenamiento</span></td>
+            <td class="p-3.5 font-mono text-slate-400">INT-LOTE-2026-44</td>
+            <td class="p-3.5 text-right">
+              <button class="p-1 hover:text-white text-slate-400"><i data-lucide="eye" class="w-4 h-4"></i></button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- PANTALLA 4: TERMINAL BÁSCULA Y MÓVIL (SIMULADOR) -->
+  <section id="screen-mobile" class="screen-content hidden p-6 max-w-7xl mx-auto space-y-6">
+    <div class="text-center max-w-2xl mx-auto space-y-2">
+      <h1 class="text-2xl font-black text-white tracking-tight flex items-center justify-center gap-2">
+        <i data-lucide="smartphone" class="w-6 h-6 text-brand-400"></i>
+        Terminal Móvil / Tablet de Báscula (Operarios y Choferes)
+      </h1>
+      <p class="text-sm text-slate-400">Diseño enfocado a máxima legibilidad en cabina o intemperie: escáner QR en 1 toque, pesada automática y firma digital del DeCA.</p>
+    </div>
+
+    <!-- Frame Móvil -->
+    <div class="max-w-sm mx-auto bg-slate-900 rounded-[2.5rem] p-4 border-4 border-slate-700 shadow-2xl relative">
+      <!-- Notch / Parlante -->
+      <div class="w-32 h-4 bg-slate-800 rounded-full mx-auto mb-4"></div>
+
+      <!-- App Content -->
+      <div class="space-y-4">
+        <!-- Header Móvil -->
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-brand-500 flex items-center justify-center font-bold text-slate-950 text-xs">RG</div>
+            <span class="text-xs font-bold text-white">ResiGest Driver</span>
+          </div>
+          <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">Báscula Online</span>
+        </div>
+
+        <!-- Tarjeta de Viaje Activo -->
+        <div class="p-4 rounded-2xl bg-gradient-to-b from-slate-800 to-slate-800/60 border border-brand-500/30 space-y-3">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-brand-400">VIAJE EN CURSO</span>
+            <span class="font-mono text-slate-300">#TR-2026-44</span>
+          </div>
+
+          <div class="space-y-1">
+            <h3 class="text-base font-black text-white">15 01 02 Envases Plásticos</h3>
+            <p class="text-xs text-slate-400">Matrícula: <strong class="text-white">9941-KBL</strong></p>
+          </div>
+
+          <!-- Botón de Escáner QR de Báscula -->
+          <button class="w-full py-3 bg-brand-500 hover:bg-brand-400 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-brand-500/20 text-xs">
+            <i data-lucide="qr-code" class="w-4 h-4"></i>
+            Escanear QR en Báscula Destino
+          </button>
+        </div>
+
+        <!-- Lectura de Pesaje en Vivo -->
+        <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2 text-center">
+          <span class="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">Pesada Bruta en Báscula</span>
+          <div class="text-4xl font-mono font-black text-emerald-400 tracking-tight">
+            28,450 <span class="text-base text-slate-400 font-sans">kg</span>
+          </div>
+          <div class="flex justify-around text-xs text-slate-400 pt-2 border-t border-slate-800/80">
+            <div>Tara: <strong class="text-white font-mono">14,200 kg</strong></div>
+            <div>Neto: <strong class="text-brand-400 font-mono">14,250 kg</strong></div>
+          </div>
+        </div>
+
+        <!-- Firma Digital DeCA -->
+        <div class="p-3.5 rounded-2xl bg-slate-800/60 border border-slate-700/80 space-y-2">
+          <div class="flex justify-between items-center text-xs">
+            <span class="font-bold text-white">Firma de Entrega Conforme</span>
+            <span class="text-[10px] text-brand-400">Albarán DeCA</span>
+          </div>
+          <div class="h-16 rounded-xl bg-slate-950 border border-dashed border-slate-700 flex items-center justify-center text-xs text-slate-500 italic">
+            [ Espacio de firma táctil conforme ]
+          </div>
+          <button class="w-full py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2">
+            <i data-lucide="check" class="w-4 h-4 text-emerald-400"></i>
+            Registrar Entrega y Generar PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Script para interactividad del mockup -->
+  <script>
+    lucide.createIcons();
+
+    function switchScreen(screenName) {
+      document.querySelectorAll('.screen-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.screen-btn').forEach(btn => {
+        btn.classList.remove('bg-brand-500', 'text-slate-950', 'shadow');
+        btn.classList.add('text-slate-400');
+      });
+
+      const target = document.getElementById('screen-' + screenName);
+      const activeBtn = document.getElementById('btn-' + screenName);
+      if (target) target.classList.remove('hidden');
+      if (activeBtn) {
+        activeBtn.classList.remove('text-slate-400');
+        activeBtn.classList.add('bg-brand-500', 'text-slate-950', 'shadow');
+      }
+      lucide.createIcons();
+    }
+
+    function toggleDarkMode() {
+      const html = document.documentElement;
+      if (html.classList.contains('dark')) {
+        html.classList.remove('dark');
+        document.body.classList.remove('bg-slate-950', 'text-slate-100');
+        document.body.classList.add('bg-slate-100', 'text-slate-900');
+      } else {
+        html.classList.add('dark');
+        document.body.classList.remove('bg-slate-100', 'text-slate-900');
+        document.body.classList.add('bg-slate-950', 'text-slate-100');
+      }
+    }
+  </script>
+</body>
+</html>

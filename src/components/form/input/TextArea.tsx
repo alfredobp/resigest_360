@@ -57,6 +57,7 @@ const TextArea: React.FC<TextareaProps> = ({
         onBlur={onBlur}
         disabled={disabled}
         aria-invalid={error ? "true" : undefined}
+        aria-required={required ? "true" : undefined}
         className={textareaClasses}
       />
       {(hint || error) && (

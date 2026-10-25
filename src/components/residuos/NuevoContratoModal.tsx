@@ -696,6 +696,7 @@ export default function NuevoContratoModal({
                 <div className="w-full md:w-64">
                   <Label className="text-xs mb-1" required>Código LER</Label>
                   <LerSelector
+                    id={`ler_${idx}`}
                     value={item.codigo_ler}
                     onChange={(val, wt) => {
                       setContractWasteCodes((prev) => {
@@ -737,6 +738,8 @@ export default function NuevoContratoModal({
                 <div className="w-full md:w-32">
                   <Label className="text-xs mb-1" required>Operación R/D</Label>
                   <input
+                    id={`op_${idx}`}
+                    name={`op_${idx}`}
                     type="text"
                     placeholder="R13"
                     value={item.operacion_tratamiento}

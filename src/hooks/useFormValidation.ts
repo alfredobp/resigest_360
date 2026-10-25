@@ -29,35 +29,32 @@ export function useFormValidation<T extends Record<string, any>>({
    */
   const setFieldValue = useCallback(
     (field: keyof T, value: any) => {
-      setFormData((prev) => {
-        const next = { ...prev, [field]: value };
+      setFormData((prev) => ({ ...prev, [field]: value }));
 
-        // Si el campo ya tiene error o fue tocado, revalidar este campo específico
-        if (errors[field] || touched[field]) {
-          const rules = schema[field];
-          if (rules) {
-            let fieldError: string | null = null;
-            for (const rule of rules) {
-              const err = rule(value, next);
-              if (err) {
-                fieldError = err;
-                break;
-              }
+      // Si el campo ya tiene error o fue tocado, revalidar este campo específico
+      if (errors[field] || touched[field]) {
+        const rules = schema[field];
+        if (rules) {
+          let fieldError: string | null = null;
+          const next = { ...formData, [field]: value };
+          for (const rule of rules) {
+            const err = rule(value, next);
+            if (err) {
+              fieldError = err;
+              break;
             }
-            setErrors((prevErrors) => {
-              if (fieldError) {
-                return { ...prevErrors, [field]: fieldError };
-              }
-              const { [field]: _, ...rest } = prevErrors;
-              return rest as Partial<Record<keyof T, string>>;
-            });
           }
+          setErrors((prevErrors) => {
+            if (fieldError) {
+              return { ...prevErrors, [field]: fieldError };
+            }
+            const { [field]: _, ...rest } = prevErrors;
+            return rest as Partial<Record<keyof T, string>>;
+          });
         }
-
-        return next;
-      });
+      }
     },
-    [errors, touched, schema]
+    [errors, touched, schema, formData]
   );
 
   /**
@@ -114,13 +111,14 @@ export function useFormValidation<T extends Record<string, any>>({
   /**
    * Limpia todos los errores y estados tocados
    */
-  const resetValidation = useCallback((newValues?: T) => {
-    if (newValues) {
-      setFormData(newValues);
-    }
-    setErrors({});
-    setTouched({});
-  }, []);
+  const resetValidation = useCallback(
+    (newValues?: T) => {
+      setFormData(newValues ?? initialValues);
+      setErrors({});
+      setTouched({});
+    },
+    [initialValues]
+  );
 
   /**
    * Retorna props listos para pasar a InputField / Select / TextArea

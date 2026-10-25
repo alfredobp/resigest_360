@@ -368,6 +368,7 @@ export default function AutorizacionModal({
                       Código LER
                     </Label>
                     <LerSelector
+                      id={`auth_ler_${idx}`}
                       value={item.codigo_ler}
                       onChange={(code, wt) => {
                         handleWasteCodeChange(idx, 'codigo_ler', code);
@@ -398,6 +399,7 @@ export default function AutorizacionModal({
                       Operaciones R/D (separadas por coma)
                     </Label>
                     <Input
+                      id={`auth_operaciones_${idx}`}
                       placeholder="R03, R13, D10"
                       value={item.operaciones_tratamiento.join(', ')}
                       onChange={(e) =>

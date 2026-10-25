@@ -74,6 +74,7 @@ const Input: FC<InputProps> = ({
         disabled={disabled}
         readOnly={readOnly}
         aria-invalid={error ? "true" : undefined}
+        aria-required={required ? "true" : undefined}
         className={inputClasses}
       />
 
