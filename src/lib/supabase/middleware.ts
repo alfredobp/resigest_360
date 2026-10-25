@@ -75,7 +75,6 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/error-404') &&
     !request.nextUrl.pathname.startsWith('/auth/') &&
     !request.nextUrl.pathname.startsWith('/api/') && // Gestionado arriba (401 para API)
-    !request.nextUrl.pathname.startsWith('/map/') && // Public map viewer
     !request.nextUrl.pathname.startsWith('/public/') && // Public signature and other public pages
     !request.nextUrl.pathname.startsWith('/mockups/') // Design mockups showcase
   ) {

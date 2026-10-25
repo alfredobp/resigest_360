@@ -18,7 +18,6 @@
 -- 12. Pista de Auditoría y Logs de Trazabilidad Inmutable (public.audit_logs)
 -- 13. Autorizaciones Ambientales (public.environmental_authorizations)
 -- 14. Memorias Anuales de Residuos 2025 y 2026 (public.annual_reports + lines)
--- 15. Proyecto Cartográfico y Geodatos GIS (projects, map_collections, spatial_data)
 --
 -- INSTRUCCIONES DE EJECUCIÓN:
 -- 1. Accede a Supabase SQL Editor:
@@ -30,68 +29,6 @@
 -- ==============================================================================
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
--- ==============================================================================
--- 0. GARANTIZAR EXISTENCIA DE TABLAS GIS (projects, map_collections, spatial_data)
--- ==============================================================================
-CREATE TABLE IF NOT EXISTS public.projects (
-  id BIGSERIAL PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  description TEXT,
-  show BOOLEAN DEFAULT true,
-  photo TEXT DEFAULT '',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS public.map_collections (
-  id BIGSERIAL PRIMARY KEY,
-  project_id BIGINT REFERENCES public.projects(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  description TEXT,
-  photo TEXT DEFAULT '',
-  color TEXT DEFAULT '#3B82F6',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
-ALTER TABLE public.map_collections ADD COLUMN IF NOT EXISTS project_id BIGINT REFERENCES public.projects(id) ON DELETE CASCADE;
-
-CREATE TABLE IF NOT EXISTS public.spatial_data (
-  id BIGSERIAL PRIMARY KEY,
-  collection_id BIGINT NOT NULL REFERENCES public.map_collections(id) ON DELETE CASCADE,
-  name VARCHAR(255) NOT NULL,
-  description TEXT,
-  category VARCHAR(100),
-  geometry_type VARCHAR(20) DEFAULT 'point',
-  geometry JSONB,
-  latitude DOUBLE PRECISION,
-  longitude DOUBLE PRECISION,
-  address TEXT,
-  photo TEXT,
-  image TEXT,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Habilitar RLS si no está habilitado
-ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.map_collections ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.spatial_data ENABLE ROW LEVEL SECURITY;
-
--- Políticas de seguridad para GIS
-DO $gis_policy$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'projects' AND policyname = 'Users can manage their own projects') THEN
-        CREATE POLICY "Users can manage their own projects" ON public.projects FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'map_collections' AND policyname = 'Users can manage their own collections') THEN
-        CREATE POLICY "Users can manage their own collections" ON public.map_collections FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'spatial_data' AND policyname = 'Users can manage their own spatial data') THEN
-        CREATE POLICY "Users can manage their own spatial data" ON public.spatial_data FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-    END IF;
-END $gis_policy$;
 
 DO $$
 DECLARE
@@ -149,11 +86,6 @@ DECLARE
     -- Memorias Anuales
     v_report_2025_id BIGINT;
     v_report_2026_id BIGINT;
-    
-    -- GIS / Proyectos
-    v_project_id BIGINT;
-    v_collection_centros_id BIGINT;
-    v_collection_gestores_id BIGINT;
 BEGIN
     -- ==========================================================================
     -- 1. CREACIÓN O ACTUALIZACIÓN DEL USUARIO DEMO EN AUTH.USERS
@@ -208,7 +140,7 @@ BEGIN
         'demo@resigest.com',
         'Demo',
         'Resigest 360',
-        'Perfil corporativo oficial de demostración con cobertura completa de residuos peligrosos/no peligrosos, operaciones comerciales, integración SIRA, archivo cronológico y GIS.',
+        'Perfil corporativo oficial de demostración con cobertura completa de residuos peligrosos/no peligrosos, operaciones comerciales, integración SIRA y archivo cronológico.',
         '+34 912 345 678',
         'Madrid, España',
         NOW(),
@@ -1512,109 +1444,6 @@ BEGIN
     (v_report_2026_id, '16 06 01*', 'Baterías de plomo', 'EcoGestión 360', '2800012345', 'Tratamientos y Valorizaciones Ibéricas S.A.', '2800045678', 0.850, 'toneladas', 1, 'R04'),
     (v_report_2026_id, '16 02 13*', 'Equipos desechados RAEE', 'EcoGestión 360', '2800012345', 'Planta Integral de Reciclaje y Metales S.L.', '2800099881', 0.720, 'toneladas', 1, 'R04');
 
-    -- ==========================================================================
-    -- 16. PROYECTO CARTOGRÁFICO Y GEODATOS GIS (projects, map_collections, spatial_data)
-    -- ==========================================================================
-    -- Limpiar completamente las tablas GIS para eliminar datos obsoletos o residuales
-    BEGIN
-        DELETE FROM public.spatial_data;
-        DELETE FROM public.map_collections;
-        DELETE FROM public.projects;
-    EXCEPTION WHEN OTHERS THEN
-        RAISE NOTICE 'Nota al limpiar tablas GIS: %', SQLERRM;
-    END;
-
-    INSERT INTO public.projects (name, description, user_id)
-    VALUES (
-        'Red Logística y Centros Ambientales - Resigest 360',
-        'Mapa interactivo de la infraestructura operativa: plantas propias, centros de transferencia autorizados y gestores finales de tratamiento en la Comunidad de Madrid.',
-        v_user_id
-    ) RETURNING id INTO v_project_id;
-
-    -- Colección 1: Centros Propios de Producción y Transferencia
-    INSERT INTO public.map_collections (project_id, name, description, user_id)
-    VALUES (
-        v_project_id,
-        'Centros e Instalaciones Propias EcoGestión',
-        'Ubicaciones de sedes de fabricación, almacenamiento R13/D15 y valorización',
-        v_user_id
-    ) RETURNING id INTO v_collection_centros_id;
-
-    -- Colección 2: Plantas de Gestores Finales
-    INSERT INTO public.map_collections (project_id, name, description, user_id)
-    VALUES (
-        v_project_id,
-        'Plantas Gestoras de Destino Final',
-        'Instalaciones autorizadas para regeneración R09/R02, reciclaje de metales R04 y compostaje R03',
-        v_user_id
-    ) RETURNING id INTO v_collection_gestores_id;
-
-    -- Puntos GIS en spatial_data (si la tabla está disponible)
-    BEGIN
-        INSERT INTO public.spatial_data (
-            collection_id, name, description, category, geometry_type, geometry,
-            latitude, longitude, address, user_id
-        ) VALUES
-        (
-            v_collection_centros_id,
-            'Planta Central Madrid (Las Mercedes)',
-            'Sede principal, líneas de formulación y taller mecánico. NIMA 2800012345-01.',
-            'Planta Propia', 'point',
-            '{"type": "Point", "coordinates": [-3.5855, 40.4435]}'::jsonb,
-            40.4435, -3.5855, 'C/ Campezo 14, 28022 Madrid', v_user_id
-        ),
-        (
-            v_collection_centros_id,
-            'Centro Logístico y Transferencia Sur (Fuenlabrada)',
-            'Almacenamiento temporal R13 y D15 con solera estanca. NIMA 2800012345-02.',
-            'Planta Propia', 'point',
-            '{"type": "Point", "coordinates": [-3.7431, 40.2684]}'::jsonb,
-            40.2684, -3.7431, 'C/ Manuel Cobo Calleja 52, 28947 Fuenlabrada, Madrid', v_user_id
-        ),
-        (
-            v_collection_centros_id,
-            'Planta de Valorización del Corredor (Alcalá)',
-            'Clasificación y prensado de film plástico y cartón. NIMA 2800012345-03.',
-            'Planta Propia', 'point',
-            '{"type": "Point", "coordinates": [-3.3592, 40.4852]}'::jsonb,
-            40.4852, -3.3592, 'Vía Complutense 120, 28805 Alcalá de Henares, Madrid', v_user_id
-        ),
-        (
-            v_collection_gestores_id,
-            'Tratamientos y Valorizaciones Ibéricas S.A. (Alcobendas)',
-            'Gestor autorizado G-MD-2022/9901 para regeneración de aceites R09 e incineración D10.',
-            'Gestor Destino', 'point',
-            '{"type": "Point", "coordinates": [-3.6428, 40.5367]}'::jsonb,
-            40.5367, -3.6428, 'Avda. de la Industria 45, 28108 Alcobendas, Madrid', v_user_id
-        ),
-        (
-            v_collection_gestores_id,
-            'Regeneración de Disolventes del Jarama S.L. (San Fernando)',
-            'Planta de destilación fraccionada y recuperación R02 de disolventes.',
-            'Gestor Destino', 'point',
-            '{"type": "Point", "coordinates": [-3.5350, 40.4281]}'::jsonb,
-            40.4281, -3.5350, 'C/ Sierra de Guadarrama 8, 28830 San Fernando de Henares, Madrid', v_user_id
-        ),
-        (
-            v_collection_gestores_id,
-            'Planta Integral de Reciclaje y Metales S.L. (Getafe)',
-            'Parque de chatarra, fragmentación y valorización de metales férreos y RAEEs.',
-            'Gestor Destino', 'point',
-            '{"type": "Point", "coordinates": [-3.7082, 40.3129]}'::jsonb,
-            40.3129, -3.7082, 'C/ Carpinteros 19, 28906 Getafe, Madrid', v_user_id
-        ),
-        (
-            v_collection_gestores_id,
-            'Centro Ambiental de Compostaje del Tajo (Aranjuez)',
-            'Túneles de compostaje biológico aerobio R03 para fracción orgánica.',
-            'Gestor Destino', 'point',
-            '{"type": "Point", "coordinates": [-3.6021, 40.0315]}'::jsonb,
-            40.0315, -3.6021, 'Carretera de Toledo km 18, 28300 Aranjuez, Madrid', v_user_id
-        );
-    EXCEPTION WHEN OTHERS THEN
-        RAISE NOTICE 'Nota: spatial_data no insertado o no requerido: %', SQLERRM;
-    END;
-
     RAISE NOTICE '===================================================================';
     RAISE NOTICE 'SEED COMPLETO RESIGEST 360 FINALIZADO CON ÉXITO:';
     RAISE NOTICE '1. Usuario Demo: demo@resigest.com (Clave: DemoResigest2026!)';
@@ -1631,6 +1460,5 @@ BEGIN
     RAISE NOTICE '12. Pista de Auditoría: 10 registros inmutables';
     RAISE NOTICE '13. Autorizaciones Ambientales: 4 títulos habilitantes activos';
     RAISE NOTICE '14. Memorias Anuales: 2 ejercicios (2025 presentada + 2026 borrador)';
-    RAISE NOTICE '15. Proyecto GIS: 1 proyecto cartográfico con 7 ubicaciones geográficas';
     RAISE NOTICE '===================================================================';
 END $$;

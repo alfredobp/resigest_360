@@ -51,8 +51,6 @@ import HorizontaLDots from "./horizontal-dots.svg";
 import ChatIcon from "./chat.svg";
 import MoreDotIcon from "./more-dot.svg";
 import BellIcon from "./bell.svg";
-import MapIcon from "./map.svg";
-import MapSettingsIcon from "./map-settings.svg";
 
 export {
   DownloadIcon,
@@ -108,6 +106,4 @@ export {
   HorizontaLDots,
   ChevronUpIcon,
   ChatIcon,
-  MapIcon,
-  MapSettingsIcon,
 };

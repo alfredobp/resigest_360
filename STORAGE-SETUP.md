@@ -23,7 +23,6 @@ Las imágenes se organizan automáticamente:
 images/
 ├── projects/          # Fotos de proyectos
 │   └── {user_id}-{timestamp}.jpg
-├── points/            # Imágenes de puntos en mapas
 │   └── {user_id}-{timestamp}.jpg
 └── uploads/           # Otras imágenes
     └── {user_id}-{timestamp}.jpg
@@ -78,7 +77,7 @@ https://{project-ref}.supabase.co/storage/v1/object/public/images/{folder}/{user
 - Solo usuarios autenticados pueden subir imágenes
 - Las imágenes se almacenan con el ID del usuario en el nombre
 - Las políticas RLS aseguran que solo el propietario puede modificar/eliminar
-- Lectura pública para compartir en mapas
+- Lectura pública para mostrar logos e imágenes
 
 ### 8. Integración actual
 
