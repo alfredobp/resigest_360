@@ -45,6 +45,8 @@ module.exports = {
     'src/lib/validations/publicForms.ts',
     'src/lib/rateLimit.ts',
     'src/app/api/holded/route.ts',
+    'src/services/quickSearchService.ts',
+    'src/lib/authErrors.ts',
     '!src/**/*.d.ts',
   ],
   coverageReporters: ['text', 'lcov', 'clover'],
@@ -140,6 +142,18 @@ module.exports = {
       statements: 80
     },
     './src/app/api/holded/route.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/quickSearchService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/lib/authErrors.ts': {
       branches: 80,
       functions: 80,
       lines: 80,

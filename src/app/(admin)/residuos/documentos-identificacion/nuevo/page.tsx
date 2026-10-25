@@ -503,8 +503,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                     : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
                 }`}
               >
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="text-xl">🏭</span>
+                <div className="mb-1">
                   <span className="font-semibold text-sm text-foreground">Como Productor / Poseedor</span>
                 </div>
                 <p className="text-xs text-muted">
@@ -521,8 +520,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                     : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
                 }`}
               >
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="text-xl">♻️</span>
+                <div className="mb-1">
                   <span className="font-semibold text-sm text-foreground">Como Gestor Receptor</span>
                 </div>
                 <p className="text-xs text-muted">

@@ -8,6 +8,8 @@ import React, { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
+import { getAuthErrorMessage } from "@/lib/authErrors";
+
 export default function SignUpForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
@@ -54,7 +56,7 @@ export default function SignUpForm() {
       });
 
       if (signUpError) {
-        setError(signUpError.message);
+        setError(getAuthErrorMessage(signUpError.message));
         setLoading(false);
         return;
       }
@@ -66,7 +68,7 @@ export default function SignUpForm() {
         router.push("/signin");
       }, 2000);
     } catch {
-      setError("Error al crear la cuenta. Inténtalo de nuevo.");
+      setError(getAuthErrorMessage(null));
       setLoading(false);
     }
   };
@@ -82,7 +84,7 @@ export default function SignUpForm() {
       });
 
       if (oAuthError) {
-        setError(oAuthError.message);
+        setError(getAuthErrorMessage(oAuthError.message));
       }
     } catch {
       setError("Error al conectar con Google");
@@ -97,7 +99,7 @@ export default function SignUpForm() {
           className="inline-flex items-center text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
         >
           <ChevronLeftIcon />
-          Volver al panel
+          Volver al inicio
         </Link>
       </div>
       <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
