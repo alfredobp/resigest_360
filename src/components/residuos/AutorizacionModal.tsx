@@ -7,6 +7,7 @@ import Label from '@/components/form/Label';
 import Alert from '@/components/ui/alert/Alert';
 import LerSelector from '@/components/residuos/LerSelector';
 import authorizationService from '@/services/authorizationService';
+import { validateRequired } from '@/lib/validations/formValidation';
 import type {
   Company,
   ProductionCenter,
@@ -33,6 +34,7 @@ export default function AutorizacionModal({
 }: AutorizacionModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Campos principales
   const [numeroAutorizacion, setNumeroAutorizacion] = useState('');
@@ -88,8 +90,29 @@ export default function AutorizacionModal({
         setWasteCodes([{ codigo_ler: '', descripcion_ler: '', operaciones_tratamiento: ['R13'] }]);
       }
       setError(null);
+      setFieldErrors({});
     }
   }, [isOpen, authorizationToEdit, company]);
+
+  const clearFieldError = (field: string) => {
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
+
+  const validateField = (field: string) => {
+    if (field === 'numeroAutorizacion') {
+      const err = validateRequired(numeroAutorizacion);
+      if (err) setFieldErrors((prev) => ({ ...prev, numeroAutorizacion: err }));
+    } else if (field === 'titulo') {
+      const err = validateRequired(titulo);
+      if (err) setFieldErrors((prev) => ({ ...prev, titulo: err }));
+    }
+  };
 
   const handleAddWasteCode = () => {
     setWasteCodes((prev) => [
@@ -100,6 +123,8 @@ export default function AutorizacionModal({
 
   const handleRemoveWasteCode = (index: number) => {
     setWasteCodes((prev) => prev.filter((_, i) => i !== index));
+    clearFieldError(`ler_${index}`);
+    clearFieldError(`operaciones_${index}`);
   };
 
   const handleWasteCodeChange = (
@@ -112,19 +137,33 @@ export default function AutorizacionModal({
       copy[index] = { ...copy[index], [field]: value };
       return copy;
     });
+    if (field === 'codigo_ler') clearFieldError(`ler_${index}`);
+    if (field === 'operaciones_tratamiento') clearFieldError(`operaciones_${index}`);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (!numeroAutorizacion.trim()) {
-      setError('El número de autorización ambiental es obligatorio.');
-      return;
-    }
+    const errorsMap: Record<string, string> = {};
+    const numErr = validateRequired(numeroAutorizacion);
+    if (numErr) errorsMap.numeroAutorizacion = numErr;
 
-    if (!titulo.trim()) {
-      setError('El título o denominación de la autorización es obligatorio.');
+    const titErr = validateRequired(titulo);
+    if (titErr) errorsMap.titulo = titErr;
+
+    wasteCodes.forEach((wc, idx) => {
+      if (!wc.codigo_ler.trim()) {
+        errorsMap[`ler_${idx}`] = 'El código LER es requerido';
+      }
+      if (!wc.operaciones_tratamiento || wc.operaciones_tratamiento.length === 0 || !wc.operaciones_tratamiento.some(Boolean)) {
+        errorsMap[`operaciones_${idx}`] = 'Operación requerida';
+      }
+    });
+
+    if (Object.keys(errorsMap).length > 0) {
+      setFieldErrors(errorsMap);
+      setError('Por favor, completa los campos requeridos marcados en rojo.');
       return;
     }
 
@@ -199,24 +238,34 @@ export default function AutorizacionModal({
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6" noValidate>
           {error && <Alert variant="error" title="Error de Validación" message={error} />}
 
           {/* Datos Generales */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label>Nº de Autorización Ambiental *</Label>
+              <Label htmlFor="auth_num" required>
+                Nº de Autorización Ambiental
+              </Label>
               <Input
+                id="auth_num"
                 value={numeroAutorizacion}
-                onChange={(e) => setNumeroAutorizacion(e.target.value)}
+                onChange={(e) => {
+                  setNumeroAutorizacion(e.target.value);
+                  clearFieldError('numeroAutorizacion');
+                }}
+                onBlur={() => validateField('numeroAutorizacion')}
                 placeholder="Ej: 123/G-01/VAL ó AAI/2024/008"
+                error={Boolean(fieldErrors.numeroAutorizacion)}
+                hint={fieldErrors.numeroAutorizacion}
                 required
               />
             </div>
 
             <div>
-              <Label>Instalación / Centro Específico</Label>
+              <Label htmlFor="auth_center">Instalación / Centro Específico</Label>
               <select
+                id="auth_center"
                 className="w-full h-11 px-3 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary focus:outline-hidden"
                 value={selectedCenterId || ''}
                 onChange={(e) => setSelectedCenterId(e.target.value ? Number(e.target.value) : null)}
@@ -231,11 +280,20 @@ export default function AutorizacionModal({
             </div>
 
             <div className="md:col-span-2">
-              <Label>Denominación / Título de la Autorización *</Label>
+              <Label htmlFor="auth_titulo" required>
+                Denominación / Título de la Autorización
+              </Label>
               <Input
+                id="auth_titulo"
                 value={titulo}
-                onChange={(e) => setTitulo(e.target.value)}
+                onChange={(e) => {
+                  setTitulo(e.target.value);
+                  clearFieldError('titulo');
+                }}
+                onBlur={() => validateField('titulo')}
                 placeholder="Ej: Autorización de Gestor de Residuos No Peligrosos y Valorización R13"
+                error={Boolean(fieldErrors.titulo)}
+                hint={fieldErrors.titulo}
                 required
               />
             </div>
@@ -314,7 +372,9 @@ export default function AutorizacionModal({
                   className="p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 flex flex-col md:flex-row items-start md:items-center gap-3"
                 >
                   <div className="w-full md:w-64">
-                    <Label className="text-xs mb-1">Código LER *</Label>
+                    <Label className="text-xs mb-1" required>
+                      Código LER
+                    </Label>
                     <LerSelector
                       value={item.codigo_ler}
                       onChange={(code, wt) => {
@@ -326,6 +386,8 @@ export default function AutorizacionModal({
                           handleWasteCodeChange(idx, 'operaciones_tratamiento', wt.operaciones_permitidas);
                         }
                       }}
+                      error={Boolean(fieldErrors[`ler_${idx}`])}
+                      hint={fieldErrors[`ler_${idx}`]}
                       required
                     />
                   </div>
@@ -340,7 +402,9 @@ export default function AutorizacionModal({
                   </div>
 
                   <div className="w-full md:w-56">
-                    <Label className="text-xs mb-1">Operaciones R/D (separadas por coma)</Label>
+                    <Label className="text-xs mb-1" required>
+                      Operaciones R/D (separadas por coma)
+                    </Label>
                     <Input
                       placeholder="R03, R13, D10"
                       value={item.operaciones_tratamiento.join(', ')}
@@ -351,6 +415,8 @@ export default function AutorizacionModal({
                           e.target.value.split(',').map((op) => op.trim().toUpperCase())
                         )
                       }
+                      error={Boolean(fieldErrors[`operaciones_${idx}`])}
+                      hint={fieldErrors[`operaciones_${idx}`]}
                       required
                     />
                   </div>

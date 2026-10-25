@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
+import Label from '@/components/form/Label';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import wasteContractService, { validateContractActivation } from '@/services/wasteContractService';
+import { validateRequired } from '@/lib/validations/formValidation';
 import companyService from '@/services/companyService';
 import wasteTypeService from '@/services/wasteTypeService';
 import treatmentManagerService from '@/services/treatmentManagerService';
@@ -54,6 +56,17 @@ export default function NuevoContratoModal({
   const [producerCenters, setProducerCenters] = useState<ProductionCenter[]>([]);
   const [gestorCenters, setGestorCenters] = useState<ProductionCenter[]>([]);
   const [destAuthScope, setDestAuthScope] = useState<AuthorizedScopeResult | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const clearFieldError = (field: string) => {
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
 
   const [contractWasteCodes, setContractWasteCodes] = useState<ContractWasteCodeFormData[]>([
     { codigo_ler: '', descripcion_ler: '', operacion_tratamiento: 'R13' },
@@ -147,6 +160,7 @@ export default function NuevoContratoModal({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    clearFieldError(name);
   };
 
   const handleGestorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -158,6 +172,7 @@ export default function NuevoContratoModal({
     if (dates && dates.length > 0) {
       const dateStr = dates[0].toISOString().split('T')[0];
       setFormData((prev) => ({ ...prev, [field]: dateStr }));
+      clearFieldError(field);
     }
   };
 
@@ -201,16 +216,32 @@ export default function NuevoContratoModal({
     e.preventDefault();
     setError(null);
 
-    if (!formData.fecha_contrato) {
-      setError('La fecha del contrato es obligatoria.');
-      return;
-    }
+    const errorsMap: Record<string, string> = {};
+    const fechaErr = validateRequired(formData.fecha_contrato);
+    if (fechaErr) errorsMap.fecha_contrato = fechaErr;
+
+    const tipoErr = validateRequired(formData.tipo_contrato);
+    if (tipoErr) errorsMap.tipo_contrato = tipoErr;
 
     if (formData.fecha_inicio && formData.fecha_fin) {
       if (!wasteContractService.validateDates(formData.fecha_inicio, formData.fecha_fin)) {
-        setError('La fecha de fin debe ser posterior a la fecha de inicio.');
-        return;
+        errorsMap.fecha_fin = 'La fecha de fin debe ser posterior a la fecha de inicio.';
       }
+    }
+
+    contractWasteCodes.forEach((wc, idx) => {
+      if (!wc.codigo_ler.trim()) {
+        errorsMap[`ler_${idx}`] = 'El código LER es requerido';
+      }
+      if (!wc.operacion_tratamiento.trim()) {
+        errorsMap[`op_${idx}`] = 'Operación requerida';
+      }
+    });
+
+    if (Object.keys(errorsMap).length > 0) {
+      setFieldErrors(errorsMap);
+      setError('Por favor, completa los campos requeridos marcados en rojo.');
+      return;
     }
 
     // Filtrar residuos válidos
@@ -290,7 +321,7 @@ export default function NuevoContratoModal({
     <Modal isOpen={isOpen} onClose={handleClose} className="max-w-5xl max-h-[90vh] overflow-y-auto p-8">
       <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Nuevo Contrato de Tratamiento</h2>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6" noValidate>
         {error && (
           <Alert variant="error" title="Error" message={error} />
         )}
@@ -300,8 +331,9 @@ export default function NuevoContratoModal({
           <h3 className="text-lg font-semibold text-foreground">Datos del Contrato</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Número de Contrato</label>
+              <Label htmlFor="numero_contrato">Número de Contrato</Label>
               <Input
+                id="numero_contrato"
                 name="numero_contrato"
                 value={formData.numero_contrato}
                 onChange={handleChange}
@@ -310,17 +342,25 @@ export default function NuevoContratoModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Fecha del Contrato *</label>
+              <Label htmlFor="fecha_contrato" required>Fecha del Contrato</Label>
               <DatePicker
                 id="fecha_contrato"
                 mode="single"
                 onChange={handleDateChange('fecha_contrato')}
                 defaultDate={formData.fecha_contrato ? new Date(formData.fecha_contrato) : new Date()}
               />
+              {fieldErrors.fecha_contrato && (
+                <p className="mt-1 text-xs text-error-500 font-medium flex items-center gap-1">
+                  <svg className="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <span>{fieldErrors.fecha_contrato}</span>
+                </p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Fecha de Inicio</label>
+              <Label htmlFor="fecha_inicio">Fecha de Inicio</Label>
               <DatePicker
                 id="fecha_inicio"
                 mode="single"
@@ -330,24 +370,33 @@ export default function NuevoContratoModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Fecha de Fin</label>
+              <Label htmlFor="fecha_fin">Fecha de Fin</Label>
               <DatePicker
                 id="fecha_fin"
                 mode="single"
                 onChange={handleDateChange('fecha_fin')}
                 defaultDate={formData.fecha_fin ? new Date(formData.fecha_fin) : undefined}
               />
-
+              {fieldErrors.fecha_fin && (
+                <p className="mt-1 text-xs text-error-500 font-medium flex items-center gap-1">
+                  <svg className="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <span>{fieldErrors.fecha_fin}</span>
+                </p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Tipo de Contrato *</label>
+              <Label htmlFor="tipo_contrato" required>Tipo de Contrato</Label>
               <select
+                id="tipo_contrato"
                 name="tipo_contrato"
                 value={formData.tipo_contrato}
                 onChange={handleChange}
-                required
-                className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
+                className={`h-11 w-full appearance-none rounded-lg border bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:bg-dark dark:focus:border-primary ${
+                  fieldErrors.tipo_contrato ? 'border-error-500' : 'border-stroke dark:border-strokedark'
+                }`}
               >
                 {TIPOS_CONTRATO.map((tipo) => (
                   <option key={tipo.value} value={tipo.value}>
@@ -355,6 +404,14 @@ export default function NuevoContratoModal({
                   </option>
                 ))}
               </select>
+              {fieldErrors.tipo_contrato && (
+                <p className="mt-1 text-xs text-error-500 font-medium flex items-center gap-1">
+                  <svg className="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <span>{fieldErrors.tipo_contrato}</span>
+                </p>
+              )}
             </div>
 
             <div>
@@ -636,7 +693,7 @@ export default function NuevoContratoModal({
                 className="p-3.5 bg-muted/20 border border-stroke dark:border-strokedark rounded-xl flex flex-col md:flex-row gap-3 items-start md:items-center"
               >
                 <div className="w-full md:w-64">
-                  <label className="block text-xs font-medium mb-1">Código LER *</label>
+                  <Label className="text-xs mb-1" required>Código LER</Label>
                   <LerSelector
                     value={item.codigo_ler}
                     onChange={(val, wt) => {
@@ -650,13 +707,16 @@ export default function NuevoContratoModal({
                         };
                         return copy;
                       });
+                      clearFieldError(`ler_${idx}`);
                     }}
+                    error={Boolean(fieldErrors[`ler_${idx}`])}
+                    hint={fieldErrors[`ler_${idx}`]}
                     required
                   />
                 </div>
 
                 <div className="w-full md:flex-1">
-                  <label className="block text-xs font-medium mb-1">Descripción</label>
+                  <Label className="text-xs mb-1">Descripción</Label>
                   <input
                     type="text"
                     placeholder="Envases de papel y cartón"
@@ -674,7 +734,7 @@ export default function NuevoContratoModal({
                 </div>
 
                 <div className="w-full md:w-32">
-                  <label className="block text-xs font-medium mb-1">Operación R/D *</label>
+                  <Label className="text-xs mb-1" required>Operación R/D</Label>
                   <input
                     type="text"
                     placeholder="R13"
@@ -686,10 +746,20 @@ export default function NuevoContratoModal({
                         copy[idx] = { ...copy[idx], operacion_tratamiento: val };
                         return copy;
                       });
+                      clearFieldError(`op_${idx}`);
                     }}
-                    required
-                    className="h-10 w-full px-3 text-sm rounded-lg border border-stroke bg-white dark:bg-dark shadow-xs focus:border-primary"
+                    className={`h-10 w-full px-3 text-sm rounded-lg border bg-white dark:bg-dark shadow-xs focus:border-primary ${
+                      fieldErrors[`op_${idx}`] ? 'border-error-500' : 'border-stroke'
+                    }`}
                   />
+                  {fieldErrors[`op_${idx}`] && (
+                    <p className="mt-1 text-xs text-error-500 font-medium flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      <span>{fieldErrors[`op_${idx}`]}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div className="w-full md:w-28">

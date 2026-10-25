@@ -8,6 +8,7 @@ interface InputProps {
   value?: string | number;
   defaultValue?: string | number;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
   className?: string;
   min?: string;
   max?: string;
@@ -27,6 +28,7 @@ const Input: FC<InputProps> = ({
   value,
   defaultValue,
   onChange,
+  onBlur,
   className = "",
   min,
   max,
@@ -61,26 +63,42 @@ const Input: FC<InputProps> = ({
         value={value}
         defaultValue={defaultValue}
         onChange={onChange}
+        onBlur={onBlur}
         min={min}
         max={max}
         step={step}
         disabled={disabled}
-        required={required}
+        aria-invalid={error ? "true" : undefined}
         className={inputClasses}
       />
 
-      {/* Optional Hint Text */}
-      {hint && (
+      {/* Mensaje de validación / Hint Text */}
+      {(hint || error) && (
         <p
-          className={`mt-1.5 text-xs ${
+          className={`mt-1.5 text-xs flex items-center gap-1 ${
             error
-              ? "text-error-500"
+              ? "text-error-500 font-medium"
               : success
               ? "text-success-500"
               : "text-gray-500"
           }`}
         >
-          {hint}
+          {error && (
+            <svg
+              className="w-3.5 h-3.5 flex-shrink-0 text-error-500"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          )}
+          <span>{hint || (required ? "Este campo es requerido" : "Entrada no válida")}</span>
         </p>
       )}
     </div>

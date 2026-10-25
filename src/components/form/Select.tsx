@@ -13,6 +13,8 @@ interface SelectProps {
   defaultValue?: string;
   value?: string;
   disabled?: boolean;
+  required?: boolean;
+  onBlur?: (e: React.FocusEvent<HTMLSelectElement>) => void;
   error?: boolean; // Added
   hint?: string;   // Added
 }
@@ -21,10 +23,12 @@ const Select: React.FC<SelectProps> = ({
   options,
   placeholder = "Seleccionar una opción",
   onChange,
+  onBlur,
   className = "",
   defaultValue = "",
   value,
   disabled = false,
+  required = false,
   error = false,
   hint,
 }) => {
@@ -75,7 +79,9 @@ const Select: React.FC<SelectProps> = ({
         className={selectClasses}
         value={currentVal}
         onChange={handleChange}
+        onBlur={onBlur}
         disabled={disabled}
+        aria-invalid={error ? "true" : undefined}
       >
         <option value="" disabled className="text-gray-700 dark:bg-gray-900 dark:text-gray-400">
           {placeholder}
@@ -91,12 +97,31 @@ const Select: React.FC<SelectProps> = ({
         ))}
       </select>
 
-      {/* Chevron Icon Customization (opcional, si quisieras) */}
-
       {/* Hint Text / Error Message */}
-      {hint && (
-        <p className={`mt-1.5 text-xs ${error ? "text-error-500" : "text-gray-500"}`}>
-          {hint}
+      {(hint || error) && (
+        <p
+          className={`mt-1.5 text-xs flex items-center gap-1 ${
+            error
+              ? "text-error-500 font-medium"
+              : "text-gray-500"
+          }`}
+        >
+          {error && (
+            <svg
+              className="w-3.5 h-3.5 flex-shrink-0 text-error-500"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          )}
+          <span>{hint || (required ? "Este campo es requerido" : "Opción no válida")}</span>
         </p>
       )}
     </div>

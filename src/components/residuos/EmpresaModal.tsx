@@ -4,9 +4,16 @@ import { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
+import Label from '@/components/form/Label';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import companyService from '@/services/companyService';
+import {
+  validateRequired,
+  validateCIF,
+  validateNIMA,
+  validateEmail,
+} from '@/lib/validations/formValidation';
 import type { Company, CompanyFormData, CompanyRole } from '@/types/wasteManagement';
 
 interface EmpresaModalProps {
@@ -36,6 +43,36 @@ export default function EmpresaModal({
 }: EmpresaModalProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const clearFieldError = (field: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const { [field]: _, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  const validateField = (field: string) => {
+    let err: string | null = null;
+    if (field === 'razon_social') {
+      err = validateRequired(formData.razon_social);
+    } else if (field === 'cif') {
+      err = validateCIF(formData.cif, true);
+    } else if (field === 'nima' && formData.nima) {
+      err = validateNIMA(formData.nima, false);
+    } else if (field === 'email' && formData.email) {
+      err = validateEmail(formData.email, false);
+    }
+
+    setFieldErrors((prev) => {
+      if (err) {
+        return { ...prev, [field]: err };
+      }
+      const { [field]: _, ...rest } = prev;
+      return rest;
+    });
+  };
 
   const [formData, setFormData] = useState<CompanyFormData>({
     razon_social: '',
@@ -59,6 +96,7 @@ export default function EmpresaModal({
 
   useEffect(() => {
     if (isOpen) {
+      setFieldErrors({});
       if (company) {
         const existingRoles: CompanyRole[] = (
           Array.isArray(company.roles) && company.roles.length > 0
@@ -133,28 +171,30 @@ export default function EmpresaModal({
     e.preventDefault();
     setError(null);
 
-    if (!formData.razon_social.trim()) {
-      setError('La Razón Social es obligatoria.');
-      return;
+    const errorsMap: Record<string, string> = {};
+    const razonErr = validateRequired(formData.razon_social);
+    if (razonErr) errorsMap.razon_social = razonErr;
+
+    const cifErr = validateCIF(formData.cif, true);
+    if (cifErr) errorsMap.cif = cifErr;
+
+    if (formData.nima) {
+      const nimaErr = validateNIMA(formData.nima, false);
+      if (nimaErr) errorsMap.nima = nimaErr;
     }
 
-    if (!formData.cif.trim()) {
-      setError('El CIF / NIF es obligatorio.');
-      return;
-    }
-
-    if (!companyService.validateCIF(formData.cif)) {
-      setError('El formato del CIF/NIF/NIE no es válido (ej: B12345678 o 12345678Z).');
-      return;
-    }
-
-    if (formData.nima && !companyService.validateNIMA(formData.nima)) {
-      setError('El formato del NIMA debe tener entre 10 y 12 caracteres alfanuméricos.');
-      return;
+    if (formData.email) {
+      const emailErr = validateEmail(formData.email, false);
+      if (emailErr) errorsMap.email = emailErr;
     }
 
     if (!formData.roles || formData.roles.length === 0) {
       setError('Debes seleccionar al menos un rol para la empresa.');
+      return;
+    }
+
+    if (Object.keys(errorsMap).length > 0) {
+      setFieldErrors(errorsMap);
       return;
     }
 
@@ -232,18 +272,30 @@ export default function EmpresaModal({
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Razón Social *</label>
+                <Label htmlFor="empresa_razon_social" required>
+                  Razón Social
+                </Label>
                 <Input
+                  id="empresa_razon_social"
                   value={formData.razon_social}
-                  onChange={(e) => setFormData({ ...formData, razon_social: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, razon_social: e.target.value });
+                    clearFieldError('razon_social');
+                  }}
+                  onBlur={() => validateField('razon_social')}
                   placeholder="Ej: Reciclajes del Sur S.L."
+                  error={Boolean(fieldErrors.razon_social)}
+                  hint={fieldErrors.razon_social}
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Nombre Comercial</label>
+                <Label htmlFor="empresa_nombre_comercial">
+                  Nombre Comercial
+                </Label>
                 <Input
+                  id="empresa_nombre_comercial"
                   value={formData.nombre_comercial || ''}
                   onChange={(e) => setFormData({ ...formData, nombre_comercial: e.target.value })}
                   placeholder="Ej: ReciSur"
@@ -251,20 +303,38 @@ export default function EmpresaModal({
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">CIF / NIF *</label>
+                <Label htmlFor="empresa_cif" required>
+                  CIF / NIF
+                </Label>
                 <Input
+                  id="empresa_cif"
                   value={formData.cif}
-                  onChange={(e) => setFormData({ ...formData, cif: e.target.value.toUpperCase() })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, cif: e.target.value.toUpperCase() });
+                    clearFieldError('cif');
+                  }}
+                  onBlur={() => validateField('cif')}
                   placeholder="B12345678"
+                  error={Boolean(fieldErrors.cif)}
+                  hint={fieldErrors.cif}
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">NIMA</label>
+                <Label htmlFor="empresa_nima">
+                  NIMA
+                </Label>
                 <Input
+                  id="empresa_nima"
                   value={formData.nima || ''}
-                  onChange={(e) => setFormData({ ...formData, nima: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, nima: e.target.value });
+                    clearFieldError('nima');
+                  }}
+                  onBlur={() => validateField('nima')}
+                  error={Boolean(fieldErrors.nima)}
+                  hint={fieldErrors.nima}
                   placeholder="Número de Identificación Medioambiental"
                 />
               </div>
@@ -372,11 +442,20 @@ export default function EmpresaModal({
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Email</label>
+                <Label htmlFor="empresa_email">
+                  Email
+                </Label>
                 <Input
+                  id="empresa_email"
                   type="email"
                   value={formData.email || ''}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value });
+                    clearFieldError('email');
+                  }}
+                  onBlur={() => validateField('email')}
+                  error={Boolean(fieldErrors.email)}
+                  hint={fieldErrors.email}
                   placeholder="contacto@empresa.com"
                 />
               </div>
