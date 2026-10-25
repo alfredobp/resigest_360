@@ -14,6 +14,7 @@ interface InputProps {
   max?: string;
   step?: number | string;
   disabled?: boolean;
+  readOnly?: boolean;
   required?: boolean;
   success?: boolean;
   error?: boolean;
@@ -34,6 +35,7 @@ const Input: FC<InputProps> = ({
   max,
   step,
   disabled = false,
+  readOnly = false,
   required = false,
   success = false,
   error = false,
@@ -45,6 +47,8 @@ const Input: FC<InputProps> = ({
   // Add styles for the different states
   if (disabled) {
     inputClasses += ` text-gray-500 border-gray-300 cursor-not-allowed dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700`;
+  } else if (readOnly) {
+    inputClasses += ` bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700 cursor-default`;
   } else if (error) {
     inputClasses += ` bg-error-50/30 text-error-900 border-error-500 ring-1 ring-error-500/50 focus:border-error-500 focus:ring-3 focus:ring-error-500/20 dark:bg-error-950/30 dark:text-error-300 dark:border-error-500 dark:focus:border-error-400`;
   } else if (success) {
@@ -68,6 +72,7 @@ const Input: FC<InputProps> = ({
         max={max}
         step={step}
         disabled={disabled}
+        readOnly={readOnly}
         aria-invalid={error ? "true" : undefined}
         className={inputClasses}
       />

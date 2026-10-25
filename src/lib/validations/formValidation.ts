@@ -250,3 +250,21 @@ export function scrollToFirstError(
 
   return found;
 }
+
+/**
+ * Valida que un número sea positivo (> 0).
+ */
+export function validatePositiveNumber(
+  value: unknown,
+  fieldName = 'Este campo',
+  isRequired = true
+): string | null {
+  if (value === null || value === undefined || value === '') {
+    return isRequired ? `${fieldName} es obligatorio` : null;
+  }
+  const num = typeof value === 'number' ? value : parseFloat(String(value));
+  if (isNaN(num) || num <= 0) {
+    return `${fieldName} debe ser un número mayor que 0`;
+  }
+  return null;
+}

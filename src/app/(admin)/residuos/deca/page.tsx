@@ -10,6 +10,16 @@ import QRCode from 'qrcode';
 import { decaService } from '@/services/decaService';
 import type { DecaDocument, DecaFormData } from '@/types/deca';
 import { toast } from '@/context/ToastContext';
+import { Modal } from '@/components/ui/modal';
+import Label from '@/components/form/Label';
+import Input from '@/components/form/input/InputField';
+import TextArea from '@/components/form/input/TextArea';
+import {
+  validateRequired,
+  validateCIF,
+  validatePositiveNumber,
+  scrollToFirstError,
+} from '@/lib/validations/formValidation';
 import {
   Truck,
   Plus,
@@ -40,12 +50,14 @@ export default function DecaManagementPage() {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
   const [versionModalDoc, setVersionModalDoc] = useState<DecaDocument | null>(null);
+  const [versionErrors, setVersionErrors] = useState<Record<string, string>>({});
   const [motivoVersion, setMotivoVersion] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Formulario de creación
-  const [formData, setFormData] = useState<Partial<DecaFormData>>({
+  const initialFormData: Partial<DecaFormData> = {
     cargador_razon_social: '',
     cargador_nif: '',
     cargador_domicilio: '',
@@ -67,7 +79,28 @@ export default function DecaManagementPage() {
     conductor_nombre: '',
     fecha_transporte: new Date().toISOString().split('T')[0],
     estado: 'vigente',
-  });
+  };
+  const [formData, setFormData] = useState<Partial<DecaFormData>>(initialFormData);
+
+  const clearCreateError = (field: string) => {
+    if (createErrors[field]) {
+      setCreateErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
+
+  const clearVersionError = (field: string) => {
+    if (versionErrors[field]) {
+      setVersionErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
 
   const loadDocuments = async () => {
     try {
@@ -121,8 +154,65 @@ export default function DecaManagementPage() {
     }
   };
 
+  const openCreateModal = () => {
+    setFormData(initialFormData);
+    setCreateErrors({});
+    setCreateModalOpen(true);
+  };
+
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors: Record<string, string> = {};
+
+    const cargadorRazonError = validateRequired(formData.cargador_razon_social, 'Razón social del cargador');
+    if (cargadorRazonError) errors.cargador_razon_social = cargadorRazonError;
+
+    const cargadorNifError = validateCIF(formData.cargador_nif || '', true);
+    if (cargadorNifError) errors.cargador_nif = cargadorNifError;
+
+    const cargadorDomError = validateRequired(formData.cargador_domicilio, 'Domicilio del cargador');
+    if (cargadorDomError) errors.cargador_domicilio = cargadorDomError;
+
+    const transportistaRazonError = validateRequired(formData.transportista_razon_social, 'Razón social del transportista');
+    if (transportistaRazonError) errors.transportista_razon_social = transportistaRazonError;
+
+    const transportistaNifError = validateCIF(formData.transportista_nif || '', true);
+    if (transportistaNifError) errors.transportista_nif = transportistaNifError;
+
+    const matriculaError = validateRequired(formData.matricula_tractora, 'Matrícula tractora');
+    if (matriculaError) errors.matricula_tractora = matriculaError;
+
+    const origenDirError = validateRequired(formData.origen_direccion, 'Dirección de origen');
+    if (origenDirError) errors.origen_direccion = origenDirError;
+
+    const origenMunError = validateRequired(formData.origen_municipio, 'Municipio de origen');
+    if (origenMunError) errors.origen_municipio = origenMunError;
+
+    const origenProvError = validateRequired(formData.origen_provincia, 'Provincia de origen');
+    if (origenProvError) errors.origen_provincia = origenProvError;
+
+    const destinoDirError = validateRequired(formData.destino_direccion, 'Dirección de destino');
+    if (destinoDirError) errors.destino_direccion = destinoDirError;
+
+    const destinoMunError = validateRequired(formData.destino_municipio, 'Municipio de destino');
+    if (destinoMunError) errors.destino_municipio = destinoMunError;
+
+    const destinoProvError = validateRequired(formData.destino_provincia, 'Provincia de destino');
+    if (destinoProvError) errors.destino_provincia = destinoProvError;
+
+    const mercanciaError = validateRequired(formData.naturaleza_mercancia, 'Naturaleza de la mercancía');
+    if (mercanciaError) errors.naturaleza_mercancia = mercanciaError;
+
+    const pesoError = validatePositiveNumber(formData.peso_kg, 'Peso en kg');
+    if (pesoError) errors.peso_kg = pesoError;
+
+    if (Object.keys(errors).length > 0) {
+      setCreateErrors(errors);
+      scrollToFirstError(errors, 'deca_create_');
+      toast.error('Por favor, completa los campos obligatorios señalados en rojo.');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       const newDoc = await decaService.create(formData as DecaFormData);
@@ -139,8 +229,21 @@ export default function DecaManagementPage() {
   const handleVersionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!versionModalDoc) return;
-    if (!motivoVersion.trim()) {
-      toast.error('Por favor especifica el motivo normativo de la modificación.');
+
+    const errors: Record<string, string> = {};
+    const motivoError = validateRequired(motivoVersion, 'Motivo de la modificación');
+    if (motivoError) errors.motivo = motivoError;
+
+    const matriculaError = validateRequired(formData.matricula_tractora, 'Matrícula tractora');
+    if (matriculaError) errors.matricula_tractora = matriculaError;
+
+    const pesoError = validatePositiveNumber(formData.peso_kg, 'Peso declarado');
+    if (pesoError) errors.peso_kg = pesoError;
+
+    if (Object.keys(errors).length > 0) {
+      setVersionErrors(errors);
+      scrollToFirstError(errors, 'deca_version_');
+      toast.error('Por favor, completa los campos obligatorios señalados en rojo.');
       return;
     }
 
@@ -149,6 +252,7 @@ export default function DecaManagementPage() {
       const updated = await decaService.createNewVersion(versionModalDoc, formData, motivoVersion);
       setVersionModalDoc(null);
       setMotivoVersion('');
+      setVersionErrors({});
       toast.success(`Nueva versión v${updated.version} de ${updated.numero_deca} emitida.`);
       await loadDocuments();
     } catch (err: any) {
@@ -162,6 +266,7 @@ export default function DecaManagementPage() {
     setVersionModalDoc(doc);
     setFormData({ ...doc });
     setMotivoVersion('');
+    setVersionErrors({});
   };
 
   // Filtrado
@@ -207,32 +312,7 @@ export default function DecaManagementPage() {
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button
-            onClick={() => {
-              setFormData({
-                cargador_razon_social: '',
-                cargador_nif: '',
-                cargador_domicilio: '',
-                cargador_municipio: '',
-                cargador_provincia: '',
-                transportista_razon_social: '',
-                transportista_nif: '',
-                transportista_autorizacion: '',
-                origen_direccion: '',
-                origen_municipio: '',
-                origen_provincia: '',
-                destino_direccion: '',
-                destino_municipio: '',
-                destino_provincia: '',
-                naturaleza_mercancia: '',
-                peso_kg: 0,
-                matricula_tractora: '',
-                matricula_remolque: '',
-                conductor_nombre: '',
-                fecha_transporte: new Date().toISOString().split('T')[0],
-                estado: 'vigente',
-              });
-              setCreateModalOpen(true);
-            }}
+            onClick={openCreateModal}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2.5 rounded-xl shadow-sm shadow-blue-600/30 transition text-sm"
           >
             <Plus className="w-4 h-4" />
@@ -473,9 +553,13 @@ export default function DecaManagementPage() {
       </div>
 
       {/* MODAL: Visualización de QR y Enlaces de Inspección / Móvil Conductor */}
-      {qrModalDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+      <Modal
+        isOpen={Boolean(qrModalDoc)}
+        onClose={() => setQrModalDoc(null)}
+        className="max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-5"
+      >
+        {qrModalDoc && (
+          <div className="space-y-5">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-xl">
@@ -487,8 +571,10 @@ export default function DecaManagementPage() {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setQrModalDoc(null)}
                 className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
+                aria-label="Cerrar modal"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -511,19 +597,19 @@ export default function DecaManagementPage() {
             {/* Enlaces de Acción */}
             <div className="space-y-2.5">
               <div>
-                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                  Enlace para la Inspección en Carretera (Descarga Directa)
-                </label>
+                <Label htmlFor="deca_qr_inspection_link">Enlace para la Inspección en Carretera (Descarga Directa)</Label>
                 <div className="flex items-center gap-2 mt-1">
-                  <input
+                  <Input
+                    id="deca_qr_inspection_link"
                     type="text"
                     readOnly
                     value={`${originUrl}/api/deca/${qrModalDoc.token}`}
-                    className="flex-1 text-xs bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 font-mono truncate"
+                    className="flex-1 font-mono text-xs"
                   />
                   <button
+                    type="button"
                     onClick={() => handleCopy(`${originUrl}/api/deca/${qrModalDoc.token}`, 'inspection')}
-                    className="p-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 rounded-xl transition text-slate-700 dark:text-slate-200"
+                    className="p-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 rounded-xl transition text-slate-700 dark:text-slate-200 shrink-0"
                     title="Copiar enlace"
                   >
                     {copiedLink === 'inspection' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
@@ -532,19 +618,19 @@ export default function DecaManagementPage() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                  Enlace Móvil para el Conductor
-                </label>
+                <Label htmlFor="deca_qr_driver_link">Enlace Móvil para el Conductor</Label>
                 <div className="flex items-center gap-2 mt-1">
-                  <input
+                  <Input
+                    id="deca_qr_driver_link"
                     type="text"
                     readOnly
                     value={`${originUrl}/mobile/deca/${qrModalDoc.token}`}
-                    className="flex-1 text-xs bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 font-mono truncate"
+                    className="flex-1 font-mono text-xs"
                   />
                   <button
+                    type="button"
                     onClick={() => handleCopy(`${originUrl}/mobile/deca/${qrModalDoc.token}`, 'driver')}
-                    className="p-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 rounded-xl transition text-slate-700 dark:text-slate-200"
+                    className="p-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 rounded-xl transition text-slate-700 dark:text-slate-200 shrink-0"
                     title="Copiar enlace"
                   >
                     {copiedLink === 'driver' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
@@ -553,7 +639,7 @@ export default function DecaManagementPage() {
                     href={`/mobile/deca/${qrModalDoc.token}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition"
+                    className="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition shrink-0"
                     title="Abrir vista móvil"
                   >
                     <ExternalLink className="w-4 h-4" />
@@ -574,24 +660,39 @@ export default function DecaManagementPage() {
               </a>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* MODAL: Crear DeCA Autónomo */}
-      {createModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-6 space-y-5 shadow-2xl my-8">
+      <Modal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        className="max-w-2xl max-h-[90vh] overflow-y-auto p-6 sm:p-8"
+      >
+        {createModalOpen && (
+          <div className="space-y-5">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <Truck className="w-5 h-5 text-blue-600" />
                 <h3 className="font-bold text-slate-900 dark:text-white text-lg">Emitir DeCA Autónomo</h3>
               </div>
-              <button onClick={() => setCreateModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+              <button
+                type="button"
+                onClick={() => setCreateModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                aria-label="Cerrar modal"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateSubmit} className="space-y-4">
+            <form onSubmit={handleCreateSubmit} noValidate className="space-y-4">
+              {Object.keys(createErrors).length > 0 && (
+                <div className="p-3 bg-error-50 dark:bg-error-950/40 border border-error-200 dark:border-error-800 rounded-xl text-xs text-error-700 dark:text-error-300">
+                  Por favor, completa los campos requeridos señalados en rojo antes de emitir el DeCA.
+                </div>
+              )}
+
               <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-xl text-xs text-blue-700 dark:text-blue-300">
                 <strong>Requisito legal:</strong> El documento debe emitirse y ponerse a disposición del transportista
                 antes de iniciar el servicio en carretera.
@@ -604,33 +705,46 @@ export default function DecaManagementPage() {
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Razón Social *</label>
-                    <input
+                    <Label htmlFor="deca_create_cargador_razon_social" required>Razón Social</Label>
+                    <Input
+                      id="deca_create_cargador_razon_social"
                       type="text"
-                      required
                       value={formData.cargador_razon_social || ''}
-                      onChange={(e) => setFormData({ ...formData, cargador_razon_social: e.target.value })}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
+                      onChange={(e) => {
+                        setFormData({ ...formData, cargador_razon_social: e.target.value });
+                        clearCreateError('cargador_razon_social');
+                      }}
+                      error={Boolean(createErrors.cargador_razon_social)}
+                      hint={createErrors.cargador_razon_social}
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">NIF / CIF *</label>
-                    <input
+                    <Label htmlFor="deca_create_cargador_nif" required>NIF / CIF</Label>
+                    <Input
+                      id="deca_create_cargador_nif"
                       type="text"
-                      required
                       value={formData.cargador_nif || ''}
-                      onChange={(e) => setFormData({ ...formData, cargador_nif: e.target.value })}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
+                      onChange={(e) => {
+                        setFormData({ ...formData, cargador_nif: e.target.value.toUpperCase() });
+                        clearCreateError('cargador_nif');
+                      }}
+                      error={Boolean(createErrors.cargador_nif)}
+                      hint={createErrors.cargador_nif}
+                      className="font-mono"
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Domicilio *</label>
-                    <input
+                    <Label htmlFor="deca_create_cargador_domicilio" required>Domicilio</Label>
+                    <Input
+                      id="deca_create_cargador_domicilio"
                       type="text"
-                      required
                       value={formData.cargador_domicilio || ''}
-                      onChange={(e) => setFormData({ ...formData, cargador_domicilio: e.target.value })}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
+                      onChange={(e) => {
+                        setFormData({ ...formData, cargador_domicilio: e.target.value });
+                        clearCreateError('cargador_domicilio');
+                      }}
+                      error={Boolean(createErrors.cargador_domicilio)}
+                      hint={createErrors.cargador_domicilio}
                     />
                   </div>
                 </div>
@@ -643,63 +757,78 @@ export default function DecaManagementPage() {
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Transportista *</label>
-                    <input
+                    <Label htmlFor="deca_create_transportista_razon_social" required>Transportista</Label>
+                    <Input
+                      id="deca_create_transportista_razon_social"
                       type="text"
-                      required
                       value={formData.transportista_razon_social || ''}
-                      onChange={(e) => setFormData({ ...formData, transportista_razon_social: e.target.value })}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
+                      onChange={(e) => {
+                        setFormData({ ...formData, transportista_razon_social: e.target.value });
+                        clearCreateError('transportista_razon_social');
+                      }}
+                      error={Boolean(createErrors.transportista_razon_social)}
+                      hint={createErrors.transportista_razon_social}
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">NIF Transportista *</label>
-                    <input
+                    <Label htmlFor="deca_create_transportista_nif" required>NIF Transportista</Label>
+                    <Input
+                      id="deca_create_transportista_nif"
                       type="text"
-                      required
                       value={formData.transportista_nif || ''}
-                      onChange={(e) => setFormData({ ...formData, transportista_nif: e.target.value })}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
+                      onChange={(e) => {
+                        setFormData({ ...formData, transportista_nif: e.target.value.toUpperCase() });
+                        clearCreateError('transportista_nif');
+                      }}
+                      error={Boolean(createErrors.transportista_nif)}
+                      hint={createErrors.transportista_nif}
+                      className="font-mono"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Nº Autorización</label>
-                    <input
+                    <Label htmlFor="deca_create_transportista_autorizacion">Nº Autorización</Label>
+                    <Input
+                      id="deca_create_transportista_autorizacion"
                       type="text"
                       value={formData.transportista_autorizacion || ''}
                       onChange={(e) => setFormData({ ...formData, transportista_autorizacion: e.target.value })}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Matrícula Tractora *</label>
-                    <input
+                    <Label htmlFor="deca_create_matricula_tractora" required>Matrícula Tractora</Label>
+                    <Input
+                      id="deca_create_matricula_tractora"
                       type="text"
-                      required
                       placeholder="1234-BBB"
                       value={formData.matricula_tractora || ''}
-                      onChange={(e) => setFormData({ ...formData, matricula_tractora: e.target.value })}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 font-mono"
+                      onChange={(e) => {
+                        setFormData({ ...formData, matricula_tractora: e.target.value.toUpperCase() });
+                        clearCreateError('matricula_tractora');
+                      }}
+                      error={Boolean(createErrors.matricula_tractora)}
+                      hint={createErrors.matricula_tractora}
+                      className="font-mono"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Matrícula Remolque</label>
-                    <input
+                    <Label htmlFor="deca_create_matricula_remolque">Matrícula Remolque</Label>
+                    <Input
+                      id="deca_create_matricula_remolque"
                       type="text"
                       placeholder="R-1234-BBB"
                       value={formData.matricula_remolque || ''}
-                      onChange={(e) => setFormData({ ...formData, matricula_remolque: e.target.value })}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 font-mono"
+                      onChange={(e) => setFormData({ ...formData, matricula_remolque: e.target.value.toUpperCase() })}
+                      className="font-mono"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Nombre Conductor</label>
-                    <input
+                    <Label htmlFor="deca_create_conductor_nombre">Nombre Conductor</Label>
+                    <Input
+                      id="deca_create_conductor_nombre"
                       type="text"
                       value={formData.conductor_nombre || ''}
                       onChange={(e) => setFormData({ ...formData, conductor_nombre: e.target.value })}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
                     />
                   </div>
                 </div>
@@ -709,61 +838,103 @@ export default function DecaManagementPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="border border-slate-200 dark:border-slate-800 p-3 rounded-2xl space-y-2">
                   <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">Origen (Carga) *</h4>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Dirección completa"
-                    value={formData.origen_direccion || ''}
-                    onChange={(e) => setFormData({ ...formData, origen_direccion: e.target.value })}
-                    className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
-                  />
+                  <div>
+                    <Label htmlFor="deca_create_origen_direccion" required>Dirección</Label>
+                    <Input
+                      id="deca_create_origen_direccion"
+                      type="text"
+                      placeholder="Dirección completa"
+                      value={formData.origen_direccion || ''}
+                      onChange={(e) => {
+                        setFormData({ ...formData, origen_direccion: e.target.value });
+                        clearCreateError('origen_direccion');
+                      }}
+                      error={Boolean(createErrors.origen_direccion)}
+                      hint={createErrors.origen_direccion}
+                    />
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      required
-                      placeholder="Municipio"
-                      value={formData.origen_municipio || ''}
-                      onChange={(e) => setFormData({ ...formData, origen_municipio: e.target.value })}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
-                    />
-                    <input
-                      type="text"
-                      required
-                      placeholder="Provincia"
-                      value={formData.origen_provincia || ''}
-                      onChange={(e) => setFormData({ ...formData, origen_provincia: e.target.value })}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
-                    />
+                    <div>
+                      <Label htmlFor="deca_create_origen_municipio" required>Municipio</Label>
+                      <Input
+                        id="deca_create_origen_municipio"
+                        type="text"
+                        placeholder="Municipio"
+                        value={formData.origen_municipio || ''}
+                        onChange={(e) => {
+                          setFormData({ ...formData, origen_municipio: e.target.value });
+                          clearCreateError('origen_municipio');
+                        }}
+                        error={Boolean(createErrors.origen_municipio)}
+                        hint={createErrors.origen_municipio}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="deca_create_origen_provincia" required>Provincia</Label>
+                      <Input
+                        id="deca_create_origen_provincia"
+                        type="text"
+                        placeholder="Provincia"
+                        value={formData.origen_provincia || ''}
+                        onChange={(e) => {
+                          setFormData({ ...formData, origen_provincia: e.target.value });
+                          clearCreateError('origen_provincia');
+                        }}
+                        error={Boolean(createErrors.origen_provincia)}
+                        hint={createErrors.origen_provincia}
+                      />
+                    </div>
                   </div>
                 </div>
 
                 <div className="border border-slate-200 dark:border-slate-800 p-3 rounded-2xl space-y-2">
                   <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">Destino (Entrega) *</h4>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Dirección completa"
-                    value={formData.destino_direccion || ''}
-                    onChange={(e) => setFormData({ ...formData, destino_direccion: e.target.value })}
-                    className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
-                  />
+                  <div>
+                    <Label htmlFor="deca_create_destino_direccion" required>Dirección</Label>
+                    <Input
+                      id="deca_create_destino_direccion"
+                      type="text"
+                      placeholder="Dirección completa"
+                      value={formData.destino_direccion || ''}
+                      onChange={(e) => {
+                        setFormData({ ...formData, destino_direccion: e.target.value });
+                        clearCreateError('destino_direccion');
+                      }}
+                      error={Boolean(createErrors.destino_direccion)}
+                      hint={createErrors.destino_direccion}
+                    />
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      required
-                      placeholder="Municipio"
-                      value={formData.destino_municipio || ''}
-                      onChange={(e) => setFormData({ ...formData, destino_municipio: e.target.value })}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
-                    />
-                    <input
-                      type="text"
-                      required
-                      placeholder="Provincia"
-                      value={formData.destino_provincia || ''}
-                      onChange={(e) => setFormData({ ...formData, destino_provincia: e.target.value })}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
-                    />
+                    <div>
+                      <Label htmlFor="deca_create_destino_municipio" required>Municipio</Label>
+                      <Input
+                        id="deca_create_destino_municipio"
+                        type="text"
+                        placeholder="Municipio"
+                        value={formData.destino_municipio || ''}
+                        onChange={(e) => {
+                          setFormData({ ...formData, destino_municipio: e.target.value });
+                          clearCreateError('destino_municipio');
+                        }}
+                        error={Boolean(createErrors.destino_municipio)}
+                        hint={createErrors.destino_municipio}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="deca_create_destino_provincia" required>Provincia</Label>
+                      <Input
+                        id="deca_create_destino_provincia"
+                        type="text"
+                        placeholder="Provincia"
+                        value={formData.destino_provincia || ''}
+                        onChange={(e) => {
+                          setFormData({ ...formData, destino_provincia: e.target.value });
+                          clearCreateError('destino_provincia');
+                        }}
+                        error={Boolean(createErrors.destino_provincia)}
+                        hint={createErrors.destino_provincia}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -775,26 +946,33 @@ export default function DecaManagementPage() {
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="sm:col-span-2">
-                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                      Naturaleza de la Mercancía *
-                    </label>
-                    <input
+                    <Label htmlFor="deca_create_naturaleza_mercancia" required>Naturaleza de la Mercancía</Label>
+                    <Input
+                      id="deca_create_naturaleza_mercancia"
                       type="text"
-                      required
                       placeholder="Ej. Chatarra férrica cizallada / Baterías plomo"
                       value={formData.naturaleza_mercancia || ''}
-                      onChange={(e) => setFormData({ ...formData, naturaleza_mercancia: e.target.value })}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
+                      onChange={(e) => {
+                        setFormData({ ...formData, naturaleza_mercancia: e.target.value });
+                        clearCreateError('naturaleza_mercancia');
+                      }}
+                      error={Boolean(createErrors.naturaleza_mercancia)}
+                      hint={createErrors.naturaleza_mercancia}
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Peso (kg) *</label>
-                    <input
+                    <Label htmlFor="deca_create_peso_kg" required>Peso (kg)</Label>
+                    <Input
+                      id="deca_create_peso_kg"
                       type="number"
-                      required
                       value={formData.peso_kg || ''}
-                      onChange={(e) => setFormData({ ...formData, peso_kg: parseFloat(e.target.value) || 0 })}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 font-mono"
+                      onChange={(e) => {
+                        setFormData({ ...formData, peso_kg: parseFloat(e.target.value) || 0 });
+                        clearCreateError('peso_kg');
+                      }}
+                      error={Boolean(createErrors.peso_kg)}
+                      hint={createErrors.peso_kg}
+                      className="font-mono"
                     />
                   </div>
                 </div>
@@ -810,20 +988,25 @@ export default function DecaManagementPage() {
                 </button>
                 <button
                   type="submit"
-                  className="bg-blue-600 hover:bg-blue-500 text-white font-medium px-5 py-2.5 rounded-xl text-xs shadow-md shadow-blue-600/30 transition"
+                  disabled={isSubmitting}
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-medium px-5 py-2.5 rounded-xl text-xs shadow-md shadow-blue-600/30 transition disabled:opacity-50"
                 >
-                  Emitir y Generar QR
+                  {isSubmitting ? 'Emitiendo...' : 'Emitir y Generar QR'}
                 </button>
               </div>
             </form>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* MODAL: Crear Nueva Versión Inmutable */}
-      {versionModalDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+      <Modal
+        isOpen={Boolean(versionModalDoc)}
+        onClose={() => setVersionModalDoc(null)}
+        className="max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4"
+      >
+        {versionModalDoc && (
+          <div className="space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white">Crear Nueva Versión del DeCA</h3>
@@ -831,77 +1014,101 @@ export default function DecaManagementPage() {
                   Emitirá la versión v{versionModalDoc.version + 1} con nuevo token, preservando la trazabilidad.
                 </p>
               </div>
-              <button onClick={() => setVersionModalDoc(null)} className="text-slate-400 hover:text-slate-600">
+              <button
+                type="button"
+                onClick={() => setVersionModalDoc(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                aria-label="Cerrar modal"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleVersionSubmit} className="space-y-3">
+            <form onSubmit={handleVersionSubmit} noValidate className="space-y-3">
+              {Object.keys(versionErrors).length > 0 && (
+                <div className="p-3 bg-error-50 dark:bg-error-950/40 border border-error-200 dark:border-error-800 rounded-xl text-xs text-error-700 dark:text-error-300">
+                  Por favor, completa los campos requeridos señalados en rojo antes de guardar la versión.
+                </div>
+              )}
+
               <div>
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Motivo obligatorio de la modificación (Auditoría):
-                </label>
-                <textarea
-                  required
+                <Label htmlFor="deca_version_motivo" required>Motivo obligatorio de la modificación (Auditoría)</Label>
+                <TextArea
+                  id="deca_version_motivo"
                   rows={2}
                   placeholder="Ej. Cambio de tractora por avería mecánica en ruta / Ajuste de peso en báscula"
                   value={motivoVersion}
-                  onChange={(e) => setMotivoVersion(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 mt-1"
+                  onChange={(val) => {
+                    setMotivoVersion(val);
+                    clearVersionError('motivo');
+                  }}
+                  error={Boolean(versionErrors.motivo)}
+                  hint={versionErrors.motivo}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Matrícula Tractora *</label>
-                  <input
+                  <Label htmlFor="deca_version_matricula_tractora" required>Matrícula Tractora</Label>
+                  <Input
+                    id="deca_version_matricula_tractora"
                     type="text"
-                    required
                     value={formData.matricula_tractora || ''}
-                    onChange={(e) => setFormData({ ...formData, matricula_tractora: e.target.value })}
-                    className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 font-mono"
+                    onChange={(e) => {
+                      setFormData({ ...formData, matricula_tractora: e.target.value.toUpperCase() });
+                      clearVersionError('matricula_tractora');
+                    }}
+                    error={Boolean(versionErrors.matricula_tractora)}
+                    hint={versionErrors.matricula_tractora}
+                    className="font-mono"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Matrícula Remolque</label>
-                  <input
+                  <Label htmlFor="deca_version_matricula_remolque">Matrícula Remolque</Label>
+                  <Input
+                    id="deca_version_matricula_remolque"
                     type="text"
                     value={formData.matricula_remolque || ''}
-                    onChange={(e) => setFormData({ ...formData, matricula_remolque: e.target.value })}
-                    className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 font-mono"
+                    onChange={(e) => setFormData({ ...formData, matricula_remolque: e.target.value.toUpperCase() })}
+                    className="font-mono"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Nombre Conductor</label>
-                  <input
+                  <Label htmlFor="deca_version_conductor_nombre">Nombre Conductor</Label>
+                  <Input
+                    id="deca_version_conductor_nombre"
                     type="text"
                     value={formData.conductor_nombre || ''}
                     onChange={(e) => setFormData({ ...formData, conductor_nombre: e.target.value })}
-                    className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Peso Declarado (kg) *</label>
-                  <input
+                  <Label htmlFor="deca_version_peso_kg" required>Peso Declarado (kg)</Label>
+                  <Input
+                    id="deca_version_peso_kg"
                     type="number"
-                    required
                     value={formData.peso_kg || ''}
-                    onChange={(e) => setFormData({ ...formData, peso_kg: parseFloat(e.target.value) || 0 })}
-                    className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 font-mono"
+                    onChange={(e) => {
+                      setFormData({ ...formData, peso_kg: parseFloat(e.target.value) || 0 });
+                      clearVersionError('peso_kg');
+                    }}
+                    error={Boolean(versionErrors.peso_kg)}
+                    hint={versionErrors.peso_kg}
+                    className="font-mono"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Observaciones / Reservas</label>
-                <textarea
+                <Label htmlFor="deca_version_observaciones">Observaciones / Reservas</Label>
+                <TextArea
+                  id="deca_version_observaciones"
                   rows={2}
                   value={formData.observaciones_reservas || ''}
-                  onChange={(e) => setFormData({ ...formData, observaciones_reservas: e.target.value })}
-                  className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800"
+                  onChange={(val) => setFormData({ ...formData, observaciones_reservas: val })}
                 />
               </div>
 
@@ -923,8 +1130,8 @@ export default function DecaManagementPage() {
               </div>
             </form>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 }

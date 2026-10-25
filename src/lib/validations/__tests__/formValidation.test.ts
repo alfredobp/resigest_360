@@ -9,6 +9,7 @@ import {
   validateDateRange,
   validateForm,
   scrollToFirstError,
+  validatePositiveNumber,
 } from '../formValidation';
 
 describe('formValidation - Motor de Validación y Reglas', () => {
@@ -291,6 +292,35 @@ describe('formValidation - Motor de Validación y Reglas', () => {
       };
       const result = scrollToFirstError({ campo_inexistente: 'Error' });
       expect(result).toBe(false);
+    });
+  });
+
+  describe('validatePositiveNumber', () => {
+    it('debe fallar si el valor es null, undefined o cadena vacía cuando es obligatorio', () => {
+      expect(validatePositiveNumber(null, 'Peso')).toBe('Peso es obligatorio');
+      expect(validatePositiveNumber(undefined, 'Peso')).toBe('Peso es obligatorio');
+      expect(validatePositiveNumber('', 'Peso')).toBe('Peso es obligatorio');
+    });
+
+    it('debe permitir null/vacío si isRequired es false', () => {
+      expect(validatePositiveNumber(null, 'Peso', false)).toBeNull();
+      expect(validatePositiveNumber('', 'Peso', false)).toBeNull();
+    });
+
+    it('debe fallar si el número es menor o igual a 0', () => {
+      expect(validatePositiveNumber(0, 'Peso')).toBe('Peso debe ser un número mayor que 0');
+      expect(validatePositiveNumber(-5, 'Peso')).toBe('Peso debe ser un número mayor que 0');
+      expect(validatePositiveNumber('-10.5', 'Peso')).toBe('Peso debe ser un número mayor que 0');
+    });
+
+    it('debe fallar si no es un número válido', () => {
+      expect(validatePositiveNumber('abc', 'Peso')).toBe('Peso debe ser un número mayor que 0');
+    });
+
+    it('debe pasar si el número es estrictamente mayor que 0', () => {
+      expect(validatePositiveNumber(10, 'Peso')).toBeNull();
+      expect(validatePositiveNumber(0.5, 'Peso')).toBeNull();
+      expect(validatePositiveNumber('1250.75', 'Peso')).toBeNull();
     });
   });
 });

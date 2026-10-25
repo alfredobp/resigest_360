@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Modal } from '@/components/ui/modal';
 import Button from '@/components/ui/button/Button';
 import Input from '@/components/form/input/InputField';
 import Label from '@/components/form/Label';
@@ -214,33 +215,22 @@ export default function AutorizacionModal({
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-gray-200 dark:border-gray-800">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/40">
-          <div>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <span>📜</span>
-              {authorizationToEdit ? 'Editar Autorización Ambiental' : 'Nueva Autorización Ambiental'}
-            </h3>
-            <p className="text-xs text-muted mt-0.5">
-              Empresa gestora: <strong className="text-foreground">{company.razon_social}</strong> ({company.cif})
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-          >
-            ×
-          </button>
-        </div>
+    <Modal isOpen={isOpen} onClose={onClose} className="max-w-3xl max-h-[90vh] overflow-y-auto p-6 sm:p-8">
+      {/* Header */}
+      <div className="pb-4 mb-4 border-b border-gray-100 dark:border-gray-800">
+        <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <span>📜</span>
+          {authorizationToEdit ? 'Editar Autorización Ambiental' : 'Nueva Autorización Ambiental'}
+        </h3>
+        <p className="text-xs text-muted mt-1">
+          Empresa gestora: <strong className="text-foreground">{company.razon_social}</strong> ({company.cif})
+        </p>
+      </div>
 
-        {/* Content */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6" noValidate>
-          {error && <Alert variant="error" title="Error de Validación" message={error} />}
+      {/* Content */}
+      <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+        {error && <Alert variant="error" title="Error de Validación" message={error} />}
 
           {/* Datos Generales */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -460,7 +450,6 @@ export default function AutorizacionModal({
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }
