@@ -252,6 +252,76 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
     });
   });
 
+  describe('extractSiraError', () => {
+    it('debe extraer el error de resultWrong con atributos code y description', () => {
+      const xml = `<?xml version='1.0' encoding='UTF-8'?>
+        <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+          <SOAP-ENV:Body>
+            <ns3:sendWasteDCSResponse xmlns:ns3="e3l://esir2014">
+              <return>
+                <result>
+                  <resultWrong>
+                    <resultErrorList>
+                      <resultWrong code="JA000018" description="Error al autenticarse a través de SOAP"/>
+                    </resultErrorList>
+                  </resultWrong>
+                </result>
+              </return>
+            </ns3:sendWasteDCSResponse>
+          </SOAP-ENV:Body>
+        </SOAP-ENV:Envelope>`;
+
+      const result = siraService.extractSiraError(xml);
+      expect(result).toBe('JA000018: Error al autenticarse a través de SOAP');
+    });
+
+    it('debe extraer múltiples errores de resultWrong si están presentes', () => {
+      const xml = `<resultErrorList>
+        <resultWrong code="JA000018" description="Error al autenticarse"/>
+        <resultWrong code="JA000026" description="Mensaje inválido"/>
+      </resultErrorList>`;
+
+      const result = siraService.extractSiraError(xml);
+      expect(result).toBe('JA000018: Error al autenticarse | JA000026: Mensaje inválido');
+    });
+
+    it('debe extraer el error si solo tiene atributo description sin code', () => {
+      const xml = `<resultWrong description="Operación no permitida"/>`;
+      const result = siraService.extractSiraError(xml);
+      expect(result).toBe('Operación no permitida');
+    });
+
+    it('debe extraer descripción genérica si está en otro nodo con atributo description', () => {
+      const xml = `<customError description="Fallo en pasarela intermedia"/>`;
+      const result = siraService.extractSiraError(xml);
+      expect(result).toBe('Fallo en pasarela intermedia');
+    });
+
+    it('debe extraer error de elemento <description>', () => {
+      const xml = `<response><description>Error de formato</description></response>`;
+      const result = siraService.extractSiraError(xml);
+      expect(result).toBe('Error de formato');
+    });
+
+    it('debe extraer error de <faultstring>', () => {
+      const xml = `<SOAP-ENV:Fault><faultstring>Internal Service Error</faultstring></SOAP-ENV:Fault>`;
+      const result = siraService.extractSiraError(xml);
+      expect(result).toBe('Internal Service Error');
+    });
+
+    it('debe extraer primera línea de <message> si está presente', () => {
+      const xml = `<SOAP-ENV:Fault><message>cvc-enumeration-valid: Value 'R1' is not valid.\nSecond line</message></SOAP-ENV:Fault>`;
+      const result = siraService.extractSiraError(xml);
+      expect(result).toBe("cvc-enumeration-valid: Value 'R1' is not valid.");
+    });
+
+    it('debe devolver fallback para XMLs sin errores reconocibles o respuestas vacías', () => {
+      expect(siraService.extractSiraError('')).toBe('Respuesta vacía o inválida del servidor SIRA.');
+      expect(siraService.extractSiraError(null as any)).toBe('Respuesta vacía o inválida del servidor SIRA.');
+      expect(siraService.extractSiraError('<otherTag>Contenido</otherTag>')).toBe('Error en la validación de SIRA. Ver logs XML.');
+    });
+  });
+
   describe('downloadXmlFile', () => {
     it('debe crear enlace y disparar descarga del archivo XML', () => {
       expect(() =>

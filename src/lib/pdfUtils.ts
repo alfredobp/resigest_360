@@ -822,39 +822,81 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
   doc.setLineWidth(0.4);
 
   // Productor
+  if (docData.firma_productor_url) {
+    const signatureBase64 = await loadImageAsBase64(docData.firma_productor_url);
+    if (signatureBase64) {
+      try {
+        doc.addImage(signatureBase64, 'PNG', 18, yPos - 15, 45, 14);
+      } catch (e) {
+        console.warn('No se pudo renderizar firma productor:', e);
+      }
+    }
+  }
   doc.line(18, yPos, 68, yPos);
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
   doc.text('EL PRODUCTOR / REMITENTE', 18, yPos + 4);
   doc.setFont('helvetica', 'normal');
   doc.text(docData.firmado_productor ? '✓ Firmado en salida' : 'Pendiente de firma', 18, yPos + 8);
-  if (docData.fecha_firma_productor) {
+  if (docData.nombre_productor) {
     doc.setFontSize(6.5);
-    doc.text(formatSafeDateTime(docData.fecha_firma_productor), 18, yPos + 11.5);
+    doc.text(fitText(doc, `${docData.nombre_productor} ${docData.dni_productor ? `(${docData.dni_productor})` : ''}`, 50), 18, yPos + 11.5);
+  }
+  if (docData.fecha_firma_productor) {
+    doc.setFontSize(6);
+    doc.text(formatSafeDateTime(docData.fecha_firma_productor), 18, yPos + (docData.nombre_productor ? 15 : 11.5));
   }
 
   // Transportista
+  if (docData.firma_transportista_url) {
+    const signatureBase64 = await loadImageAsBase64(docData.firma_transportista_url);
+    if (signatureBase64) {
+      try {
+        doc.addImage(signatureBase64, 'PNG', 80, yPos - 15, 45, 14);
+      } catch (e) {
+        console.warn('No se pudo renderizar firma transportista:', e);
+      }
+    }
+  }
   doc.line(80, yPos, 130, yPos);
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
   doc.text('EL TRANSPORTISTA', 80, yPos + 4);
   doc.setFont('helvetica', 'normal');
   doc.text(docData.firmado_transportista ? '✓ Conforme en carga' : 'Pendiente de firma', 80, yPos + 8);
-  if (docData.fecha_firma_transportista) {
+  if (docData.nombre_transportista) {
     doc.setFontSize(6.5);
-    doc.text(formatSafeDateTime(docData.fecha_firma_transportista), 80, yPos + 11.5);
+    doc.text(fitText(doc, `${docData.nombre_transportista} ${docData.dni_transportista ? `(${docData.dni_transportista})` : ''}`, 50), 80, yPos + 11.5);
+  }
+  if (docData.fecha_firma_transportista) {
+    doc.setFontSize(6);
+    doc.text(formatSafeDateTime(docData.fecha_firma_transportista), 80, yPos + (docData.nombre_transportista ? 15 : 11.5));
   }
 
   // Gestor
+  if (docData.firma_gestor_url) {
+    const signatureBase64 = await loadImageAsBase64(docData.firma_gestor_url);
+    if (signatureBase64) {
+      try {
+        doc.addImage(signatureBase64, 'PNG', 142, yPos - 15, 45, 14);
+      } catch (e) {
+        console.warn('No se pudo renderizar firma gestor:', e);
+      }
+    }
+  }
   doc.line(142, yPos, 192, yPos);
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
   doc.text('EL GESTOR DESTINATARIO', 142, yPos + 4);
   doc.setFont('helvetica', 'normal');
   doc.text(docData.firmado_gestor ? '✓ Recepcionado y pesado' : 'Pendiente de recepción', 142, yPos + 8);
-  if (docData.fecha_firma_gestor) {
+  if (docData.nombre_gestor) {
     doc.setFontSize(6.5);
-    doc.text(formatSafeDateTime(docData.fecha_firma_gestor), 142, yPos + 11.5);
+    doc.text(fitText(doc, `${docData.nombre_gestor} ${docData.dni_gestor ? `(${docData.dni_gestor})` : ''}`, 50), 142, yPos + 11.5);
+  }
+  if (docData.fecha_firma_gestor) {
+    doc.setFontSize(6);
+    doc.text(formatSafeDateTime(docData.fecha_firma_gestor), 142, yPos + (docData.nombre_gestor ? 15 : 11.5));
   }
 
   // Pie de página
@@ -1581,21 +1623,31 @@ export async function generateDecaPDF(deca: DecaDocument, inspectionUrl: string)
 
   // --- PIE DE PÁGINA NORMATIVO ---
   doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
-  doc.line(14, pageHeight - 16, pageWidth - 14, pageHeight - 16);
+  doc.line(14, pageHeight - 20, pageWidth - 14, pageHeight - 20);
 
   doc.setFontSize(6.8);
   doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
   doc.text(
     'Documento Electrónico de Control Administrativo (DeCA). Válido para inspección en carretera conforme a la Orden FOM/2861/2012 y Resolución de 5 de junio de 2026.',
     14,
+    pageHeight - 15
+  );
+  doc.text(
+    fitText(doc, `URL de comprobación: ${inspectionUrl}`, pageWidth - 28),
+    14,
     pageHeight - 11
   );
   doc.text(
-    `Custodia legal obligatoria mínima: 1 año. Generado por RESIGEST 360 el ${new Date().toLocaleDateString('es-ES')} a las ${new Date().toLocaleTimeString('es-ES')}.`,
+    'Custodia legal obligatoria mínima: 1 año.',
     14,
     pageHeight - 7
   );
-  doc.text(`URL de comprobación: ${inspectionUrl}`, pageWidth - 14, pageHeight - 7, { align: 'right' });
+  doc.text(
+    `Generado por RESIGEST 360 el ${new Date().toLocaleDateString('es-ES')} a las ${new Date().toLocaleTimeString('es-ES')}.`,
+    pageWidth - 14,
+    pageHeight - 7,
+    { align: 'right' }
+  );
 
   return doc;
 }

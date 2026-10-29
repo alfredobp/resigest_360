@@ -524,6 +524,7 @@ export interface RecordDeparturePayload {
   nombre_transportista?: string;
   dni_transportista?: string;
   firma_transportista_url?: string;
+  signatureBase64?: string;
   peso_origen_kg?: number;
 }
 
@@ -539,6 +540,7 @@ export interface RecordReceptionPayload {
   nombre_gestor?: string;
   dni_gestor?: string;
   firma_gestor_url?: string;
+  signatureBase64?: string;
 }
 
 export interface RecordIncidentPayload {

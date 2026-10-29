@@ -1,13 +1,25 @@
+const mockStorageFrom = {
+  upload: jest.fn(),
+  getPublicUrl: jest.fn(),
+};
+
 const mockSupabase = {
   auth: {
     getUser: jest.fn(),
   },
   from: jest.fn(),
+  storage: {
+    from: jest.fn(() => mockStorageFrom),
+  },
 };
 
 jest.mock('@/lib/supabase/client', () => ({
   createClient: () => mockSupabase,
 }));
+
+if (typeof atob === 'undefined') {
+  (global as any).atob = (str: string) => Buffer.from(str, 'base64').toString('binary');
+}
 
 const mockSyncEntryFromDI = jest.fn();
 jest.mock('@/services/chronologicalRegistryService', () => ({
@@ -274,6 +286,75 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
       }));
       spyUpdate.mockRestore();
     });
+
+    it('uploadSignatureImage debe subir la imagen a storage y devolver la url publica', async () => {
+      mockStorageFrom.upload.mockResolvedValue({ error: null });
+      mockStorageFrom.getPublicUrl.mockReturnValue({ data: { publicUrl: 'https://example.com/sig.png' } });
+
+      const url = await identificationDocumentService.uploadSignatureImage(
+        1,
+        'productor',
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY44YAAAAASUVORK5CYII='
+      );
+
+      expect(url).toBe('https://example.com/sig.png');
+      expect(mockStorageFrom.upload).toHaveBeenCalled();
+    });
+
+    it('uploadSignatureImage debe lanzar error si storage falla', async () => {
+      mockStorageFrom.upload.mockResolvedValue({ error: { message: 'Bucket not found' } });
+
+      await expect(
+        identificationDocumentService.uploadSignatureImage(1, 'gestor', 'data:image/png;base64,abc')
+      ).rejects.toThrow('Error al subir firma: Bucket not found');
+    });
+
+    it('signDocument con signatureBase64 y signerInfo debe registrar URL y datos de intervinientes', async () => {
+      jest.spyOn(identificationDocumentService, 'uploadSignatureImage').mockResolvedValue('https://example.com/sig-prod.png');
+      const spyUpdate = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({ id: 1 } as any);
+
+      await identificationDocumentService.signDocument(
+        1,
+        'productor',
+        'data:image/png;base64,dummy',
+        { nombre: 'Juan Productor', dni: '12345678A' }
+      );
+
+      expect(spyUpdate).toHaveBeenCalledWith(1, expect.objectContaining({
+        firmado_productor: true,
+        firma_productor_url: 'https://example.com/sig-prod.png',
+        nombre_productor: 'Juan Productor',
+        dni_productor: '12345678A',
+      }));
+
+      await identificationDocumentService.signDocument(
+        1,
+        'gestor',
+        'data:image/png;base64,dummy',
+        { nombre: 'Pedro Gestor', dni: '87654321B' }
+      );
+      expect(spyUpdate).toHaveBeenCalledWith(1, expect.objectContaining({
+        firmado_gestor: true,
+        firma_gestor_url: 'https://example.com/sig-prod.png',
+        nombre_gestor: 'Pedro Gestor',
+        dni_gestor: '87654321B',
+      }));
+
+      await identificationDocumentService.signDocument(
+        1,
+        'transportista',
+        'data:image/png;base64,dummy',
+        { nombre: 'Carlos Chofer', dni: '11223344C' }
+      );
+      expect(spyUpdate).toHaveBeenCalledWith(1, expect.objectContaining({
+        firmado_transportista: true,
+        firma_transportista_url: 'https://example.com/sig-prod.png',
+        nombre_transportista: 'Carlos Chofer',
+        dni_transportista: '11223344C',
+      }));
+
+      spyUpdate.mockRestore();
+    });
   });
 
   describe('Ciclo de vida del traslado (departure, reception, incident, treatment)', () => {
@@ -287,6 +368,24 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
 
       expect(spyUpdate).toHaveBeenCalledWith(1, expect.objectContaining({
         transportista_matricula: '1234-XYZ',
+        estado_traslado: 'en_transito',
+        firmado_transportista: true,
+      }));
+      spyUpdate.mockRestore();
+    });
+
+    it('recordDeparture con signatureBase64 debe subir firma y guardarla', async () => {
+      jest.spyOn(identificationDocumentService, 'uploadSignatureImage').mockResolvedValue('https://example.com/sig-trans.png');
+      const spyUpdate = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({ id: 1 } as any);
+
+      await identificationDocumentService.recordDeparture(1, {
+        fecha_salida: '2026-10-24T08:00:00Z',
+        transportista_matricula: '1234-XYZ',
+        signatureBase64: 'data:image/png;base64,transp',
+      });
+
+      expect(spyUpdate).toHaveBeenCalledWith(1, expect.objectContaining({
+        firma_transportista_url: 'https://example.com/sig-trans.png',
         estado_traslado: 'en_transito',
         firmado_transportista: true,
       }));
@@ -319,6 +418,26 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
       }));
       expect(mockSyncEntryFromDI).toHaveBeenCalledWith(updatedDoc);
       expect(result).toEqual(updatedDoc);
+    });
+
+    it('recordReception con signatureBase64 debe subir firma y guardarla', async () => {
+      jest.spyOn(identificationDocumentService, 'uploadSignatureImage').mockResolvedValue('https://example.com/sig-gestor.png');
+      const mockDoc = { id: 1, peso_origen_kg: 500, cantidad: 500 } as any;
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue(mockDoc);
+      const spyUpdate = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({ id: 1, estado_traslado: 'aceptado' } as any);
+
+      await identificationDocumentService.recordReception(1, {
+        fecha_llegada_destino: '2026-10-24T12:00:00Z',
+        peso_destino_kg: 500,
+        resultado_recepcion: 'aceptado',
+        signatureBase64: 'data:image/png;base64,gest',
+      });
+
+      expect(spyUpdate).toHaveBeenCalledWith(1, expect.objectContaining({
+        firma_gestor_url: 'https://example.com/sig-gestor.png',
+        firmado_gestor: true,
+      }));
+      spyUpdate.mockRestore();
     });
 
     it('recordReception debe manejar rechazos parciales y sincronización fallida sin propagar error', async () => {

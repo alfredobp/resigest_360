@@ -181,25 +181,75 @@ export const identificationDocumentService = {
   },
 
   /**
-   * Firmar documento (productor, gestor o transportista)
+   * Subir firma en base64 a Supabase Storage y retornar su URL pública
+   */
+  async uploadSignatureImage(id: number, role: string, signatureBase64: string): Promise<string> {
+    const base64Data = signatureBase64.includes(',') ? signatureBase64.split(',')[1] : signatureBase64;
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'image/png' });
+
+    const fileName = `signature-${role}-${id}-${Date.now()}.png`;
+    const filePath = `identification_documents/${id}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('images')
+      .upload(filePath, blob, {
+        contentType: 'image/png',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      throw new Error(`Error al subir firma: ${uploadError.message}`);
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('images')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  },
+
+  /**
+   * Firmar documento digitalmente (productor, gestor o transportista)
    */
   async signDocument(
     id: number,
-    role: 'productor' | 'gestor' | 'transportista'
+    role: 'productor' | 'gestor' | 'transportista',
+    signatureBase64?: string,
+    signerInfo?: { nombre?: string; dni?: string }
   ): Promise<IdentificationDocument> {
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date().toISOString();
+    let signatureUrl: string | undefined;
+
+    if (signatureBase64) {
+      signatureUrl = await this.uploadSignatureImage(id, role, signatureBase64);
+    }
 
     const updateData: Partial<IdentificationDocument> = {};
 
     if (role === 'productor') {
       updateData.firmado_productor = true;
-      updateData.fecha_firma_productor = today;
+      updateData.fecha_firma_productor = now;
+      if (signatureUrl) updateData.firma_productor_url = signatureUrl;
+      if (signerInfo?.nombre) updateData.nombre_productor = signerInfo.nombre;
+      if (signerInfo?.dni) updateData.dni_productor = signerInfo.dni;
     } else if (role === 'gestor') {
       updateData.firmado_gestor = true;
-      updateData.fecha_firma_gestor = today;
+      updateData.fecha_firma_gestor = now;
+      if (signatureUrl) updateData.firma_gestor_url = signatureUrl;
+      if (signerInfo?.nombre) updateData.nombre_gestor = signerInfo.nombre;
+      if (signerInfo?.dni) updateData.dni_gestor = signerInfo.dni;
     } else if (role === 'transportista') {
       updateData.firmado_transportista = true;
-      updateData.fecha_firma_transportista = today;
+      updateData.fecha_firma_transportista = now;
+      if (signatureUrl) updateData.firma_transportista_url = signatureUrl;
+      if (signerInfo?.nombre) updateData.nombre_transportista = signerInfo.nombre;
+      if (signerInfo?.dni) updateData.dni_transportista = signerInfo.dni;
     }
 
     return this.update(id, updateData);
@@ -210,8 +260,16 @@ export const identificationDocumentService = {
    */
   async recordDeparture(id: number, payload: RecordDeparturePayload): Promise<IdentificationDocument> {
     const now = new Date().toISOString();
+    const { signatureBase64, ...rest } = payload;
+    let firma_transportista_url = payload.firma_transportista_url;
+
+    if (signatureBase64) {
+      firma_transportista_url = await this.uploadSignatureImage(id, 'transportista', signatureBase64);
+    }
+
     return this.update(id, {
-      ...payload,
+      ...rest,
+      firma_transportista_url,
       estado_traslado: 'en_transito',
       firmado_transportista: true,
       fecha_firma_transportista: payload.fecha_salida || now,
@@ -224,6 +282,12 @@ export const identificationDocumentService = {
   async recordReception(id: number, payload: RecordReceptionPayload): Promise<IdentificationDocument> {
     const doc = await this.getById(id);
     const now = new Date().toISOString();
+    const { signatureBase64, ...rest } = payload;
+    let firma_gestor_url = payload.firma_gestor_url;
+
+    if (signatureBase64) {
+      firma_gestor_url = await this.uploadSignatureImage(id, 'gestor', signatureBase64);
+    }
 
     const pesoOrigen = doc.peso_origen_kg || (doc.unidad === 'toneladas' ? doc.cantidad * 1000 : doc.cantidad) || 0;
     const pesoDestino = payload.peso_destino_kg;
@@ -240,7 +304,8 @@ export const identificationDocumentService = {
     }
 
     const updated = await this.update(id, {
-      ...payload,
+      ...rest,
+      firma_gestor_url,
       peso_origen_kg: pesoOrigen,
       diferencia_peso_kg: parseFloat(diferencia.toFixed(3)),
       porcentaje_discrepancia: parseFloat(porcentaje.toFixed(2)),

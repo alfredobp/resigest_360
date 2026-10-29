@@ -163,11 +163,7 @@ export async function POST(req: NextRequest) {
         if (!siraResponse.ok || hasFault || !siraId) {
             console.error('SIRA API Error/Fault:', responseText);
 
-            const errorMatch = responseText.match(/<description>(.*?)<\/description>/) ||
-                responseText.match(/<faultstring>(.*?)<\/faultstring>/) ||
-                responseText.match(/<message.*?>(.*?)<\/message>/);
-
-            const errorMessage = errorMatch ? errorMatch[1] : 'Error en la validación de SIRA. Ver logs XML.';
+            const errorMessage = siraService.extractSiraError(responseText);
 
             // Actualizar sira_submissions con estado 'rechazado'
             if (submissionId) {

@@ -367,6 +367,70 @@ const generateResidueBlock = (doc: any): string => {
     </DCSResidueData>`;
 };
 
+/**
+ * Extrae el mensaje de error legible de una respuesta SOAP/XML de SIRA.
+ * Maneja tanto atributos (e.g. <resultWrong code="JA000018" description="..."/>)
+ * como elementos SOAP Fault (<faultstring>, <description>, <message>).
+ */
+export function extractSiraError(responseText: string): string {
+  if (!responseText || typeof responseText !== 'string') {
+    return 'Respuesta vacía o inválida del servidor SIRA.';
+  }
+
+  // 1. Extraer errores estructurados de <resultWrong ... /> con atributo description
+  const resultWrongMatches: string[] = [];
+  const wrongRegex = /<resultWrong\b([^>]*?)\/?>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = wrongRegex.exec(responseText)) !== null) {
+    const attrs = match[1];
+    const descMatch = attrs.match(/description=["']([^"']+)["']/i);
+    if (descMatch && descMatch[1].trim()) {
+      const desc = descMatch[1].trim();
+      const codeMatch = attrs.match(/code=["']([A-Za-z0-9_-]+)["']/i);
+      const code = codeMatch ? codeMatch[1].trim() : null;
+      const formatted = code ? `${code}: ${desc}` : desc;
+      if (!resultWrongMatches.includes(formatted)) {
+        resultWrongMatches.push(formatted);
+      }
+    }
+  }
+
+  if (resultWrongMatches.length > 0) {
+    return resultWrongMatches.join(' | ');
+  }
+
+  // 2. Atributo description genérico en cualquier otro nodo XML
+  const genericAttrMatch = responseText.match(/description=["']([^"']+)["']/i);
+  if (genericAttrMatch && genericAttrMatch[1].trim()) {
+    const desc = genericAttrMatch[1].trim();
+    const codeMatch = responseText.match(/code=["']([A-Za-z0-9_-]+)["']/i);
+    const code = codeMatch ? codeMatch[1].trim() : null;
+    return code ? `${code}: ${desc}` : desc;
+  }
+
+  // 3. Elemento <description>...</description>
+  const descTagMatch = responseText.match(/<description[^>]*>([\s\S]*?)<\/description>/i);
+  if (descTagMatch && descTagMatch[1].trim()) {
+    return descTagMatch[1].trim();
+  }
+
+  // 4. Elemento <faultstring>...</faultstring>
+  const faultMatch = responseText.match(/<faultstring[^>]*>([\s\S]*?)<\/faultstring>/i);
+  if (faultMatch && faultMatch[1].trim()) {
+    return faultMatch[1].trim();
+  }
+
+  // 5. Elemento <message>...</message>
+  const messageMatch = responseText.match(/<message[^>]*>([\s\S]*?)<\/message>/i);
+  if (messageMatch && messageMatch[1].trim()) {
+    const firstLine = messageMatch[1].trim().split('\n')[0].trim();
+    return firstLine || messageMatch[1].trim();
+  }
+
+  return 'Error en la validación de SIRA. Ver logs XML.';
+}
+
 // ============================================================================
 // SERVICIO PRINCIPAL
 // ============================================================================
@@ -416,6 +480,15 @@ export const siraService = {
 
   escapeXml(unsafe: string): string {
     return escapeXml(unsafe);
+  },
+
+  /**
+   * Extrae el mensaje de error legible de una respuesta SOAP/XML de SIRA.
+   * Maneja atributos (e.g. <resultWrong code="JA000018" description="..."/>)
+   * y elementos SOAP Fault (<faultstring>, <description>, <message>).
+   */
+  extractSiraError(responseText: string): string {
+    return extractSiraError(responseText);
   },
 
   async sendDI(documentId: number): Promise<{ success: boolean; message: string; siraId?: string }> {

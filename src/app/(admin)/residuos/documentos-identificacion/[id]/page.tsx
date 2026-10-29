@@ -15,6 +15,7 @@ import identificationDocumentService, { getTrackingStatusMeta } from '@/services
 import siraService from '@/services/siraService';
 import companyService from '@/services/companyService';
 import { generateIdentificationDocumentPDF } from '@/lib/pdfUtils';
+import SignatureModal from '@/components/ui/signature/SignatureModal';
 import type {
   IdentificationDocument,
   Company,
@@ -60,6 +61,11 @@ export default function DetalleDocumentoIdentificacionPage() {
   const [isReceptionModalOpen, setIsReceptionModalOpen] = useState(false);
   const [isTreatmentModalOpen, setIsTreatmentModalOpen] = useState(false);
   const [submittingAction, setSubmittingAction] = useState(false);
+
+  // Estados de firma digital
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [signingRole, setSigningRole] = useState<'productor' | 'gestor' | 'transportista'>('productor');
+  const [signerInitialData, setSignerInitialData] = useState<{ nombre: string; dni: string }>({ nombre: '', dni: '' });
 
   // Formularios de modales
   const [departureForm, setDepartureForm] = useState<RecordDeparturePayload>({
@@ -255,6 +261,43 @@ export default function DetalleDocumentoIdentificacionPage() {
       const msg = `Error al eliminar: ${err.message}`;
       setError(msg);
       toast.error(msg);
+    }
+  };
+
+  const handleOpenSignatureModal = (role: 'productor' | 'gestor' | 'transportista') => {
+    setSigningRole(role);
+    let defaultName = '';
+    let defaultDni = '';
+    if (role === 'productor') {
+      defaultName = document?.nombre_productor || myCompany?.razon_social || '';
+      defaultDni = document?.dni_productor || myCompany?.cif || '';
+    } else if (role === 'transportista') {
+      defaultName = document?.nombre_transportista || '';
+      defaultDni = document?.dni_transportista || '';
+    } else if (role === 'gestor') {
+      defaultName = document?.nombre_gestor || '';
+      defaultDni = document?.dni_gestor || '';
+    }
+    setSignerInitialData({ nombre: defaultName, dni: defaultDni });
+    setIsSignatureModalOpen(true);
+  };
+
+  const handleSaveSignature = async (signatureBase64: string, signerData?: { nombre?: string; dni?: string }) => {
+    if (!document) return;
+    try {
+      setLoading(true);
+      await identificationDocumentService.signDocument(
+        document.id,
+        signingRole,
+        signatureBase64,
+        signerData
+      );
+      toast.success(`Firma de ${signingRole} registrada con éxito en el documento.`);
+      await loadData();
+    } catch (err: any) {
+      toast.error(`Error al registrar firma: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -687,10 +730,36 @@ export default function DetalleDocumentoIdentificacionPage() {
                 {document.firmado_productor ? (
                   <div className="space-y-1">
                     <Badge color="success">✓ Firmado en Salida</Badge>
-                    <p className="text-[11px] text-muted mt-2">{formatDateTime(document.fecha_firma_productor)}</p>
+                    {document.firma_productor_url && (
+                      <div className="mt-2 bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 flex justify-center">
+                        <img
+                          src={document.firma_productor_url}
+                          alt="Firma Productor"
+                          className="h-12 max-w-full object-contain filter dark:invert"
+                        />
+                      </div>
+                    )}
+                    {document.nombre_productor && (
+                      <p className="text-[11px] text-foreground font-medium mt-1">
+                        {document.nombre_productor} {document.dni_productor ? `(${document.dni_productor})` : ''}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-muted mt-1">{formatDateTime(document.fecha_firma_productor)}</p>
                   </div>
                 ) : (
-                  <Badge color="light">Pendiente de firma</Badge>
+                  <div className="space-y-3">
+                    <Badge color="light">Pendiente de firma</Badge>
+                    <div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenSignatureModal('productor')}
+                        className="w-full text-xs"
+                      >
+                        ✍️ Firmar como Productor
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -702,13 +771,36 @@ export default function DetalleDocumentoIdentificacionPage() {
                 {document.firmado_transportista ? (
                   <div className="space-y-1">
                     <Badge color="success">✓ Conforme en Carga</Badge>
-                    <p className="text-[11px] text-muted mt-2">{formatDateTime(document.fecha_firma_transportista)}</p>
-                    {document.nombre_transportista && (
-                      <p className="text-[11px] text-foreground font-medium">{document.nombre_transportista}</p>
+                    {document.firma_transportista_url && (
+                      <div className="mt-2 bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 flex justify-center">
+                        <img
+                          src={document.firma_transportista_url}
+                          alt="Firma Transportista"
+                          className="h-12 max-w-full object-contain filter dark:invert"
+                        />
+                      </div>
                     )}
+                    {document.nombre_transportista && (
+                      <p className="text-[11px] text-foreground font-medium mt-1">
+                        {document.nombre_transportista} {document.dni_transportista ? `(${document.dni_transportista})` : ''}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-muted mt-1">{formatDateTime(document.fecha_firma_transportista)}</p>
                   </div>
                 ) : (
-                  <Badge color="light">Pendiente en recogida</Badge>
+                  <div className="space-y-3">
+                    <Badge color="light">Pendiente en recogida</Badge>
+                    <div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenSignatureModal('transportista')}
+                        className="w-full text-xs"
+                      >
+                        ✍️ Firmar como Transportista
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -720,13 +812,36 @@ export default function DetalleDocumentoIdentificacionPage() {
                 {document.firmado_gestor ? (
                   <div className="space-y-1">
                     <Badge color="success">✓ Recepcionado y Pesado</Badge>
-                    <p className="text-[11px] text-muted mt-2">{formatDateTime(document.fecha_firma_gestor)}</p>
-                    {document.nombre_gestor && (
-                      <p className="text-[11px] text-foreground font-medium">{document.nombre_gestor}</p>
+                    {document.firma_gestor_url && (
+                      <div className="mt-2 bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 flex justify-center">
+                        <img
+                          src={document.firma_gestor_url}
+                          alt="Firma Gestor"
+                          className="h-12 max-w-full object-contain filter dark:invert"
+                        />
+                      </div>
                     )}
+                    {document.nombre_gestor && (
+                      <p className="text-[11px] text-foreground font-medium mt-1">
+                        {document.nombre_gestor} {document.dni_gestor ? `(${document.dni_gestor})` : ''}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-muted mt-1">{formatDateTime(document.fecha_firma_gestor)}</p>
                   </div>
                 ) : (
-                  <Badge color="light">Pendiente en báscula</Badge>
+                  <div className="space-y-3">
+                    <Badge color="light">Pendiente en báscula</Badge>
+                    <div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenSignatureModal('gestor')}
+                        className="w-full text-xs"
+                      >
+                        ✍️ Firmar como Gestor
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -1235,6 +1350,23 @@ export default function DetalleDocumentoIdentificacionPage() {
           </div>
         </div>
       </Modal>
+
+      <SignatureModal
+        isOpen={isSignatureModalOpen}
+        onClose={() => setIsSignatureModalOpen(false)}
+        onSave={handleSaveSignature}
+        withSignerInputs={true}
+        initialName={signerInitialData.nombre}
+        initialDni={signerInitialData.dni}
+        title={`Firmar Documento de Identificación como ${
+          signingRole === 'productor'
+            ? 'Productor / Remitente'
+            : signingRole === 'transportista'
+            ? 'Transportista en Carga'
+            : 'Gestor Destinatario'
+        }`}
+        description="Dibuje su firma en el recuadro para validar la conformidad y registrarla en el documento oficial."
+      />
     </>
   );
 }
