@@ -45,6 +45,8 @@ export const treatmentManagerService = {
 
             if (unifiedCompanies && unifiedCompanies.length > 0) {
                 const existingCifs = new Set(list.map((g) => g.cif?.toUpperCase().trim()).filter(Boolean));
+                const existingIds = new Set(list.map((g) => g.id));
+                let maxId = list.reduce((max, g) => Math.max(max, g.id || 0), 0);
 
                 for (const comp of unifiedCompanies) {
                     const roles: string[] = Array.isArray(comp.roles) ? comp.roles : (comp.tipo_empresa ? [comp.tipo_empresa] : []);
@@ -53,8 +55,11 @@ export const treatmentManagerService = {
                     if (isGestor) {
                         const normCif = comp.cif?.toUpperCase().trim();
                         if (!normCif || !existingCifs.has(normCif)) {
+                            const safeId = existingIds.has(comp.id) ? ++maxId : comp.id;
+                            existingIds.add(safeId);
+                            maxId = Math.max(maxId, safeId);
                             list.push({
-                                id: comp.id,
+                                id: safeId,
                                 user_id: comp.user_id,
                                 nombre: comp.nombre_comercial || comp.razon_social,
                                 razon_social: comp.razon_social,
@@ -90,10 +95,16 @@ export const treatmentManagerService = {
      * Obtener gestor por ID
      */
     async getById(id: number): Promise<TreatmentManager | null> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            throw new Error('Usuario no autenticado');
+        }
+
         const { data, error } = await supabase
             .from('treatment_managers')
             .select('*')
             .eq('id', id)
+            .eq('user_id', user.id)
             .single();
 
         if (error) {
@@ -178,6 +189,11 @@ export const treatmentManagerService = {
      * Actualizar gestor existente
      */
     async update(id: number, managerData: Partial<TreatmentManagerFormData>): Promise<TreatmentManager> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            throw new Error('Usuario no autenticado');
+        }
+
         // Obtener datos actuales para tener el holded_contact_id
         const currentData = await this.getById(id);
         const company = await companyService.getUserCompany();
@@ -187,6 +203,7 @@ export const treatmentManagerService = {
             .from('treatment_managers')
             .update(managerData)
             .eq('id', id)
+            .eq('user_id', user.id)
             .select()
             .single();
 
@@ -232,10 +249,16 @@ export const treatmentManagerService = {
      * Eliminar gestor (soft delete)
      */
     async softDelete(id: number): Promise<void> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            throw new Error('Usuario no autenticado');
+        }
+
         const { error } = await supabase
             .from('treatment_managers')
             .update({ activo: false })
-            .eq('id', id);
+            .eq('id', id)
+            .eq('user_id', user.id);
 
         if (error) {
             throw new Error(`Error al desactivar gestor: ${error.message}`);
@@ -246,10 +269,16 @@ export const treatmentManagerService = {
      * Eliminar gestor permanentemente
      */
     async delete(id: number): Promise<void> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            throw new Error('Usuario no autenticado');
+        }
+
         const { error } = await supabase
             .from('treatment_managers')
             .delete()
-            .eq('id', id);
+            .eq('id', id)
+            .eq('user_id', user.id);
 
         if (error) {
             throw new Error(`Error al eliminar gestor: ${error.message}`);

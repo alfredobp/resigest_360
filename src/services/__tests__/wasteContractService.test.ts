@@ -606,16 +606,24 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
 
   describe('update', () => {
     it('debe actualizar contrato y reemplazar contract_waste_codes si se envían', async () => {
+      setupTenantContext('user-1', [{ id: 5 }]);
       const updatedMock = { id: 10, estado: 'vigente' };
       const wasteDeleteMock = jest.fn().mockReturnThis();
       const wasteEqMock = jest.fn().mockResolvedValue({ error: null });
       const wasteInsertMock = jest.fn().mockResolvedValue({ error: null });
 
       mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [{ id: 5 }], error: null }),
+          };
+        }
         if (table === 'waste_contracts') {
           return {
             update: jest.fn().mockReturnThis(),
             eq: jest.fn().mockReturnThis(),
+            or: jest.fn().mockReturnThis(),
             select: jest.fn().mockReturnThis(),
             single: jest.fn().mockResolvedValue({ data: updatedMock, error: null }),
           };
@@ -645,12 +653,71 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       expect(wasteInsertMock).toHaveBeenCalled();
     });
 
-    it('debe lanzar error cuando el update falla', async () => {
+    it('debe soportar contractWasteCodes en camelCase sin enviarlo como columna a waste_contracts', async () => {
+      setupTenantContext('user-1', []);
+      const updatedMock = { id: 10, estado: 'vigente' };
+      const contractUpdateMock = jest.fn().mockReturnThis();
+      const wasteDeleteMock = jest.fn().mockReturnThis();
+      const wasteEqMock = jest.fn().mockResolvedValue({ error: null });
+      const wasteInsertMock = jest.fn().mockResolvedValue({ error: null });
+
       mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'waste_contracts') {
+          return {
+            update: contractUpdateMock,
+            eq: jest.fn().mockReturnThis(),
+            or: jest.fn().mockReturnThis(),
+            select: jest.fn().mockReturnThis(),
+            single: jest.fn().mockResolvedValue({ data: updatedMock, error: null }),
+          };
+        }
+        if (table === 'contract_waste_codes') {
+          return {
+            delete: wasteDeleteMock,
+            eq: wasteEqMock,
+            insert: wasteInsertMock,
+          };
+        }
+        return null;
+      });
+
+      await wasteContractService.update(10, {
+        estado: 'vigente',
+        contractWasteCodes: [
+          {
+            codigo_ler: ' 15 01 02 ',
+            operacion_tratamiento: ' r03 ',
+          },
+        ],
+      } as any);
+
+      const sentPayload = contractUpdateMock.mock.calls[0][0];
+      expect(sentPayload.contractWasteCodes).toBeUndefined();
+      expect(sentPayload.codigos_ler).toEqual(['15 01 02']);
+      expect(sentPayload.operaciones_tratamiento).toEqual(['R03']);
+      expect(wasteInsertMock).toHaveBeenCalled();
+    });
+
+    it('debe lanzar error cuando el update falla', async () => {
+      setupTenantContext('user-1', []);
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
         if (table === 'waste_contracts') {
           return {
             update: jest.fn().mockReturnThis(),
             eq: jest.fn().mockReturnThis(),
+            or: jest.fn().mockReturnThis(),
             select: jest.fn().mockReturnThis(),
             single: jest.fn().mockResolvedValue({ data: null, error: { message: 'Update failed' } }),
           };
@@ -856,36 +923,55 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
   });
 
   describe('getExpiringSoon', () => {
-    it('debe consultar contratos vigentes entre hoy y 30 días', async () => {
+    it('debe consultar contratos vigentes entre hoy y 30 días filtrando por tenant', async () => {
+      setupTenantContext('user-1', [{ id: 10 }]);
       const mockExpiring = [{ id: 1, fecha_fin: '2026-11-01' }];
       const queryChain = {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnThis(),
         lte: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
         order: jest.fn().mockResolvedValue({ data: mockExpiring, error: null }),
       };
 
       mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [{ id: 10 }], error: null }),
+          };
+        }
         if (table === 'waste_contracts') return queryChain;
         return null;
       });
 
       const res = await wasteContractService.getExpiringSoon();
       expect(queryChain.eq).toHaveBeenCalledWith('estado', 'vigente');
+      expect(queryChain.or).toHaveBeenCalledWith(
+        'user_id.eq.user-1,company_id.in.(10),gestor_company_id.in.(10)'
+      );
       expect(res).toEqual(mockExpiring);
     });
 
     it('debe lanzar error cuando falla getExpiringSoon', async () => {
+      setupTenantContext('user-1', []);
       const queryChain = {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnThis(),
         lte: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
         order: jest.fn().mockResolvedValue({ data: null, error: { message: 'Query timeout' } }),
       };
 
       mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
         if (table === 'waste_contracts') return queryChain;
         return null;
       });

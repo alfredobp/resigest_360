@@ -15,6 +15,14 @@ const supabase = createClient();
 function generateSecureToken(): string {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
   let token = 'dca_';
+  if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.getRandomValues === 'function') {
+    const randomBytes = new Uint8Array(32);
+    globalThis.crypto.getRandomValues(randomBytes);
+    for (let i = 0; i < 32; i++) {
+      token += chars.charAt(randomBytes[i] % chars.length);
+    }
+    return token;
+  }
   for (let i = 0; i < 32; i++) {
     token += chars.charAt(Math.floor(Math.random() * chars.length));
   }
@@ -48,10 +56,14 @@ export const decaService = {
    * Obtener DeCA por su ID
    */
   async getById(id: number): Promise<DecaDocument | null> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuario no autenticado');
+
     const { data, error } = await supabase
       .from('deca_documents')
       .select('*')
       .eq('id', id)
+      .eq('user_id', user.id)
       .maybeSingle();
 
     if (error) {
@@ -90,13 +102,20 @@ export const decaService = {
    * Generar el siguiente número correlativo de DeCA
    */
   async getNextNumero(): Promise<string> {
+    const { data: { user } } = await supabase.auth.getUser();
     const currentYear = new Date().getFullYear();
     const prefix = `DECA-${currentYear}-`;
 
-    const { data } = await supabase
+    let query = supabase
       .from('deca_documents')
       .select('numero_deca')
-      .ilike('numero_deca', `${prefix}%`)
+      .ilike('numero_deca', `${prefix}%`);
+
+    if (user) {
+      query = query.eq('user_id', user.id);
+    }
+
+    const { data } = await query
       .order('id', { ascending: false })
       .limit(1);
 
@@ -244,7 +263,8 @@ export const decaService = {
     await supabase
       .from('deca_documents')
       .update({ is_vigente: false, updated_at: new Date().toISOString() })
-      .eq('id', currentDeca.id);
+      .eq('id', currentDeca.id)
+      .eq('user_id', user.id);
 
     // 2. Crear nueva fila con version + 1 y nuevo token criptográfico
     const nextVersion = currentDeca.version + 1;
@@ -305,6 +325,9 @@ export const decaService = {
    * Finalizar servicio de transporte (inicia el cómputo de 7 días naturales para el acceso público de inspección)
    */
   async finalizeService(id: number): Promise<DecaDocument> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuario no autenticado');
+
     const now = new Date().toISOString();
     const { data, error } = await supabase
       .from('deca_documents')
@@ -315,6 +338,7 @@ export const decaService = {
         updated_at: now,
       })
       .eq('id', id)
+      .eq('user_id', user.id)
       .select()
       .single();
 

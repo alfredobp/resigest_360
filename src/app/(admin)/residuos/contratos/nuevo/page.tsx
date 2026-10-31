@@ -70,7 +70,7 @@ export default function NuevoContratoPage() {
       const company = await companyService.getUserCompany();
       if (!company) {
         setError('Debes registrar tu empresa antes de crear un contrato');
-        router.push('/admin/residuos/mi-empresa');
+        router.push('/residuos/mi-empresa');
         return;
       }
       
@@ -287,7 +287,7 @@ export default function NuevoContratoPage() {
             )}
             <p className="text-sm text-muted mt-3">
               Estos datos se rellenarán automáticamente en el contrato.{' '}
-              <a href="/admin/residuos/mi-empresa" className="text-primary hover:underline">
+              <a href="/residuos/mi-empresa" className="text-primary hover:underline">
                 Editar mi empresa
               </a>
             </p>
@@ -490,7 +490,7 @@ export default function NuevoContratoPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => router.push('/admin/residuos/contratos')}
+              onClick={() => router.push('/residuos/contratos')}
               disabled={saving}
             >
               Cancelar

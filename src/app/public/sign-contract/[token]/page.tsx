@@ -21,6 +21,12 @@ function PublicSignatureContent() {
     const [selectedRole, setSelectedRole] = useState<'productor' | 'gestor'>(roleParam || 'productor');
 
     useEffect(() => {
+        if (roleParam === 'productor' || roleParam === 'gestor') {
+            setSelectedRole(roleParam);
+        }
+    }, [roleParam]);
+
+    useEffect(() => {
         if (token) {
             loadContract();
         }

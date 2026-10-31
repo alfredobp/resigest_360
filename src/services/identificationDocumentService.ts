@@ -60,6 +60,11 @@ export const identificationDocumentService = {
    * Obtener documento por ID
    */
   async getById(id: number): Promise<IdentificationDocument> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
     const { data, error } = await supabase
       .from('identification_documents')
       .select(`
@@ -70,6 +75,7 @@ export const identificationDocumentService = {
         waste_type:waste_types(*)
       `)
       .eq('id', id)
+      .eq('user_id', user.id)
       .single();
 
     if (error) {
@@ -83,6 +89,11 @@ export const identificationDocumentService = {
    * Obtener documentos por contrato
    */
   async getByContract(contractId: number): Promise<IdentificationDocument[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
     const { data, error } = await supabase
       .from('identification_documents')
       .select(`
@@ -92,6 +103,7 @@ export const identificationDocumentService = {
         waste_type:waste_types(*)
       `)
       .eq('contract_id', contractId)
+      .eq('user_id', user.id)
       .order('fecha_documento', { ascending: false });
 
     if (error) {
@@ -137,10 +149,16 @@ export const identificationDocumentService = {
    * Actualizar documento
    */
   async update(id: number, documentData: Partial<IdentificationDocument>): Promise<IdentificationDocument> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
     const { data, error } = await supabase
       .from('identification_documents')
       .update(documentData)
       .eq('id', id)
+      .eq('user_id', user.id)
       .select(`
         *,
         company:companies!identification_documents_company_id_fkey(*),
@@ -160,10 +178,16 @@ export const identificationDocumentService = {
    * Eliminar documento
    */
   async delete(id: number): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
     const { error } = await supabase
       .from('identification_documents')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', user.id);
 
     if (error) {
       throw new Error(`Error al eliminar documento: ${error.message}`);

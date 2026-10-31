@@ -102,6 +102,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
       // Mock generateNumeroMemoria query
       const numMemoriaChain = {
         select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
         ilike: jest.fn().mockResolvedValue({
           data: [{ numero_memoria: 'MA-2025-PROD-002' }],
           error: null,
@@ -189,6 +190,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
 
       const numMemoriaChain = {
         select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
         ilike: jest.fn().mockResolvedValue({
           data: [{ numero_memoria: 'MA-2025-NEG-001' }, { numero_memoria: 'MA-2025-NEG-INVALID' }],
           error: null,
@@ -258,6 +260,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
 
       const numMemoriaChain = {
         select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
         ilike: jest.fn().mockResolvedValue({ data: [], error: null }),
       };
 
@@ -315,6 +318,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
 
       const numMemoriaChain = {
         select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
         ilike: jest.fn().mockResolvedValue({ data: [], error: null }),
       };
       const diChain: any = {
@@ -360,6 +364,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
 
       const numMemoriaChain = {
         select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
         ilike: jest.fn().mockResolvedValue({ data: [], error: null }),
       };
       const diChain: any = {
@@ -407,6 +412,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
 
       const numMemoriaChain = {
         select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
         ilike: jest.fn().mockResolvedValue({ data: [], error: null }),
       };
       const diChain: any = {
@@ -484,6 +490,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
     });
 
     it('getMemoriaById debe retornar la memoria encontrada o null en error', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const mockMem = { id: 5, numero_memoria: 'MA-05' };
       const chain = {
         select: jest.fn().mockReturnThis(),
@@ -503,6 +510,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
 
   describe('updateMemoria, updateEstado & deleteMemoria', () => {
     it('updateMemoria debe actualizar los campos y fecha de actualización', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const chain = {
         update: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
@@ -519,6 +527,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
     });
 
     it('updateEstado debe registrar fecha_presentacion cuando se marca como presentada', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const chain = {
         update: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
@@ -538,6 +547,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
     });
 
     it('updateEstado no debe registrar fecha_presentacion si el estado no es presentada', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const chain = {
         update: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
@@ -561,6 +571,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
 
       const numMemoriaChain = {
         select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
         ilike: jest.fn().mockResolvedValue({ data: [], error: null }),
       };
 
@@ -592,6 +603,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
     });
 
     it('updateMemoria debe lanzar error si update falla', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const chain = {
         update: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
@@ -604,23 +616,32 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
     });
 
     it('deleteMemoria debe eliminar la memoria o lanzar error en fallo', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      const eqUserMock = jest.fn().mockResolvedValue({ error: null });
       const chain = {
         delete: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockResolvedValue({ error: null }),
+        eq: jest.fn().mockReturnValue({ eq: eqUserMock }),
       };
       mockSupabase.from.mockReturnValue(chain);
 
       const res = await deleteMemoria(10);
       expect(res).toBe(true);
       expect(chain.eq).toHaveBeenCalledWith('id', 10);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', mockUser.id);
 
-      chain.eq.mockResolvedValueOnce({ error: new Error('Delete error') });
+      eqUserMock.mockResolvedValueOnce({ error: new Error('Delete error') });
       await expect(deleteMemoria(10)).rejects.toThrow('Delete error');
+
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
+      await expect(getMemoriaById(1)).rejects.toThrow('No hay usuario autenticado');
+      await expect(updateMemoria(1, {})).rejects.toThrow('No hay usuario autenticado');
+      await expect(deleteMemoria(1)).rejects.toThrow('No hay usuario autenticado');
     });
   });
 
   describe('generateExcelData', () => {
     it('debe generar datos estructurados para memoria de productor', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const mockMemoria: Partial<MemoriaAnual> = {
         id: 1,
         tipo_memoria: 'productor',
@@ -635,6 +656,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
 
       const diChain = {
         select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
         in: jest.fn().mockResolvedValue({
           data: [
             {
@@ -678,6 +700,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
     });
 
     it('debe generar datos estructurados para memoria de gestor (entradas y salidas)', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const mockMemoria: Partial<MemoriaAnual> = {
         id: 2,
         tipo_memoria: 'gestor',
@@ -692,6 +715,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
 
       const diChain = {
         select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
         in: jest.fn().mockResolvedValue({
           data: [
             {
@@ -732,7 +756,50 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
       expect(data.salidas).toEqual([]);
     });
 
+    it('debe soportar tipo_memoria gestor_raee en generateExcelData', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      const mockMemoria: Partial<MemoriaAnual> = {
+        id: 25,
+        tipo_memoria: 'gestor_raee',
+        documentos_identificacion_ids: [20],
+      };
+
+      const memChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: mockMemoria, error: null }),
+      };
+
+      const diChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        in: jest.fn().mockResolvedValue({
+          data: [
+            {
+              id: 20,
+              codigo_ler: '16 02 14',
+              descripcion_residuo: 'RAEE',
+              peso_destino_kg: 1500,
+              productor_cif: 'A88888888',
+            },
+          ],
+          error: null,
+        }),
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'memorias_anuales') return memChain;
+        if (table === 'identification_documents') return diChain;
+        return null;
+      });
+
+      const data = await generateExcelData(25);
+      expect(data.entradas).toHaveLength(1);
+      expect(data.entradas[0].codigo_ler).toBe('16 02 14');
+    });
+
     it('debe lanzar error si el tipo de memoria no es soportado', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const mockMemoria: any = {
         id: 4,
         tipo_memoria: 'tipo_inexistente',
@@ -747,6 +814,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
 
       const diChain = {
         select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
         in: jest.fn().mockResolvedValue({ data: [{ id: 40 }], error: null }),
       };
 
@@ -760,6 +828,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
     });
 
     it('debe generar datos para negociante/transportista/agente', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const mockMemoria: Partial<MemoriaAnual> = {
         id: 3,
         tipo_memoria: 'negociante',
@@ -774,6 +843,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
 
       const diChain = {
         select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
         in: jest.fn().mockResolvedValue({
           data: [
             {
@@ -802,6 +872,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
     });
 
     it('generateExcelData debe lanzar error si la consulta de documentos falla o retornar null si data es null', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const mockMemoria: Partial<MemoriaAnual> = {
         id: 10,
         tipo_memoria: 'productor',
@@ -816,6 +887,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
 
       const diErrorChain = {
         select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
         in: jest.fn().mockResolvedValue({ data: null, error: new Error('Error al cargar DIs') }),
       };
 
@@ -833,6 +905,7 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
     });
 
     it('debe fallar si la memoria no existe', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const memChain = {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
@@ -985,6 +1058,19 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
         ],
       };
       expect(() => exportMemoriaToCSV(mockGestorMemoria, gestorData)).not.toThrow();
+
+      const mockNegMemoria = { ...mockMemoria, tipo_memoria: 'negociante' } as any;
+      const negData = [
+        {
+          codigo_ler: '17 04 05',
+          descripcion_residuo: 'Hierro',
+          cantidad_toneladas: 8,
+          nif_origen: 'A11111111',
+          razon_social_origen: 'Chatarras',
+          codigo_di: 'DI-88',
+        },
+      ];
+      expect(() => exportMemoriaToCSV(mockNegMemoria, negData)).not.toThrow();
     });
   });
 });

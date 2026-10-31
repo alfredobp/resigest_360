@@ -100,26 +100,34 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
   });
 
   describe('getById', () => {
-    it('debe devolver un documento por su ID', async () => {
+    it('debe devolver un documento por su ID filtrando por user_id', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-uuid-1' } } });
       const mockDoc = { id: 10, numero_documento: 'DI-010' };
 
       const singleMock = jest.fn().mockResolvedValue({ data: mockDoc, error: null });
-      const eqMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqUserMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
       const result = await identificationDocumentService.getById(10);
 
       expect(eqMock).toHaveBeenCalledWith('id', 10);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-uuid-1');
       expect(result).toEqual(mockDoc);
     });
 
-    it('debe lanzar error si falla al obtener el documento', async () => {
+    it('debe lanzar error si no hay usuario o si falla al obtener el documento', async () => {
+      mockSupabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      await expect(identificationDocumentService.getById(99)).rejects.toThrow('Usuario no autenticado');
+
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-uuid-1' } } });
       const singleMock = jest.fn().mockResolvedValue({
         data: null,
         error: { message: 'Doc not found' },
       });
-      const eqMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqUserMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
@@ -130,26 +138,34 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
   });
 
   describe('getByContract', () => {
-    it('debe devolver documentos filtrados por contrato', async () => {
+    it('debe devolver documentos filtrados por contrato y user_id', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-uuid-1' } } });
       const mockDocs = [{ id: 1, contract_id: 5 }];
 
       const orderMock = jest.fn().mockResolvedValue({ data: mockDocs, error: null });
-      const eqMock = jest.fn().mockReturnValue({ order: orderMock });
+      const eqUserMock = jest.fn().mockReturnValue({ order: orderMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
       const result = await identificationDocumentService.getByContract(5);
 
       expect(eqMock).toHaveBeenCalledWith('contract_id', 5);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-uuid-1');
       expect(result).toEqual(mockDocs);
     });
 
-    it('debe lanzar error si falla la consulta por contrato', async () => {
+    it('debe lanzar error si no hay usuario o si falla la consulta por contrato', async () => {
+      mockSupabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      await expect(identificationDocumentService.getByContract(5)).rejects.toThrow('Usuario no autenticado');
+
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-uuid-1' } } });
       const orderMock = jest.fn().mockResolvedValue({
         data: null,
         error: { message: 'Contract query error' },
       });
-      const eqMock = jest.fn().mockReturnValue({ order: orderMock });
+      const eqUserMock = jest.fn().mockReturnValue({ order: orderMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
@@ -208,13 +224,15 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
       );
     });
 
-    it('update debe actualizar los campos del documento', async () => {
+    it('update debe actualizar los campos del documento filtrando por user_id', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-uuid-1' } } });
       const updateData = { cantidad: 200 };
       const updatedDoc = { id: 5, cantidad: 200 };
 
       const singleMock = jest.fn().mockResolvedValue({ data: updatedDoc, error: null });
       const selectMock = jest.fn().mockReturnValue({ single: singleMock });
-      const eqMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqUserMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ update: updateMock });
 
@@ -222,16 +240,22 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
 
       expect(updateMock).toHaveBeenCalledWith(updateData);
       expect(eqMock).toHaveBeenCalledWith('id', 5);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-uuid-1');
       expect(result).toEqual(updatedDoc);
     });
 
-    it('update debe lanzar error si falla en Supabase', async () => {
+    it('update debe lanzar error si no hay usuario o si falla en Supabase', async () => {
+      mockSupabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      await expect(identificationDocumentService.update(5, {})).rejects.toThrow('Usuario no autenticado');
+
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-uuid-1' } } });
       const singleMock = jest.fn().mockResolvedValue({
         data: null,
         error: { message: 'Update error' },
       });
       const selectMock = jest.fn().mockReturnValue({ single: singleMock });
-      const eqMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqUserMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ update: updateMock });
 
@@ -240,18 +264,26 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
       );
     });
 
-    it('delete debe eliminar el documento', async () => {
-      const eqMock = jest.fn().mockResolvedValue({ error: null });
+    it('delete debe eliminar el documento filtrando por user_id', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-uuid-1' } } });
+      const eqUserMock = jest.fn().mockResolvedValue({ error: null });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const deleteMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ delete: deleteMock });
 
       await expect(identificationDocumentService.delete(7)).resolves.toBeUndefined();
       expect(deleteMock).toHaveBeenCalled();
       expect(eqMock).toHaveBeenCalledWith('id', 7);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-uuid-1');
     });
 
-    it('delete debe lanzar error si falla', async () => {
-      const eqMock = jest.fn().mockResolvedValue({ error: { message: 'Delete constraint' } });
+    it('delete debe lanzar error si no hay usuario o si falla', async () => {
+      mockSupabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      await expect(identificationDocumentService.delete(7)).rejects.toThrow('Usuario no autenticado');
+
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-uuid-1' } } });
+      const eqUserMock = jest.fn().mockResolvedValue({ error: { message: 'Delete constraint' } });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const deleteMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ delete: deleteMock });
 

@@ -54,10 +54,16 @@ export const companyService = {
    * Obtener empresa por ID
    */
   async getById(id: number): Promise<Company | null> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
     const { data, error } = await supabase
       .from('companies')
       .select('*, production_centers(*)')
       .eq('id', id)
+      .eq('user_id', user.id)
       .single();
 
     if (error) {
@@ -119,11 +125,15 @@ export const companyService = {
    */
   async getByRole(role: string): Promise<Company[]> {
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
 
     // Intentar consulta con soporte de array roles o tipo_empresa legado
     const { data, error } = await supabase
       .from('companies')
       .select('*, production_centers(*)')
+      .eq('user_id', user.id)
       .eq('activo', true)
       .order('razon_social', { ascending: true });
 
@@ -137,7 +147,7 @@ export const companyService = {
     return (data as Company[]).filter((c) => {
       const hasInRoles = Array.isArray(c.roles) && c.roles.includes(role as any);
       const isTipo = c.tipo_empresa === role;
-      const isOwner = user ? c.user_id === user.id : false;
+      const isOwner = c.user_id === user.id;
       return (hasInRoles || isTipo) && isOwner;
     });
   },
@@ -236,10 +246,16 @@ export const companyService = {
    * Actualizar empresa existente
    */
   async update(id: number, companyData: Partial<CompanyFormData>): Promise<Company> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
     const { data, error } = await supabase
       .from('companies')
       .update(companyData)
       .eq('id', id)
+      .eq('user_id', user.id)
       .select()
       .single();
 
@@ -254,10 +270,16 @@ export const companyService = {
    * Eliminar empresa (soft delete - marca como inactiva)
    */
   async softDelete(id: number): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
     const { error } = await supabase
       .from('companies')
       .update({ activo: false })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', user.id);
 
     if (error) {
       throw new Error(`Error al desactivar empresa: ${error.message}`);
@@ -268,10 +290,16 @@ export const companyService = {
    * Eliminar empresa permanentemente
    */
   async delete(id: number): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
     const { error } = await supabase
       .from('companies')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', user.id);
 
     if (error) {
       throw new Error(`Error al eliminar empresa: ${error.message}`);

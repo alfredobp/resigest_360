@@ -130,25 +130,34 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
 
   describe('getById, getAllContacts y getAll', () => {
     it('getById debe retornar una empresa con sus centros de producción', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-1' } },
+      });
       const mockComp = { id: 1, razon_social: 'Test S.L.', production_centers: [] };
 
       const singleMock = jest.fn().mockResolvedValue({ data: mockComp, error: null });
-      const eqMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqUserMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
       const result = await companyService.getById(1);
 
       expect(eqMock).toHaveBeenCalledWith('id', 1);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-1');
       expect(result).toEqual(mockComp);
     });
 
     it('getById debe lanzar error si falla la consulta', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-1' } },
+      });
       const singleMock = jest.fn().mockResolvedValue({
         data: null,
         error: { message: 'Company not found' },
       });
-      const eqMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqUserMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
@@ -211,8 +220,9 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
       ];
 
       const orderMock = jest.fn().mockResolvedValue({ data: mockCompanies, error: null });
-      const eqMock = jest.fn().mockReturnValue({ order: orderMock });
-      const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
+      const eqActivoMock = jest.fn().mockReturnValue({ order: orderMock });
+      const eqUserMock = jest.fn().mockReturnValue({ eq: eqActivoMock });
+      const selectMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
       const result = await companyService.getByRole('gestor');
@@ -337,22 +347,31 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
     });
 
     it('update debe modificar datos de la empresa', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-1' } },
+      });
       const updated = { id: 1, razon_social: 'Nuevo Nombre' };
 
       const singleMock = jest.fn().mockResolvedValue({ data: updated, error: null });
       const selectMock = jest.fn().mockReturnValue({ single: singleMock });
-      const eqMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqUserMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ update: updateMock });
 
       const result = await companyService.update(1, { razon_social: 'Nuevo Nombre' });
 
       expect(eqMock).toHaveBeenCalledWith('id', 1);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-1');
       expect(result).toEqual(updated);
     });
 
     it('softDelete y delete deben gestionar el borrado lógico y físico', async () => {
-      const eqMock = jest.fn().mockResolvedValue({ error: null });
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-1' } },
+      });
+      const eqUserMock = jest.fn().mockResolvedValue({ error: null });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
       const deleteMock = jest.fn().mockReturnValue({ eq: eqMock });
 
@@ -375,8 +394,19 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
       mockSupabase.from.mockReturnValue({
         select: jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ maybeSingle: jest.fn().mockResolvedValue({ data: null }) }) }) }),
         insert: jest.fn().mockReturnValue({ select: jest.fn().mockReturnValue({ single: failSingle }) }),
-        update: jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ select: jest.fn().mockReturnValue({ single: failSingle }), error: { message: 'Soft delete error' } }) }),
-        delete: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: { message: 'Delete error' } }) }),
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnValue({
+              select: jest.fn().mockReturnValue({ single: failSingle }),
+              error: { message: 'Soft delete error' },
+            }),
+          }),
+        }),
+        delete: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            eq: jest.fn().mockResolvedValue({ error: { message: 'Delete error' } }),
+          }),
+        }),
       });
 
       await expect(companyService.create({ cif: 'B111' } as any)).rejects.toThrow('Error al crear empresa: DB Error');

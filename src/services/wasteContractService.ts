@@ -324,7 +324,11 @@ export const wasteContractService = {
    * Actualizar contrato existente
    */
   async update(id: number, contractData: Partial<WasteContractFormData>): Promise<WasteContract> {
-    const { contract_waste_codes, ...mainData } = contractData;
+    const { userId, companyIds } = await getTenantContext();
+    const { contract_waste_codes: rawWasteCodes, contractWasteCodes, ...mainData } = contractData as Partial<WasteContractFormData> & {
+      contractWasteCodes?: ContractWasteCodeFormData[];
+    };
+    const contract_waste_codes = rawWasteCodes ?? contractWasteCodes;
     const updatePayload: any = { ...mainData };
 
     if (contract_waste_codes !== undefined) {
@@ -334,10 +338,18 @@ export const wasteContractService = {
       );
     }
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('waste_contracts')
       .update(updatePayload)
-      .eq('id', id)
+      .eq('id', id);
+
+    if (companyIds.length > 0) {
+      query = query.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')}),gestor_company_id.in.(${companyIds.join(',')})`);
+    } else {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query
       .select(`
         *,
         company:companies!waste_contracts_company_id_fkey(*),
@@ -515,11 +527,12 @@ export const wasteContractService = {
    * Obtener contratos próximos a vencer (30 días)
    */
   async getExpiringSoon(): Promise<WasteContract[]> {
+    const { userId, companyIds } = await getTenantContext();
     const now = new Date();
     const thirtyDaysFromNow = new Date();
     thirtyDaysFromNow.setDate(now.getDate() + 30);
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('waste_contracts')
       .select(`
         *,
@@ -529,8 +542,15 @@ export const wasteContractService = {
       `)
       .eq('estado', 'vigente')
       .lte('fecha_fin', thirtyDaysFromNow.toISOString())
-      .gte('fecha_fin', now.toISOString())
-      .order('fecha_fin', { ascending: true });
+      .gte('fecha_fin', now.toISOString());
+
+    if (companyIds.length > 0) {
+      query = query.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')}),gestor_company_id.in.(${companyIds.join(',')})`);
+    } else {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query.order('fecha_fin', { ascending: true });
 
     if (error) {
       throw new Error(`Error al obtener contratos por vencer: ${error.message}`);
@@ -552,7 +572,7 @@ export const wasteContractService = {
     }
 
     // 1. Convertir Base64 a Blob
-    const base64Data = signatureBase64.split(',')[1];
+    const base64Data = signatureBase64.includes(',') ? signatureBase64.split(',')[1] : signatureBase64;
     const byteCharacters = atob(base64Data);
     const byteNumbers = new Array(byteCharacters.length);
     for (let i = 0; i < byteCharacters.length; i++) {
@@ -611,7 +631,7 @@ export const wasteContractService = {
     }
 
     // 2. Procesar la firma (mismo proceso que signContract pero sin auth check)
-    const base64Data = signatureBase64.split(',')[1];
+    const base64Data = signatureBase64.includes(',') ? signatureBase64.split(',')[1] : signatureBase64;
     const byteCharacters = atob(base64Data);
     const byteNumbers = new Array(byteCharacters.length);
     for (let i = 0; i < byteCharacters.length; i++) {
@@ -705,8 +725,10 @@ export function validateContractActivation(
     errors.push(`La fecha de fin del contrato (${contract.fecha_fin}) ya ha expirado.`);
   }
 
+  const wasteCodesList = contract.contract_waste_codes ?? (contract as any).contractWasteCodes;
+
   const hasWasteCodes = Boolean(
-    (contract.contract_waste_codes && contract.contract_waste_codes.length > 0) ||
+    (wasteCodesList && wasteCodesList.length > 0) ||
     (contract.codigos_ler && contract.codigos_ler.length > 0) ||
     (contract.waste_type_ids && contract.waste_type_ids.length > 0) ||
     (contract.descripcion_residuos && contract.descripcion_residuos.trim().length > 0)
@@ -716,7 +738,7 @@ export function validateContractActivation(
   }
 
   const hasOperations = Boolean(
-    (contract.contract_waste_codes && contract.contract_waste_codes.some((c) => c.operacion_tratamiento)) ||
+    (wasteCodesList && wasteCodesList.some((c: any) => c.operacion_tratamiento)) ||
     (contract.operaciones_tratamiento && contract.operaciones_tratamiento.length > 0)
   );
   if (!hasOperations) {

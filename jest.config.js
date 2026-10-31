@@ -45,6 +45,12 @@ module.exports = {
     'src/lib/validations/publicForms.ts',
     'src/lib/rateLimit.ts',
     'src/app/api/holded/route.ts',
+    'src/app/api/deca/[token]/route.ts',
+    'src/app/api/residuos/sira/enviar-di/route.ts',
+    'src/app/api/contact/route.ts',
+    'src/app/api/support/ticket/route.ts',
+    'src/app/auth/callback/route.ts',
+    'src/lib/supabase/middleware.ts',
     'src/services/quickSearchService.ts',
     'src/lib/authErrors.ts',
     'src/services/chronologicalRegistryService.ts',
@@ -149,6 +155,42 @@ module.exports = {
       statements: 80
     },
     './src/app/api/holded/route.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/app/api/deca/[token]/route.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/app/api/residuos/sira/enviar-di/route.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/app/api/contact/route.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/app/api/support/ticket/route.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/app/auth/callback/route.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/lib/supabase/middleware.ts': {
       branches: 80,
       functions: 80,
       lines: 80,

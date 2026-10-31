@@ -257,7 +257,11 @@ describe('chronologicalRegistryService - Archivo Cronológico (Art. 64 Ley 7/202
       // Mock count query
       const countChain: any = {
         select: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockResolvedValue({ count: 42, error: null }),
+        eq: jest.fn().mockResolvedValue({
+          count: 10,
+          data: [{ id: 42, numero_asiento: 'AS-2025-000042' }],
+          error: null,
+        }),
       };
 
       // Mock insert query
@@ -353,24 +357,32 @@ describe('chronologicalRegistryService - Archivo Cronológico (Art. 64 Ley 7/202
   });
 
   describe('deleteChronologicalEntry', () => {
-    it('debe eliminar el asiento correctamente', async () => {
+    it('debe eliminar el asiento correctamente filtrando por user_id', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const deleteChain: any = {
         delete: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockResolvedValue({ error: null }),
+        eq: jest.fn().mockReturnThis(),
       };
+      deleteChain.then = (resolve: any) => Promise.resolve({ error: null }).then(resolve);
       mockSupabase.from.mockReturnValue(deleteChain);
 
       const res = await deleteChronologicalEntry(123);
       expect(res).toBe(true);
       expect(deleteChain.delete).toHaveBeenCalled();
       expect(deleteChain.eq).toHaveBeenCalledWith('id', 123);
+      expect(deleteChain.eq).toHaveBeenCalledWith('user_id', mockUser.id);
     });
 
-    it('debe lanzar error si la eliminación falla', async () => {
+    it('debe lanzar error si no hay usuario o si la eliminación falla', async () => {
+      mockSupabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      await expect(deleteChronologicalEntry(999)).rejects.toThrow('No hay usuario autenticado');
+
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const deleteChain: any = {
         delete: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockResolvedValue({ error: new Error('Delete error') }),
+        eq: jest.fn().mockReturnThis(),
       };
+      deleteChain.then = (resolve: any) => Promise.resolve({ error: new Error('Delete error') }).then(resolve);
       mockSupabase.from.mockReturnValue(deleteChain);
 
       await expect(deleteChronologicalEntry(999)).rejects.toThrow('Delete error');
@@ -649,6 +661,43 @@ describe('chronologicalRegistryService - Archivo Cronológico (Art. 64 Ley 7/202
 
       const res = await syncEntryFromDI(mockDI2 as any);
       expect(res).toBeNull();
+    });
+
+    it('syncEntryFromDI no debe multiplicar por 1000 cuando la unidad del DI es kg', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      const mockDIKg: Partial<IdentificationDocument> = {
+        id: 205,
+        numero_documento: 'DI-205',
+        cantidad: 450,
+        unidad: 'kg',
+        codigo_ler: '20 01 01',
+      };
+
+      const existingChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+      };
+
+      const insertChain = {
+        insert: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({
+          data: { id: 505, cantidad_kg: 450 },
+          error: null,
+        }),
+      };
+
+      mockSupabase.from.mockReturnValue({ ...existingChain, ...insertChain });
+
+      const res = await syncEntryFromDI(mockDIKg as IdentificationDocument);
+      expect(res?.cantidad_kg).toBe(450);
+      expect(insertChain.insert).toHaveBeenCalledWith([
+        expect.objectContaining({
+          cantidad_kg: 450,
+        }),
+      ]);
     });
   });
 

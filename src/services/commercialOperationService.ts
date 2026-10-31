@@ -138,6 +138,9 @@ export const commercialOperationService = {
    */
   async getById(id: number): Promise<CommercialOperation | null> {
     const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
     const { data, error } = await supabase
       .from('commercial_operations')
       .select(`
@@ -151,6 +154,7 @@ export const commercialOperationService = {
         identification_document:identification_documents(*)
       `)
       .eq('id', id)
+      .eq('user_id', user.id)
       .single();
 
     if (error) {
@@ -171,13 +175,26 @@ export const commercialOperationService = {
 
     const year = new Date(data.fecha || new Date()).getFullYear();
 
-    // Generar correlativo OP-YYYY-000001
-    const { count } = await supabase
+    // Generar correlativo OP-YYYY-000001 evitando colisiones tras borrados
+    const { data: existingOps, count } = await supabase
       .from('commercial_operations')
-      .select('id', { count: 'exact', head: true })
+      .select('id, numero_operacion', { count: 'exact' })
       .eq('user_id', user.id);
 
-    const nextSeq = (count || 0) + 1;
+    let maxSeq = count || 0;
+    if (Array.isArray(existingOps)) {
+      for (const item of existingOps) {
+        const match = item.numero_operacion?.match(/-(\d+)$/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (!isNaN(num) && num > maxSeq) {
+            maxSeq = num;
+          }
+        }
+      }
+    }
+
+    const nextSeq = maxSeq + 1;
     const numero_operacion = `OP-${year}-${String(nextSeq).padStart(6, '0')}`;
 
     // Calcular márgenes
@@ -217,21 +234,35 @@ export const commercialOperationService = {
    */
   async update(id: number, data: Partial<CommercialOperationFormData>): Promise<CommercialOperation> {
     const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No hay usuario autenticado');
 
-    // Recalcular rentabilidad si cambian precios o cantidades
-    const profitability = calculateProfitability(data);
+    const hasFinancialFields =
+      data.cantidad_estimada_t !== undefined ||
+      data.cantidad_real_t !== undefined ||
+      data.tipo_precio_compra !== undefined ||
+      data.precio_unitario_compra !== undefined ||
+      data.tipo_precio_venta !== undefined ||
+      data.precio_unitario_venta !== undefined ||
+      data.coste_transporte !== undefined ||
+      data.otros_costes !== undefined;
 
     const payload: any = {
       ...data,
-      coste_compra_total: profitability.coste_compra_total,
-      ingreso_venta_total: profitability.ingreso_venta_total,
-      coste_transporte: profitability.coste_transporte,
-      otros_costes: profitability.otros_costes,
-      margen_bruto_total: profitability.margen_bruto_total,
-      margen_unitario_tonelada: profitability.margen_unitario_tonelada,
-      porcentaje_margen: profitability.porcentaje_margen,
       updated_at: new Date().toISOString()
     };
+
+    // Recalcular rentabilidad solo si se proporcionan campos económicos o de cantidad
+    if (hasFinancialFields) {
+      const profitability = calculateProfitability(data);
+      payload.coste_compra_total = profitability.coste_compra_total;
+      payload.ingreso_venta_total = profitability.ingreso_venta_total;
+      payload.coste_transporte = profitability.coste_transporte;
+      payload.otros_costes = profitability.otros_costes;
+      payload.margen_bruto_total = profitability.margen_bruto_total;
+      payload.margen_unitario_tonelada = profitability.margen_unitario_tonelada;
+      payload.porcentaje_margen = profitability.porcentaje_margen;
+    }
 
     if (data.codigo_ler && data.codigo_ler.includes('*')) {
       payload.peligrosidad = 'peligroso';
@@ -241,6 +272,7 @@ export const commercialOperationService = {
       .from('commercial_operations')
       .update(payload)
       .eq('id', id)
+      .eq('user_id', user.id)
       .select()
       .single();
 
@@ -257,10 +289,14 @@ export const commercialOperationService = {
    */
   async delete(id: number): Promise<boolean> {
     const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No hay usuario autenticado');
+
     const { error } = await supabase
       .from('commercial_operations')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', user.id);
 
     if (error) {
       console.error('Error al eliminar operación comercial:', error);

@@ -67,8 +67,8 @@ export const quickSearchService = {
       (async () => {
         let q = supabase
           .from('waste_contracts')
-          .select('id, contract_number, status')
-          .ilike('contract_number', `%${safeQuery}%`)
+          .select('id, numero_contrato, estado')
+          .ilike('numero_contrato', `%${safeQuery}%`)
           .limit(limitPerCategory);
 
         if (companyIds.length > 0) {
@@ -79,10 +79,10 @@ export const quickSearchService = {
 
         const { data, error } = await q;
         if (error || !data) return [];
-        return data.map((c: { id: string | number; contract_number: string; status?: string }) => ({
+        return data.map((c: { id: string | number; numero_contrato?: string; contract_number?: string; estado?: string; status?: string }) => ({
           id: `contract-${c.id}`,
-          title: `Contrato: ${c.contract_number || c.id}`,
-          subtitle: `Estado: ${c.status || 'Activo'}`,
+          title: `Contrato: ${c.numero_contrato || c.contract_number || c.id}`,
+          subtitle: `Estado: ${c.estado || c.status || 'Activo'}`,
           category: 'contracts' as const,
           href: `/residuos/contratos/${c.id}`,
           badge: 'Contrato',
@@ -93,15 +93,15 @@ export const quickSearchService = {
       (async () => {
         const { data, error } = await supabase
           .from('identification_documents')
-          .select('id, tracking_number, document_number, estado')
+          .select('id, numero_documento, codigo_ler, descripcion_residuo, estado')
           .eq('user_id', userId)
-          .or(`tracking_number.ilike.%${safeQuery}%,document_number.ilike.%${safeQuery}%`)
+          .or(`numero_documento.ilike.%${safeQuery}%,codigo_ler.ilike.%${safeQuery}%,descripcion_residuo.ilike.%${safeQuery}%`)
           .limit(limitPerCategory);
 
         if (error || !data) return [];
-        return data.map((d: { id: string | number; tracking_number?: string; document_number?: string; estado?: string }) => ({
+        return data.map((d: { id: string | number; numero_documento?: string; tracking_number?: string; document_number?: string; estado?: string }) => ({
           id: `doc-${d.id}`,
-          title: `DI: ${d.tracking_number || d.document_number || d.id}`,
+          title: `DI: ${d.numero_documento || d.tracking_number || d.document_number || d.id}`,
           subtitle: d.estado ? `Estado: ${d.estado}` : 'Documento de Identificación',
           category: 'documents' as const,
           href: `/residuos/documentos-identificacion/${d.id}`,
@@ -155,10 +155,10 @@ export const quickSearchService = {
       (async () => {
         const { data, error } = await supabase
           .from('carriers')
-          .select('id, razon_social, nif, numero_autorizacion')
+          .select('id, razon_social, cif, numero_autorizacion')
           .eq('user_id', userId)
           .eq('activo', true)
-          .or(`razon_social.ilike.%${safeQuery}%,nif.ilike.%${safeQuery}%,numero_autorizacion.ilike.%${safeQuery}%`)
+          .or(`razon_social.ilike.%${safeQuery}%,cif.ilike.%${safeQuery}%,numero_autorizacion.ilike.%${safeQuery}%`)
           .limit(limitPerCategory);
 
         if (error || !data) return [];

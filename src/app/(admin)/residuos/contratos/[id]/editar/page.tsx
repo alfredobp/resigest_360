@@ -308,7 +308,7 @@ export default function EditarContratoPage() {
         environmental_authorization_id: formData.environmental_authorization_id || undefined,
         codigos_ler: validWasteCodes.map(c => c.codigo_ler.trim()),
         operaciones_tratamiento: Array.from(new Set(validWasteCodes.map(c => c.operacion_tratamiento.trim()).filter(Boolean))),
-        contractWasteCodes: validWasteCodes,
+        contract_waste_codes: validWasteCodes,
       };
 
       if (formData.estado === 'vigente') {

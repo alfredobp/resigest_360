@@ -206,7 +206,8 @@ describe('commercialOperationService - Operaciones Comerciales', () => {
   });
 
   describe('getById', () => {
-    it('debe retornar la operación encontrada', async () => {
+    it('debe retornar la operación encontrada filtrando por user_id', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const mockOp = { id: 10, numero_operacion: 'OP-2025-000010' };
       const chain = {
         select: jest.fn().mockReturnThis(),
@@ -218,9 +219,14 @@ describe('commercialOperationService - Operaciones Comerciales', () => {
       const res = await commercialOperationService.getById(10);
       expect(res).toEqual(mockOp);
       expect(chain.eq).toHaveBeenCalledWith('id', 10);
+      expect(chain.eq).toHaveBeenCalledWith('user_id', mockUser.id);
     });
 
-    it('debe retornar null si la consulta falla o no existe', async () => {
+    it('debe retornar null si no hay usuario autenticado o si la consulta falla', async () => {
+      mockSupabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      expect(await commercialOperationService.getById(10)).toBeNull();
+
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const chain = {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
@@ -250,7 +256,11 @@ describe('commercialOperationService - Operaciones Comerciales', () => {
 
       const countChain = {
         select: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockResolvedValue({ count: 5, error: null }),
+        eq: jest.fn().mockResolvedValue({
+          count: 3,
+          data: [{ id: 5, numero_operacion: 'OP-2025-000005' }],
+          error: null,
+        }),
       };
 
       const insertChain = {
@@ -317,7 +327,8 @@ describe('commercialOperationService - Operaciones Comerciales', () => {
   });
 
   describe('update', () => {
-    it('debe recalcular rentabilidad y actualizar la operación', async () => {
+    it('debe recalcular rentabilidad y actualizar la operación filtrando por user_id', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const updateChain = {
         update: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
@@ -348,9 +359,39 @@ describe('commercialOperationService - Operaciones Comerciales', () => {
         })
       );
       expect(updateChain.eq).toHaveBeenCalledWith('id', 10);
+      expect(updateChain.eq).toHaveBeenCalledWith('user_id', mockUser.id);
     });
 
-    it('debe lanzar error si update falla', async () => {
+    it('no debe sobrescribir campos económicos con cero cuando solo se actualiza el estado', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      const updateChain = {
+        update: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({
+          data: { id: 10, estado: 'liquidada', margen_bruto_total: 350 },
+          error: null,
+        }),
+      };
+      mockSupabase.from.mockReturnValue(updateChain);
+
+      const res = await commercialOperationService.update(10, {
+        estado: 'liquidada',
+      });
+
+      expect(res.estado).toBe('liquidada');
+      const sentPayload = updateChain.update.mock.calls[0][0];
+      expect(sentPayload.estado).toBe('liquidada');
+      expect(sentPayload.coste_compra_total).toBeUndefined();
+      expect(sentPayload.ingreso_venta_total).toBeUndefined();
+      expect(sentPayload.margen_bruto_total).toBeUndefined();
+    });
+
+    it('debe lanzar error si no hay usuario o si update falla', async () => {
+      mockSupabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      await expect(commercialOperationService.update(10, {})).rejects.toThrow('No hay usuario autenticado');
+
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const updateChain = {
         update: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
@@ -364,23 +405,31 @@ describe('commercialOperationService - Operaciones Comerciales', () => {
   });
 
   describe('delete', () => {
-    it('debe eliminar la operación correctamente', async () => {
-      const deleteChain = {
+    it('debe eliminar la operación correctamente filtrando por user_id', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      const deleteChain: any = {
         delete: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockResolvedValue({ error: null }),
+        eq: jest.fn().mockReturnThis(),
       };
+      deleteChain.then = (resolve: any) => Promise.resolve({ error: null }).then(resolve);
       mockSupabase.from.mockReturnValue(deleteChain);
 
       const res = await commercialOperationService.delete(5);
       expect(res).toBe(true);
       expect(deleteChain.eq).toHaveBeenCalledWith('id', 5);
+      expect(deleteChain.eq).toHaveBeenCalledWith('user_id', mockUser.id);
     });
 
-    it('debe lanzar error si delete falla', async () => {
-      const deleteChain = {
+    it('debe lanzar error si no hay usuario o si delete falla', async () => {
+      mockSupabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      await expect(commercialOperationService.delete(5)).rejects.toThrow('No hay usuario autenticado');
+
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      const deleteChain: any = {
         delete: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockResolvedValue({ error: new Error('Delete error') }),
+        eq: jest.fn().mockReturnThis(),
       };
+      deleteChain.then = (resolve: any) => Promise.resolve({ error: new Error('Delete error') }).then(resolve);
       mockSupabase.from.mockReturnValue(deleteChain);
 
       await expect(commercialOperationService.delete(5)).rejects.toThrow('Delete error');

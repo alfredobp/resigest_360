@@ -72,27 +72,36 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
 
   describe('getById', () => {
     it('debe obtener un DeCA por su ID', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-deca-1' } },
+      });
       const mockDoc = { id: 5, numero_deca: 'DECA-2026-00005' };
 
       const maybeSingleMock = jest.fn().mockResolvedValue({ data: mockDoc, error: null });
-      const eqMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const eqUserMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
       const result = await decaService.getById(5);
 
       expect(eqMock).toHaveBeenCalledWith('id', 5);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-deca-1');
       expect(result).toEqual(mockDoc);
     });
 
     it('debe retornar null y loguear error si falla la consulta', async () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-deca-1' } },
+      });
 
       const maybeSingleMock = jest.fn().mockResolvedValue({
         data: null,
         error: { message: 'DB query error' },
       });
-      const eqMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const eqUserMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
@@ -163,11 +172,13 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
 
   describe('getNextNumero', () => {
     it('debe generar DECA-AÑO-00001 si no hay documentos previos en el año', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-deca-1' } } });
       const currentYear = new Date().getFullYear();
 
       const limitMock = jest.fn().mockResolvedValue({ data: [], error: null });
       const orderMock = jest.fn().mockReturnValue({ limit: limitMock });
-      const ilikeMock = jest.fn().mockReturnValue({ order: orderMock });
+      const eqMock = jest.fn().mockReturnValue({ order: orderMock });
+      const ilikeMock = jest.fn().mockReturnValue({ eq: eqMock, order: orderMock });
       const selectMock = jest.fn().mockReturnValue({ ilike: ilikeMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
@@ -177,6 +188,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
     });
 
     it('debe calcular el siguiente número correlativo si ya existen documentos previos', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-deca-1' } } });
       const currentYear = new Date().getFullYear();
 
       const limitMock = jest.fn().mockResolvedValue({
@@ -184,7 +196,8 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
         error: null,
       });
       const orderMock = jest.fn().mockReturnValue({ limit: limitMock });
-      const ilikeMock = jest.fn().mockReturnValue({ order: orderMock });
+      const eqMock = jest.fn().mockReturnValue({ order: orderMock });
+      const ilikeMock = jest.fn().mockReturnValue({ eq: eqMock, order: orderMock });
       const selectMock = jest.fn().mockReturnValue({ ilike: ilikeMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
@@ -423,7 +436,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       });
 
       const updatedPreviousMock = jest.fn().mockResolvedValue({ error: null });
-      const eqUpdateMock = jest.fn().mockReturnValue(updatedPreviousMock);
+      const eqUpdateMock = jest.fn().mockReturnValue({ eq: updatedPreviousMock });
 
       const singleInsertMock = jest.fn().mockResolvedValue({
         data: { ...currentDeca, id: 2, version: 2, previous_version_id: 1, peso_kg: 600 },
@@ -481,7 +494,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === 'deca_documents') {
           return {
-            update: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }),
+            update: jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }) }),
             insert: jest.fn().mockReturnValue({ select: selectInsertMock }),
           };
         }
@@ -510,7 +523,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === 'deca_documents') {
           return {
-            update: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }),
+            update: jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }) }),
             insert: jest.fn().mockReturnValue({ select: selectMock }),
           };
         }
@@ -548,11 +561,15 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
     });
 
     it('finalizeService debe marcar estado como finalizado y registrar fecha_finalizacion', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-deca-1' } },
+      });
       const finalizedDoc = { id: 1, estado: 'finalizado', version: 1 };
 
       const singleMock = jest.fn().mockResolvedValue({ data: finalizedDoc, error: null });
       const selectMock = jest.fn().mockReturnValue({ single: singleMock });
-      const eqMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqUserMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
 
       mockSupabase.from.mockImplementation((table: string) => {
@@ -577,12 +594,16 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
     });
 
     it('finalizeService debe lanzar error si falla la actualización en Supabase', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-deca-1' } },
+      });
       const singleMock = jest.fn().mockResolvedValue({
         data: null,
         error: { message: 'Update failed' },
       });
       const selectMock = jest.fn().mockReturnValue({ single: singleMock });
-      const eqMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqUserMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ update: updateMock });
 

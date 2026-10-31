@@ -128,25 +128,34 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
 
   describe('getById', () => {
     it('debe retornar un transportista por su ID', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-1' } },
+      });
       const mockCarrier = { id: 5, razon_social: 'Transportes Rápidos S.L.' };
 
       const singleMock = jest.fn().mockResolvedValue({ data: mockCarrier, error: null });
-      const eqMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqUserMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
       const result = await carrierService.getById(5);
 
       expect(eqMock).toHaveBeenCalledWith('id', 5);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-1');
       expect(result).toEqual(mockCarrier);
     });
 
     it('debe lanzar error si la consulta por ID falla', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-1' } },
+      });
       const singleMock = jest.fn().mockResolvedValue({
         data: null,
         error: { message: 'Carrier not found' },
       });
-      const eqMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqUserMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
@@ -257,6 +266,9 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
 
   describe('update', () => {
     it('debe actualizar el transportista y sincronizar cambio con Holded', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-1' } },
+      });
       jest.spyOn(carrierService, 'getById').mockResolvedValue({
         id: 5,
         razon_social: 'Nombre Antiguo',
@@ -276,7 +288,8 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
 
       const singleUpdateMock = jest.fn().mockResolvedValue({ data: updatedCarrier, error: null });
       const selectUpdateMock = jest.fn().mockReturnValue({ single: singleUpdateMock });
-      const eqUpdateMock = jest.fn().mockReturnValue({ select: selectUpdateMock });
+      const eqUserMock = jest.fn().mockReturnValue({ select: selectUpdateMock });
+      const eqUpdateMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqUpdateMock });
       mockSupabase.from.mockReturnValue({ update: updateMock });
 
@@ -294,6 +307,9 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
 
     it('debe actualizar el transportista sin fallar si la actualización en Holded arroja error', async () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-1' } },
+      });
 
       jest.spyOn(carrierService, 'getById').mockResolvedValue({
         id: 5,
@@ -307,7 +323,8 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
       const updatedCarrier = { id: 5, razon_social: 'Nombre' };
       const singleUpdateMock = jest.fn().mockResolvedValue({ data: updatedCarrier, error: null });
       const selectUpdateMock = jest.fn().mockReturnValue({ single: singleUpdateMock });
-      const eqUpdateMock = jest.fn().mockReturnValue({ select: selectUpdateMock });
+      const eqUserMock = jest.fn().mockReturnValue({ select: selectUpdateMock });
+      const eqUpdateMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqUpdateMock });
       mockSupabase.from.mockReturnValue({ update: updateMock });
 
@@ -323,7 +340,11 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
 
   describe('softDelete y delete', () => {
     it('softDelete debe desactivar el transportista', async () => {
-      const eqMock = jest.fn().mockResolvedValue({ error: null });
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-1' } },
+      });
+      const eqUserMock = jest.fn().mockResolvedValue({ error: null });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ update: updateMock });
 
@@ -332,7 +353,11 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
     });
 
     it('softDelete debe lanzar error si Supabase falla', async () => {
-      const eqMock = jest.fn().mockResolvedValue({ error: { message: 'Soft delete error' } });
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-1' } },
+      });
+      const eqUserMock = jest.fn().mockResolvedValue({ error: { message: 'Soft delete error' } });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ update: updateMock });
 
@@ -340,7 +365,11 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
     });
 
     it('delete debe eliminar el transportista de la base de datos', async () => {
-      const eqMock = jest.fn().mockResolvedValue({ error: null });
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-1' } },
+      });
+      const eqUserMock = jest.fn().mockResolvedValue({ error: null });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const deleteMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ delete: deleteMock });
 
@@ -349,7 +378,11 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
     });
 
     it('delete debe lanzar error si Supabase falla', async () => {
-      const eqMock = jest.fn().mockResolvedValue({ error: { message: 'Delete error' } });
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-1' } },
+      });
+      const eqUserMock = jest.fn().mockResolvedValue({ error: { message: 'Delete error' } });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const deleteMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ delete: deleteMock });
 
@@ -359,15 +392,29 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
     it('create y update deben lanzar error si Supabase falla en la inserción o actualización', async () => {
       mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'u1' } } });
       mockCompanyService.getUserCompany.mockResolvedValue(null);
+      jest.spyOn(carrierService, 'getById').mockResolvedValue({ id: 1 } as any);
 
       const singleInsertFail = jest.fn().mockResolvedValue({ data: null, error: { message: 'Insert failed' } });
       mockSupabase.from.mockReturnValue({
         insert: jest.fn().mockReturnValue({ select: jest.fn().mockReturnValue({ single: singleInsertFail }) }),
-        update: jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ select: jest.fn().mockReturnValue({ single: singleInsertFail }) }) }),
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnValue({
+              select: jest.fn().mockReturnValue({ single: singleInsertFail }),
+            }),
+          }),
+        }),
       });
 
       await expect(carrierService.create({ razon_social: 'Test' } as any)).rejects.toThrow('Error al crear transportista: Insert failed');
       await expect(carrierService.update(1, { razon_social: 'Test' } as any)).rejects.toThrow('Error al actualizar transportista: Insert failed');
+
+      jest.restoreAllMocks();
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
+      await expect(carrierService.getById(1)).rejects.toThrow('Usuario no autenticado');
+      await expect(carrierService.update(1, {})).rejects.toThrow('Usuario no autenticado');
+      await expect(carrierService.softDelete(1)).rejects.toThrow('Usuario no autenticado');
+      await expect(carrierService.delete(1)).rejects.toThrow('Usuario no autenticado');
     });
   });
 });

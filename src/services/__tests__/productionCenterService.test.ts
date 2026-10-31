@@ -22,6 +22,9 @@ describe('productionCenterService - Entidad Centros de Producción', () => {
 
   describe('getByCompanyId', () => {
     it('debe retornar la lista de centros de producción activos de una empresa', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-uuid-123' } },
+      });
       const mockCenters = [
         { id: 1, nombre: 'Planta Principal', company_id: 10, activo: true },
         { id: 2, nombre: 'Almacén Norte', company_id: 10, activo: true },
@@ -29,7 +32,8 @@ describe('productionCenterService - Entidad Centros de Producción', () => {
 
       const orderMock = jest.fn().mockResolvedValue({ data: mockCenters, error: null });
       const eqActivoMock = jest.fn().mockReturnValue({ order: orderMock });
-      const eqCompanyMock = jest.fn().mockReturnValue({ eq: eqActivoMock });
+      const eqUserMock = jest.fn().mockReturnValue({ eq: eqActivoMock });
+      const eqCompanyMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqCompanyMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
@@ -38,18 +42,23 @@ describe('productionCenterService - Entidad Centros de Producción', () => {
       expect(mockSupabase.from).toHaveBeenCalledWith('production_centers');
       expect(selectMock).toHaveBeenCalledWith('*');
       expect(eqCompanyMock).toHaveBeenCalledWith('company_id', 10);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-uuid-123');
       expect(eqActivoMock).toHaveBeenCalledWith('activo', true);
       expect(orderMock).toHaveBeenCalledWith('created_at', { ascending: true });
       expect(result).toEqual(mockCenters);
     });
 
     it('debe lanzar un error descriptivo si la consulta falla', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-uuid-123' } },
+      });
       const orderMock = jest.fn().mockResolvedValue({
         data: null,
         error: { message: 'Database connection failed' },
       });
       const eqActivoMock = jest.fn().mockReturnValue({ order: orderMock });
-      const eqCompanyMock = jest.fn().mockReturnValue({ eq: eqActivoMock });
+      const eqUserMock = jest.fn().mockReturnValue({ eq: eqActivoMock });
+      const eqCompanyMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqCompanyMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
@@ -61,10 +70,14 @@ describe('productionCenterService - Entidad Centros de Producción', () => {
 
   describe('getById', () => {
     it('debe retornar un centro de producción por su ID', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-uuid-123' } },
+      });
       const mockCenter = { id: 5, nombre: 'Sede Central', company_id: 12 };
 
       const singleMock = jest.fn().mockResolvedValue({ data: mockCenter, error: null });
-      const eqMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqUserMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
@@ -73,16 +86,21 @@ describe('productionCenterService - Entidad Centros de Producción', () => {
       expect(mockSupabase.from).toHaveBeenCalledWith('production_centers');
       expect(selectMock).toHaveBeenCalledWith('*');
       expect(eqMock).toHaveBeenCalledWith('id', 5);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-uuid-123');
       expect(singleMock).toHaveBeenCalled();
       expect(result).toEqual(mockCenter);
     });
 
     it('debe lanzar un error si falla al obtener el centro por ID', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-uuid-123' } },
+      });
       const singleMock = jest.fn().mockResolvedValue({
         data: null,
         error: { message: 'Row not found' },
       });
-      const eqMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqUserMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
@@ -192,12 +210,16 @@ describe('productionCenterService - Entidad Centros de Producción', () => {
 
   describe('update', () => {
     it('debe actualizar los datos de un centro de producción existente', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-uuid-123' } },
+      });
       const updateData = { nombre: 'Centro Actualizado' };
       const updatedCenter = { id: 1, nombre: 'Centro Actualizado', company_id: 10 };
 
       const singleMock = jest.fn().mockResolvedValue({ data: updatedCenter, error: null });
       const selectMock = jest.fn().mockReturnValue({ single: singleMock });
-      const eqMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqUserMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ update: updateMock });
 
@@ -206,16 +228,21 @@ describe('productionCenterService - Entidad Centros de Producción', () => {
       expect(mockSupabase.from).toHaveBeenCalledWith('production_centers');
       expect(updateMock).toHaveBeenCalledWith(updateData);
       expect(eqMock).toHaveBeenCalledWith('id', 1);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-uuid-123');
       expect(result).toEqual(updatedCenter);
     });
 
     it('debe lanzar error si falla la actualización', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-uuid-123' } },
+      });
       const singleMock = jest.fn().mockResolvedValue({
         data: null,
         error: { message: 'Database error on update' },
       });
       const selectMock = jest.fn().mockReturnValue({ single: singleMock });
-      const eqMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqUserMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ update: updateMock });
 
@@ -227,7 +254,11 @@ describe('productionCenterService - Entidad Centros de Producción', () => {
 
   describe('softDelete', () => {
     it('debe realizar un borrado lógico marcando activo como false', async () => {
-      const eqMock = jest.fn().mockResolvedValue({ error: null });
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-uuid-123' } },
+      });
+      const eqUserMock = jest.fn().mockResolvedValue({ error: null });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ update: updateMock });
 
@@ -236,12 +267,17 @@ describe('productionCenterService - Entidad Centros de Producción', () => {
       expect(mockSupabase.from).toHaveBeenCalledWith('production_centers');
       expect(updateMock).toHaveBeenCalledWith({ activo: false });
       expect(eqMock).toHaveBeenCalledWith('id', 1);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-uuid-123');
     });
 
     it('debe lanzar error si falla el borrado lógico', async () => {
-      const eqMock = jest.fn().mockResolvedValue({
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-uuid-123' } },
+      });
+      const eqUserMock = jest.fn().mockResolvedValue({
         error: { message: 'Foreign key error' },
       });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ update: updateMock });
 
@@ -253,7 +289,11 @@ describe('productionCenterService - Entidad Centros de Producción', () => {
 
   describe('delete', () => {
     it('debe eliminar permanentemente el centro de producción', async () => {
-      const eqMock = jest.fn().mockResolvedValue({ error: null });
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-uuid-123' } },
+      });
+      const eqUserMock = jest.fn().mockResolvedValue({ error: null });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const deleteMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ delete: deleteMock });
 
@@ -262,12 +302,17 @@ describe('productionCenterService - Entidad Centros de Producción', () => {
       expect(mockSupabase.from).toHaveBeenCalledWith('production_centers');
       expect(deleteMock).toHaveBeenCalled();
       expect(eqMock).toHaveBeenCalledWith('id', 1);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-uuid-123');
     });
 
     it('debe lanzar error si falla la eliminación permanente', async () => {
-      const eqMock = jest.fn().mockResolvedValue({
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-uuid-123' } },
+      });
+      const eqUserMock = jest.fn().mockResolvedValue({
         error: { message: 'Delete constraint violation' },
       });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const deleteMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ delete: deleteMock });
 

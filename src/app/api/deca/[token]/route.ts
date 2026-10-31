@@ -6,8 +6,10 @@
 // ==============================================================================
 
 import { type NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { decaService } from '@/services/decaService';
 import { generateDecaPDF } from '@/lib/pdfUtils';
+import type { DecaDocument } from '@/types/deca';
 
 export async function GET(
   request: NextRequest,
@@ -23,7 +25,14 @@ export async function GET(
       );
     }
 
-    const deca = await decaService.getByToken(token);
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from('deca_documents')
+      .select('*')
+      .eq('token', token)
+      .maybeSingle();
+
+    const deca = (data as DecaDocument | null) || null;
 
     if (!deca) {
       return new Response(
@@ -80,7 +89,18 @@ export async function GET(
     // Registrar en auditoría la descarga por inspección
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('remote-addr') || 'desconocida';
     const userAgent = request.headers.get('user-agent') || 'desconocido';
-    decaService.logAudit(deca.id, 'inspeccion_descarga', deca.version, { ip, userAgent });
+    try {
+      await supabase.from('deca_audit_logs').insert({
+        deca_id: deca.id,
+        user_id: deca.user_id || null,
+        accion: 'inspeccion_descarga',
+        version_resultante: deca.version,
+        detalles: { ip, userAgent },
+        created_at: new Date().toISOString(),
+      });
+    } catch (auditErr) {
+      console.warn('Advertencia al registrar auditoría DeCA en servidor:', auditErr);
+    }
 
     // Generar el PDF oficial digital nativo
     const host = request.headers.get('host') || 'resigest.com';

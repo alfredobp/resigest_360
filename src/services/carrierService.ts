@@ -44,6 +44,8 @@ export const carrierService = {
 
             if (unifiedCompanies && unifiedCompanies.length > 0) {
                 const existingCifs = new Set(list.map((c) => c.cif?.toUpperCase().trim()).filter(Boolean));
+                const existingIds = new Set(list.map((c) => c.id));
+                let maxId = list.reduce((max, c) => Math.max(max, c.id || 0), 0);
 
                 for (const comp of unifiedCompanies) {
                     const roles: string[] = Array.isArray(comp.roles) ? comp.roles : (comp.tipo_empresa ? [comp.tipo_empresa] : []);
@@ -52,8 +54,11 @@ export const carrierService = {
                     if (isCarrier) {
                         const normCif = comp.cif?.toUpperCase().trim();
                         if (!normCif || !existingCifs.has(normCif)) {
+                            const safeId = existingIds.has(comp.id) ? ++maxId : comp.id;
+                            existingIds.add(safeId);
+                            maxId = Math.max(maxId, safeId);
                             list.push({
-                                id: comp.id,
+                                id: safeId,
                                 user_id: comp.user_id,
                                 razon_social: comp.razon_social,
                                 cif: comp.cif,
@@ -89,10 +94,16 @@ export const carrierService = {
      * Obtener transportista por ID
      */
     async getById(id: number): Promise<Carrier | null> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            throw new Error('Usuario no autenticado');
+        }
+
         const { data, error } = await supabase
             .from('carriers')
             .select('*')
             .eq('id', id)
+            .eq('user_id', user.id)
             .single();
 
         if (error) {
@@ -176,6 +187,11 @@ export const carrierService = {
      * Actualizar transportista
      */
     async update(id: number, carrierData: Partial<CarrierFormData>): Promise<Carrier> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            throw new Error('Usuario no autenticado');
+        }
+
         const currentData = await this.getById(id);
         const company = await companyService.getUserCompany();
         const holdedApiKey = company?.holded_api_key;
@@ -184,6 +200,7 @@ export const carrierService = {
             .from('carriers')
             .update(carrierData)
             .eq('id', id)
+            .eq('user_id', user.id)
             .select()
             .single();
 
@@ -229,10 +246,16 @@ export const carrierService = {
      * Eliminar transportista (soft delete)
      */
     async softDelete(id: number): Promise<void> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            throw new Error('Usuario no autenticado');
+        }
+
         const { error } = await supabase
             .from('carriers')
             .update({ activo: false })
-            .eq('id', id);
+            .eq('id', id)
+            .eq('user_id', user.id);
 
         if (error) {
             throw new Error(`Error al desactivar transportista: ${error.message}`);
@@ -243,10 +266,16 @@ export const carrierService = {
      * Eliminar transportista permanentemente
      */
     async delete(id: number): Promise<void> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            throw new Error('Usuario no autenticado');
+        }
+
         const { error } = await supabase
             .from('carriers')
             .delete()
-            .eq('id', id);
+            .eq('id', id)
+            .eq('user_id', user.id);
 
         if (error) {
             throw new Error(`Error al eliminar transportista: ${error.message}`);

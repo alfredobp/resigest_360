@@ -173,13 +173,26 @@ export async function createChronologicalEntry(
   const fechaObj = new Date(data.fecha || new Date());
   const year = isNaN(fechaObj.getFullYear()) ? new Date().getFullYear() : fechaObj.getFullYear();
 
-  // Generar número de asiento correlativo
-  const { count } = await supabase
+  // Generar número de asiento correlativo evitando colisiones tras borrados o sincronizaciones
+  const { data: existingEntries, count } = await supabase
     .from('chronological_registry')
-    .select('id', { count: 'exact', head: true })
+    .select('id, numero_asiento', { count: 'exact' })
     .eq('user_id', user.id);
 
-  const nextSeq = (count || 0) + 1;
+  let maxSeq = count || 0;
+  if (Array.isArray(existingEntries)) {
+    for (const item of existingEntries) {
+      const match = item.numero_asiento?.match(/-(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxSeq) {
+          maxSeq = num;
+        }
+      }
+    }
+  }
+
+  const nextSeq = maxSeq + 1;
   const numero_asiento = `AS-${year}-${String(nextSeq).padStart(6, '0')}`;
 
   const payload = {
@@ -208,10 +221,14 @@ export async function createChronologicalEntry(
 // =====================================================
 export async function deleteChronologicalEntry(id: number): Promise<boolean> {
   const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay usuario autenticado');
+
   const { error } = await supabase
     .from('chronological_registry')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .eq('user_id', user.id);
 
   if (error) {
     console.error('Error al eliminar asiento cronológico:', error);
@@ -236,8 +253,10 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
     .eq('identification_document_id', di.id)
     .maybeSingle();
 
-  // Peso verificado con preferencia de báscula de destino
-  const cantidadKg = Number(di.peso_destino_kg) || Number(di.peso_origen_kg) || ((Number(di.cantidad) || 0) * 1000);
+  // Peso verificado con preferencia de báscula de destino y conversión según unidad
+  const rawCantidad = Number(di.cantidad) || 0;
+  const cantidadEnKg = di.unidad === 'kg' ? rawCantidad : rawCantidad * 1000;
+  const cantidadKg = Number(di.peso_destino_kg) || Number(di.peso_origen_kg) || cantidadEnKg;
   const fechaAsiento = di.fecha_entrega || di.fecha_salida || di.fecha_documento || new Date().toISOString().split('T')[0];
 
   const year = new Date(fechaAsiento).getFullYear();

@@ -598,7 +598,7 @@ export default function MiEmpresaPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => router.push('/admin/residuos/contratos')}
+              onClick={() => router.push('/residuos/contratos')}
               disabled={saving}
             >
               Cancelar

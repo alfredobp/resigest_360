@@ -114,17 +114,19 @@ export async function POST(req: NextRequest) {
             console.warn('sira_submissions insert warning (table might be initializing):', dbErr);
         }
 
-        // --- DEBUG: GUARDAR XML EN ARCHIVO LOCAL ---
-        try {
-            const logDir = path.join(process.cwd(), 'sira_xml_logs');
-            if (!fs.existsSync(logDir)) {
-                fs.mkdirSync(logDir, { recursive: true });
+        // --- DEBUG: GUARDAR XML EN ARCHIVO LOCAL (SOLO DESARROLLO) ---
+        if (process.env.NODE_ENV === 'development') {
+            try {
+                const logDir = path.join(process.cwd(), 'sira_xml_logs');
+                if (!fs.existsSync(logDir)) {
+                    fs.mkdirSync(logDir, { recursive: true });
+                }
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const filePathReq = path.join(logDir, `req_${documentId}_${timestamp}.xml`);
+                fs.writeFileSync(filePathReq, soapEnvelope);
+            } catch (logErr) {
+                console.error('Error guardando log XML:', logErr);
             }
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const filePathReq = path.join(logDir, `req_${documentId}_${timestamp}.xml`);
-            fs.writeFileSync(filePathReq, soapEnvelope);
-        } catch (logErr) {
-            console.error('Error guardando log XML:', logErr);
         }
         // ------------------------------------------------
 
@@ -144,14 +146,16 @@ export async function POST(req: NextRequest) {
 
         const responseText = await siraResponse.text();
 
-        // --- DEBUG: GUARDAR RESPUESTA XML ---
-        try {
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const logDir = path.join(process.cwd(), 'sira_xml_logs');
-            const filePathRes = path.join(logDir, `res_${documentId}_${timestamp}.xml`);
-            fs.writeFileSync(filePathRes, responseText);
-        } catch (logErr) {
-            console.error('Error guardando log respuesta:', logErr);
+        // --- DEBUG: GUARDAR RESPUESTA XML (SOLO DESARROLLO) ---
+        if (process.env.NODE_ENV === 'development') {
+            try {
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const logDir = path.join(process.cwd(), 'sira_xml_logs');
+                const filePathRes = path.join(logDir, `res_${documentId}_${timestamp}.xml`);
+                fs.writeFileSync(filePathRes, responseText);
+            } catch (logErr) {
+                console.error('Error guardando log respuesta:', logErr);
+            }
         }
         // ------------------------------------
 
@@ -224,7 +228,8 @@ export async function POST(req: NextRequest) {
                 estado: 'pendiente-firma',
                 notas: `${doc.notas || ''  }\n[SIRA] Enviado con éxito. ID SIRA: ${siraId}`
             })
-            .eq('id', documentId);
+            .eq('id', documentId)
+            .eq('user_id', user.id);
 
         // Registrar en audit_logs
         try {

@@ -12,6 +12,12 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => null);
+
+    // Honeypot: los bots rellenan "website". Respondemos éxito sin enviar nada.
+    if (body && typeof body === 'object' && body.website) {
+      return NextResponse.json({ success: true });
+    }
+
     const parsed = contactFormSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -19,11 +25,6 @@ export async function POST(request: Request) {
         { error: 'El nombre y un correo electrónico válido son obligatorios.' },
         { status: 400 }
       );
-    }
-
-    // Honeypot: los bots rellenan "website". Respondemos éxito sin enviar nada.
-    if (parsed.data.website) {
-      return NextResponse.json({ success: true });
     }
 
     const { name, company, email, phone, role, volume, message } = parsed.data;

@@ -41,7 +41,7 @@ export async function createMemoria(data: CreateMemoriaData): Promise<MemoriaAnu
   if (!user) throw new Error('No hay usuario autenticado');
 
   // Generar número de memoria
-  const numero_memoria = await generateNumeroMemoria(data.tipo_memoria, data.año);
+  const numero_memoria = await generateNumeroMemoria(data.tipo_memoria, data.año, user.id);
 
   // Calcular fechas
   const fecha_inicio = `${data.año}-01-01`;
@@ -184,10 +184,14 @@ export async function getAllMemorias(): Promise<MemoriaAnual[]> {
 export async function getMemoriaById(id: number): Promise<MemoriaAnual | null> {
   const supabase = createClient();
 
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay usuario autenticado');
+
   const { data, error } = await supabase
     .from('memorias_anuales')
     .select('*')
     .eq('id', id)
+    .eq('user_id', user.id)
     .single();
 
   if (error) {
@@ -208,6 +212,9 @@ export async function updateMemoria(
 ): Promise<MemoriaAnual | null> {
   const supabase = createClient();
 
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay usuario autenticado');
+
   const { data, error } = await supabase
     .from('memorias_anuales')
     .update({
@@ -215,6 +222,7 @@ export async function updateMemoria(
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
+    .eq('user_id', user.id)
     .select()
     .single();
 
@@ -251,10 +259,14 @@ export async function updateEstado(
 export async function deleteMemoria(id: number): Promise<boolean> {
   const supabase = createClient();
 
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay usuario autenticado');
+
   const { error } = await supabase
     .from('memorias_anuales')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .eq('user_id', user.id);
 
   if (error) {
     console.error('Error al eliminar memoria:', error);
@@ -280,6 +292,7 @@ export async function generateExcelData(
   const { data: documentos, error } = await supabase
     .from('identification_documents')
     .select('*')
+    .eq('user_id', memoria.user_id)
     .in('id', memoria.documentos_identificacion_ids);
 
   if (error) throw error;
@@ -290,6 +303,7 @@ export async function generateExcelData(
     case 'productor':
       return generateDataProductor(memoria, documentos);
     case 'gestor':
+    case 'gestor_raee':
       return generateDataGestor(memoria, documentos);
     case 'negociante':
     case 'transportista':
@@ -496,7 +510,7 @@ export async function getStats(año?: number): Promise<{
 // FUNCIONES AUXILIARES
 // =====================================================
 
-async function generateNumeroMemoria(tipo: TipoMemoria, año: number): Promise<string> {
+async function generateNumeroMemoria(tipo: TipoMemoria, año: number, userId: string): Promise<string> {
   const supabase = createClient();
 
   const tipoPrefix = {
@@ -514,6 +528,7 @@ async function generateNumeroMemoria(tipo: TipoMemoria, año: number): Promise<s
   const { data } = await supabase
     .from('memorias_anuales')
     .select('numero_memoria')
+    .eq('user_id', userId)
     .ilike('numero_memoria', `${prefix}%`);
 
   let maxNumber = 0;
@@ -615,7 +630,7 @@ export function exportMemoriaToExcelXML(memoria: MemoriaAnual, excelData: any): 
         <Cell><Data ss:Type="String">${e.codigo_di || ''}</Data></Cell>
       </Row>
     `).join('');
-  } else if (memoria.tipo_memoria === 'gestor' && excelData?.entradas) {
+  } else if ((memoria.tipo_memoria === 'gestor' || memoria.tipo_memoria === 'gestor_raee') && excelData?.entradas) {
     xmlRows = (excelData.entradas as EntradaMemoriaGestorEntrada[]).map(e => `
       <Row>
         <Cell><Data ss:Type="String">Recepción</Data></Cell>
@@ -632,11 +647,14 @@ export function exportMemoriaToExcelXML(memoria: MemoriaAnual, excelData: any): 
   } else if (Array.isArray(excelData)) {
     xmlRows = excelData.map((e: any) => `
       <Row>
+        <Cell><Data ss:Type="String">${memoria.tipo_memoria}</Data></Cell>
         <Cell><Data ss:Type="String">${e.codigo_ler || ''}</Data></Cell>
         <Cell><Data ss:Type="String">${(e.descripcion_residuo || '').replace(/[<>&]/g, '')}</Data></Cell>
         <Cell><Data ss:Type="Number">${e.cantidad_toneladas || 0}</Data></Cell>
         <Cell><Data ss:Type="String">${e.nif_origen || e.nif_destino || ''}</Data></Cell>
         <Cell><Data ss:Type="String">${(e.razon_social_origen || e.razon_social_destino || '').replace(/[<>&]/g, '')}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.nima_origen || e.nima_destino || ''}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.codigo_operacion_rd_destino || e.codigo_operacion_rd || ''}</Data></Cell>
         <Cell><Data ss:Type="String">${e.codigo_di || ''}</Data></Cell>
       </Row>
     `).join('');
@@ -717,7 +735,7 @@ export function exportMemoriaToCSV(memoria: MemoriaAnual, excelData: any): void 
       e.codigo_operacion_rd,
       e.codigo_di || ''
     ]);
-  } else if (memoria.tipo_memoria === 'gestor' && excelData?.entradas) {
+  } else if ((memoria.tipo_memoria === 'gestor' || memoria.tipo_memoria === 'gestor_raee') && excelData?.entradas) {
     rows = (excelData.entradas as EntradaMemoriaGestorEntrada[]).map(e => [
       'Recepción Gestor',
       e.codigo_ler,
@@ -727,6 +745,18 @@ export function exportMemoriaToCSV(memoria: MemoriaAnual, excelData: any): void 
       `"${(e.razon_social_origen || '').replace(/"/g, '""')}"`,
       e.nima_origen || '',
       e.codigo_operacion_rd,
+      e.codigo_di || ''
+    ]);
+  } else if (Array.isArray(excelData)) {
+    rows = excelData.map((e: any) => [
+      memoria.tipo_memoria,
+      e.codigo_ler || '',
+      `"${(e.descripcion_residuo || '').replace(/"/g, '""')}"`,
+      Number(e.cantidad_toneladas || 0).toFixed(3).replace('.', ','),
+      e.nif_origen || e.nif_destino || '',
+      `"${(e.razon_social_origen || e.razon_social_destino || '').replace(/"/g, '""')}"`,
+      e.nima_origen || e.nima_destino || '',
+      e.codigo_operacion_rd_destino || e.codigo_operacion_rd || '',
       e.codigo_di || ''
     ]);
   }

@@ -513,11 +513,17 @@ export const siraService = {
   async getSubmissionsForDI(documentId: number): Promise<SiraSubmission[]> {
     try {
       const supabase = createClient();
-      const { data, error } = await supabase
+      const { data: authData } = await supabase.auth?.getUser?.() || { data: { user: null } };
+      let query = supabase
         .from('sira_submissions')
         .select('*')
-        .eq('identification_document_id', documentId)
-        .order('created_at', { ascending: false });
+        .eq('identification_document_id', documentId);
+
+      if (authData?.user) {
+        query = query.eq('user_id', authData.user.id);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
         console.warn('siraService.getSubmissionsForDI error:', error.message);
@@ -539,6 +545,7 @@ export const siraService = {
   }): Promise<SiraSubmission[]> {
     try {
       const supabase = createClient();
+      const { data: authData } = await supabase.auth?.getUser?.() || { data: { user: null } };
       let query = supabase
         .from('sira_submissions')
         .select(`
@@ -554,6 +561,10 @@ export const siraService = {
         `)
         .order('created_at', { ascending: false })
         .limit(options?.limit || 50);
+
+      if (authData?.user) {
+        query = query.eq('user_id', authData.user.id);
+      }
 
       if (options?.status) {
         query = query.eq('estado', options.status);

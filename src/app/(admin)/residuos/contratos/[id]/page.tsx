@@ -135,7 +135,7 @@ export default function ContractDetailPage() {
     }
   };
 
-  const handleCopyPublicLink = () => {
+  const handleCopyPublicLink = async () => {
     if (!contract?.signing_token) {
       toast.warning('Este contrato no tiene un token de firma asignado.');
       return;
@@ -143,8 +143,12 @@ export default function ContractDetailPage() {
     const baseUrl = window.location.origin;
     const publicUrl = `${baseUrl}/public/sign-contract/${contract.signing_token}`;
 
-    navigator.clipboard.writeText(publicUrl);
-    toast.success('Enlace de firma pública copiado al portapapeles.');
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success('Enlace de firma pública copiado al portapapeles.');
+    } catch {
+      toast.error('No se pudo copiar el enlace al portapapeles.');
+    }
   };
 
   const formatDate = (dateString: string) => {

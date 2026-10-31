@@ -95,7 +95,7 @@ describe('quickSearchService - Servicio de búsqueda global multi-tenant', () =>
         limit: jest.fn().mockReturnThis(),
         or: jest.fn().mockResolvedValue({
           data: [
-            { id: 1, contract_number: 'CTR-2026-001', status: 'Activo' },
+            { id: 1, numero_contrato: 'CTR-2026-001', estado: 'vigente' },
           ],
           error: null,
         }),
@@ -107,7 +107,7 @@ describe('quickSearchService - Servicio de búsqueda global multi-tenant', () =>
         or: jest.fn().mockReturnThis(),
         limit: jest.fn().mockResolvedValue({
           data: [
-            { id: 2, tracking_number: 'DI-998877', estado: 'Completado' },
+            { id: 2, numero_documento: 'DI-998877', estado: 'Completado' },
           ],
           error: null,
         }),
