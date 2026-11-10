@@ -352,7 +352,7 @@ export const companyService = {
       company_id: updated.id,
       entidad: 'empresa',
       entidad_id: updated.id,
-      accion: 'editar',
+      accion: 'actualizar',
       detalles: {
         razon_social: updated.razon_social,
         cif: updated.cif,
