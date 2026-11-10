@@ -116,11 +116,30 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       expect(xml).toContain('<nationalId>B99887766</nationalId>');
       expect(xml).toContain('LERCode="150110"');
       expect(xml).toContain('<table5>HP4</table5>');
-      expect(xml).toContain('<DCSNT>NT99999999999999999999999</DCSNT>');
+      expect(xml).not.toContain('NT99999999999999999999999');
+      expect(xml).not.toContain('<DCSNT>');
       expect(xml).toContain('<DCSClearWeight>1.500</DCSClearWeight>');
     });
 
-    it('debe generar XML con valores por defecto si faltan datos en el documento', () => {
+    it('debe incluir DCSNT únicamente cuando existe notificación previa y código NT real', () => {
+      const mockDocWithNt = {
+        numero_documento: 'DI-2026-0099',
+        fecha_documento: '2026-11-10',
+        tipo_notificacion: 'con-notificacion-previa',
+        numero_notificacion: 'NT00000000000000000000001',
+        codigo_ler: '17 04 05',
+        peligrosidad: 'no-peligroso',
+        operacion_tratamiento: 'R13',
+        operacion_tratamiento_ejecutada: 'R04',
+        cantidad: 2,
+      };
+
+      const xml = siraService.generateDIXml(mockDocWithNt);
+      expect(xml).toContain('<DCSNT>NT00000000000000000000001</DCSNT>');
+      expect(xml).toContain('<table2>R04</table2>');
+    });
+
+    it('debe generar XML sin datos ficticios de relleno cuando faltan campos opcionales', () => {
       const minDoc = {
         numero_documento: 'DI-MIN-001',
         codigo_ler: '20 01 01',
@@ -133,7 +152,49 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       expect(xml).toContain('DCSCode="DI-MIN-001"');
       expect(xml).toContain('LERCode="200101"');
       expect(xml).toContain('xsi:type="wassup:noDangerousResidueType"');
-      expect(xml).toContain('<nationalId>A00000000</nationalId>'); // Dummy transportista CIF
+      expect(xml).not.toContain('A00000000');
+      expect(xml).not.toContain('999999999');
+      expect(xml).not.toContain('pendiente@email.com');
+      expect(xml).not.toContain('NIMA-PENDIENTE');
+    });
+  });
+
+  describe('validateDIForE3L', () => {
+    it('debe validar correctamente un DI completo sin notificación previa', () => {
+      const res = siraService.validateDIForE3L({
+        numero_documento: 'DI-115',
+        productor_cif: 'B00000000',
+        productor_nima: '1400000001',
+        productor_municipio: 'Córdoba',
+        gestor_cif: 'B11111111',
+        gestor_nima: '1400000002',
+        gestor_municipio: 'Lucena',
+        transportista_cif: 'B22222222',
+        transportista_razon_social: 'Transportes Demo',
+        transportista_nima: '1400000003',
+        codigo_ler: '17 04 05',
+        operacion_tratamiento: 'R13',
+        cantidad: 1.5,
+        tipo_notificacion: 'sin-notificacion',
+      });
+
+      expect(res.valid).toBe(true);
+      expect(res.errors).toHaveLength(0);
+      expect(res.warnings).toHaveLength(0);
+    });
+
+    it('debe detectar errores obligatorios, NT faltante y advertencias E3L', () => {
+      const res = siraService.validateDIForE3L({
+        codigo_ler: 'BAD',
+        operacion_tratamiento: 'ZZ',
+        cantidad: 0,
+        tipo_notificacion: 'con-notificacion-previa',
+        numero_notificacion: 'NT123',
+      });
+
+      expect(res.valid).toBe(false);
+      expect(res.errors.length).toBeGreaterThanOrEqual(6);
+      expect(res.warnings.length).toBeGreaterThanOrEqual(4);
     });
   });
 

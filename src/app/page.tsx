@@ -317,7 +317,7 @@ export default function LandingPage() {
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-400">
                 Trazabilidad 360°
               </span>{' '}
-              y Cero Sanciones
+              y Control Normativo
             </h1>
 
             {/* Subtitle */}
@@ -352,8 +352,8 @@ export default function LandingPage() {
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Emisión de DI con firma</p>
               </div>
               <div className="p-3">
-                <p className="text-2xl sm:text-3xl font-extrabold text-teal-600 dark:text-teal-400">100%</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Blindaje Normativo MITECO</p>
+                <p className="text-2xl sm:text-3xl font-extrabold text-teal-600 dark:text-teal-400">e3l v3.6</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Esquema XML compatible MITECO</p>
               </div>
               <div className="p-3">
                 <p className="text-2xl sm:text-3xl font-extrabold text-blue-600 dark:text-blue-400">-85%</p>
@@ -994,11 +994,11 @@ export default function LandingPage() {
                 </div>
 
                 <div className="p-5 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 text-center space-y-1">
-                  <p className="text-xs uppercase tracking-wider text-emerald-200 font-semibold">Reducción Riesgo Legal</p>
+                  <p className="text-xs uppercase tracking-wider text-emerald-200 font-semibold">Control Previo Normativo</p>
                   <p className="text-3xl sm:text-4xl font-extrabold text-teal-300">
-                    99,8%
+                    Activo
                   </p>
-                  <p className="text-[11px] text-emerald-100">Validación de NIMAs y plazos</p>
+                  <p className="text-[11px] text-emerald-100">Validación de LER, contratos y autorizaciones</p>
                 </div>
               </div>
 
@@ -1227,8 +1227,8 @@ export default function LandingPage() {
                     <CheckCircle2 className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">Migración de datos incluida</h3>
-                    <p className="text-xs text-slate-500">Importamos tu catálogo de códigos LER, NIMAs y transportistas en 48 horas.</p>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">Acompañamiento de puesta en marcha</h3>
+                    <p className="text-xs text-slate-500">Te ayudamos a importar tu catálogo inicial de códigos LER, centros NIMA y empresas colaboradoras.</p>
                   </div>
                 </div>
 

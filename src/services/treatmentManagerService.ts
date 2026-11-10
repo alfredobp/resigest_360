@@ -33,7 +33,10 @@ export const treatmentManagerService = {
             console.error('Error al obtener gestores de treatment_managers:', error);
         }
 
-        const list: TreatmentManager[] = (data as TreatmentManager[]) || [];
+        const list: TreatmentManager[] = ((data as TreatmentManager[]) || []).map((g) => ({
+            ...g,
+            source: 'treatment_managers' as const,
+        }));
 
         // Integrar empresas con rol 'gestor' del Directorio Unificado
         try {
@@ -78,6 +81,8 @@ export const treatmentManagerService = {
                                 created_at: comp.created_at,
                                 updated_at: comp.updated_at,
                                 holded_contact_id: comp.holded_contact_id,
+                                source: 'companies' as const,
+                                company_id: comp.id,
                             });
                             if (normCif) existingCifs.add(normCif);
                         }

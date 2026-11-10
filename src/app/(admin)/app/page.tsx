@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useSandbox } from '@/context/SandboxContext';
 import dashboardService, { type ExecutiveDashboardData } from '@/services/dashboardService';
 import MonthlyWasteChart from '@/components/dashboard/MonthlyWasteChart';
 import ComponentCard from '@/components/common/ComponentCard';
@@ -11,6 +12,10 @@ import Button from '@/components/ui/button/Button';
 
 export default function ExecutiveDashboardPage() {
   const router = useRouter();
+  const { isPathVisible } = useSandbox();
+  const canCreateDI = isPathVisible('/residuos/documentos-identificacion');
+  const canCreateOp = isPathVisible('/residuos/operaciones');
+  const canViewChrono = isPathVisible('/residuos/archivo-cronologico');
   const [loading, setLoading] = useState(true);
   const [executiveData, setExecutiveData] = useState<ExecutiveDashboardData | null>(null);
   const [monthlyData, setMonthlyData] = useState<Array<{ name: string; value: number }>>([]);
@@ -50,8 +55,9 @@ export default function ExecutiveDashboardPage() {
     );
   }
 
-  const { alertas, residuos, comercial } = executiveData || {
-    alertas: { totalCriticas: 0, totalAdvertencias: 0, lista: [], disEnTransitoCount: 0, disDiscrepanciaCount: 0, contratosCaducadosCount: 0, contratosPorVencerCount: 0, autorizacionesPorVencerCount: 0 },
+  const { conformidad, alertas, residuos, comercial } = executiveData || {
+    conformidad: { estado: 'pendiente' as const, porcentaje: null, totalEvaluados: 0, totalConformes: 0, totalNoConformes: 0, fechaEvaluacion: new Date().toISOString() },
+    alertas: { totalCriticas: 0, totalAdvertencias: 0, lista: [], disEnTransitoCount: 0, disDiscrepanciaCount: 0, disSinContratoCount: 0, disTratamientoNoAutorizadoCount: 0, contratosCaducadosCount: 0, contratosPorVencerCount: 0, autorizacionesPorVencerCount: 0 },
     residuos: { totalToneladas: 0, toneladasPeligrosas: 0, toneladasNoPeligrosas: 0, totalDIs: 0, disCompletados: 0, topLER: [] },
     comercial: { totalOperaciones: 0, operacionesAbiertas: 0, facturacionVenta: 0, costesTotales: 0, margenBrutoTotal: 0, margenMedioTon: 0, rentabilidadPorcentaje: 0 }
   };
@@ -78,31 +84,37 @@ export default function ExecutiveDashboardPage() {
 
         {/* Acciones Rápidas */}
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            onClick={() => router.push('/residuos/documentos-identificacion/nuevo')}
-            className="bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors"
-          >
-            Nuevo Traslado (DI)
-          </Button>
+          {canCreateDI && (
+            <Button
+              size="sm"
+              onClick={() => router.push('/residuos/documentos-identificacion/nuevo')}
+              className="bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors"
+            >
+              Nuevo Traslado (DI)
+            </Button>
+          )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push('/residuos/operaciones/nueva')}
-            className="text-brand-600 dark:text-brand-400 font-medium hover:bg-brand-50 dark:hover:bg-brand-950/40"
-          >
-            Nueva Operación
-          </Button>
+          {canCreateOp && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push('/residuos/operaciones/nueva')}
+              className="text-brand-600 dark:text-brand-400 font-medium hover:bg-brand-50 dark:hover:bg-brand-950/40"
+            >
+              Nueva Operación
+            </Button>
+          )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push('/residuos/archivo-cronologico')}
-            className="text-emerald-700 dark:text-emerald-400 font-medium hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-          >
-            Archivo Cronológico
-          </Button>
+          {canViewChrono && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push('/residuos/archivo-cronologico')}
+              className="text-emerald-700 dark:text-emerald-400 font-medium hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+            >
+              Archivo Cronológico
+            </Button>
+          )}
         </div>
       </div>
 
@@ -158,6 +170,32 @@ export default function ExecutiveDashboardPage() {
               </Link>
             )}
 
+            {alertas.disTratamientoNoAutorizadoCount > 0 && (
+              <Link
+                href="/residuos/documentos-identificacion"
+                className="p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-red-200 dark:border-red-900/60 flex items-center justify-between hover:shadow-sm transition-all"
+              >
+                <div>
+                  <span className="text-[11px] font-semibold text-red-700 dark:text-red-400">Tratamientos No Autorizados</span>
+                  <p className="text-lg font-bold text-red-600 dark:text-red-400">{alertas.disTratamientoNoAutorizadoCount}</p>
+                </div>
+                <span className="text-xs font-semibold text-red-600 dark:text-red-400">Auditar →</span>
+              </Link>
+            )}
+
+            {alertas.disSinContratoCount > 0 && (
+              <Link
+                href="/residuos/documentos-identificacion"
+                className="p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-red-200 dark:border-red-900/60 flex items-center justify-between hover:shadow-sm transition-all"
+              >
+                <div>
+                  <span className="text-[11px] font-semibold text-red-700 dark:text-red-400">Traslados Sin Contrato</span>
+                  <p className="text-lg font-bold text-red-600 dark:text-red-400">{alertas.disSinContratoCount}</p>
+                </div>
+                <span className="text-xs font-semibold text-red-600 dark:text-red-400">Regularizar →</span>
+              </Link>
+            )}
+
             {alertas.contratosPorVencerCount > 0 && (
               <Link
                 href="/residuos/contratos"
@@ -171,14 +209,51 @@ export default function ExecutiveDashboardPage() {
               </Link>
             )}
           </div>
+
+          {alertas.lista.length > 0 && (
+            <div className="pt-2 border-t border-amber-200/70 dark:border-amber-800/50 space-y-1.5">
+              {alertas.lista.slice(0, 5).map((item) => (
+                <Link
+                  key={item.id}
+                  href={item.enlace}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 px-3 py-2 rounded-lg bg-white/70 dark:bg-gray-900/50 hover:bg-white dark:hover:bg-gray-900 transition text-xs border border-amber-200/40 dark:border-gray-800"
+                >
+                  <div>
+                    <span className={`font-bold mr-2 ${item.gravedad === 'critico' ? 'text-red-600 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                      [{item.gravedad === 'critico' ? 'CRÍTICO' : 'AVISO'}]
+                    </span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{item.titulo}:</span>{' '}
+                    <span className="text-gray-600 dark:text-gray-300">{item.descripcion}</span>
+                  </div>
+                  <span className="text-brand-600 dark:text-brand-400 font-semibold shrink-0">Ver expediente →</span>
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {conformidad.porcentaje !== null && (
+            <div className="flex items-center justify-between text-xs pt-1 text-amber-900 dark:text-amber-300">
+              <span>Índice de conformidad comprobada: <strong>{conformidad.porcentaje}%</strong> ({conformidad.totalConformes}/{conformidad.totalEvaluados} registros conformes)</span>
+              <span>Evaluado: {new Date(conformidad.fechaEvaluacion).toLocaleString('es-ES')}</span>
+            </div>
+          )}
+        </div>
+      ) : conformidad.estado === 'pendiente' ? (
+        <div className="bg-slate-50 dark:bg-gray-900/40 rounded-2xl p-4 border border-slate-200 dark:border-gray-800 flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            No existen traslados iniciados, contratos ni autorizaciones suficientes para evaluar el cumplimiento normativo.
+          </span>
+          <Badge variant="light" color="light" size="sm">
+            Pendiente de verificar
+          </Badge>
         </div>
       ) : (
         <div className="bg-emerald-50/70 dark:bg-emerald-950/20 rounded-2xl p-4 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between">
           <span className="text-xs font-semibold text-emerald-900 dark:text-emerald-300">
-            Todos los traslados, contratos y autorizaciones se encuentran en plena conformidad normativa. Sin excepciones activas.
+            Control evaluado sobre {conformidad.totalEvaluados} registro(s) sin incidencias ni alertas abiertas (evaluado {new Date(conformidad.fechaEvaluacion).toLocaleTimeString('es-ES')}).
           </span>
           <Badge variant="light" color="success" size="sm">
-            Conformidad 100%
+            Conformidad {conformidad.porcentaje ?? 100}%
           </Badge>
         </div>
       )}
@@ -228,42 +303,46 @@ export default function ExecutiveDashboardPage() {
         </ComponentCard>
 
         {/* KPI 3: Facturación de Intermediación */}
-        <ComponentCard title="Facturación Comercial">
-          <div className="space-y-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Ingresos de Venta</span>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-extrabold text-gray-900 dark:text-white">
-                {comercial.facturacionVenta.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
-              </span>
-            </div>
+        {canCreateOp && (
+          <ComponentCard title="Facturación Comercial">
+            <div className="space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Ingresos de Venta</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-extrabold text-gray-900 dark:text-white">
+                  {comercial.facturacionVenta.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                </span>
+              </div>
 
-            <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[11px]">
-              <span className="text-gray-500">Costes Operativos:</span>
-              <span className="font-bold text-red-600 dark:text-red-400">
-                {comercial.costesTotales.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
-              </span>
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[11px]">
+                <span className="text-gray-500">Costes Operativos:</span>
+                <span className="font-bold text-red-600 dark:text-red-400">
+                  {comercial.costesTotales.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                </span>
+              </div>
             </div>
-          </div>
-        </ComponentCard>
+          </ComponentCard>
+        )}
 
         {/* KPI 4: Margen Bruto y Rentabilidad */}
-        <ComponentCard title="Rentabilidad Operativa">
-          <div className="space-y-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Margen Bruto Total</span>
-            <div className="flex items-baseline gap-2">
-              <span className={`text-2xl font-extrabold ${comercial.margenBrutoTotal >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600'}`}>
-                {comercial.margenBrutoTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
-              </span>
-            </div>
+        {canCreateOp && (
+          <ComponentCard title="Rentabilidad Operativa">
+            <div className="space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Margen Bruto Total</span>
+              <div className="flex items-baseline gap-2">
+                <span className={`text-2xl font-extrabold ${comercial.margenBrutoTotal >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600'}`}>
+                  {comercial.margenBrutoTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                </span>
+              </div>
 
-            <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[11px]">
-              <span className="text-gray-500">Margen Medio / Tonelada:</span>
-              <span className="font-bold text-purple-600 dark:text-purple-400">
-                {comercial.margenMedioTon.toFixed(2)} €/t
-              </span>
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[11px]">
+                <span className="text-gray-500">Margen Medio / Tonelada:</span>
+                <span className="font-bold text-purple-600 dark:text-purple-400">
+                  {comercial.margenMedioTon.toFixed(2)} €/t
+                </span>
+              </div>
             </div>
-          </div>
-        </ComponentCard>
+          </ComponentCard>
+        )}
       </div>
 
       {/* FILA INTERMEDIA: GRÁFICO MENSUAL Y TOP 5 RESIDUOS LER */}

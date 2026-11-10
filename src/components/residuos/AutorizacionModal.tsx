@@ -52,6 +52,7 @@ export default function AutorizacionModal({
   const [wasteCodes, setWasteCodes] = useState<AuthorizationWasteCodeFormData[]>([
     { codigo_ler: '', descripcion_ler: '', operaciones_tratamiento: ['R13'] },
   ]);
+  const [suggestedOpsByRow, setSuggestedOpsByRow] = useState<Record<number, string[]>>({});
 
   useEffect(() => {
     if (isOpen) {
@@ -90,6 +91,7 @@ export default function AutorizacionModal({
         setNotas('');
         setWasteCodes([{ codigo_ler: '', descripcion_ler: '', operaciones_tratamiento: ['R13'] }]);
       }
+      setSuggestedOpsByRow({});
       setError(null);
       setFieldErrors({});
     }
@@ -375,8 +377,17 @@ export default function AutorizacionModal({
                         if (wt?.descripcion) {
                           handleWasteCodeChange(idx, 'descripcion_ler', wt.descripcion);
                         }
-                        if (wt?.operaciones_permitidas && wt.operaciones_permitidas.length > 0 && item.operaciones_tratamiento.length <= 1) {
-                          handleWasteCodeChange(idx, 'operaciones_tratamiento', wt.operaciones_permitidas);
+                        if (wt?.operaciones_permitidas && wt.operaciones_permitidas.length > 0) {
+                          setSuggestedOpsByRow((prev) => ({
+                            ...prev,
+                            [idx]: wt.operaciones_permitidas!,
+                          }));
+                        } else {
+                          setSuggestedOpsByRow((prev) => {
+                            const next = { ...prev };
+                            delete next[idx];
+                            return next;
+                          });
                         }
                       }}
                       error={Boolean(fieldErrors[`ler_${idx}`])}
@@ -413,6 +424,30 @@ export default function AutorizacionModal({
                       hint={fieldErrors[`operaciones_${idx}`]}
                       required
                     />
+                    {suggestedOpsByRow[idx] &&
+                      suggestedOpsByRow[idx].join(', ') !== item.operaciones_tratamiento.join(', ') && (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-300">
+                          <span>Catálogo LER sugiere:</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleWasteCodeChange(
+                                idx,
+                                'operaciones_tratamiento',
+                                suggestedOpsByRow[idx]
+                              );
+                              setSuggestedOpsByRow((prev) => {
+                                const next = { ...prev };
+                                delete next[idx];
+                                return next;
+                              });
+                            }}
+                            className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200"
+                          >
+                            Aplicar ({suggestedOpsByRow[idx].join(', ')})
+                          </button>
+                        </div>
+                      )}
                   </div>
 
                   {wasteCodes.length > 1 && (

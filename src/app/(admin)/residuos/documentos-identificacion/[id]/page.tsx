@@ -11,7 +11,9 @@ import { toast } from '@/context/ToastContext';
 import { Modal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
-import identificationDocumentService, { getTrackingStatusMeta } from '@/services/identificationDocumentService';
+import identificationDocumentService, { getTrackingStatusMeta, normalizeOperationCode } from '@/services/identificationDocumentService';
+import wasteContractService from '@/services/wasteContractService';
+import authorizationService from '@/services/authorizationService';
 import siraService from '@/services/siraService';
 import companyService from '@/services/companyService';
 import { generateIdentificationDocumentPDF } from '@/lib/pdfUtils';
@@ -19,12 +21,20 @@ import SignatureModal from '@/components/ui/signature/SignatureModal';
 import type {
   IdentificationDocument,
   Company,
+  WasteContract,
   RecordDeparturePayload,
   RecordReceptionPayload,
   CompleteTreatmentPayload,
   ResultadoRecepcion,
   SiraSubmission,
 } from '@/types/wasteManagement';
+
+function toLocalDateTimeInput(value?: string | null): string {
+  const date = value ? new Date(value) : new Date();
+  if (isNaN(date.getTime())) return toLocalDateTimeInput();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 const OPERACIONES_TRATAMIENTO = [
   { code: 'R01', desc: 'Utilización principal como combustible' },
@@ -61,6 +71,9 @@ export default function DetalleDocumentoIdentificacionPage() {
   const [isReceptionModalOpen, setIsReceptionModalOpen] = useState(false);
   const [isTreatmentModalOpen, setIsTreatmentModalOpen] = useState(false);
   const [submittingAction, setSubmittingAction] = useState(false);
+  const [modalActionError, setModalActionError] = useState<string | null>(null);
+  const [activeContracts, setActiveContracts] = useState<WasteContract[]>([]);
+  const [authorizedOpsForLer, setAuthorizedOpsForLer] = useState<string[] | null>(null);
 
   // Estados de firma digital
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
@@ -69,17 +82,21 @@ export default function DetalleDocumentoIdentificacionPage() {
 
   // Formularios de modales
   const [departureForm, setDepartureForm] = useState<RecordDeparturePayload>({
-    fecha_salida: new Date().toISOString().slice(0, 16),
+    fecha_salida: toLocalDateTimeInput(),
     transportista_razon_social: '',
     transportista_cif: '',
     transportista_matricula: '',
     nombre_transportista: '',
     dni_transportista: '',
     peso_origen_kg: undefined,
+    contract_id: undefined,
+    contrato_externo_referencia: '',
+    contrato_externo_evidencia_url: '',
+    supuesto_excepcion_contrato: '',
   });
 
   const [receptionForm, setReceptionForm] = useState<RecordReceptionPayload>({
-    fecha_llegada_destino: new Date().toISOString().slice(0, 16),
+    fecha_llegada_destino: toLocalDateTimeInput(),
     peso_destino_kg: 0,
     numero_albaran_gestor: '',
     ticket_pesada_url: '',
@@ -93,7 +110,7 @@ export default function DetalleDocumentoIdentificacionPage() {
 
   const [treatmentForm, setTreatmentForm] = useState<CompleteTreatmentPayload>({
     operacion_tratamiento: 'R13',
-    fecha_tratamiento: new Date().toISOString().slice(0, 16),
+    fecha_tratamiento: toLocalDateTimeInput(),
     descripcion_tratamiento: '',
     notas: '',
   });
@@ -120,20 +137,24 @@ export default function DetalleDocumentoIdentificacionPage() {
         console.warn('Error loading SIRA submissions:', sErr);
       }
 
-      // Prellenar formularios
+      // Prellenar formularios con hora local
       const pesoOrigenDefault = docData.peso_origen_kg || (docData.unidad === 'toneladas' ? docData.cantidad * 1000 : docData.cantidad) || 0;
       setDepartureForm({
-        fecha_salida: docData.fecha_salida ? docData.fecha_salida.slice(0, 16) : new Date().toISOString().slice(0, 16),
+        fecha_salida: docData.fecha_salida ? toLocalDateTimeInput(docData.fecha_salida) : toLocalDateTimeInput(),
         transportista_razon_social: docData.transportista_razon_social || '',
         transportista_cif: docData.transportista_cif || '',
         transportista_matricula: docData.transportista_matricula || '',
         nombre_transportista: docData.nombre_transportista || '',
         dni_transportista: docData.dni_transportista || '',
         peso_origen_kg: pesoOrigenDefault,
+        contract_id: docData.contract_id,
+        contrato_externo_referencia: docData.contrato_externo_referencia || '',
+        contrato_externo_evidencia_url: docData.contrato_externo_evidencia_url || '',
+        supuesto_excepcion_contrato: docData.supuesto_excepcion_contrato || '',
       });
 
       setReceptionForm({
-        fecha_llegada_destino: docData.fecha_llegada_destino ? docData.fecha_llegada_destino.slice(0, 16) : new Date().toISOString().slice(0, 16),
+        fecha_llegada_destino: docData.fecha_llegada_destino ? toLocalDateTimeInput(docData.fecha_llegada_destino) : toLocalDateTimeInput(),
         peso_destino_kg: docData.peso_destino_kg || pesoOrigenDefault,
         numero_albaran_gestor: docData.numero_albaran_gestor || '',
         ticket_pesada_url: docData.ticket_pesada_url || '',
@@ -146,14 +167,37 @@ export default function DetalleDocumentoIdentificacionPage() {
       });
 
       setTreatmentForm({
-        operacion_tratamiento: docData.operacion_tratamiento || 'R13',
-        fecha_tratamiento: docData.fecha_tratamiento ? docData.fecha_tratamiento.slice(0, 16) : new Date().toISOString().slice(0, 16),
+        operacion_tratamiento: normalizeOperationCode(docData.operacion_tratamiento_ejecutada || docData.operacion_tratamiento || 'R13'),
+        fecha_tratamiento: docData.fecha_tratamiento ? toLocalDateTimeInput(docData.fecha_tratamiento) : toLocalDateTimeInput(),
         descripcion_tratamiento: docData.descripcion_tratamiento || '',
         notas: docData.notas || '',
       });
 
       const compData = await companyService.getUserCompany();
       setMyCompany(compData);
+
+      // Cargar contratos vigentes y alcance autorizado del gestor para validaciones en UI
+      try {
+        const [contractsList, allContacts] = await Promise.all([
+          wasteContractService.getActive(),
+          companyService.getAllContacts(),
+        ]);
+        setActiveContracts(contractsList);
+
+        const normGestorCif = docData.gestor_cif?.trim().toUpperCase();
+        const gestorComp = allContacts.find((c) => c.cif?.trim().toUpperCase() === normGestorCif);
+        if (gestorComp) {
+          const scope = await authorizationService.getAuthorizedScope(gestorComp.id, null, docData.fecha_documento);
+          if (scope.hasAnyAuthorizationConfigured) {
+            const ops = (scope.authorizedLers[docData.codigo_ler.trim()] || []).map((o) => normalizeOperationCode(o));
+            setAuthorizedOpsForLer(ops);
+          } else {
+            setAuthorizedOpsForLer(null);
+          }
+        }
+      } catch (valErr) {
+        console.warn('Nota: cargando contratos y alcance autorizado:', valErr);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -186,6 +230,7 @@ export default function DetalleDocumentoIdentificacionPage() {
 
     try {
       setSubmittingAction(true);
+      setModalActionError(null);
       setError(null);
       await identificationDocumentService.recordDeparture(document.id, departureForm);
       setIsDepartureModalOpen(false);
@@ -193,8 +238,8 @@ export default function DetalleDocumentoIdentificacionPage() {
       toast.success('Salida registrada. El traslado se encuentra En Tránsito.');
       await loadData();
     } catch (err: any) {
-      const msg = `Error al registrar salida: ${err.message}`;
-      setError(msg);
+      const msg = err.message || 'Error al registrar salida';
+      setModalActionError(msg);
       toast.error(msg);
     } finally {
       setSubmittingAction(false);
@@ -212,6 +257,7 @@ export default function DetalleDocumentoIdentificacionPage() {
 
     try {
       setSubmittingAction(true);
+      setModalActionError(null);
       setError(null);
       await identificationDocumentService.recordReception(document.id, receptionForm);
       setIsReceptionModalOpen(false);
@@ -220,7 +266,7 @@ export default function DetalleDocumentoIdentificacionPage() {
       await loadData();
     } catch (err: any) {
       const msg = `Error al registrar recepción: ${err.message}`;
-      setError(msg);
+      setModalActionError(msg);
       toast.error(msg);
     } finally {
       setSubmittingAction(false);
@@ -233,6 +279,7 @@ export default function DetalleDocumentoIdentificacionPage() {
 
     try {
       setSubmittingAction(true);
+      setModalActionError(null);
       setError(null);
       await identificationDocumentService.completeTreatment(document.id, treatmentForm);
       setIsTreatmentModalOpen(false);
@@ -240,8 +287,8 @@ export default function DetalleDocumentoIdentificacionPage() {
       toast.success('Operación de tratamiento certificada. Traslado cerrado exitosamente y archivado.');
       await loadData();
     } catch (err: any) {
-      const msg = `Error al certificar tratamiento: ${err.message}`;
-      setError(msg);
+      const msg = err.message || 'Error al certificar tratamiento';
+      setModalActionError(msg);
       toast.error(msg);
     } finally {
       setSubmittingAction(false);
@@ -338,7 +385,16 @@ export default function DetalleDocumentoIdentificacionPage() {
 
   const formatDateTime = (dateString?: string) => {
     if (!dateString) return '-';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString.trim())) {
+      const [y, m, day] = dateString.trim().split('-').map(Number);
+      return new Date(y, m - 1, day).toLocaleDateString('es-ES', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    }
     return new Date(dateString).toLocaleString('es-ES', {
+      timeZone: 'Europe/Madrid',
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -703,11 +759,21 @@ export default function DetalleDocumentoIdentificacionPage() {
                 <p className="text-foreground capitalize">{document.estado_fisico || 'Sólido'}</p>
               </div>
 
-              <div>
-                <span className="text-muted text-xs font-semibold uppercase tracking-wider block">Operación de Tratamiento Prevista/Ejecutada</span>
-                <span className="inline-block px-2.5 py-1 text-xs font-mono font-bold rounded bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 mt-1">
-                  {document.operacion_tratamiento || 'R13'}
-                </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <span className="text-muted text-xs font-semibold uppercase tracking-wider block">Operación Prevista</span>
+                  <span className="inline-block px-2.5 py-1 text-xs font-mono font-bold rounded bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 mt-1">
+                    {document.operacion_tratamiento || 'R13'}
+                  </span>
+                </div>
+                {document.operacion_tratamiento_ejecutada && (
+                  <div>
+                    <span className="text-muted text-xs font-semibold uppercase tracking-wider block">Operación Real Ejecutada</span>
+                    <span className="inline-block px-2.5 py-1 text-xs font-mono font-bold rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 mt-1">
+                      {document.operacion_tratamiento_ejecutada}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {document.tipo_envases && (
@@ -729,7 +795,9 @@ export default function DetalleDocumentoIdentificacionPage() {
                 <span className="font-semibold text-muted block mb-1">1. Productor / Remitente</span>
                 {document.firmado_productor ? (
                   <div className="space-y-1">
-                    <Badge color="success">✓ Firmado en Salida</Badge>
+                    <Badge color="success">
+                      {document.firma_productor_url ? '✓ Firmado en Salida' : '✓ Identificado (Sin firma gráfica)'}
+                    </Badge>
                     {document.firma_productor_url && (
                       <div className="mt-2 bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 flex justify-center">
                         <img
@@ -770,7 +838,9 @@ export default function DetalleDocumentoIdentificacionPage() {
                 <span className="font-semibold text-muted block mb-1">2. Transportista (En Carga)</span>
                 {document.firmado_transportista ? (
                   <div className="space-y-1">
-                    <Badge color="success">✓ Conforme en Carga</Badge>
+                    <Badge color="success">
+                      {document.firma_transportista_url ? '✓ Conforme y Firmado en Carga' : '✓ Conforme en Carga (Sin trazo de firma)'}
+                    </Badge>
                     {document.firma_transportista_url && (
                       <div className="mt-2 bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 flex justify-center">
                         <img
@@ -811,7 +881,9 @@ export default function DetalleDocumentoIdentificacionPage() {
                 <span className="font-semibold text-muted block mb-1">3. Gestor Destinatario</span>
                 {document.firmado_gestor ? (
                   <div className="space-y-1">
-                    <Badge color="success">✓ Recepcionado y Pesado</Badge>
+                    <Badge color="success">
+                      {document.firma_gestor_url ? '✓ Recepcionado y Firmado' : '✓ Recepcionado y Pesado (Sin trazo de firma)'}
+                    </Badge>
                     {document.firma_gestor_url && (
                       <div className="mt-2 bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 flex justify-center">
                         <img
@@ -854,21 +926,21 @@ export default function DetalleDocumentoIdentificacionPage() {
             <div className="flex flex-wrap gap-3">
               {/* Acción 1: Iniciar Salida */}
               {(!document.estado_traslado || document.estado_traslado === 'borrador') && (
-                <Button onClick={() => setIsDepartureModalOpen(true)}>
-                  <span>Iniciar Traslado (Firma Salida)</span>
+                <Button onClick={() => { setModalActionError(null); setIsDepartureModalOpen(true); }}>
+                  <span>Iniciar Traslado (Salida)</span>
                 </Button>
               )}
 
               {/* Acción 2: Registrar Recepción y Báscula */}
               {(document.estado_traslado === 'en_transito' || document.estado_traslado === 'recepcionado') && (
-                <Button onClick={() => setIsReceptionModalOpen(true)}>
+                <Button onClick={() => { setModalActionError(null); setIsReceptionModalOpen(true); }}>
                   <span>Registrar Recepción en Báscula</span>
                 </Button>
               )}
 
               {/* Acción 3: Certificar Tratamiento y Cierre */}
               {(document.estado_traslado === 'aceptado' || document.estado_traslado === 'rechazado_parcial') && (
-                <Button onClick={() => setIsTreatmentModalOpen(true)}>
+                <Button onClick={() => { setModalActionError(null); setIsTreatmentModalOpen(true); }}>
                   <span>Certificar Tratamiento y Cierre</span>
                 </Button>
               )}
@@ -939,7 +1011,7 @@ export default function DetalleDocumentoIdentificacionPage() {
                   </p>
                 )}
                 <p className="text-[11px] text-muted">
-                  Protocolo E3L 3.3 conforme al Estándar Nacional de Residuos (e-SIR / SIRA).
+                  Protocolo E3L v3.6 (namespaces <code>e3l://eterproject.org/3.0/*</code>) conforme al estándar SIRA / e-SIR.
                 </p>
               </div>
 
@@ -948,6 +1020,10 @@ export default function DetalleDocumentoIdentificacionPage() {
                   size="sm"
                   variant="outline"
                   onClick={() => {
+                    const check = siraService.validateDIForE3L(document);
+                    if (!check.valid) {
+                      toast.warning(`XML incompleto para SIRA/e-SIR: ${check.errors[0]}`, 'Validación E3L v3.6');
+                    }
                     const xml = (siraSubmissions.length > 0 && siraSubmissions[0].xml_enviado)
                       ? siraSubmissions[0].xml_enviado
                       : siraService.generateDIXml(document);
@@ -962,6 +1038,10 @@ export default function DetalleDocumentoIdentificacionPage() {
                   size="sm"
                   variant="outline"
                   onClick={() => {
+                    const check = siraService.validateDIForE3L(document);
+                    if (!check.valid) {
+                      toast.warning(`XML exportado con datos incompletos (${check.errors.length} errores de esquema): ${check.errors.join(' ')}`, 'Validación E3L v3.6');
+                    }
                     const xml = (siraSubmissions.length > 0 && siraSubmissions[0].xml_enviado)
                       ? siraSubmissions[0].xml_enviado
                       : siraService.generateDIXml(document);
@@ -1044,14 +1124,87 @@ export default function DetalleDocumentoIdentificacionPage() {
       </div>
 
       {/* MODAL 1: INICIAR TRASLADO / SALIDA */}
-      <Modal isOpen={isDepartureModalOpen} onClose={() => setIsDepartureModalOpen(false)} className="max-w-lg p-6">
+      <Modal isOpen={isDepartureModalOpen} onClose={() => setIsDepartureModalOpen(false)} className="max-w-lg max-h-[90vh] overflow-y-auto p-6">
         <form onSubmit={handleStartTransit} className="space-y-4">
           <div className="border-b pb-3 border-gray-200 dark:border-gray-800">
             <h3 className="text-lg font-bold text-foreground">Iniciar Traslado / Registro de Salida</h3>
           </div>
           <p className="text-xs text-muted">
-            Registre la salida efectiva del centro productor con los datos del transportista y matrícula (art. 6 RD 553/2020).
+            Registre la salida efectiva del centro productor acreditando contrato previo vigente (o contrato externo) y datos del transporte (arts. 5 y 6 RD 553/2020).
           </p>
+
+          {modalActionError && (
+            <Alert variant="error" title="Validación de Salida" message={modalActionError} />
+          )}
+
+          {/* Bloque de Acreditación Contractual (F03) */}
+          <div className="p-3 rounded-lg border border-blue-500/20 bg-blue-500/5 space-y-2.5">
+            <p className="text-xs font-bold text-foreground">
+              Cobertura Contractual (Art. 5 RD 553/2020) *
+            </p>
+            {document.contract_id ? (
+              <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                ✓ Vinculado al contrato #{document.contract?.numero_contrato || document.contract_id}
+              </p>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted mb-1">
+                    Seleccionar Contrato Vigente en Plataforma
+                  </label>
+                  <select
+                    value={departureForm.contract_id || ''}
+                    onChange={(e) =>
+                      setDepartureForm({
+                        ...departureForm,
+                        contract_id: e.target.value ? parseInt(e.target.value, 10) : undefined,
+                      })
+                    }
+                    className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-foreground"
+                  >
+                    <option value="">-- Ninguno seleccionado (o acreditar contrato externo abajo) --</option>
+                    {activeContracts.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.numero_contrato || `CT-${c.id}`} — {c.gestor_company?.razon_social || c.treatment_manager?.razon_social || 'Gestor'} ({(c.codigos_ler || []).join(', ') || 'Varios LER'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {!departureForm.contract_id && (
+                  <div className="grid grid-cols-1 gap-2 pt-1 border-t border-blue-500/15">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-muted mb-1">
+                        O Referencia de Contrato Externo Acreditado
+                      </label>
+                      <Input
+                        type="text"
+                        value={departureForm.contrato_externo_referencia || ''}
+                        onChange={(e) => setDepartureForm({ ...departureForm, contrato_externo_referencia: e.target.value })}
+                        placeholder="Ej: CT-EXT-2026-0041 (Contrato firmado fuera de plataforma)"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-muted mb-1">
+                        Justificante / URL o Supuesto Legal Aplicable
+                      </label>
+                      <Input
+                        type="text"
+                        value={departureForm.supuesto_excepcion_contrato || departureForm.contrato_externo_evidencia_url || ''}
+                        onChange={(e) =>
+                          setDepartureForm({
+                            ...departureForm,
+                            supuesto_excepcion_contrato: e.target.value,
+                          })
+                        }
+                        placeholder="Ej: Contrato marco archivado en expediente físico / URL PDF"
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
 
           <div className="space-y-3">
             <div>
@@ -1271,18 +1424,34 @@ export default function DetalleDocumentoIdentificacionPage() {
             <h3 className="text-lg font-bold text-foreground">Certificación de Tratamiento y Cierre de DI</h3>
           </div>
           <p className="text-xs text-muted">
-            Certifique la ejecución de la operación de valorización o eliminación (código R o D) para cerrar el ciclo del traslado.
+            Certifique la operación realmente ejecutada (conservando por separado la operación prevista <strong>{document.operacion_tratamiento || 'R13'}</strong>). Solo se admiten operaciones amparadas por la autorización ambiental del gestor y compatibles con el régimen del DI.
           </p>
+
+          {modalActionError && (
+            <Alert variant="error" title="Operación No Autorizada / Cierre Denegado" message={modalActionError} />
+          )}
+
+          {authorizedOpsForLer && authorizedOpsForLer.length > 0 && (
+            <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300">
+              Operaciones autorizadas en destino para LER <strong>{document.codigo_ler}</strong>:{' '}
+              <span className="font-mono font-bold">{authorizedOpsForLer.join(', ')}</span>
+            </div>
+          )}
 
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-semibold text-muted uppercase mb-1">Operación de Tratamiento Realizada *</label>
               <select
                 value={treatmentForm.operacion_tratamiento}
-                onChange={(e) => setTreatmentForm({ ...treatmentForm, operacion_tratamiento: e.target.value })}
+                onChange={(e) => {
+                  setModalActionError(null);
+                  setTreatmentForm({ ...treatmentForm, operacion_tratamiento: e.target.value });
+                }}
                 className="w-full text-xs font-mono font-bold rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary h-10"
               >
-                {OPERACIONES_TRATAMIENTO.map(op => (
+                {OPERACIONES_TRATAMIENTO.filter(
+                  (op) => !authorizedOpsForLer || authorizedOpsForLer.length === 0 || authorizedOpsForLer.includes(normalizeOperationCode(op.code))
+                ).map(op => (
                   <option key={op.code} value={op.code}>{op.code} - {op.desc}</option>
                 ))}
               </select>
@@ -1336,7 +1505,7 @@ export default function DetalleDocumentoIdentificacionPage() {
             )}
           </div>
           <p className="text-xs text-muted">
-            Estructura SOAP/XML remitida conforme al estándar oficial e3l v3.3 de la Junta de Andalucía y MITERD.
+            Estructura XML generada conforme al estándar E3L v3.6 (namespaces <code>e3l://eterproject.org/3.0/*</code>).
           </p>
 
           <pre className="p-4 rounded-xl bg-gray-900 text-emerald-400 font-mono text-xs overflow-x-auto max-h-96 whitespace-pre border border-gray-800 select-all">

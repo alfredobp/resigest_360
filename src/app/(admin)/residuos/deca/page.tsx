@@ -51,6 +51,7 @@ export default function DecaManagementPage() {
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
+  const [createSubmitError, setCreateSubmitError] = useState<string | null>(null);
   const [versionModalDoc, setVersionModalDoc] = useState<DecaDocument | null>(null);
   const [versionErrors, setVersionErrors] = useState<Record<string, string>>({});
   const [motivoVersion, setMotivoVersion] = useState('');
@@ -157,11 +158,14 @@ export default function DecaManagementPage() {
   const openCreateModal = () => {
     setFormData(initialFormData);
     setCreateErrors({});
+    setCreateSubmitError(null);
     setCreateModalOpen(true);
   };
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    setCreateSubmitError(null);
     const errors: Record<string, string> = {};
 
     const cargadorRazonError = validateRequired(formData.cargador_razon_social, 'Razón social del cargador');
@@ -215,12 +219,17 @@ export default function DecaManagementPage() {
 
     try {
       setIsSubmitting(true);
+      setCreateSubmitError(null);
       const newDoc = await decaService.create(formData as DecaFormData);
       setCreateModalOpen(false);
       toast.success(`Documento DeCA ${newDoc.numero_deca} emitido con éxito.`);
       await loadDocuments();
+      // Abrir automáticamente el modal de QR e inspección para verificar y descargar el PDF
+      await handleOpenQrModal(newDoc);
     } catch (err: any) {
-      toast.error(`Error al crear DeCA: ${err.message}`);
+      const errorMsg = err?.message || 'Error inesperado al emitir el documento DeCA.';
+      setCreateSubmitError(errorMsg);
+      toast.error(`Error al crear DeCA: ${errorMsg}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -687,6 +696,12 @@ export default function DecaManagementPage() {
             </div>
 
             <form onSubmit={handleCreateSubmit} noValidate className="space-y-4">
+              {createSubmitError && (
+                <div role="alert" className="p-3 bg-error-50 dark:bg-error-950/40 border border-error-200 dark:border-error-800 rounded-xl text-xs text-error-700 dark:text-error-300 font-medium">
+                  <strong>No se pudo emitir el DeCA:</strong> {createSubmitError}
+                </div>
+              )}
+
               {Object.keys(createErrors).length > 0 && (
                 <div className="p-3 bg-error-50 dark:bg-error-950/40 border border-error-200 dark:border-error-800 rounded-xl text-xs text-error-700 dark:text-error-300">
                   Por favor, completa los campos requeridos señalados en rojo antes de emitir el DeCA.

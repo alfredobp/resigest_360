@@ -37,6 +37,10 @@ export interface TreatmentManager {
 
   // Integración Holded
   holded_contact_id?: string;
+
+  // Origen en el directorio unificado (evita colisión FK en waste_contracts)
+  source?: 'treatment_managers' | 'companies';
+  company_id?: number;
 }
 
 export interface TreatmentManagerFormData {
@@ -89,6 +93,10 @@ export interface Carrier {
 
   // Integración Holded
   holded_contact_id?: string;
+
+  // Origen en el directorio unificado (evita colisión FK en waste_contracts)
+  source?: 'treatment_managers' | 'companies';
+  company_id?: number;
 }
 
 export interface CarrierFormData {
@@ -439,8 +447,14 @@ export interface IdentificationDocument {
   tipo_envases?: string;
 
   // Tratamiento
-  operacion_tratamiento?: string;
+  operacion_tratamiento?: string; // Operación prevista declarada al emitir el DI
+  operacion_tratamiento_ejecutada?: string; // Operación realmente ejecutada al cierre
   descripcion_tratamiento?: string;
+
+  // Acreditación contractual alternativa (cuando el contrato no está en la plataforma)
+  contrato_externo_referencia?: string;
+  contrato_externo_evidencia_url?: string;
+  supuesto_excepcion_contrato?: string;
 
   // Fechas
   fecha_recogida?: string;
@@ -526,6 +540,10 @@ export interface RecordDeparturePayload {
   firma_transportista_url?: string;
   signatureBase64?: string;
   peso_origen_kg?: number;
+  contract_id?: number;
+  contrato_externo_referencia?: string;
+  contrato_externo_evidencia_url?: string;
+  supuesto_excepcion_contrato?: string;
 }
 
 export interface RecordReceptionPayload {
@@ -864,7 +882,7 @@ export interface EnvironmentalAuthorization {
   activo: boolean;
   created_at: string;
   updated_at: string;
-  
+
   // Relaciones
   company?: Company;
   production_center?: ProductionCenter;
@@ -998,6 +1016,7 @@ export interface ChronologicalEntryFormData {
   identification_document_id?: number | null;
   numero_documento_referencia?: string;
   observaciones?: string;
+  idempotency_key?: string;
 }
 
 export interface ChronologicalStats {
@@ -1100,6 +1119,7 @@ export interface CommercialOperation {
   porcentaje_margen: number;
 
   observaciones?: string | null;
+  idempotency_key?: string | null;
   created_at: string;
   updated_at: string;
 
@@ -1172,6 +1192,7 @@ export interface CommercialOperationFormData {
   descripcion_otros_costes?: string;
 
   observaciones?: string;
+  idempotency_key?: string;
 }
 
 export interface CommercialOperationStats {
@@ -1217,9 +1238,11 @@ export type AuditLogEntity =
   | 'contrato'
   | 'operacion_comercial'
   | 'empresa'
+  | 'centro_produccion'
   | 'archivo_cronologico'
   | 'memoria_anual'
   | 'autorizacion'
+  | 'deca'
   | 'integracion_sira'
   | 'integracion_holded';
 

@@ -65,6 +65,7 @@ export default function NuevaOperacionComercialPage() {
       setDocuments(docs);
 
       if (myComp) {
+        setFormData(prev => ({ ...prev, company_id: myComp.id }));
         const myCenters = await productionCenterService.getByCompanyId(myComp.id);
         setCenters(myCenters);
       }
@@ -136,6 +137,7 @@ export default function NuevaOperacionComercialPage() {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (loading) return;
     if (!formData.codigo_ler || !formData.descripcion_residuo) {
       setError('Por favor especifique el código LER y la descripción del residuo.');
       return;
@@ -144,7 +146,13 @@ export default function NuevaOperacionComercialPage() {
     try {
       setLoading(true);
       setError(null);
-      const created = await commercialOperationService.create(formData);
+      const idempotencyKey =
+        formData.idempotency_key ||
+        `op-${formData.identification_document_id || 'manual'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const created = await commercialOperationService.create({
+        ...formData,
+        idempotency_key: idempotencyKey,
+      });
       router.push(`/residuos/operaciones/${created.id}`);
     } catch (err: any) {
       console.error(err);
@@ -638,7 +646,6 @@ export default function NuevaOperacionComercialPage() {
 
             <Button
               type="submit"
-              onClick={() => handleSubmit()}
               disabled={loading}
               className="w-full bg-primary hover:bg-primary/90 text-white py-3 font-semibold"
             >

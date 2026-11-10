@@ -310,10 +310,16 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
     destino_direccion: di.gestor_direccion,
     destino_municipio: di.gestor_municipio,
     destino_provincia: di.gestor_provincia,
-    operacion_rd: di.operacion_tratamiento,
+    operacion_rd: di.operacion_tratamiento_ejecutada || di.operacion_tratamiento,
     identification_document_id: di.id,
     numero_documento_referencia: di.numero_albaran_gestor || di.numero_documento,
-    observaciones: `Registro cronológico sincronizado desde DI ${di.numero_documento} (${isGestor ? 'Entrada / Recepción en planta' : 'Salida / Traslado'})`
+    observaciones: `Registro cronológico sincronizado desde DI ${di.numero_documento} (${isGestor ? 'Entrada / Recepción en planta' : 'Salida / Traslado'})${
+      di.operacion_tratamiento_ejecutada &&
+      di.operacion_tratamiento &&
+      di.operacion_tratamiento_ejecutada !== di.operacion_tratamiento
+        ? ` | Op. prevista: ${di.operacion_tratamiento}, Op. ejecutada: ${di.operacion_tratamiento_ejecutada}`
+        : ''
+    }`
   };
 
   if (existing) {

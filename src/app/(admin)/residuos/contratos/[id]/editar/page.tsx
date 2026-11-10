@@ -646,9 +646,6 @@ export default function EditarContratoPage() {
                               if (wt?.descripcion) {
                                 handleWasteRowChange(idx, 'descripcion_ler', wt.descripcion);
                               }
-                              if (wt?.operaciones_permitidas?.[0]) {
-                                handleWasteRowChange(idx, 'operacion_tratamiento', wt.operaciones_permitidas[0]);
-                              }
                             }}
                           />
                         </td>

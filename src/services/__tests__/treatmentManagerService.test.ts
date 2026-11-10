@@ -118,7 +118,7 @@ describe('treatmentManagerService - Gestores de Tratamiento Autorizados', () => 
 
       const result = await treatmentManagerService.getAll();
 
-      expect(result).toEqual(managersList);
+      expect(result).toEqual(managersList.map((m) => ({ ...m, source: 'treatment_managers' })));
       expect(consoleWarnSpy).toHaveBeenCalled();
       consoleWarnSpy.mockRestore();
     });

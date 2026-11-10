@@ -173,9 +173,22 @@ export const commercialOperationService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No hay usuario autenticado');
 
+    // Idempotencia: si viene idempotency_key y ya se registró antes para este usuario, devolverla
+    if (data.idempotency_key) {
+      const { data: existingByKey } = await supabase
+        .from('commercial_operations')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('idempotency_key', data.idempotency_key)
+        .maybeSingle();
+      if (existingByKey) {
+        return existingByKey as CommercialOperation;
+      }
+    }
+
     const year = new Date(data.fecha || new Date()).getFullYear();
 
-    // Generar correlativo OP-YYYY-000001 evitando colisiones tras borrados
+    // Generar correlativo OP-YYYY-000001 evitando colisiones tras borrados y entre empresas/tenants
     const { data: existingOps, count } = await supabase
       .from('commercial_operations')
       .select('id, numero_operacion', { count: 'exact' })
@@ -194,16 +207,21 @@ export const commercialOperationService = {
       }
     }
 
-    const nextSeq = maxSeq + 1;
-    const numero_operacion = `OP-${year}-${String(nextSeq).padStart(6, '0')}`;
-
     // Calcular márgenes
     const profitability = calculateProfitability(data);
 
-    const payload = {
+    const buildNumero = (seq: number, scoped: boolean): string => {
+      const padded = String(seq).padStart(6, '0');
+      if (!scoped) {
+        return `OP-${year}-${padded}`;
+      }
+      const companyTag = data.company_id ? `E${data.company_id}` : `U${user.id.slice(0, 4).toUpperCase()}`;
+      return `OP-${companyTag}-${year}-${padded}`;
+    };
+
+    const basePayload = {
       ...data,
       user_id: user.id,
-      numero_operacion,
       estado: data.estado || 'abierta',
       peligrosidad: data.codigo_ler.includes('*') ? 'peligroso' : data.peligrosidad,
       coste_compra_total: profitability.coste_compra_total,
@@ -215,16 +233,56 @@ export const commercialOperationService = {
       porcentaje_margen: profitability.porcentaje_margen
     };
 
-    const { data: created, error } = await supabase
-      .from('commercial_operations')
-      .insert([payload])
-      .select()
-      .single();
+    let created: any = null;
+    let lastError: any = null;
 
-    if (error) {
-      console.error('Error al crear operación comercial:', error);
-      throw error;
+    // Reintento automático ante colisión de índice único (multi-empresa / concurrencia / restricción global previa)
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const useScopedPrefix = attempt > 0;
+      const numero_operacion = buildNumero(maxSeq + 1 + (attempt > 1 ? attempt - 1 : 0), useScopedPrefix);
+
+      const result = await supabase
+        .from('commercial_operations')
+        .insert([{ ...basePayload, numero_operacion }])
+        .select()
+        .single();
+
+      if (!result.error) {
+        created = result.data;
+        lastError = null;
+        break;
+      }
+
+      lastError = result.error;
+      const msg = String(result.error?.message || '');
+      const isUniqueCollision =
+        result.error?.code === '23505' ||
+        msg.includes('duplicate key') ||
+        msg.includes('commercial_operations_numero_operacion_key') ||
+        msg.includes('idx_commercial_ops_tenant_numero_unique');
+
+      if (!isUniqueCollision) {
+        break;
+      }
     }
+
+    if (lastError || !created) {
+      console.error('Error al crear operación comercial:', lastError);
+      throw lastError;
+    }
+
+    await auditService.logAction({
+      company_id: created.company_id || data.company_id || null,
+      entidad: 'operacion_comercial',
+      entidad_id: created.id,
+      accion: 'crear',
+      detalles: {
+        numero_operacion: created.numero_operacion,
+        codigo_ler: created.codigo_ler,
+        margen_bruto_total: created.margen_bruto_total,
+        identification_document_id: created.identification_document_id || null,
+      },
+    });
 
     return created as CommercialOperation;
   },
@@ -281,6 +339,14 @@ export const commercialOperationService = {
       throw error;
     }
 
+    await auditService.logAction({
+      company_id: (updated as CommercialOperation).company_id || null,
+      entidad: 'operacion_comercial',
+      entidad_id: id,
+      accion: 'actualizar',
+      detalles: { estado: (updated as CommercialOperation).estado },
+    });
+
     return updated as CommercialOperation;
   },
 
@@ -302,6 +368,13 @@ export const commercialOperationService = {
       console.error('Error al eliminar operación comercial:', error);
       throw error;
     }
+
+    await auditService.logAction({
+      entidad: 'operacion_comercial',
+      entidad_id: id,
+      accion: 'eliminar',
+      detalles: { commercial_operation_id: id },
+    });
 
     return true;
   },

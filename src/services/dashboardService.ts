@@ -5,9 +5,24 @@
 import { createClient } from '@/lib/supabase/client';
 import { getContractEffectiveStatus } from '@/services/wasteContractService';
 
+function normOp(op?: string | null): string {
+  if (!op) return '';
+  const cleaned = String(op).trim().toUpperCase();
+  const match = cleaned.match(/^([RD])(\d{1,2})$/);
+  return match ? `${match[1]}${match[2].padStart(2, '0')}` : cleaned;
+}
+
 export interface AlertException {
   id: string | number;
-  tipo: 'transito' | 'discrepancia_peso' | 'rechazo' | 'contrato_caducado' | 'contrato_proximo' | 'autorizacion_vencida';
+  tipo:
+  | 'transito'
+  | 'discrepancia_peso'
+  | 'rechazo'
+  | 'contrato_caducado'
+  | 'contrato_proximo'
+  | 'autorizacion_vencida'
+  | 'sin_contrato'
+  | 'tratamiento_no_autorizado';
   gravedad: 'critico' | 'advertencia' | 'info';
   titulo: string;
   descripcion: string;
@@ -17,12 +32,22 @@ export interface AlertException {
 }
 
 export interface ExecutiveDashboardData {
+  conformidad: {
+    estado: 'pendiente' | 'conforme' | 'incidencias';
+    porcentaje: number | null;
+    totalEvaluados: number;
+    totalConformes: number;
+    totalNoConformes: number;
+    fechaEvaluacion: string;
+  };
   alertas: {
     totalCriticas: number;
     totalAdvertencias: number;
     lista: AlertException[];
     disEnTransitoCount: number;
     disDiscrepanciaCount: number;
+    disSinContratoCount: number;
+    disTratamientoNoAutorizadoCount: number;
     contratosCaducadosCount: number;
     contratosPorVencerCount: number;
     autorizacionesPorVencerCount: number;
@@ -64,29 +89,52 @@ export const dashboardService = {
     const todayStr = new Date().toISOString().split('T')[0];
     const today = new Date();
 
-    // Cargar en paralelo DIs, Contratos, Autorizaciones y Operaciones Comerciales
-    const [disRes, contractsRes, authsRes, opsRes] = await Promise.all([
+    // Cargar en paralelo DIs, Contratos, Autorizaciones (con LERs), Empresas y Operaciones Comerciales
+    const [disRes, contractsRes, authsRes, opsRes, companiesRes] = await Promise.all([
       supabase.from('identification_documents').select('*').eq('user_id', user.id),
       supabase.from('waste_contracts').select('*').eq('user_id', user.id),
-      supabase.from('environmental_authorizations').select('*').eq('user_id', user.id),
-      supabase.from('commercial_operations').select('*').eq('user_id', user.id)
+      supabase.from('environmental_authorizations').select('*, waste_codes:authorization_waste_codes(*)').eq('user_id', user.id),
+      supabase.from('commercial_operations').select('*').eq('user_id', user.id),
+      supabase.from('companies').select('id, cif, razon_social').eq('user_id', user.id)
     ]);
 
     const dis = disRes.data || [];
     const contracts = contractsRes.data || [];
     const auths = authsRes.data || [];
     const ops = opsRes.data || [];
+    const companies = companiesRes?.data || [];
 
-    // 1. ANALIZAR EXCEPCIONES Y ALERTAS
+    // Índice rápido de empresa por CIF y autorizaciones por company_id
+    const companyIdByCif = new Map<string, number>();
+    companies.forEach((c: any) => {
+      if (c.cif) companyIdByCif.set(String(c.cif).trim().toUpperCase(), c.id);
+    });
+
+    const contractById = new Map<number, any>();
+    contracts.forEach((c: any) => contractById.set(c.id, c));
+
+    // 1. ANALIZAR EXCEPCIONES, ALERTAS Y CONFORMIDAD REAL
     const listaAlertas: AlertException[] = [];
     let disEnTransitoCount = 0;
     let disDiscrepanciaCount = 0;
+    let disSinContratoCount = 0;
+    let disTratamientoNoAutorizadoCount = 0;
     let contratosCaducadosCount = 0;
     let contratosPorVencerCount = 0;
     let autorizacionesPorVencerCount = 0;
 
+    let totalEvaluados = 0;
+    let totalNoConformes = 0;
+
     // Alertas de DIs
     dis.forEach(d => {
+      let diHasComplianceFailure = false;
+      const isExecutedOrActive =
+        d.estado === 'completado' ||
+        ['en_transito', 'recepcionado', 'aceptado', 'rechazado_parcial', 'rechazado_total', 'tratado'].includes(
+          d.estado_traslado || ''
+        );
+
       const isTransito = d.estado_traslado === 'en_transito';
       if (isTransito) {
         disEnTransitoCount++;
@@ -102,11 +150,88 @@ export const dashboardService = {
         });
       }
 
+      if (isExecutedOrActive) {
+        totalEvaluados++;
+
+        // Regla F03: Verificar acreditación de contrato previo
+        const hasContractCoverage = Boolean(d.contract_id || d.contrato_externo_referencia);
+        if (!hasContractCoverage) {
+          disSinContratoCount++;
+          diHasComplianceFailure = true;
+          listaAlertas.push({
+            id: `di-sin-contrato-${d.id}`,
+            tipo: 'sin_contrato',
+            gravedad: 'critico',
+            titulo: `Traslado sin contrato acreditado: ${d.numero_documento}`,
+            descripcion: `El DI ${d.numero_documento} (${d.codigo_ler}) pasó a estado '${d.estado_traslado || d.estado}' sin contrato de tratamiento vinculado ni referencia acreditada (art. 5 RD 553/2020).`,
+            referencia: d.numero_documento,
+            enlace: `/residuos/documentos-identificacion/${d.id}`,
+            fecha: d.fecha_salida || d.fecha_documento
+          });
+        }
+
+        // Regla F02: Verificar tratamiento ejecutado/previsto frente a régimen NT y autorización ambiental del gestor
+        const effectiveOp = normOp(d.operacion_tratamiento_ejecutada || d.operacion_tratamiento);
+        let opNonCompliantReason: string | null = null;
+
+        if (effectiveOp && effectiveOp.startsWith('D') && d.tipo_notificacion === 'sin-notificacion') {
+          opNonCompliantReason = `La operación ${effectiveOp} es de eliminación y requiere Notificación Previa (el DI consta como 'Sin Notificación').`;
+        } else if (effectiveOp && d.codigo_ler) {
+          const linkedContract = d.contract_id ? contractById.get(d.contract_id) : null;
+          const gestorCompanyId =
+            linkedContract?.gestor_company_id ||
+            (d.gestor_cif ? companyIdByCif.get(String(d.gestor_cif).trim().toUpperCase()) : undefined);
+
+          if (gestorCompanyId) {
+            const gestorAuths = auths.filter((a: any) => a.company_id === gestorCompanyId && a.activo !== false);
+            if (gestorAuths.length > 0) {
+              const allowedOps: string[] = [];
+              let hasWasteCodeMatrix = false;
+              for (const auth of gestorAuths) {
+                if (Array.isArray(auth.waste_codes) && auth.waste_codes.length > 0) {
+                  hasWasteCodeMatrix = true;
+                  for (const wc of auth.waste_codes) {
+                    if (wc.codigo_ler?.trim() === String(d.codigo_ler).trim() && Array.isArray(wc.operaciones_tratamiento)) {
+                      wc.operaciones_tratamiento.forEach((op: string) => {
+                        const n = normOp(op);
+                        if (!allowedOps.includes(n)) allowedOps.push(n);
+                      });
+                    }
+                  }
+                }
+              }
+              if (hasWasteCodeMatrix && !allowedOps.includes(effectiveOp)) {
+                opNonCompliantReason =
+                  allowedOps.length > 0
+                    ? `La operación ${effectiveOp} aplicada al LER ${d.codigo_ler} no está contemplada en la autorización del gestor (${allowedOps.join(', ')}).`
+                    : `El LER ${d.codigo_ler} no figura en la matriz autorizada del gestor ${d.gestor_razon_social}.`;
+              }
+            }
+          }
+        }
+
+        if (opNonCompliantReason) {
+          disTratamientoNoAutorizadoCount++;
+          diHasComplianceFailure = true;
+          listaAlertas.push({
+            id: `di-op-no-auth-${d.id}`,
+            tipo: 'tratamiento_no_autorizado',
+            gravedad: 'critico',
+            titulo: `Tratamiento no autorizado (${effectiveOp}): ${d.numero_documento}`,
+            descripcion: opNonCompliantReason,
+            referencia: d.numero_documento,
+            enlace: `/residuos/documentos-identificacion/${d.id}`,
+            fecha: d.fecha_tratamiento || d.fecha_documento
+          });
+        }
+      }
+
       const tieneDiscrepancia = (d.porcentaje_discrepancia && Math.abs(d.porcentaje_discrepancia) > 5) ||
         ['rechazado_parcial', 'rechazado_total'].includes(d.estado_traslado || '');
 
       if (tieneDiscrepancia) {
         disDiscrepanciaCount++;
+        diHasComplianceFailure = true;
         const isRechazo = ['rechazado_parcial', 'rechazado_total'].includes(d.estado_traslado || '');
         listaAlertas.push({
           id: `di-peso-${d.id}`,
@@ -121,13 +246,19 @@ export const dashboardService = {
           fecha: d.fecha_llegada_destino || d.fecha_documento
         });
       }
+
+      if (diHasComplianceFailure) {
+        totalNoConformes++;
+      }
     });
 
     // Alertas de Contratos
     contracts.forEach(c => {
+      totalEvaluados++;
       const statusInfo = getContractEffectiveStatus(c);
       if (statusInfo.status === 'caducado' || statusInfo.isExpired) {
         contratosCaducadosCount++;
+        totalNoConformes++;
         listaAlertas.push({
           id: `contract-cad-${c.id}`,
           tipo: 'contrato_caducado',
@@ -158,9 +289,11 @@ export const dashboardService = {
 
     // Alertas de Autorizaciones Ambientales
     auths.forEach(a => {
+      totalEvaluados++;
       if (!a.es_indefinida && a.fecha_vencimiento) {
         if (a.fecha_vencimiento < todayStr) {
           autorizacionesPorVencerCount++;
+          totalNoConformes++;
           listaAlertas.push({
             id: `auth-venc-${a.id}`,
             tipo: 'autorizacion_vencida',
@@ -249,13 +382,39 @@ export const dashboardService = {
     const margenMedioTon = totalTonComercial > 0 ? margenBrutoTotal / totalTonComercial : 0;
     const rentabilidadPorcentaje = facturacionVenta > 0 ? (margenBrutoTotal / facturacionVenta) * 100 : 0;
 
+    const totalConformes = Math.max(0, totalEvaluados - totalNoConformes);
+    const porcentajeConformidad =
+      totalEvaluados > 0 ? Math.round((totalConformes / totalEvaluados) * 100) : null;
+    const estadoConformidad: 'pendiente' | 'conforme' | 'incidencias' =
+      totalEvaluados === 0
+        ? 'pendiente'
+        : totalNoConformes > 0 || listaAlertas.some((a) => a.gravedad === 'critico')
+          ? 'incidencias'
+          : 'conforme';
+
+    // Priorizar alertas críticas arriba
+    const sortedAlertas = [...listaAlertas].sort((a, b) => {
+      const weight = (g: string) => (g === 'critico' ? 0 : g === 'advertencia' ? 1 : 2);
+      return weight(a.gravedad) - weight(b.gravedad);
+    });
+
     return {
+      conformidad: {
+        estado: estadoConformidad,
+        porcentaje: porcentajeConformidad,
+        totalEvaluados,
+        totalConformes,
+        totalNoConformes,
+        fechaEvaluacion: new Date().toISOString(),
+      },
       alertas: {
         totalCriticas: listaAlertas.filter(a => a.gravedad === 'critico').length,
         totalAdvertencias: listaAlertas.filter(a => a.gravedad === 'advertencia').length,
-        lista: listaAlertas.slice(0, 8),
+        lista: sortedAlertas.slice(0, 12),
         disEnTransitoCount,
         disDiscrepanciaCount,
+        disSinContratoCount,
+        disTratamientoNoAutorizadoCount,
         contratosCaducadosCount,
         contratosPorVencerCount,
         autorizacionesPorVencerCount

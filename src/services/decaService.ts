@@ -4,6 +4,7 @@
 // ==============================================================================
 
 import { createClient } from '@/lib/supabase/client';
+import { auditService } from './auditService';
 import type { DecaDocument, DecaFormData, DecaAuditLog } from '@/types/deca';
 import type { IdentificationDocument } from '@/types/wasteManagement';
 
@@ -99,7 +100,7 @@ export const decaService = {
   },
 
   /**
-   * Generar el siguiente número correlativo de DeCA
+   * Generar el siguiente número correlativo de DeCA evitando colisiones por sufijos '-v2' o múltiples registros
    */
   async getNextNumero(): Promise<string> {
     const { data: { user } } = await supabase.auth.getUser();
@@ -117,57 +118,101 @@ export const decaService = {
 
     const { data } = await query
       .order('id', { ascending: false })
-      .limit(1);
+      .limit(50);
 
     if (!data || data.length === 0) {
       return `${prefix}00001`;
     }
 
-    const lastNumStr = data[0].numero_deca.replace(prefix, '');
-    const nextSeq = (parseInt(lastNumStr, 10) || 0) + 1;
+    let maxSeq = 0;
+    for (const row of data) {
+      const match = String(row.numero_deca || '').match(/^DECA-\d{4}-(?:[A-Z0-9]+-)?(\d+)/);
+      if (match) {
+        const parsed = parseInt(match[1], 10);
+        if (!isNaN(parsed) && parsed > maxSeq) {
+          maxSeq = parsed;
+        }
+      }
+    }
+
+    const nextSeq = maxSeq + 1;
     return `${prefix}${String(nextSeq).padStart(5, '0')}`;
   },
 
   /**
-   * Crear un nuevo DeCA autónomo
+   * Crear un nuevo DeCA autónomo (con resiliencia ante colisiones de numeración entre tenants)
    */
   async create(formData: DecaFormData): Promise<DecaDocument> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
-    const numero_deca = formData.numero_deca || await this.getNextNumero();
+    const hasExplicitNumero = Boolean(formData.numero_deca && formData.numero_deca.trim());
+    const baseNumero = hasExplicitNumero ? formData.numero_deca.trim() : await this.getNextNumero();
     const token = generateSecureToken();
+    const currentYear = new Date().getFullYear();
+    const seqMatch = baseNumero.match(/(\d+)$/);
+    const baseSeq = seqMatch ? parseInt(seqMatch[1], 10) : 1;
+    const scopeTag = formData.company_id ? `E${formData.company_id}` : `U${user.id.slice(0, 4).toUpperCase()}`;
 
-    const insertPayload = {
-      ...formData,
-      user_id: user.id,
-      numero_deca,
-      version: 1,
-      is_vigente: true,
-      token,
-      estado: formData.estado || 'vigente',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    let createdData: any = null;
+    let lastError: any = null;
 
-    const { data, error } = await supabase
-      .from('deca_documents')
-      .insert(insertPayload)
-      .select()
-      .single();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidateNumero =
+        attempt === 0
+          ? baseNumero
+          : `DECA-${currentYear}-${scopeTag}-${String(baseSeq + attempt - 1).padStart(5, '0')}`;
 
-    if (error) {
-      throw new Error(`Error al crear documento DeCA: ${error.message}`);
+      const insertPayload = {
+        ...formData,
+        user_id: user.id,
+        numero_deca: candidateNumero,
+        version: 1,
+        is_vigente: true,
+        token,
+        estado: formData.estado || 'vigente',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('deca_documents')
+        .insert(insertPayload)
+        .select()
+        .single();
+
+      if (!error && data) {
+        createdData = data;
+        lastError = null;
+        break;
+      }
+
+      lastError = error;
+      const errMsg = String(error?.message || '');
+      const isUniqueCollision =
+        error?.code === '23505' ||
+        errMsg.includes('duplicate key') ||
+        errMsg.includes('deca_documents_numero_deca_key') ||
+        errMsg.includes('idx_deca_user_numero_version_unique');
+
+      // Si el usuario indicó un número explícito y colisionó, o si es otro error distinto a clave única, no reintentar silenciosamente
+      if (!isUniqueCollision || (hasExplicitNumero && attempt > 0)) {
+        break;
+      }
+    }
+
+    if (lastError || !createdData) {
+      throw new Error(`Error al crear documento DeCA: ${lastError?.message || 'Error desconocido'}`);
     }
 
     // Registrar log de auditoría
-    await this.logAudit(data.id, 'creacion', 1, {
-      numero_deca,
-      cargador: data.cargador_razon_social,
-      transportista: data.transportista_razon_social,
+    await this.logAudit(createdData.id, 'creacion', 1, {
+      numero_deca: createdData.numero_deca,
+      cargador: createdData.cargador_razon_social,
+      transportista: createdData.transportista_razon_social,
     });
 
-    return data as DecaDocument;
+    return createdData as DecaDocument;
   },
 
   /**
@@ -368,6 +413,16 @@ export const decaService = {
         version_resultante: versionResultante,
         detalles: detalles || {},
         created_at: new Date().toISOString(),
+      });
+      await auditService.logAction({
+        entidad: 'deca',
+        entidad_id: decaId,
+        accion: accion === 'creacion' ? 'crear' : accion === 'finalizacion' ? 'cambiar_estado' : 'actualizar',
+        detalles: {
+          deca_accion: accion,
+          version_resultante: versionResultante,
+          ...(detalles || {}),
+        },
       });
     } catch (err) {
       console.warn('Advertencia al registrar auditoría DeCA:', err);

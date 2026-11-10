@@ -51,7 +51,7 @@ const getMunicipalityCodeByProvince = (provCode: string): string => {
     '46': '462500', '47': '471860', '48': '480200', '49': '492750', '50': '502970',
     '51': '510010', '52': '520010'
   };
-  return map[provCode] || '410917';
+  return map[provCode] || '';
 };
 
 /**
@@ -75,12 +75,16 @@ const escapeXml = (unsafe: string): string => {
  * Interfaz para pasar datos normalizados a la función generadora
  */
 interface EntityData {
-  cif: string;
-  name: string;
-  nima: string;
+  cif?: string;
+  name?: string;
+  nima?: string;
+  authorizationCode?: string;
+  authorizationNumber?: string;
+  cnae?: string;
   address?: string;
   cp?: string;
   municipality?: string;
+  municipalityCode?: string;
   province?: string;
   phone?: string;
   email?: string;
@@ -88,6 +92,7 @@ interface EntityData {
 
 /**
  * Genera un bloque de entidad genérico conforme a wasteCenterEntityType
+ * SIN inyectar valores ficticios de relleno (F07).
  */
 const generateEntityBlock = (
   tagName: string,
@@ -95,95 +100,106 @@ const generateEntityBlock = (
   typeTag: string,
   typeAttr: string,
   typeValue: string,
+  defaultAuthCode: string,
   extraChild = ''
 ): string => {
-  const clean = (val: any) => val ? escapeXml(String(val)).trim() : '';
+  const clean = (val: any) => (val !== undefined && val !== null ? escapeXml(String(val)).trim() : '');
 
-  // Datos de dirección (con fallbacks para validación)
-  const provCode = getProvinceCodeByName(data.province || '');
-  const muniName = clean(data.municipality || 'Desconocido');
-  const muniCode = getMunicipalityCodeByProvince(provCode);
-  const addressText = clean(data.address || 'Dirección no registrada');
-  const cp = clean(data.cp || '00000');
+  const cif = clean(data.cif);
+  const name = clean(data.name);
+  const nima = clean(data.nima);
+  const provName = clean(data.province);
+  const provCode = provName ? getProvinceCodeByName(provName) : '';
+  const muniName = clean(data.municipality);
+  const muniCode = clean(data.municipalityCode) || (provCode ? getMunicipalityCodeByProvince(provCode) : '');
+  const addressText = clean(data.address);
+  const cp = clean(data.cp);
+  const phone = clean(data.phone);
+  const email = clean(data.email);
+  const cnae = clean(data.cnae);
+  const authNumber = clean(data.authorizationNumber || data.nima);
+  const authCode = clean(data.authorizationCode) || defaultAuthCode;
 
-  const addressBlock = `
+  const hasAddress = Boolean(addressText || cp || muniName || provName);
+  const addressBlock = hasAddress
+    ? `
         <centerAddress>
             <spanishAddress>
-                <vial vialCode="009" vialDescription="Calle"/>
-                <address>${addressText}</address>
-                <CP>${cp}</CP>
-                <municipality municipalityCode="${muniCode}" municipalityName="${muniName}"/>
-                <province provinceCode="${provCode}" provinceName="${clean(data.province || 'Desconocida')}"/>
+                <vial vialCode="009" vialDescription="Calle"/>${addressText ? `\n                <address>${addressText}</address>` : ''}${cp ? `\n                <CP>${cp}</CP>` : ''}${muniName ? `\n                <municipality${muniCode ? ` municipalityCode="${muniCode}"` : ''} municipalityName="${muniName}"/>` : ''}${provName ? `\n                <province${provCode && provCode !== '00' ? ` provinceCode="${provCode}"` : ''} provinceName="${provName}"/>` : ''}
             </spanishAddress>
-        </centerAddress>`;
+        </centerAddress>`
+    : '';
 
-  const contactBlock = `
-        <centerContact>
-            <phone>${clean(data.phone || '999999999')}</phone>
-            <mail>${clean(data.email || 'pendiente@email.com')}</mail>
-        </centerContact>`;
+  const contactBlock =
+    phone || email
+      ? `
+        <centerContact>${phone ? `\n            <phone>${phone}</phone>` : ''}${email ? `\n            <mail>${email}</mail>` : ''}
+        </centerContact>`
+      : '';
 
-  const authBlock = `
+  const authBlock = authNumber
+    ? `
         <wasteCenterAuthorization>
             <authorizationId>
-                <authorizationIdFree>${clean(data.nima || 'PENDIENTE')}</authorizationIdFree>
+                <authorizationIdFree>${authNumber}</authorizationIdFree>
             </authorizationId>
-            <authorizationCode>A01</authorizationCode>
-        </wasteCenterAuthorization>`;
+            <authorizationCode>${authCode}</authorizationCode>
+        </wasteCenterAuthorization>`
+    : '';
 
-  // Estructura para Empresa (Persona Jurídica)
-  const nameBlock = `
+  const nameBlock = name
+    ? `
         <entityName>
             <reason>
-                <reasonName>${clean(data.name)}</reasonName>
+                <reasonName>${name}</reasonName>
                 <reasonAssociation associationCode="99" associationDescription="Otra"/>
             </reason>
-        </entityName>`;
+        </entityName>`
+    : '';
 
   return `
-    <${tagName}>
+    <${tagName}>${cif ? `
         <entityId>
-            <nationalId>${clean(data.cif)}</nationalId>
-        </entityId>
-        <entityFJ entityFJCode="J" />
-        ${nameBlock}
+            <nationalId>${cif}</nationalId>
+        </entityId>` : ''}
+        <entityFJ entityFJCode="J" />${nameBlock}
         
-        <entityCenter>
-            <centerID centerCode="${clean(data.nima || 'PENDIENTE')}" />
-            <centerEconomicActivity>S/D</centerEconomicActivity>
-            ${addressBlock}
-            ${contactBlock}
-            ${authBlock}
+        <entityCenter>${nima ? `
+            <centerID centerCode="${nima}" />` : ''}${cnae ? `
+            <centerEconomicActivity>${cnae}</centerEconomicActivity>` : ''}${addressBlock}${contactBlock}${authBlock}
         </entityCenter>
 
-        <${typeTag} ${typeAttr}="${typeValue}"/>
-        ${extraChild}
+        <${typeTag} ${typeAttr}="${typeValue}"/>${extraChild ? `\n        ${extraChild}` : ''}
     </${tagName}>`;
 };
 
 const generateOperatorBlock = (doc: any): string => {
-  // El operador suele ser el productor si él genera el documento
-  // Si doc.company (usuario logueado) tiene datos, usamos esos.
   const compData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
+  const isDanger = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
 
   return generateEntityBlock(
     'DCSTransferOperatorData',
     {
-      cif: compData?.cif || doc.productor_cif,
-      name: compData?.razon_social || doc.productor_razon_social,
-      nima: compData?.nima || doc.productor_nima,
-      address: compData?.domicilio_instalacion || doc.productor_direccion,
-      province: compData?.provincia_instalacion || doc.productor_provincia,
-      phone: compData?.telefono || doc.productor_telefono,
-      email: compData?.email
+      cif: doc.operador_cif || compData?.cif || doc.productor_cif,
+      name: doc.operador_razon_social || compData?.razon_social || doc.productor_razon_social,
+      nima: doc.operador_nima || compData?.nima || doc.productor_nima,
+      address: doc.operador_direccion || compData?.domicilio_instalacion || doc.productor_direccion,
+      cp: doc.operador_codigo_postal || compData?.codigo_postal_instalacion || doc.productor_codigo_postal,
+      municipality: doc.operador_municipio || compData?.municipio_instalacion || doc.productor_municipio,
+      province: doc.operador_provincia || compData?.provincia_instalacion || doc.productor_provincia,
+      phone: doc.operador_telefono || compData?.telefono || doc.productor_telefono,
+      email: doc.operador_email || compData?.email,
+      cnae: compData?.cnae,
     },
     'wasteTransferOperatorType',
     'operatorTypeCode',
-    'P01'
+    'P01',
+    isDanger ? 'P01' : 'P02'
   );
 };
 
 const generateProducerBlock = (doc: any): string => {
+  const isDanger = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
   return generateEntityBlock(
     'DCSProducerData',
     {
@@ -194,92 +210,118 @@ const generateProducerBlock = (doc: any): string => {
       cp: doc.productor_codigo_postal,
       municipality: doc.productor_municipio,
       province: doc.productor_provincia,
-      phone: doc.productor_telefono
+      phone: doc.productor_telefono,
+      email: doc.productor_email,
     },
     'wasteProducerType',
     'producerTypeCode',
-    'P01'
+    isDanger ? 'P01' : 'P02',
+    isDanger ? 'P01' : 'P02'
   );
 };
 
 const generateManagerBlock = (doc: any): string => {
+  const isDanger = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
   return generateEntityBlock(
     'DCSAdresseeData',
     {
       cif: doc.gestor_cif,
       name: doc.gestor_razon_social,
       nima: doc.gestor_nima,
+      authorizationNumber: doc.gestor_numero_autorizacion,
       address: doc.gestor_direccion,
       cp: doc.gestor_codigo_postal,
       municipality: doc.gestor_municipio,
       province: doc.gestor_provincia,
-      phone: doc.gestor_telefono
+      phone: doc.gestor_telefono,
+      email: doc.gestor_email,
     },
     'wasteManagerType',
     'managerTypeCode',
-    'G01'
+    isDanger ? 'G01' : 'G04',
+    isDanger ? 'G01' : 'G04'
   );
 };
 
 const generateTransporterContent = (doc: any): string => {
-  // Si no hay transportista en doc, usamos dummy para validación técnica
+  // Si no hay datos reales de transportista, no fabricar 'A00000000' / 'transporte@pendiente.com'
+  const hasAnyTransporterData = Boolean(
+    doc.transportista_cif || doc.transportista_razon_social || doc.transportista_nima
+  );
+  if (!hasAnyTransporterData) {
+    return '';
+  }
+
+  const isDanger = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
   const tData: EntityData = {
-    cif: doc.transportista_cif || 'A00000000',
-    name: doc.transportista_razon_social || 'Transportista Genérico',
-    nima: doc.transportista_nima || 'NIMA-PENDIENTE',
+    cif: doc.transportista_cif,
+    name: doc.transportista_razon_social,
+    nima: doc.transportista_nima,
     address: doc.transportista_direccion,
     cp: doc.transportista_codigo_postal,
     municipality: doc.transportista_municipio,
     province: doc.transportista_provincia,
-    phone: doc.transportista_telefono
+    phone: doc.transportista_telefono,
+    email: doc.transportista_email,
   };
 
-  const clean = (val: any) => val ? escapeXml(String(val)).trim() : '';
+  const clean = (val: any) => (val !== undefined && val !== null ? escapeXml(String(val)).trim() : '');
+  const cif = clean(tData.cif);
+  const name = clean(tData.name);
+  const nima = clean(tData.nima);
+  const provName = clean(tData.province);
+  const provCode = provName ? getProvinceCodeByName(provName) : '';
+  const muniName = clean(tData.municipality);
+  const muniCode = provCode ? getMunicipalityCodeByProvince(provCode) : '';
+  const addressText = clean(tData.address);
+  const cp = clean(tData.cp);
+  const phone = clean(tData.phone);
+  const email = clean(tData.email);
 
-  // Mapeo geográfico
-  const provCode = getProvinceCodeByName(tData.province || '');
-  const muniName = clean(tData.municipality || 'Desconocido');
-  const muniCode = getMunicipalityCodeByProvince(provCode);
-  const addressText = clean(tData.address || 'Dirección no registrada');
-  const cp = clean(tData.cp || '00000');
-
-  return `
-        <DCSTransporterData>
-            <entityId>
-                <nationalId>${clean(tData.cif)}</nationalId>
-            </entityId>
-            <entityFJ entityFJCode="J" />
-            <entityName>
-                <reason>
-                    <reasonName>${clean(tData.name)}</reasonName>
-                    <reasonAssociation associationCode="99" associationDescription="Otra"/>
-                </reason>
-            </entityName>
-            <entityCenter>
-                <centerID centerCode="${clean(tData.nima)}" />
-                <centerEconomicActivity>S/D</centerEconomicActivity>
+  const hasAddress = Boolean(addressText || cp || muniName || provName);
+  const addressBlock = hasAddress
+    ? `
                 <centerAddress>
                     <spanishAddress>
-                        <vial vialCode="009" vialDescription="Calle"/>
-                        <address>${addressText}</address>
-                        <CP>${cp}</CP>
-                        <municipality municipalityCode="${muniCode}" municipalityName="${muniName}"/>
-                        <province provinceCode="${provCode}" provinceName="${clean(tData.province || 'Desconocida')}"/>
+                        <vial vialCode="009" vialDescription="Calle"/>${addressText ? `\n                        <address>${addressText}</address>` : ''}${cp ? `\n                        <CP>${cp}</CP>` : ''}${muniName ? `\n                        <municipality${muniCode ? ` municipalityCode="${muniCode}"` : ''} municipalityName="${muniName}"/>` : ''}${provName ? `\n                        <province${provCode && provCode !== '00' ? ` provinceCode="${provCode}"` : ''} provinceName="${provName}"/>` : ''}
                     </spanishAddress>
-                </centerAddress>
-                <centerContact>
-                    <phone>${clean(tData.phone || '999999999')}</phone>
-                    <mail>transporte@pendiente.com</mail>
-                </centerContact>
+                </centerAddress>`
+    : '';
+
+  const contactBlock =
+    phone || email
+      ? `
+                <centerContact>${phone ? `\n                    <phone>${phone}</phone>` : ''}${email ? `\n                    <mail>${email}</mail>` : ''}
+                </centerContact>`
+      : '';
+
+  const authBlock = nima
+    ? `
                 <wasteCenterAuthorization>
                     <authorizationId>
-                         <authorizationIdFree>${clean(tData.nima)}</authorizationIdFree>
+                         <authorizationIdFree>${nima}</authorizationIdFree>
                     </authorizationId>
-                    <authorizationCode>A01</authorizationCode>
-                </wasteCenterAuthorization>
+                    <authorizationCode>${isDanger ? 'T01' : 'T02'}</authorizationCode>
+                </wasteCenterAuthorization>`
+    : '';
+
+  return `
+        <DCSTransporterData>${cif ? `
+            <entityId>
+                <nationalId>${cif}</nationalId>
+            </entityId>` : ''}
+            <entityFJ entityFJCode="J" />${name ? `
+            <entityName>
+                <reason>
+                    <reasonName>${name}</reasonName>
+                    <reasonAssociation associationCode="99" associationDescription="Otra"/>
+                </reason>
+            </entityName>` : ''}
+            <entityCenter>${nima ? `
+                <centerID centerCode="${nima}" />` : ''}${addressBlock}${contactBlock}${authBlock}
             </entityCenter>
 
-            <wasteTransporterType trasporterTypeCode="T01" transporterTypeDescription="Transportista de residuos"/>
+            <wasteTransporterType trasporterTypeCode="${isDanger ? 'T01' : 'T02'}" transporterTypeDescription="Transportista de residuos"/>
             <DCSTransportWay transportWayCode="01" transportWayDescription="Carretera"/>
         </DCSTransporterData>`;
 };
@@ -305,17 +347,18 @@ const normalizeHpCode = (hp: string): string => {
 
 const generateResidueBlock = (doc: any): string => {
   const clean = (val: any) => val ? escapeXml(String(val)).trim() : '';
-  const isDangerous = doc.peligrosidad === 'peligroso';
+  const isDangerous = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
   const cleanLer = normalizeLerCode(doc.codigo_ler);
 
   const residueBag = `
         <residueBag>
              <bagProcess internalIdProcessCode="99"/>
-             <bagResidueId residueCode="999" residueDescription="${clean(doc.descripcion_residuo || doc.nombre_residuo || 'Residuo Genérico')}"/>
+             <bagResidueId residueCode="999" residueDescription="${clean(doc.descripcion_residuo || doc.nombre_residuo || '')}"/>
         </residueBag>`;
 
-  // Operación: Default R13 o valor real normalizado (2 dígitos para R/D)
-  const opTratamiento = normalizeOperation(clean(doc.operacion_tratamiento || 'R13'));
+  // Conservar operación prevista en productor y operación realmente ejecutada (si existe) en destinatario
+  const opPrevista = normalizeOperation(clean(doc.operacion_tratamiento || 'R13'));
+  const opEjecutada = normalizeOperation(clean(doc.operacion_tratamiento_ejecutada || doc.operacion_tratamiento || 'R13'));
 
   const residueTablesType = isDangerous
     ? 'xsi:type="wassup:tablesDangerousType"'
@@ -325,26 +368,27 @@ const generateResidueBlock = (doc: any): string => {
     ? `\n            <table5>${normalizeHpCode(doc.caracteristica_peligrosidad || doc.codigo_hp || doc.hp || '')}</table5>`
     : '';
 
-  const residueTables = `
+  const buildTables = (opCode: string) => `
         <residueTables ${residueTablesType}>
-            <table2>${opTratamiento}</table2>${hpBlock}
+            <table2>${opCode}</table2>${hpBlock}
         </residueTables>`;
 
   const residueTypeAttr = isDangerous
     ? 'xsi:type="wassup:dangerousResidueType"'
     : 'xsi:type="wassup:noDangerousResidueType"';
 
-  // Código NT: Si no hay NT previa válida, usar el código oficial por defecto del esquema E3L (NT + 23 nueves)
+  // Código NT: Solo incluir <DCSNT> cuando exista una NT real y el traslado requiera notificación (F07)
   const rawNt = clean(doc.numero_notificacion || doc.nt_codigo || doc.notificacion_previa_codigo || '');
-  const dcsNt = /^NT[0-9]{23,24}$/.test(rawNt) ? rawNt : 'NT99999999999999999999999';
+  const dcsNtNode =
+    doc.tipo_notificacion !== 'sin-notificacion' && /^NT[0-9]{23,24}$/.test(rawNt)
+      ? `\n            <DCSNT>${rawNt}</DCSNT>`
+      : '';
 
-  const clearWeight = Number(doc.cantidad || 0);
-  const formattedWeight = isNaN(clearWeight) || clearWeight <= 0 ? '1.000' : clearWeight.toFixed(3);
+  const rawWeight = Number(doc.peso_destino_kg || doc.peso_origen_kg || doc.cantidad || 0);
+  const formattedWeight = !isNaN(rawWeight) && rawWeight > 0 ? rawWeight.toFixed(3) : '';
 
   const otherData = `
-        <DCSOtherResidueData>
-            <DCSNT>${dcsNt}</DCSNT>
-            <DCSClearWeight>${formattedWeight}</DCSClearWeight>
+        <DCSOtherResidueData>${dcsNtNode}${formattedWeight ? `\n            <DCSClearWeight>${formattedWeight}</DCSClearWeight>` : ''}
             <DCSTransportCharacteristics>Sin características especiales</DCSTransportCharacteristics>
         </DCSOtherResidueData>`;
 
@@ -354,16 +398,15 @@ const generateResidueBlock = (doc: any): string => {
     <DCSResidueData>
         <DCSProducerResidueIdentification LERCode="${cleanLer}" ${residueTypeAttr}>
             ${residueBag}
-            ${residueTables}
+            ${buildTables(opPrevista)}
         </DCSProducerResidueIdentification>
         
         <DCSAdresseeResidueIdentification LERCode="${cleanLer}" ${residueTypeAttr}>
             ${residueBag}
-            ${residueTables}
+            ${buildTables(opEjecutada)}
         </DCSAdresseeResidueIdentification>
         
-        ${otherData}
-        ${transporterData}
+        ${otherData}${transporterData}
     </DCSResidueData>`;
 };
 
@@ -431,11 +474,75 @@ export function extractSiraError(responseText: string): string {
   return 'Error en la validación de SIRA. Ver logs XML.';
 }
 
+export interface E3LValidationResult {
+  valid: boolean;
+  schemaVersion: string;
+  errors: string[];
+  warnings: string[];
+}
+
+/**
+ * Valida la conformidad del DI frente a los requisitos estructurales del esquema E3L v3.6 (e3l-waste.xsd / e3l-wasteSupport.xsd)
+ * antes de generar o transmitir el mensaje telemático.
+ */
+export function validateDIForE3L(doc: any): E3LValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!doc?.numero_documento || !String(doc.numero_documento).trim()) {
+    errors.push('Falta el código del Documento de Identificación (DCSCode).');
+  }
+  if (!doc?.productor_cif || !String(doc.productor_cif).trim()) {
+    errors.push('Falta el CIF/NIF del Productor (DCSProducerData/nationalId).');
+  }
+  if (!doc?.gestor_cif || !String(doc.gestor_cif).trim()) {
+    errors.push('Falta el CIF/NIF del Gestor Destinatario (DCSAdresseeData/nationalId).');
+  }
+  if (!doc?.transportista_cif || !doc?.transportista_razon_social) {
+    errors.push('Faltan datos identificativos reales del Transportista (DCSTransporterData).');
+  }
+  const cleanLer = normalizeLerCode(doc?.codigo_ler || '');
+  if (!/^\d{6}$/.test(cleanLer)) {
+    errors.push(`Código LER inválido para E3L (${doc?.codigo_ler || 'vacío'}): debe contener 6 dígitos numéricos.`);
+  }
+  const op = normalizeOperation(doc?.operacion_tratamiento_ejecutada || doc?.operacion_tratamiento || '');
+  if (!/^(R0[1-9]|R1[0-3]|D0[1-9]|D1[0-5])$/.test(op)) {
+    errors.push(`Operación de tratamiento inválida para tabla2 E3L (${op || 'vacía'}).`);
+  }
+  if (!doc?.cantidad || Number(doc.cantidad) <= 0) {
+    errors.push('La cantidad neta del residuo (DCSClearWeight) debe ser mayor que 0.');
+  }
+
+  // En traslados con notificación previa, la NT es obligatoria según e3l-waste.xsd
+  const rawNt = String(doc?.numero_notificacion || doc?.nt_codigo || doc?.notificacion_previa_codigo || '').trim();
+  if (doc?.tipo_notificacion === 'con-notificacion-previa' && !/^NT[0-9]{23,24}$/.test(rawNt)) {
+    errors.push('El traslado requiere Notificación Previa (NT), pero falta un código NT oficial válido (^NT[0-9]{23,24}$).');
+  }
+
+  if (!doc?.productor_nima) warnings.push('Falta NIMA del centro productor.');
+  if (!doc?.gestor_nima) warnings.push('Falta NIMA de la instalación de destino.');
+  if (!doc?.transportista_nima) warnings.push('Falta NIMA del transportista.');
+  if (!doc?.productor_municipio || !doc?.gestor_municipio) {
+    warnings.push('Falta municipio oficial en origen o destino.');
+  }
+
+  return {
+    valid: errors.length === 0,
+    schemaVersion: 'E3L v3.6 (namespaces e3l://eterproject.org/3.0/*)',
+    errors,
+    warnings,
+  };
+}
+
 // ============================================================================
 // SERVICIO PRINCIPAL
 // ============================================================================
 
 export const siraService = {
+  validateDIForE3L(doc: any): E3LValidationResult {
+    return validateDIForE3L(doc);
+  },
+
   generateDIXml(doc: any): string {
     const date = new Date();
     const formattedDate = date.toISOString().split('T')[0];

@@ -265,7 +265,7 @@ describe('dashboardService - Dashboard Ejecutivo e Indicadores', () => {
       const res = await dashboardService.getExecutiveOverview();
 
       expect(res.alertas.disDiscrepanciaCount).toBe(1);
-      expect(res.alertas.lista[0].descripcion).toContain('-200 kg');
+      expect(res.alertas.lista.some((a) => a.descripcion.includes('-200 kg'))).toBe(true);
       expect(res.residuos.totalToneladas).toBe(3); // 1.0 + 2.0
       expect(res.comercial.totalOperaciones).toBe(0);
       expect(res.comercial.rentabilidadPorcentaje).toBe(0);
@@ -402,6 +402,173 @@ describe('dashboardService - Dashboard Ejecutivo e Indicadores', () => {
       const res = await dashboardService.getRecentActivity();
       expect(res).toEqual(mockRecent);
       expect(queryChain.limit).toHaveBeenCalledWith(6);
+    });
+  });
+
+  describe('conformidad normativa real (F07)', () => {
+    it('debe devolver estado pendiente cuando no hay registros evaluables', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      mockSupabase.from.mockImplementation(() => ({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+      }));
+
+      const res = await dashboardService.getExecutiveOverview();
+      expect(res.conformidad.estado).toBe('pendiente');
+      expect(res.conformidad.porcentaje).toBeNull();
+      expect(res.conformidad.totalEvaluados).toBe(0);
+    });
+
+    it('debe detectar incidencias por traslado sin contrato y operación ejecutada D01 no autorizada', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      const mockDIs = [
+        {
+          id: 115,
+          numero_documento: 'DI-115',
+          codigo_ler: '17 04 05',
+          operacion_tratamiento: 'R13',
+          operacion_tratamiento_ejecutada: 'D01',
+          tipo_notificacion: 'con-notificacion-previa',
+          estado_traslado: 'tratado',
+          estado: 'completado',
+          gestor_cif: 'B11111111',
+          cantidad: 1,
+          unidad: 'toneladas',
+          fecha_documento: '2026-11-09',
+        },
+        {
+          id: 116,
+          numero_documento: 'DI-116',
+          codigo_ler: '20 01 01',
+          operacion_tratamiento: 'D05',
+          tipo_notificacion: 'sin-notificacion',
+          contrato_externo_referencia: 'EXT-1',
+          estado_traslado: 'en_transito',
+          estado: 'activo',
+          cantidad: 0.5,
+          unidad: 'toneladas',
+          fecha_documento: '2026-11-09',
+        },
+      ];
+      const mockAuths = [
+        {
+          id: 1,
+          company_id: 20,
+          activo: true,
+          es_indefinida: true,
+          waste_codes: [{ codigo_ler: '17 04 05', operaciones_tratamiento: ['R04', 'R13'] }],
+        },
+      ];
+      const mockCompanies = [{ id: 20, cif: 'B11111111' }];
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        let data: any[] = [];
+        if (table === 'identification_documents') data = mockDIs;
+        else if (table === 'environmental_authorizations') data = mockAuths;
+        else if (table === 'companies') data = mockCompanies;
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data, error: null }),
+        };
+      });
+
+      const res = await dashboardService.getExecutiveOverview();
+      expect(res.conformidad.estado).toBe('incidencias');
+      expect(res.conformidad.porcentaje).toBeLessThan(100);
+      expect(res.alertas.disSinContratoCount).toBe(1);
+      expect(res.alertas.disTratamientoNoAutorizadoCount).toBe(2);
+      expect(res.alertas.totalCriticas).toBeGreaterThanOrEqual(3);
+    });
+
+    it('debe detectar LER no autorizado en matriz del gestor destino', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      const mockDIs = [
+        {
+          id: 117,
+          numero_documento: 'DI-117',
+          codigo_ler: '99 99 99',
+          operacion_tratamiento: 'R13',
+          contract_id: 5,
+          gestor_cif: 'B11111111',
+          gestor_razon_social: 'Gestor Demo',
+          estado_traslado: 'tratado',
+          estado: 'completado',
+          cantidad: 1,
+          unidad: 'toneladas',
+          fecha_documento: '2026-11-09',
+        },
+      ];
+      const mockContracts = [{ id: 5, gestor_company_id: 20, estado: 'vigente' }];
+      const mockAuths = [
+        {
+          id: 1,
+          company_id: 20,
+          activo: true,
+          es_indefinida: true,
+          waste_codes: [{ codigo_ler: '17 04 05', operaciones_tratamiento: ['R04'] }],
+        },
+      ];
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        let data: any[] = [];
+        if (table === 'identification_documents') data = mockDIs;
+        else if (table === 'waste_contracts') data = mockContracts;
+        else if (table === 'environmental_authorizations') data = mockAuths;
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data, error: null }),
+        };
+      });
+
+      const res = await dashboardService.getExecutiveOverview();
+      expect(res.alertas.disTratamientoNoAutorizadoCount).toBe(1);
+      expect(res.alertas.lista.some((a) => a.descripcion.includes('no figura en la matriz autorizada'))).toBe(true);
+    });
+
+    it('debe devolver conformidad 100% cuando todos los traslados tienen contrato y operación autorizada', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      const mockDIs = [
+        {
+          id: 116,
+          numero_documento: 'DI-116',
+          codigo_ler: '17 04 05',
+          operacion_tratamiento: 'R13',
+          operacion_tratamiento_ejecutada: 'R04',
+          estado_traslado: 'tratado',
+          estado: 'completado',
+          contract_id: 5,
+          gestor_cif: 'B11111111',
+          cantidad: 2,
+          unidad: 'toneladas',
+          fecha_documento: '2026-11-09',
+        },
+      ];
+      const mockAuths = [
+        {
+          id: 1,
+          company_id: 20,
+          company: { cif: 'B11111111' },
+          activo: true,
+          es_indefinida: true,
+          waste_codes: [{ codigo_ler: '17 04 05', operaciones_tratamiento: ['R04', 'R13'] }],
+        },
+      ];
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        let data: any[] = [];
+        if (table === 'identification_documents') data = mockDIs;
+        else if (table === 'environmental_authorizations') data = mockAuths;
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data, error: null }),
+        };
+      });
+
+      const res = await dashboardService.getExecutiveOverview();
+      expect(res.conformidad.estado).toBe('conforme');
+      expect(res.conformidad.porcentaje).toBe(100);
+      expect(res.alertas.disSinContratoCount).toBe(0);
+      expect(res.alertas.disTratamientoNoAutorizadoCount).toBe(0);
     });
   });
 });

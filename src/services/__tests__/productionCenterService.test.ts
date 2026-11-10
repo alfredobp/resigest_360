@@ -48,6 +48,11 @@ describe('productionCenterService - Entidad Centros de Producción', () => {
       expect(result).toEqual(mockCenters);
     });
 
+    it('debe fallar si el usuario no está autenticado', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
+      await expect(productionCenterService.getByCompanyId(10)).rejects.toThrow('Usuario no autenticado');
+    });
+
     it('debe lanzar un error descriptivo si la consulta falla', async () => {
       mockSupabase.auth.getUser.mockResolvedValue({
         data: { user: { id: 'user-uuid-123' } },
@@ -319,6 +324,13 @@ describe('productionCenterService - Entidad Centros de Producción', () => {
       await expect(productionCenterService.delete(1)).rejects.toThrow(
         'Error al eliminar centro de producción: Delete constraint violation'
       );
+    });
+
+    it('debe requerir autenticación en update, softDelete y delete', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
+      await expect(productionCenterService.update(1, { nombre: 'X' })).rejects.toThrow('Usuario no autenticado');
+      await expect(productionCenterService.softDelete(1)).rejects.toThrow('Usuario no autenticado');
+      await expect(productionCenterService.delete(1)).rejects.toThrow('Usuario no autenticado');
     });
   });
 });

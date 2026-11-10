@@ -588,7 +588,9 @@ export default function NuevoDocumentoIdentificacionPage() {
               )}
 
               <div>
-                <label htmlFor="contract_id" className="block text-sm font-medium mb-2">Contrato de Referencia (Opcional)</label>
+                <label htmlFor="contract_id" className="block text-sm font-medium mb-2">
+                  Contrato de Referencia <span className="text-xs text-muted font-normal">(Opcional en borrador; requerido al iniciar traslado)</span>
+                </label>
                 <Select
                   options={[
                     { value: '', label: contracts.length > 0 ? '-- Seleccionar Contrato --' : '-- Sin contratos vigentes con gestor --' },

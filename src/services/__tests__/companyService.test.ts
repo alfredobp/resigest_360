@@ -455,10 +455,11 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
     });
 
     it('hasCompany debe retornar true si el usuario tiene empresa', async () => {
-      jest.spyOn(companyService, 'getUserCompany').mockResolvedValue({ id: 1 } as any);
+      const spy = jest.spyOn(companyService, 'getUserCompany').mockResolvedValue({ id: 1 } as any);
 
       const has = await companyService.hasCompany();
       expect(has).toBe(true);
+      spy.mockRestore();
     });
   });
 
@@ -490,5 +491,77 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
         expect(companyService.validateNIMA(nima)).toBe(false);
       }
     );
+  });
+
+  describe('Gestión multiempresa (getMyCompanies y selección activa)', () => {
+    const store = new Map<string, string>();
+    const originalWindow = (global as any).window;
+    const originalLocalStorage = (global as any).localStorage;
+
+    beforeEach(() => {
+      store.clear();
+      (global as any).window = global;
+      (global as any).localStorage = {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, val: string) => {
+          store.set(key, String(val));
+        },
+        removeItem: (key: string) => {
+          store.delete(key);
+        },
+        clear: () => {
+          store.clear();
+        },
+      };
+    });
+
+    afterAll(() => {
+      (global as any).window = originalWindow;
+      (global as any).localStorage = originalLocalStorage;
+    });
+
+    it('setActiveCompanyId y getActiveCompanyId deben persistir, validar y limpiar el ID en localStorage', () => {
+      expect(companyService.getActiveCompanyId()).toBeNull();
+      companyService.setActiveCompanyId(42);
+      expect(companyService.getActiveCompanyId()).toBe(42);
+      companyService.setActiveCompanyId(null);
+      expect(companyService.getActiveCompanyId()).toBeNull();
+      store.set('resigest_active_company_id', 'invalido');
+      expect(companyService.getActiveCompanyId()).toBeNull();
+    });
+
+    it('getMyCompanies debe listar empresas propias activas del usuario y manejar errores', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
+      await expect(companyService.getMyCompanies()).rejects.toThrow('Usuario no autenticado');
+
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+      const ownList = [{ id: 1, razon_social: 'Empresa A' }, { id: 2, razon_social: 'Empresa B' }];
+      const orderMock = jest.fn().mockResolvedValue({ data: ownList, error: null });
+      const eqActivo = jest.fn().mockReturnValue({ order: orderMock });
+      const eqMine = jest.fn().mockReturnValue({ eq: eqActivo });
+      const eqUser = jest.fn().mockReturnValue({ eq: eqMine });
+      mockSupabase.from.mockReturnValue({ select: jest.fn().mockReturnValue({ eq: eqUser }) });
+
+      await expect(companyService.getMyCompanies()).resolves.toEqual(ownList);
+
+      orderMock.mockResolvedValueOnce({ data: null, error: { message: 'DB error' } });
+      await expect(companyService.getMyCompanies()).rejects.toThrow('Error al obtener empresas propias: DB error');
+    });
+
+    it('getUserCompany debe priorizar la empresa activa seleccionada en localStorage', async () => {
+      companyService.setActiveCompanyId(99);
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+
+      const selectedComp = { id: 99, razon_social: 'Empresa Activa 99' };
+      const maybeSingle = jest.fn().mockResolvedValue({ data: selectedComp, error: null });
+      const eqActivo = jest.fn().mockReturnValue({ maybeSingle });
+      const eqUser = jest.fn().mockReturnValue({ eq: eqActivo });
+      const eqId = jest.fn().mockReturnValue({ eq: eqUser });
+      mockSupabase.from.mockReturnValue({ select: jest.fn().mockReturnValue({ eq: eqId }) });
+
+      const result = await companyService.getUserCompany();
+      expect(result).toEqual(selectedComp);
+      expect(eqId).toHaveBeenCalledWith('id', 99);
+    });
   });
 });

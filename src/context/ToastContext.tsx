@@ -182,7 +182,7 @@ const ToastContainer: React.FC<{
   return (
     <div
       aria-live="polite"
-      className="fixed top-5 right-5 z-[999999] flex flex-col gap-2.5 max-w-sm sm:max-w-md w-full pointer-events-none px-4 sm:px-0 transition-all"
+      className="fixed top-5 right-5 z-[1000010] flex flex-col gap-2.5 max-w-sm sm:max-w-md w-full pointer-events-none px-4 sm:px-0 transition-all"
     >
       {toasts.map((t) => (
         <ToastCard key={t.id} item={t} onDismiss={() => onDismiss(t.id)} />

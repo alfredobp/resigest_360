@@ -4,6 +4,7 @@
 // =====================================================
 
 import { createClient } from '@/lib/supabase/client';
+import { auditService } from './auditService';
 import {
   type MemoriaAnual,
   type EstadoMemoria,
@@ -150,6 +151,18 @@ export async function createMemoria(data: CreateMemoriaData): Promise<MemoriaAnu
     throw new Error('No se pudo generar un número de memoria único tras varios intentos.');
   }
 
+  await auditService.logAction({
+    company_id: newMemoria.company_id ?? data.company_id ?? null,
+    entidad: 'memoria_anual',
+    entidad_id: newMemoria.id,
+    accion: 'crear',
+    detalles: {
+      numero_memoria: newMemoria.numero_memoria,
+      tipo_memoria: newMemoria.tipo_memoria,
+      año: newMemoria.año,
+    },
+  });
+
   return newMemoria;
 }
 
@@ -231,6 +244,17 @@ export async function updateMemoria(
     throw error;
   }
 
+  await auditService.logAction({
+    company_id: data?.company_id ?? null,
+    entidad: 'memoria_anual',
+    entidad_id: id,
+    accion: 'actualizar',
+    detalles: {
+      estado: updates.estado,
+      campos_actualizados: Object.keys(updates),
+    },
+  });
+
   return data;
 }
 
@@ -272,6 +296,12 @@ export async function deleteMemoria(id: number): Promise<boolean> {
     console.error('Error al eliminar memoria:', error);
     throw error;
   }
+
+  await auditService.logAction({
+    entidad: 'memoria_anual',
+    entidad_id: id,
+    accion: 'eliminar',
+  });
 
   return true;
 }

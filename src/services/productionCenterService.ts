@@ -4,6 +4,7 @@
 // =====================================================
 
 import { createClient } from '@/lib/supabase/client';
+import { auditService } from './auditService';
 import type { ProductionCenter, ProductionCenterFormData } from '@/types/wasteManagement';
 
 const supabase = createClient();
@@ -83,7 +84,20 @@ export const productionCenterService = {
             throw new Error(`Error al crear centro de producción: ${error.message}`);
         }
 
-        return data as ProductionCenter;
+        const created = data as ProductionCenter;
+
+        await auditService.logAction({
+            company_id: created.company_id ?? null,
+            entidad: 'centro_produccion',
+            entidad_id: created.id,
+            accion: 'crear',
+            detalles: {
+                nombre: created.nombre,
+                nima: created.nima,
+            },
+        });
+
+        return created;
     },
 
     /**
@@ -107,7 +121,20 @@ export const productionCenterService = {
             throw new Error(`Error al actualizar centro de producción: ${error.message}`);
         }
 
-        return data as ProductionCenter;
+        const updated = data as ProductionCenter;
+
+        await auditService.logAction({
+            company_id: updated.company_id ?? null,
+            entidad: 'centro_produccion',
+            entidad_id: updated.id,
+            accion: 'actualizar',
+            detalles: {
+                nombre: updated.nombre,
+                nima: updated.nima,
+            },
+        });
+
+        return updated;
     },
 
     /**
@@ -128,6 +155,13 @@ export const productionCenterService = {
         if (error) {
             throw new Error(`Error al desactivar centro de producción: ${error.message}`);
         }
+
+        await auditService.logAction({
+            entidad: 'centro_produccion',
+            entidad_id: id,
+            accion: 'eliminar',
+            detalles: { soft_delete: true },
+        });
     },
 
     /**
@@ -148,6 +182,13 @@ export const productionCenterService = {
         if (error) {
             throw new Error(`Error al eliminar centro de producción: ${error.message}`);
         }
+
+        await auditService.logAction({
+            entidad: 'centro_produccion',
+            entidad_id: id,
+            accion: 'eliminar',
+            detalles: { soft_delete: false },
+        });
     },
 };
 

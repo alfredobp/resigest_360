@@ -4,19 +4,88 @@
 // =====================================================
 
 import { createClient } from '@/lib/supabase/client';
+import { auditService } from './auditService';
 import type { Company, CompanyFormData } from '@/types/wasteManagement';
 
 const supabase = createClient();
+const ACTIVE_COMPANY_STORAGE_KEY = 'resigest_active_company_id';
 
 export const companyService = {
   /**
-   * Obtener la empresa del usuario actual (empresa propia)
+   * Lee o persiste el ID de empresa activa seleccionada por el usuario multiempresa.
+   */
+  getActiveCompanyId(): number | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(ACTIVE_COMPANY_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = Number(raw);
+      return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+    } catch {
+      return null;
+    }
+  },
+
+  setActiveCompanyId(companyId: number | null): void {
+    if (typeof window === 'undefined') return;
+    try {
+      if (companyId === null) {
+        localStorage.removeItem(ACTIVE_COMPANY_STORAGE_KEY);
+      } else {
+        localStorage.setItem(ACTIVE_COMPANY_STORAGE_KEY, String(companyId));
+      }
+    } catch {
+      // Ignorar errores de almacenamiento en entornos restringidos
+    }
+  },
+
+  /**
+   * Lista todas las empresas marcadas como propias del tenant actual.
+   */
+  async getMyCompanies(): Promise<Company[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    const { data, error } = await supabase
+      .from('companies')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_my_company', true)
+      .eq('activo', true)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new Error(`Error al obtener empresas propias: ${error.message}`);
+    }
+
+    return (data || []) as Company[];
+  },
+
+  /**
+   * Obtener la empresa del usuario actual (empresa propia o activa seleccionada)
    */
   async getUserCompany(): Promise<Company | null> {
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) {
       throw new Error('Usuario no autenticado');
+    }
+
+    const activeId = this.getActiveCompanyId();
+    if (activeId) {
+      const { data: activeComp, error: activeErr } = await supabase
+        .from('companies')
+        .select('*')
+        .eq('id', activeId)
+        .eq('user_id', user.id)
+        .eq('activo', true)
+        .maybeSingle();
+
+      if (!activeErr && activeComp) {
+        return activeComp as Company;
+      }
     }
 
     // Priorizar empresa marcada explícitamente como propia
@@ -78,7 +147,7 @@ export const companyService = {
    */
   async getAllContacts(): Promise<Company[]> {
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) {
       throw new Error('Usuario no autenticado');
     }
@@ -102,7 +171,7 @@ export const companyService = {
    */
   async getAll(): Promise<Company[]> {
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) {
       throw new Error('Usuario no autenticado');
     }
@@ -198,8 +267,8 @@ export const companyService = {
     }
 
     // Normalizar roles
-    const roles = companyData.roles && companyData.roles.length > 0 
-      ? companyData.roles 
+    const roles = companyData.roles && companyData.roles.length > 0
+      ? companyData.roles
       : (companyData.tipo_empresa ? [companyData.tipo_empresa] : ['productor']);
 
     const primaryType = roles[0] || companyData.tipo_empresa || 'productor';
@@ -239,7 +308,21 @@ export const companyService = {
       throw new Error(`Error al crear empresa: ${error.message}`);
     }
 
-    return data as Company;
+    const created = data as Company;
+
+    await auditService.logAction({
+      company_id: created.id,
+      entidad: 'empresa',
+      entidad_id: created.id,
+      accion: 'crear',
+      detalles: {
+        razon_social: created.razon_social,
+        cif: created.cif,
+        roles: created.roles,
+      },
+    });
+
+    return created;
   },
 
   /**
@@ -263,7 +346,20 @@ export const companyService = {
       throw new Error(`Error al actualizar empresa: ${error.message}`);
     }
 
-    return data as Company;
+    const updated = data as Company;
+
+    await auditService.logAction({
+      company_id: updated.id,
+      entidad: 'empresa',
+      entidad_id: updated.id,
+      accion: 'editar',
+      detalles: {
+        razon_social: updated.razon_social,
+        cif: updated.cif,
+      },
+    });
+
+    return updated;
   },
 
   /**
@@ -284,6 +380,14 @@ export const companyService = {
     if (error) {
       throw new Error(`Error al desactivar empresa: ${error.message}`);
     }
+
+    await auditService.logAction({
+      company_id: id,
+      entidad: 'empresa',
+      entidad_id: id,
+      accion: 'eliminar',
+      detalles: { soft_delete: true },
+    });
   },
 
   /**
@@ -304,6 +408,14 @@ export const companyService = {
     if (error) {
       throw new Error(`Error al eliminar empresa: ${error.message}`);
     }
+
+    await auditService.logAction({
+      company_id: id,
+      entidad: 'empresa',
+      entidad_id: id,
+      accion: 'eliminar',
+      detalles: { soft_delete: false },
+    });
   },
 
   /**

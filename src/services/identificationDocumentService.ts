@@ -5,6 +5,8 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { syncEntryFromDI } from '@/services/chronologicalRegistryService';
+import { auditService } from '@/services/auditService';
+import { authorizationService } from '@/services/authorizationService';
 import type {
   IdentificationDocument,
   EstadoTraslado,
@@ -12,9 +14,128 @@ import type {
   RecordReceptionPayload,
   RecordIncidentPayload,
   CompleteTreatmentPayload,
+  WasteContract,
 } from '@/types/wasteManagement';
 
 const supabase = createClient();
+
+/**
+ * Normaliza códigos de operación R/D para comparaciones consistentes (ej: 'R4' -> 'R04', 'D1' -> 'D01').
+ */
+export function normalizeOperationCode(op?: string | null): string {
+  if (!op) return '';
+  const cleaned = op.trim().toUpperCase();
+  const match = cleaned.match(/^([RD])(\d{1,2})$/);
+  if (!match) return cleaned;
+  return `${match[1]}${match[2].padStart(2, '0')}`;
+}
+
+/**
+ * Convierte un valor datetime-local ('YYYY-MM-DDTHH:mm') o ISO a ISO UTC conservando el instante local.
+ */
+export function normalizeLocalDateTimeToIso(value?: string | null): string {
+  if (!value) return new Date().toISOString();
+  const trimmed = value.trim();
+  // Si ya incluye zona horaria ('Z' o '+HH:MM' / '-HH:MM'), respetar tal cual
+  if (/(Z|[+-]\d{2}:\d{2})$/.test(trimmed)) {
+    return trimmed;
+  }
+  const parsed = new Date(trimmed);
+  if (isNaN(parsed.getTime())) {
+    return new Date().toISOString();
+  }
+  return parsed.toISOString();
+}
+
+/**
+ * Carga el contrato vinculado (si existe) y el alcance de autorización ambiental del gestor destinatario.
+ */
+async function resolveDestinationValidationContext(
+  doc: IdentificationDocument,
+  userId: string,
+  overrideContractId?: number,
+  referenceDate?: string
+): Promise<{
+  contract: WasteContract | null;
+  gestorCompanyId: number | null;
+  hasAuthConfigured: boolean;
+  isAuthValid: boolean;
+  authorizedOpsForLer: string[];
+}> {
+  let contract: WasteContract | null = doc.contract || null;
+  const effectiveContractId = overrideContractId || doc.contract_id;
+
+  if (!contract && effectiveContractId) {
+    try {
+      const wcBuilder = supabase.from('waste_contracts');
+      if (wcBuilder) {
+        const { data } = await wcBuilder
+          .select('*, contract_waste_codes(*)')
+          .eq('id', effectiveContractId)
+          .maybeSingle();
+        if (data) contract = data as WasteContract;
+      }
+    } catch {
+      // Ignorar si no es accesible en mock
+    }
+  } else if (contract && (!contract.contract_waste_codes || contract.contract_waste_codes.length === 0)) {
+    try {
+      const cwcBuilder = supabase.from('contract_waste_codes');
+      if (cwcBuilder) {
+        const { data: wasteCodes } = await cwcBuilder
+          .select('*')
+          .eq('contract_id', contract.id);
+        if (wasteCodes) contract.contract_waste_codes = wasteCodes;
+      }
+    } catch {
+      // Ignorar si mock parcial
+    }
+  }
+
+  let gestorCompanyId: number | null = contract?.gestor_company_id || null;
+  if (!gestorCompanyId && doc.gestor_cif) {
+    try {
+      const compBuilder = supabase.from('companies');
+      if (compBuilder) {
+        const { data: comps } = await compBuilder
+          .select('id, cif')
+          .eq('user_id', userId);
+        const normGestorCif = doc.gestor_cif.trim().toUpperCase();
+        const found = (comps || []).find(
+          (c: any) => c.cif && String(c.cif).trim().toUpperCase() === normGestorCif
+        );
+        if (found) gestorCompanyId = found.id;
+      }
+    } catch {
+      // Ignorar en mock parcial
+    }
+  }
+
+  let hasAuthConfigured = false;
+  let isAuthValid = true;
+  let authorizedOpsForLer: string[] = [];
+
+  if (gestorCompanyId) {
+    const scope = await authorizationService.getAuthorizedScope(
+      gestorCompanyId,
+      contract?.gestor_center_id || null,
+      referenceDate || doc.fecha_documento
+    );
+    hasAuthConfigured = scope.hasAnyAuthorizationConfigured;
+    isAuthValid = scope.isAuthorized;
+    const cleanLer = (doc.codigo_ler || '').trim();
+    const rawOps = scope.authorizedLers[cleanLer] || [];
+    authorizedOpsForLer = rawOps.map((op) => normalizeOperationCode(op));
+  }
+
+  return {
+    contract,
+    gestorCompanyId,
+    hasAuthConfigured,
+    isAuthValid,
+    authorizedOpsForLer,
+  };
+}
 
 export const identificationDocumentService = {
   /**
@@ -142,7 +263,21 @@ export const identificationDocumentService = {
       throw new Error(`Error al crear documento: ${error.message}`);
     }
 
-    return data as IdentificationDocument;
+    const created = data as IdentificationDocument;
+    await auditService.logAction({
+      company_id: created.company_id,
+      entidad: 'di',
+      entidad_id: created.id,
+      accion: 'crear',
+      detalles: {
+        numero_documento: created.numero_documento,
+        codigo_ler: created.codigo_ler,
+        operacion_prevista: created.operacion_tratamiento,
+        contract_id: created.contract_id || null,
+      },
+    });
+
+    return created;
   },
 
   /**
@@ -192,6 +327,13 @@ export const identificationDocumentService = {
     if (error) {
       throw new Error(`Error al eliminar documento: ${error.message}`);
     }
+
+    await auditService.logAction({
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'eliminar',
+      detalles: { identification_document_id: id },
+    });
   },
 
   /**
@@ -276,14 +418,85 @@ export const identificationDocumentService = {
       if (signerInfo?.dni) updateData.dni_transportista = signerInfo.dni;
     }
 
-    return this.update(id, updateData);
+    const updated = await this.update(id, updateData);
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'actualizar',
+      detalles: { role, firmado: true, con_trazo: Boolean(signatureUrl) },
+    });
+    return updated;
   },
 
   /**
    * 1. Iniciar Traslado / Registrar Salida (Transportista)
+   * Exige contrato vigente compatible o acreditación externa antes de pasar a 'en_transito' (F03).
    */
   async recordDeparture(id: number, payload: RecordDeparturePayload): Promise<IdentificationDocument> {
-    const now = new Date().toISOString();
+    const { data: { user } } = await supabase.auth.getUser();
+    const doc = await this.getById(id);
+
+    const effectiveContractId = payload.contract_id || doc.contract_id;
+    const extRef = (payload.contrato_externo_referencia || doc.contrato_externo_referencia || '').trim();
+    const extEvidence = (payload.contrato_externo_evidencia_url || doc.contrato_externo_evidencia_url || '').trim();
+    const exceptionReason = (payload.supuesto_excepcion_contrato || doc.supuesto_excepcion_contrato || '').trim();
+
+    // Validación de contrato o acreditación externa (art. 5 RD 553/2020)
+    const { contract, hasAuthConfigured, isAuthValid, authorizedOpsForLer } =
+      await resolveDestinationValidationContext(
+        doc,
+        user?.id || doc.user_id,
+        effectiveContractId,
+        payload.fecha_salida || doc.fecha_documento
+      );
+
+    if (effectiveContractId) {
+      if (!contract) {
+        throw new Error('No se puede iniciar el traslado: el contrato vinculado no existe o no es accesible.');
+      }
+      if (contract.estado !== 'vigente') {
+        throw new Error(`No se puede iniciar el traslado: el contrato ${contract.numero_contrato || contract.id} está en estado '${contract.estado}' y debe estar vigente.`);
+      }
+      const depDate = new Date(payload.fecha_salida || doc.fecha_documento || new Date());
+      if (contract.fecha_fin && new Date(contract.fecha_fin) < new Date(depDate.toISOString().split('T')[0])) {
+        throw new Error(`No se puede iniciar el traslado: el contrato ${contract.numero_contrato || contract.id} venció el ${contract.fecha_fin}.`);
+      }
+      if (
+        contract.codigos_ler &&
+        contract.codigos_ler.length > 0 &&
+        doc.codigo_ler &&
+        !contract.codigos_ler.some((ler) => ler.trim() === doc.codigo_ler.trim())
+      ) {
+        throw new Error(`No se puede iniciar el traslado: el LER ${doc.codigo_ler} no está incluido en el contrato ${contract.numero_contrato || contract.id}.`);
+      }
+    } else if (!extRef || (!extEvidence && !exceptionReason)) {
+      throw new Error(
+        'No se puede iniciar el traslado: debe vincular un contrato de tratamiento vigente o acreditar un contrato externo (referencia y justificante/supuesto legal según art. 5 RD 553/2020).'
+      );
+    }
+
+    // Validar operación prevista contra régimen de notificación y autorización ambiental
+    const plannedOp = normalizeOperationCode(doc.operacion_tratamiento);
+    if (plannedOp && plannedOp.startsWith('D') && doc.tipo_notificacion === 'sin-notificacion') {
+      throw new Error(
+        `No se puede iniciar el traslado: la operación prevista ${plannedOp} (eliminación) exige Notificación Previa (art. 3.2 RD 553/2020).`
+      );
+    }
+    if (hasAuthConfigured) {
+      if (!isAuthValid) {
+        throw new Error('No se puede iniciar el traslado: la autorización ambiental del gestor destinatario ha caducado.');
+      }
+      if (doc.codigo_ler && authorizedOpsForLer.length === 0) {
+        throw new Error(`No se puede iniciar el traslado: el gestor destino no tiene autorizado el LER ${doc.codigo_ler}.`);
+      }
+      if (plannedOp && authorizedOpsForLer.length > 0 && !authorizedOpsForLer.includes(plannedOp)) {
+        throw new Error(
+          `No se puede iniciar el traslado: la operación prevista ${plannedOp} no está autorizada para el LER ${doc.codigo_ler} (autorizadas: ${authorizedOpsForLer.join(', ')}).`
+        );
+      }
+    }
+
     const { signatureBase64, ...rest } = payload;
     let firma_transportista_url = payload.firma_transportista_url;
 
@@ -291,13 +504,31 @@ export const identificationDocumentService = {
       firma_transportista_url = await this.uploadSignatureImage(id, 'transportista', signatureBase64);
     }
 
-    return this.update(id, {
+    const fechaSalidaIso = normalizeLocalDateTimeToIso(payload.fecha_salida);
+
+    const updated = await this.update(id, {
       ...rest,
+      fecha_salida: fechaSalidaIso,
       firma_transportista_url,
       estado_traslado: 'en_transito',
       firmado_transportista: true,
-      fecha_firma_transportista: payload.fecha_salida || now,
+      fecha_firma_transportista: fechaSalidaIso,
     });
+
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'cambiar_estado',
+      detalles: {
+        estado_traslado: 'en_transito',
+        contract_id: updated.contract_id || null,
+        contrato_externo_referencia: updated.contrato_externo_referencia || null,
+        fecha_salida: fechaSalidaIso,
+      },
+    });
+
+    return updated;
   },
 
   /**
@@ -305,7 +536,6 @@ export const identificationDocumentService = {
    */
   async recordReception(id: number, payload: RecordReceptionPayload): Promise<IdentificationDocument> {
     const doc = await this.getById(id);
-    const now = new Date().toISOString();
     const { signatureBase64, ...rest } = payload;
     let firma_gestor_url = payload.firma_gestor_url;
 
@@ -327,15 +557,18 @@ export const identificationDocumentService = {
       nuevoEstadoTraslado = 'rechazado_total';
     }
 
+    const fechaLlegadaIso = normalizeLocalDateTimeToIso(payload.fecha_llegada_destino);
+
     const updated = await this.update(id, {
       ...rest,
+      fecha_llegada_destino: fechaLlegadaIso,
       firma_gestor_url,
       peso_origen_kg: pesoOrigen,
       diferencia_peso_kg: parseFloat(diferencia.toFixed(3)),
       porcentaje_discrepancia: parseFloat(porcentaje.toFixed(2)),
       estado_traslado: nuevoEstadoTraslado,
       firmado_gestor: true,
-      fecha_firma_gestor: payload.fecha_llegada_destino || now,
+      fecha_firma_gestor: fechaLlegadaIso,
     });
 
     if (nuevoEstadoTraslado === 'aceptado') {
@@ -346,6 +579,21 @@ export const identificationDocumentService = {
       }
     }
 
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'recepcionar_pesada',
+      detalles: {
+        estado_traslado: nuevoEstadoTraslado,
+        peso_origen_kg: pesoOrigen,
+        peso_destino_kg: pesoDestino,
+        diferencia_peso_kg: updated.diferencia_peso_kg,
+        porcentaje_discrepancia: updated.porcentaje_discrepancia,
+        fecha_llegada_destino: fechaLlegadaIso,
+      },
+    });
+
     return updated;
   },
 
@@ -353,24 +601,100 @@ export const identificationDocumentService = {
    * 3. Registrar Incidencia o Rechazo
    */
   async recordIncident(id: number, payload: RecordIncidentPayload): Promise<IdentificationDocument> {
-    return this.update(id, {
+    const updated = await this.update(id, {
       tipo_incidencia: payload.tipo_incidencia,
       motivo_incidencia: payload.motivo_incidencia,
       resultado_recepcion: payload.resultado_recepcion,
       cantidad_rechazada_kg: payload.cantidad_rechazada_kg,
       estado_traslado: payload.resultado_recepcion,
     });
+
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'registrar_incidencia',
+      detalles: { ...payload },
+    });
+
+    return updated;
   },
 
   /**
    * 4. Certificar Tratamiento y Cierre (RD 553/2020)
+   * Valida autorización, contrato y régimen de notificación antes de escribir (F02),
+   * y conserva por separado operación prevista y ejecutada.
    */
   async completeTreatment(id: number, payload: CompleteTreatmentPayload): Promise<IdentificationDocument> {
-    const now = new Date().toISOString();
+    const { data: { user } } = await supabase.auth.getUser();
+    const doc = await this.getById(id);
+    const executedOp = normalizeOperationCode(payload.operacion_tratamiento);
+
+    if (!executedOp || !/^[RD]\d{2}$/.test(executedOp)) {
+      throw new Error(`Operación de tratamiento inválida: '${payload.operacion_tratamiento}'. Debe indicar un código R01–R13 o D01–D15.`);
+    }
+
+    // Idempotencia ante reintentos: si ya está cerrado con la misma operación, devolver sin duplicar
+    if (doc.estado_traslado === 'tratado' && doc.estado === 'completado') {
+      const currentExec = normalizeOperationCode(doc.operacion_tratamiento_ejecutada || doc.operacion_tratamiento);
+      if (currentExec === executedOp) {
+        return doc;
+      }
+      throw new Error(`El DI ya fue cerrado anteriormente con la operación ${currentExec} y no puede sobrescribirse.`);
+    }
+
+    // Validar compatibilidad con régimen de notificación previa (art. 3.2 RD 553/2020)
+    if (executedOp.startsWith('D') && doc.tipo_notificacion === 'sin-notificacion') {
+      throw new Error(
+        `Operación ${executedOp} denegada: las operaciones de eliminación requieren Notificación Previa y este DI figura como 'Sin Notificación' (art. 3.2 RD 553/2020).`
+      );
+    }
+
+    // Validar contrato y autorización ambiental del gestor destino para el LER y operación
+    const { contract, hasAuthConfigured, isAuthValid, authorizedOpsForLer } =
+      await resolveDestinationValidationContext(
+        doc,
+        user?.id || doc.user_id,
+        doc.contract_id,
+        payload.fecha_tratamiento || doc.fecha_documento
+      );
+
+    if (contract) {
+      const contractOps = (contract.contract_waste_codes || [])
+        .filter((wc) => wc.codigo_ler?.trim() === doc.codigo_ler?.trim())
+        .map((wc) => normalizeOperationCode(wc.operacion_tratamiento));
+      const fallbackOps = (contract.operaciones_tratamiento || []).map((op) => normalizeOperationCode(op));
+      const allowedContractOps = contractOps.length > 0 ? contractOps : fallbackOps;
+
+      if (allowedContractOps.length > 0 && !allowedContractOps.includes(executedOp)) {
+        throw new Error(
+          `Operación ${executedOp} denegada: no está amparada por el contrato ${contract.numero_contrato || contract.id} para el LER ${doc.codigo_ler} (amparadas: ${allowedContractOps.join(', ')}).`
+        );
+      }
+    }
+
+    if (hasAuthConfigured) {
+      if (!isAuthValid) {
+        throw new Error('Operación denegada: la autorización ambiental del gestor destinatario ha caducado.');
+      }
+      if (authorizedOpsForLer.length === 0) {
+        throw new Error(`Operación ${executedOp} denegada: el LER ${doc.codigo_ler} no figura autorizado en el destino.`);
+      }
+      if (!authorizedOpsForLer.includes(executedOp)) {
+        throw new Error(
+          `Operación ${executedOp} denegada: la autorización del gestor para el LER ${doc.codigo_ler} solo contempla ${authorizedOpsForLer.join(', ')}.`
+        );
+      }
+    }
+
+    const fechaTratamientoIso = normalizeLocalDateTimeToIso(payload.fecha_tratamiento);
+
+    // Conservar operacion_tratamiento (prevista) intacta; guardar ejecutada por separado
     const updated = await this.update(id, {
-      operacion_tratamiento: payload.operacion_tratamiento,
+      operacion_tratamiento: doc.operacion_tratamiento || executedOp,
+      operacion_tratamiento_ejecutada: executedOp,
       descripcion_tratamiento: payload.descripcion_tratamiento,
-      fecha_tratamiento: payload.fecha_tratamiento || now,
+      fecha_tratamiento: fechaTratamientoIso,
       estado_traslado: 'tratado',
       estado: 'completado',
       notas: payload.notas,
@@ -381,6 +705,19 @@ export const identificationDocumentService = {
     } catch (e) {
       console.warn('Advertencia: no se pudo sincronizar automáticamente con el archivo cronológico:', e);
     }
+
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'cambiar_estado',
+      detalles: {
+        estado_traslado: 'tratado',
+        operacion_prevista: updated.operacion_tratamiento,
+        operacion_ejecutada: executedOp,
+        fecha_tratamiento: fechaTratamientoIso,
+      },
+    });
 
     return updated;
   },

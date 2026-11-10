@@ -4,6 +4,7 @@
 // =====================================================
 
 import { createClient } from '@/lib/supabase/client';
+import { auditService } from './auditService';
 import type {
   EnvironmentalAuthorization,
   EnvironmentalAuthorizationFormData,
@@ -216,6 +217,18 @@ export const authorizationService = {
       }
     }
 
+    await auditService.logAction({
+      company_id: createdAuth.company_id ?? null,
+      entidad: 'autorizacion',
+      entidad_id: createdAuth.id,
+      accion: 'crear',
+      detalles: {
+        numero_autorizacion: createdAuth.numero_autorizacion,
+        titulo: createdAuth.titulo,
+        codigos_ler: (waste_codes || []).map((wc) => wc.codigo_ler),
+      },
+    });
+
     return createdAuth;
   },
 
@@ -271,7 +284,21 @@ export const authorizationService = {
       }
     }
 
-    return data as EnvironmentalAuthorization;
+    const updatedAuth = data as EnvironmentalAuthorization;
+
+    await auditService.logAction({
+      company_id: updatedAuth.company_id ?? null,
+      entidad: 'autorizacion',
+      entidad_id: updatedAuth.id,
+      accion: 'actualizar',
+      detalles: {
+        numero_autorizacion: updatedAuth.numero_autorizacion,
+        titulo: updatedAuth.titulo,
+        codigos_ler: waste_codes ? waste_codes.map((wc) => wc.codigo_ler) : undefined,
+      },
+    });
+
+    return updatedAuth;
   },
 
   /**
@@ -293,6 +320,13 @@ export const authorizationService = {
     if (error) {
       throw new Error(`Error al eliminar autorización: ${error.message}`);
     }
+
+    await auditService.logAction({
+      entidad: 'autorizacion',
+      entidad_id: id,
+      accion: 'eliminar',
+      detalles: { soft_delete: true },
+    });
   },
 };
 

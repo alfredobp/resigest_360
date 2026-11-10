@@ -15,9 +15,22 @@ function formatSafeDate(d?: string | null): string {
 
 function formatSafeDateTime(d?: string | null): string {
   if (!d) return '';
+  // Si solo contiene fecha (YYYY-MM-DD sin componente horario), no inventar hora (evita 01:00 CET)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d.trim())) {
+    const [y, m, day] = d.trim().split('-').map(Number);
+    const localDate = new Date(y, m - 1, day);
+    return isNaN(localDate.getTime()) ? '' : localDate.toLocaleDateString('es-ES');
+  }
   const date = new Date(d);
   if (isNaN(date.getTime())) return '';
-  return date.toLocaleString('es-ES');
+  return date.toLocaleString('es-ES', {
+    timeZone: 'Europe/Madrid',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 /**
@@ -744,15 +757,22 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
   yPos += (descRes.length * 4) + 2;
 
   doc.setFont('helvetica', 'bold');
-  doc.text('Operación Prevista:', 18, yPos);
+  doc.text('Op. Prevista:', 18, yPos);
   doc.setFont('helvetica', 'normal');
-  doc.text(docData.operacion_tratamiento || 'Según contrato / autorización', 48, yPos);
+  doc.text(docData.operacion_tratamiento || 'Según contrato / autorización', 42, yPos);
+
+  if (docData.operacion_tratamiento_ejecutada) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Op. Ejecutada:', 88, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(docData.operacion_tratamiento_ejecutada, 114, yPos);
+  }
 
   if (docData.numero_envases || docData.tipo_envases) {
     doc.setFont('helvetica', 'bold');
-    doc.text('Envases:', 130, yPos);
+    doc.text('Envases:', 135, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(`${docData.numero_envases || '-'} (${docData.tipo_envases || 'bultos'})`, 150, yPos);
+    doc.text(`${docData.numero_envases || '-'} (${docData.tipo_envases || 'bultos'})`, 152, yPos);
   }
   yPos += 6;
 
@@ -837,7 +857,15 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
   doc.setFont('helvetica', 'bold');
   doc.text('EL PRODUCTOR / REMITENTE', 18, yPos + 4);
   doc.setFont('helvetica', 'normal');
-  doc.text(docData.firmado_productor ? '✓ Firmado en salida' : 'Pendiente de firma', 18, yPos + 8);
+  doc.text(
+    docData.firmado_productor
+      ? docData.firma_productor_url
+        ? '✓ Firmado en salida'
+        : '✓ Identificado (sin firma)'
+      : 'Pendiente de firma',
+    18,
+    yPos + 8
+  );
   if (docData.nombre_productor) {
     doc.setFontSize(6.5);
     doc.text(fitText(doc, `${docData.nombre_productor} ${docData.dni_productor ? `(${docData.dni_productor})` : ''}`, 50), 18, yPos + 11.5);
@@ -863,7 +891,15 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
   doc.setFont('helvetica', 'bold');
   doc.text('EL TRANSPORTISTA', 80, yPos + 4);
   doc.setFont('helvetica', 'normal');
-  doc.text(docData.firmado_transportista ? '✓ Conforme en carga' : 'Pendiente de firma', 80, yPos + 8);
+  doc.text(
+    docData.firmado_transportista
+      ? docData.firma_transportista_url
+        ? '✓ Conforme y firmado en carga'
+        : '✓ Conforme en carga (sin trazo)'
+      : 'Pendiente de firma',
+    80,
+    yPos + 8
+  );
   if (docData.nombre_transportista) {
     doc.setFontSize(6.5);
     doc.text(fitText(doc, `${docData.nombre_transportista} ${docData.dni_transportista ? `(${docData.dni_transportista})` : ''}`, 50), 80, yPos + 11.5);
@@ -889,7 +925,15 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
   doc.setFont('helvetica', 'bold');
   doc.text('EL GESTOR DESTINATARIO', 142, yPos + 4);
   doc.setFont('helvetica', 'normal');
-  doc.text(docData.firmado_gestor ? '✓ Recepcionado y pesado' : 'Pendiente de recepción', 142, yPos + 8);
+  doc.text(
+    docData.firmado_gestor
+      ? docData.firma_gestor_url
+        ? '✓ Recepcionado y firmado'
+        : '✓ Recepcionado (sin trazo)'
+      : 'Pendiente de recepción',
+    142,
+    yPos + 8
+  );
   if (docData.nombre_gestor) {
     doc.setFontSize(6.5);
     doc.text(fitText(doc, `${docData.nombre_gestor} ${docData.dni_gestor ? `(${docData.dni_gestor})` : ''}`, 50), 142, yPos + 11.5);

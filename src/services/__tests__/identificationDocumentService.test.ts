@@ -391,6 +391,17 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
 
   describe('Ciclo de vida del traslado (departure, reception, incident, treatment)', () => {
     it('recordDeparture debe marcar traslado en_transito y firma de transportista', async () => {
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 1,
+        codigo_ler: '15 01 01',
+        operacion_tratamiento: 'R13',
+        contract_id: 10,
+        contract: {
+          id: 10,
+          estado: 'vigente',
+          contract_waste_codes: [{ codigo_ler: '15 01 01', operacion_tratamiento: 'R13' }],
+        },
+      } as any);
       const spyUpdate = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({ id: 1 } as any);
 
       await identificationDocumentService.recordDeparture(1, {
@@ -407,6 +418,17 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
     });
 
     it('recordDeparture con signatureBase64 debe subir firma y guardarla', async () => {
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 1,
+        codigo_ler: '15 01 01',
+        operacion_tratamiento: 'R13',
+        contract_id: 10,
+        contract: {
+          id: 10,
+          estado: 'vigente',
+          contract_waste_codes: [{ codigo_ler: '15 01 01', operacion_tratamiento: 'R13' }],
+        },
+      } as any);
       jest.spyOn(identificationDocumentService, 'uploadSignatureImage').mockResolvedValue('https://example.com/sig-trans.png');
       const spyUpdate = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({ id: 1 } as any);
 
@@ -521,6 +543,15 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
       const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
       mockSyncEntryFromDI.mockRejectedValueOnce(new Error('Sync failed in completeTreatment'));
 
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 1,
+        codigo_ler: '15 01 01',
+        operacion_tratamiento: 'R13',
+        estado: 'activo',
+        estado_traslado: 'aceptado',
+        tipo_notificacion: 'sin-notificacion',
+      } as any);
+
       const updatedDoc = { id: 1, estado_traslado: 'tratado', estado: 'completado' } as any;
       jest.spyOn(identificationDocumentService, 'update').mockResolvedValue(updatedDoc);
 
@@ -555,6 +586,15 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
     });
 
     it('completeTreatment debe certificar tratamiento y cerrar documento con sync', async () => {
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 1,
+        codigo_ler: '15 01 01',
+        operacion_tratamiento: 'R13',
+        estado: 'activo',
+        estado_traslado: 'aceptado',
+        tipo_notificacion: 'sin-notificacion',
+      } as any);
+
       const updatedDoc = { id: 1, estado_traslado: 'tratado', estado: 'completado' } as any;
       jest.spyOn(identificationDocumentService, 'update').mockResolvedValue(updatedDoc);
 
@@ -564,11 +604,256 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
       });
 
       expect(identificationDocumentService.update).toHaveBeenCalledWith(1, expect.objectContaining({
-        operacion_tratamiento: 'R03',
+        operacion_tratamiento: 'R13',
+        operacion_tratamiento_ejecutada: 'R03',
         estado_traslado: 'tratado',
         estado: 'completado',
       }));
       expect(mockSyncEntryFromDI).toHaveBeenCalledWith(updatedDoc);
+    });
+
+    it('recordDeparture debe bloquear la salida sin contrato vinculado ni acreditación externa y validar contratos/autorizaciones', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+
+      // 1. Sin contrato ni acreditación externa
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 50,
+        codigo_ler: '17 04 05',
+        operacion_tratamiento: 'R13',
+        tipo_notificacion: 'sin-notificacion',
+      } as any);
+
+      await expect(
+        identificationDocumentService.recordDeparture(50, {
+          fecha_salida: '2026-11-10T12:40',
+        })
+      ).rejects.toThrow('art. 5 RD 553/2020');
+
+      // 2. Contrato vinculado no encontrado
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 51,
+        codigo_ler: '17 04 05',
+        operacion_tratamiento: 'R13',
+        contract_id: 999,
+      } as any);
+      mockSupabase.from.mockImplementation(() => ({
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      }));
+      await expect(
+        identificationDocumentService.recordDeparture(51, { fecha_salida: '2026-11-10T12:40' })
+      ).rejects.toThrow('no existe o no es accesible');
+
+      // 3. Contrato en borrador / vencido / LER no incluido
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 52,
+        codigo_ler: '17 04 05',
+        operacion_tratamiento: 'R13',
+        contract_id: 10,
+        contract: { id: 10, numero_contrato: 'CT-1', estado: 'borrador', contract_waste_codes: [{ codigo_ler: '17 04 05' }] },
+      } as any);
+      await expect(
+        identificationDocumentService.recordDeparture(52, { fecha_salida: '2026-11-10T12:40' })
+      ).rejects.toThrow("estado 'borrador'");
+
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 53,
+        codigo_ler: '17 04 05',
+        operacion_tratamiento: 'R13',
+        contract_id: 10,
+        contract: { id: 10, numero_contrato: 'CT-1', estado: 'vigente', fecha_fin: '2020-01-01', contract_waste_codes: [{ codigo_ler: '17 04 05' }] },
+      } as any);
+      await expect(
+        identificationDocumentService.recordDeparture(53, { fecha_salida: '2026-11-10T12:40' })
+      ).rejects.toThrow('venció');
+
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 54,
+        codigo_ler: '17 04 05',
+        operacion_tratamiento: 'R13',
+        contract_id: 10,
+        contract: { id: 10, numero_contrato: 'CT-1', estado: 'vigente', codigos_ler: ['20 01 01'], contract_waste_codes: [{ codigo_ler: '20 01 01' }] },
+      } as any);
+      await expect(
+        identificationDocumentService.recordDeparture(54, { fecha_salida: '2026-11-10T12:40' })
+      ).rejects.toThrow('no está incluido en el contrato');
+
+      // 4. Con contrato externo acreditado debe permitir salida y preservar fecha_salida ISO
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 55,
+        codigo_ler: '17 04 05',
+        operacion_tratamiento: 'R13',
+        tipo_notificacion: 'sin-notificacion',
+      } as any);
+      const spyUpd = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({ id: 55, estado_traslado: 'en_transito' } as any);
+      await identificationDocumentService.recordDeparture(55, {
+        fecha_salida: '2026-11-10T12:40',
+        contrato_externo_referencia: 'EXT-2026-01',
+        contrato_externo_evidencia_url: 'https://storage/ext.pdf',
+      });
+      expect(spyUpd).toHaveBeenCalledWith(55, expect.objectContaining({
+        estado_traslado: 'en_transito',
+        contrato_externo_referencia: 'EXT-2026-01',
+      }));
+      spyUpd.mockRestore();
+    });
+
+    it('completeTreatment debe bloquear operaciones no autorizadas (D01), conservar prevista/ejecutada y soportar idempotencia', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+
+      // 1. Código inválido
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 60,
+        codigo_ler: '17 04 05',
+        operacion_tratamiento: 'R13',
+      } as any);
+      await expect(
+        identificationDocumentService.completeTreatment(60, { operacion_tratamiento: 'INVALID' })
+      ).rejects.toThrow('Operación de tratamiento inválida');
+
+      // 2. Idempotencia en re-cierre con misma operación vs bloqueo en operación distinta
+      const alreadyClosed = {
+        id: 61,
+        codigo_ler: '17 04 05',
+        operacion_tratamiento: 'R13',
+        operacion_tratamiento_ejecutada: 'R04',
+        estado_traslado: 'tratado',
+        estado: 'completado',
+      } as any;
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue(alreadyClosed);
+      await expect(
+        identificationDocumentService.completeTreatment(61, { operacion_tratamiento: 'R4' })
+      ).resolves.toEqual(alreadyClosed);
+      await expect(
+        identificationDocumentService.completeTreatment(61, { operacion_tratamiento: 'R13' })
+      ).rejects.toThrow('no puede sobrescribirse');
+
+      // 3. Bloqueo D01 cuando DI es sin-notificacion
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 62,
+        codigo_ler: '17 04 05',
+        operacion_tratamiento: 'R13',
+        tipo_notificacion: 'sin-notificacion',
+      } as any);
+      await expect(
+        identificationDocumentService.completeTreatment(62, { operacion_tratamiento: 'D01' })
+      ).rejects.toThrow('requieren Notificación Previa');
+
+      // 4. Bloqueo de operación no autorizada en autorización ambiental del gestor (con-notificacion-previa)
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 63,
+        user_id: 'user-1',
+        codigo_ler: '17 04 05',
+        gestor_cif: 'B11111111',
+        operacion_tratamiento: 'R13',
+        tipo_notificacion: 'con-notificacion-previa',
+      } as any);
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnValue({
+              eq: jest.fn().mockResolvedValue({ data: [{ id: 88, cif: 'B11111111' }], error: null }),
+            }),
+          };
+        }
+        if (table === 'environmental_authorizations') {
+          return {
+            select: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnValue({
+                eq: jest.fn().mockReturnValue({
+                  eq: jest.fn().mockResolvedValue({
+                    data: [{
+                      id: 1,
+                      activo: true,
+                      es_indefinida: true,
+                      waste_codes: [{ codigo_ler: '17 04 05', operaciones_tratamiento: ['R04', 'R13'] }],
+                    }],
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        return {};
+      });
+
+      await expect(
+        identificationDocumentService.completeTreatment(63, { operacion_tratamiento: 'D01' })
+      ).rejects.toThrow('solo contempla R04, R13');
+
+      // 5. Permitir R04 autorizado conservando R13 como prevista
+      const spyUpd = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({
+        id: 63,
+        operacion_tratamiento: 'R13',
+        operacion_tratamiento_ejecutada: 'R04',
+        estado_traslado: 'tratado',
+        estado: 'completado',
+      } as any);
+
+      await identificationDocumentService.completeTreatment(63, {
+        operacion_tratamiento: 'R4',
+        fecha_tratamiento: '2026-11-10T12:40',
+      });
+      expect(spyUpd).toHaveBeenCalledWith(63, expect.objectContaining({
+        operacion_tratamiento: 'R13',
+        operacion_tratamiento_ejecutada: 'R04',
+      }));
+      spyUpd.mockRestore();
+    });
+
+    it('debe cubrir validación de fecha inválida/vacía, D01 en salida, contrato sin operación amparada y autorización caducada', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+      const { normalizeLocalDateTimeToIso, normalizeOperationCode } = await import('../identificationDocumentService');
+      expect(normalizeOperationCode(null)).toBe('');
+      expect(normalizeOperationCode('custom')).toBe('CUSTOM');
+      expect(normalizeLocalDateTimeToIso(null)).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(normalizeLocalDateTimeToIso('fecha-invalida')).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+      // Salida con D01 sin notificación previa
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 70,
+        codigo_ler: '17 04 05',
+        operacion_tratamiento: 'D01',
+        tipo_notificacion: 'sin-notificacion',
+      } as any);
+      await expect(
+        identificationDocumentService.recordDeparture(70, {
+          fecha_salida: '2026-11-10T12:40',
+          contrato_externo_referencia: 'EXT-1',
+          supuesto_excepcion_contrato: 'Operación exenta',
+        })
+      ).rejects.toThrow('exige Notificación Previa');
+
+      // Autorización caducada en completeTreatment y bloqueo contractual
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 71,
+        user_id: 'user-1',
+        codigo_ler: '17 04 05',
+        operacion_tratamiento: 'R13',
+        tipo_notificacion: 'con-notificacion-previa',
+        contract_id: 9,
+        contract: {
+          id: 9,
+          numero_contrato: 'CT-9',
+          gestor_company_id: 20,
+          operaciones_tratamiento: ['R13'],
+          contract_waste_codes: [],
+        },
+      } as any);
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'contract_waste_codes') {
+          return { select: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ data: [], error: null }) }) };
+        }
+        return {};
+      });
+      await expect(
+        identificationDocumentService.completeTreatment(71, { operacion_tratamiento: 'R04' })
+      ).rejects.toThrow('no está amparada por el contrato');
     });
   });
 

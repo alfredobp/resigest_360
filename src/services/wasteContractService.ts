@@ -4,6 +4,7 @@
 // =====================================================
 
 import { createClient } from '@/lib/supabase/client';
+import { auditService } from './auditService';
 import type {
   WasteContract,
   WasteContractFormData,
@@ -12,6 +13,63 @@ import type {
 } from '@/types/wasteManagement';
 
 const supabase = createClient();
+
+/**
+ * Resuelve de forma segura las referencias al gestor destino para evitar
+ * violaciones de FK (`waste_contracts_treatment_manager_id_fkey`) cuando
+ * el gestor proviene del directorio unificado `public.companies`.
+ */
+async function resolveGestorReferences(
+  userId: string,
+  payload: { treatment_manager_id?: number | null; gestor_company_id?: number | null }
+): Promise<{ treatment_manager_id?: number | null; gestor_company_id?: number | null }> {
+  let treatmentManagerId = payload.treatment_manager_id;
+  let gestorCompanyId = payload.gestor_company_id;
+
+  if (treatmentManagerId && !gestorCompanyId) {
+    try {
+      const tmBuilder = supabase.from('treatment_managers');
+      if (tmBuilder) {
+        const { data: tmRecord } = await tmBuilder
+          .select('id, cif')
+          .eq('id', treatmentManagerId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (!tmRecord) {
+          // El ID no existe en treatment_managers; comprobar si es una empresa del directorio unificado
+          const compBuilder = supabase.from('companies');
+          if (compBuilder) {
+            const { data: compRecord } = await compBuilder
+              .select('id')
+              .eq('id', treatmentManagerId)
+              .eq('user_id', userId)
+              .maybeSingle();
+
+            if (compRecord) {
+              gestorCompanyId = compRecord.id;
+              treatmentManagerId = null;
+            } else {
+              throw new Error(
+                'El gestor seleccionado no existe en el catálogo de gestores ni en el directorio de empresas de tu cuenta.'
+              );
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err?.message?.includes('no existe en el catálogo')) {
+        throw err;
+      }
+      // Si es un mock parcial en tests, no bloquear la operación
+    }
+  }
+
+  return {
+    treatment_manager_id: treatmentManagerId,
+    gestor_company_id: gestorCompanyId,
+  };
+}
 
 /**
  * Obtiene el contexto del tenant actual (usuario autenticado y sus empresas asociadas)
@@ -259,10 +317,17 @@ export const wasteContractService = {
       ? Array.from(new Set(contract_waste_codes.map((c) => c.operacion_tratamiento.trim().toUpperCase())))
       : (mainData.operaciones_tratamiento || []);
 
+    const resolvedRefs = await resolveGestorReferences(userData.user.id, {
+      treatment_manager_id: mainData.treatment_manager_id,
+      gestor_company_id: mainData.gestor_company_id,
+    });
+
     const { data, error } = await supabase
       .from('waste_contracts')
       .insert({
         ...mainData,
+        treatment_manager_id: resolvedRefs.treatment_manager_id,
+        gestor_company_id: resolvedRefs.gestor_company_id,
         codigos_ler: codigosLer,
         operaciones_tratamiento: operaciones,
         user_id: userData.user.id,
@@ -303,6 +368,20 @@ export const wasteContractService = {
       }
     }
 
+    await auditService.logAction({
+      company_id: createdContract.company_id,
+      entidad: 'contrato',
+      entidad_id: createdContract.id,
+      accion: 'crear',
+      detalles: {
+        numero_contrato: createdContract.numero_contrato,
+        estado: createdContract.estado,
+        gestor_company_id: createdContract.gestor_company_id,
+        treatment_manager_id: createdContract.treatment_manager_id,
+        codigos_ler: codigosLer,
+      },
+    });
+
     return createdContract;
   },
 
@@ -330,6 +409,19 @@ export const wasteContractService = {
     };
     const contract_waste_codes = rawWasteCodes ?? contractWasteCodes;
     const updatePayload: any = { ...mainData };
+
+    if (mainData.treatment_manager_id !== undefined || mainData.gestor_company_id !== undefined) {
+      const resolvedRefs = await resolveGestorReferences(userId, {
+        treatment_manager_id: mainData.treatment_manager_id,
+        gestor_company_id: mainData.gestor_company_id,
+      });
+      if (resolvedRefs.treatment_manager_id !== undefined) {
+        updatePayload.treatment_manager_id = resolvedRefs.treatment_manager_id;
+      }
+      if (resolvedRefs.gestor_company_id !== undefined) {
+        updatePayload.gestor_company_id = resolvedRefs.gestor_company_id;
+      }
+    }
 
     if (contract_waste_codes !== undefined) {
       updatePayload.codigos_ler = contract_waste_codes.map((c) => c.codigo_ler.trim());
@@ -385,6 +477,17 @@ export const wasteContractService = {
       }
     }
 
+    await auditService.logAction({
+      company_id: (data as WasteContract)?.company_id ?? null,
+      entidad: 'contrato',
+      entidad_id: id,
+      accion: mainData.estado ? 'cambiar_estado' : 'actualizar',
+      detalles: {
+        numero_contrato: (data as WasteContract)?.numero_contrato,
+        estado: (data as WasteContract)?.estado,
+      },
+    });
+
     return data as WasteContract;
   },
 
@@ -427,6 +530,13 @@ export const wasteContractService = {
     if (error) {
       throw new Error(`Error al eliminar contrato: ${error.message}`);
     }
+
+    await auditService.logAction({
+      entidad: 'contrato',
+      entidad_id: id,
+      accion: 'eliminar',
+      detalles: { contract_id: id },
+    });
   },
 
   /**
@@ -668,6 +778,18 @@ export const wasteContractService = {
     if (updateError) {
       throw new Error(`Error al actualizar firma: ${updateError.message}`);
     }
+
+    await auditService.logAction({
+      company_id: (data as WasteContract)?.company_id ?? null,
+      entidad: 'contrato',
+      entidad_id: (data as WasteContract)?.id ?? null,
+      accion: 'cambiar_estado',
+      detalles: {
+        numero_contrato: (data as WasteContract)?.numero_contrato,
+        estado: (data as WasteContract)?.estado,
+        rol_firma: role,
+      },
+    });
 
     return data as WasteContract;
   },

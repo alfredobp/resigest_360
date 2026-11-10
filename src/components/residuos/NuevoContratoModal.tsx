@@ -472,44 +472,89 @@ export default function NuevoContratoModal({
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-foreground">Gestor / Destinatario</h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Mis Gestores Internos</label>
-              <select
-                name="treatment_manager_id"
-                value={formData.treatment_manager_id || ''}
-                onChange={(e) => {
-                  const id = e.target.value ? parseInt(e.target.value) : undefined;
-                  setFormData(prev => ({ ...prev, treatment_manager_id: id, gestor_company_id: undefined, gestor_center_id: undefined }));
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar gestor por razón social, CIF o NIMA..."
+                className="flex-1 h-10 px-3 border border-stroke dark:border-strokedark bg-white dark:bg-dark rounded-lg text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSearchGestor();
+                  }
                 }}
-                className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
-              >
-                <option value="">Selecciona uno de tus gestores...</option>
-                {internalGestores.map((gestor) => (
-                  <option key={gestor.id} value={gestor.id}>
-                    {gestor.nombre} ({gestor.razon_social})
-                  </option>
-                ))}
-              </select>
+              />
+              <Button type="button" size="sm" variant="outline" onClick={handleSearchGestor}>
+                Buscar
+              </Button>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Gestores Públicos</label>
+              <label htmlFor="unified_gestor_select" className="block text-sm font-medium mb-1.5">
+                Gestor Destinatario Autorizado
+              </label>
               <select
-                name="gestor_company_id"
-                value={formData.gestor_company_id || ''}
+                id="unified_gestor_select"
+                name="unified_gestor_select"
+                value={
+                  formData.gestor_company_id
+                    ? `company:${formData.gestor_company_id}`
+                    : formData.treatment_manager_id
+                      ? `tm:${formData.treatment_manager_id}`
+                      : ''
+                }
                 onChange={(e) => {
-                  const id = e.target.value ? parseInt(e.target.value) : undefined;
-                  setFormData(prev => ({ ...prev, gestor_company_id: id, treatment_manager_id: undefined, gestor_center_id: undefined }));
+                  const val = e.target.value;
+                  if (!val) {
+                    setFormData((prev) => ({
+                      ...prev,
+                      gestor_company_id: undefined,
+                      treatment_manager_id: undefined,
+                      gestor_center_id: undefined,
+                    }));
+                    return;
+                  }
+                  const [prefix, rawId] = val.split(':');
+                  const numericId = parseInt(rawId, 10);
+                  if (prefix === 'company') {
+                    setFormData((prev) => ({
+                      ...prev,
+                      gestor_company_id: numericId,
+                      treatment_manager_id: undefined,
+                      gestor_center_id: undefined,
+                    }));
+                  } else {
+                    setFormData((prev) => ({
+                      ...prev,
+                      treatment_manager_id: numericId,
+                      gestor_company_id: undefined,
+                      gestor_center_id: undefined,
+                    }));
+                  }
                 }}
                 className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
               >
-                <option value="">Selecciona un gestor público...</option>
+                <option value="">Selecciona un gestor de tratamiento...</option>
                 {gestores.map((gestor) => (
-                  <option key={gestor.id} value={gestor.id}>
-                    {gestor.razon_social} - {gestor.cif}
+                  <option key={`company-${gestor.id}`} value={`company:${gestor.id}`}>
+                    {gestor.razon_social} — CIF: {gestor.cif}{gestor.nima ? ` (NIMA: ${gestor.nima})` : ''}
                   </option>
                 ))}
+                {internalGestores
+                  .filter((ig) => {
+                    // Evitar duplicados: si proviene de companies o coincide el CIF con gestores, usar la referencia de companies
+                    if (ig.source === 'companies') return false;
+                    const normCif = ig.cif?.toUpperCase().trim();
+                    return !gestores.some((g) => g.cif?.toUpperCase().trim() === normCif);
+                  })
+                  .map((gestor) => (
+                    <option key={`tm-${gestor.id}`} value={`tm:${gestor.id}`}>
+                      {gestor.nombre || gestor.razon_social} — CIF: {gestor.cif} (Gestor Interno)
+                    </option>
+                  ))}
               </select>
             </div>
           </div>
@@ -550,49 +595,6 @@ export default function NuevoContratoModal({
               </p>
             </div>
           )}
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2 mt-4">
-              O buscar otro Gestor Público
-            </label>
-            <div className="flex gap-2 mb-3">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar por razón social, CIF o NIMA..."
-                className="flex-1 px-3 py-2 border border-stroke rounded-md text-sm"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleSearchGestor();
-                  }
-                }}
-              />
-              <Button type="button" size="sm" onClick={handleSearchGestor}>
-                Buscar
-              </Button>
-            </div>
-
-            {gestores.length > 0 && (
-              <div>
-                <label className="block text-sm font-medium mb-2">Gestor</label>
-                <select
-                  name="gestor_company_id"
-                  value={formData.gestor_company_id || ''}
-                  onChange={handleChange}
-                  className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
-                >
-                  <option value="">Selecciona un gestor...</option>
-                  {gestores.map((gestor) => (
-                    <option key={gestor.id} value={gestor.id}>
-                      {gestor.razon_social} - {gestor.cif}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
 
           <div className="border-t border-stroke pt-4">
             <Button
@@ -705,7 +707,8 @@ export default function NuevoContratoModal({
                           ...copy[idx],
                           codigo_ler: val,
                           descripcion_ler: wt?.descripcion || copy[idx].descripcion_ler,
-                          operacion_tratamiento: wt?.operaciones_permitidas?.[0] || copy[idx].operacion_tratamiento || 'R13'
+                          // No sobrescribir la operación de tratamiento ya elegida por el usuario (F12)
+                          operacion_tratamiento: copy[idx].operacion_tratamiento || 'R13'
                         };
                         return copy;
                       });
