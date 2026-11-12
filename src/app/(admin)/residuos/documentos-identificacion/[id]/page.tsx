@@ -71,10 +71,20 @@ export default function DetalleDocumentoIdentificacionPage() {
   const [isDepartureModalOpen, setIsDepartureModalOpen] = useState(false);
   const [isReceptionModalOpen, setIsReceptionModalOpen] = useState(false);
   const [isTreatmentModalOpen, setIsTreatmentModalOpen] = useState(false);
+  const [isContractModalOpen, setIsContractModalOpen] = useState(false);
   const [submittingAction, setSubmittingAction] = useState(false);
   const [modalActionError, setModalActionError] = useState<string | null>(null);
   const [activeContracts, setActiveContracts] = useState<WasteContract[]>([]);
   const [authorizedOpsForLer, setAuthorizedOpsForLer] = useState<string[] | null>(null);
+  const [contractForm, setContractForm] = useState<{
+    contract_id?: number;
+    contrato_externo_referencia: string;
+    supuesto_excepcion_contrato: string;
+  }>({
+    contract_id: undefined,
+    contrato_externo_referencia: '',
+    supuesto_excepcion_contrato: '',
+  });
 
   // Estados de firma digital
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
@@ -172,6 +182,12 @@ export default function DetalleDocumentoIdentificacionPage() {
         fecha_tratamiento: docData.fecha_tratamiento ? toLocalDateTimeInput(docData.fecha_tratamiento) : toLocalDateTimeInput(),
         descripcion_tratamiento: docData.descripcion_tratamiento || '',
         notas: docData.notas || '',
+      });
+
+      setContractForm({
+        contract_id: docData.contract_id || undefined,
+        contrato_externo_referencia: docData.contrato_externo_referencia || '',
+        supuesto_excepcion_contrato: docData.supuesto_excepcion_contrato || docData.contrato_externo_evidencia_url || '',
       });
 
       const compData = await companyService.getUserCompany();
@@ -289,6 +305,40 @@ export default function DetalleDocumentoIdentificacionPage() {
       await loadData();
     } catch (err: any) {
       const msg = err.message || 'Error al certificar tratamiento';
+      setModalActionError(msg);
+      toast.error(msg);
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
+  const handleSaveContractCoverage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!document) return;
+
+    const hasInternalContract = Boolean(contractForm.contract_id);
+    const hasExternalRef = Boolean(contractForm.contrato_externo_referencia.trim());
+
+    if (!hasInternalContract && !hasExternalRef) {
+      setModalActionError('Debes seleccionar un contrato vigente en plataforma o indicar la referencia de un contrato externo acreditado (Art. 5 RD 553/2020).');
+      return;
+    }
+
+    try {
+      setSubmittingAction(true);
+      setModalActionError(null);
+      await identificationDocumentService.update(document.id, {
+        contract_id: hasInternalContract ? contractForm.contract_id : (null as any),
+        contrato_externo_referencia: hasInternalContract ? '' : contractForm.contrato_externo_referencia.trim(),
+        supuesto_excepcion_contrato: hasInternalContract ? '' : contractForm.supuesto_excepcion_contrato.trim(),
+      });
+      setIsContractModalOpen(false);
+      const msg = 'Cobertura contractual regularizada correctamente (Art. 5 RD 553/2020).';
+      setSuccess(msg);
+      toast.success(msg);
+      await loadData();
+    } catch (err: any) {
+      const msg = err.message || 'Error al actualizar cobertura contractual';
       setModalActionError(msg);
       toast.error(msg);
     } finally {
@@ -470,6 +520,30 @@ export default function DetalleDocumentoIdentificacionPage() {
 
         {error && <Alert variant="error" title="Error" message={error} />}
         {success && <Alert variant="success" title="Éxito" message={success} />}
+
+        {/* Banner de Regularización de Cobertura Contractual (Art. 5 RD 553/2020) */}
+        {!document.contract_id && !document.contrato_externo_referencia && (
+          <div className="p-4 rounded-2xl border border-red-300 dark:border-red-800 bg-red-50/80 dark:bg-red-950/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h4 className="text-sm font-bold text-red-800 dark:text-red-300 flex items-center gap-2">
+                <span>⚠️</span> Incidencia Normativa: Traslado sin contrato acreditado (Art. 5 RD 553/2020)
+              </h4>
+              <p className="text-xs text-red-700 dark:text-red-400">
+                Este Documento de Identificación no tiene un Contrato de Tratamiento vinculado ni una referencia de contrato externo acreditada. Regularízalo vinculando un contrato vigente o acreditando su referencia externa.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => {
+                setModalActionError(null);
+                setIsContractModalOpen(true);
+              }}
+              className="shrink-0 !bg-red-600 hover:!bg-red-700 !text-white"
+            >
+              Regularizar Contrato →
+            </Button>
+          </div>
+        )}
 
         {/* PIPELINE / STEPPER VISUAL RD 553/2020 */}
         <ComponentCard title="Ciclo de Vida del Traslado (RD 553/2020)">
@@ -786,6 +860,37 @@ export default function DetalleDocumentoIdentificacionPage() {
                   <p className="text-foreground">{document.numero_envases || 1} ({document.tipo_envases})</p>
                 </div>
               )}
+
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                <span className="text-muted text-xs font-semibold uppercase tracking-wider block mb-1">
+                  Cobertura Contractual (Art. 5 RD 553/2020)
+                </span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  {document.contract_id ? (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                      ✓ Contrato vinculado: {document.contract?.numero_contrato || `CT #${document.contract_id}`}
+                    </span>
+                  ) : document.contrato_externo_referencia ? (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                      ✓ Contrato externo acreditado: {document.contrato_externo_referencia}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 dark:text-red-400">
+                      ⚠️ Sin contrato vinculado ni referencia acreditada
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalActionError(null);
+                      setIsContractModalOpen(true);
+                    }}
+                    className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                  >
+                    {document.contract_id || document.contrato_externo_referencia ? 'Editar contrato vinculado' : 'Regularizar contrato'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </ComponentCard>
@@ -943,11 +1048,26 @@ export default function DetalleDocumentoIdentificacionPage() {
               )}
 
               {/* Acción 3: Certificar Tratamiento y Cierre */}
-              {(document.estado_traslado === 'aceptado' || document.estado_traslado === 'rechazado_parcial') && (
-                <Button onClick={() => { setModalActionError(null); setIsTreatmentModalOpen(true); }}>
-                  <span>Certificar Tratamiento y Cierre</span>
+              {(document.estado_traslado === 'aceptado' || document.estado_traslado === 'rechazado_parcial' || document.estado_traslado === 'tratado') && (
+                <Button
+                  variant={document.estado_traslado === 'tratado' ? 'outline' : 'primary'}
+                  onClick={() => { setModalActionError(null); setIsTreatmentModalOpen(true); }}
+                >
+                  <span>{document.estado_traslado === 'tratado' ? 'Rectificar Tratamiento' : 'Certificar Tratamiento y Cierre'}</span>
                 </Button>
               )}
+
+              {/* Acción Regularizar / Vincular Contrato (Art. 5 RD 553/2020) */}
+              <Button
+                variant={!document.contract_id && !document.contrato_externo_referencia ? 'primary' : 'outline'}
+                onClick={() => { setModalActionError(null); setIsContractModalOpen(true); }}
+              >
+                <span>
+                  {!document.contract_id && !document.contrato_externo_referencia
+                    ? 'Vincular / Regularizar Contrato (Art. 5)'
+                    : 'Cambiar Contrato Vinculado'}
+                </span>
+              </Button>
 
               {/* Descargar PDF */}
               <Button
@@ -1522,6 +1642,94 @@ export default function DetalleDocumentoIdentificacionPage() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* MODAL 5: REGULARIZAR / VINCULAR COBERTURA CONTRACTUAL (ART. 5 RD 553/2020) */}
+      <Modal isOpen={isContractModalOpen} onClose={() => setIsContractModalOpen(false)} className="max-w-lg p-6">
+        <form onSubmit={handleSaveContractCoverage} className="space-y-4">
+          <div className="border-b pb-3 border-gray-200 dark:border-gray-800">
+            <h3 className="text-lg font-bold text-foreground">
+              Cobertura Contractual del Traslado (Art. 5 RD 553/2020)
+            </h3>
+          </div>
+          <p className="text-xs text-muted">
+            Todo traslado de residuos requiere disponer con carácter previo de un Contrato de Tratamiento vigente con el gestor destinatario. Seleccione un contrato registrado en la plataforma o acredite la referencia de su contrato externo.
+          </p>
+
+          {modalActionError && (
+            <Alert variant="error" title="Atención" message={modalActionError} />
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted uppercase mb-1.5">
+                1. Seleccionar Contrato Vigente en Plataforma
+              </label>
+              <select
+                value={contractForm.contract_id || ''}
+                onChange={(e) => {
+                  setModalActionError(null);
+                  setContractForm({
+                    ...contractForm,
+                    contract_id: e.target.value ? parseInt(e.target.value, 10) : undefined,
+                  });
+                }}
+                className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2.5 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="">-- Ninguno seleccionado (acreditar contrato externo abajo) --</option>
+                {activeContracts.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.numero_contrato || `CT-${c.id}`} — {c.gestor_company?.razon_social || c.treatment_manager?.razon_social || 'Gestor'} ({(c.codigos_ler || []).join(', ') || 'Varios LER'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {!contractForm.contract_id && (
+              <div className="p-3.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/40 space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-muted uppercase mb-1">
+                    2. O Referencia de Contrato Externo Acreditado *
+                  </label>
+                  <Input
+                    type="text"
+                    value={contractForm.contrato_externo_referencia}
+                    onChange={(e) => {
+                      setModalActionError(null);
+                      setContractForm({ ...contractForm, contrato_externo_referencia: e.target.value });
+                    }}
+                    placeholder="Ej: CT-EXT-2026-0041 (Contrato firmado fuera de plataforma)"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted uppercase mb-1">
+                    Justificante / Observaciones o Supuesto Legal
+                  </label>
+                  <Input
+                    type="text"
+                    value={contractForm.supuesto_excepcion_contrato}
+                    onChange={(e) =>
+                      setContractForm({
+                        ...contractForm,
+                        supuesto_excepcion_contrato: e.target.value,
+                      })
+                    }
+                    placeholder="Ej: Contrato marco archivado en expediente físico"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-gray-200 dark:border-gray-800">
+            <Button type="button" variant="outline" onClick={() => setIsContractModalOpen(false)} disabled={submittingAction}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={submittingAction}>
+              {submittingAction ? 'Guardando...' : 'Guardar Cobertura Contractual'}
+            </Button>
+          </div>
+        </form>
       </Modal>
 
       <SignatureModal

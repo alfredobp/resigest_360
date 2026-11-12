@@ -43,6 +43,7 @@ export default function ContractDetailPage() {
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const [signingRole, setSigningRole] = useState<'productor' | 'gestor'>('productor');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [statusToConfirm, setStatusToConfirm] = useState<'finalizado' | 'cancelado' | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -619,10 +620,10 @@ export default function ContractDetailPage() {
 
             {contract.estado === 'vigente' && (
               <>
-                <Button variant="outline" onClick={() => handleChangeStatus('finalizado')}>
+                <Button variant="outline" onClick={() => setStatusToConfirm('finalizado')}>
                   Finalizar Contrato
                 </Button>
-                <Button variant="outline" onClick={() => handleChangeStatus('cancelado')}>
+                <Button variant="outline" onClick={() => setStatusToConfirm('cancelado')}>
                   Cancelar Contrato
                 </Button>
               </>
@@ -699,6 +700,24 @@ export default function ContractDetailPage() {
         onSave={handleSaveSignature}
         title={`Firmar Contrato como ${signingRole === 'productor' ? 'Productor' : 'Gestor'}`}
         description="Al pulsar en 'Confirmar Firma' se guardará su firma digital en el documento."
+      />
+
+      <ConfirmModal
+        isOpen={statusToConfirm !== null}
+        onClose={() => setStatusToConfirm(null)}
+        onConfirm={async () => {
+          if (statusToConfirm) {
+            await handleChangeStatus(statusToConfirm);
+          }
+        }}
+        variant="warning"
+        title={statusToConfirm === 'cancelado' ? 'Cancelar contrato' : 'Finalizar contrato'}
+        confirmLabel={statusToConfirm === 'cancelado' ? 'Sí, cancelar contrato' : 'Sí, finalizar contrato'}
+        message={
+          statusToConfirm === 'cancelado'
+            ? '¿Estás seguro de que deseas cancelar este contrato? Dejará de estar vigente para traslados.'
+            : '¿Estás seguro de que deseas finalizar este contrato? Una vez finalizado no podrá utilizarse para nuevos traslados de residuos.'
+        }
       />
 
       <ConfirmModal

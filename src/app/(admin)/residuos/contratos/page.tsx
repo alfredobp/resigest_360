@@ -35,6 +35,7 @@ export default function ContratosPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [showNewContractModal, setShowNewContractModal] = useState(false);
   const [contractToDelete, setContractToDelete] = useState<number | null>(null);
+  const [contractToFinalize, setContractToFinalize] = useState<number | null>(null);
 
   const handleDownloadPDF = async (contract: WasteContract) => {
     try {
@@ -365,7 +366,7 @@ export default function ContratosPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleChangeStatus(contract.id, 'finalizado')}
+                          onClick={() => setContractToFinalize(contract.id)}
                         >
                           Finalizar
                         </Button>
@@ -396,6 +397,20 @@ export default function ContratosPage() {
             myCompany={myCompany}
           />
         )}
+
+        <ConfirmModal
+          isOpen={contractToFinalize !== null}
+          onClose={() => setContractToFinalize(null)}
+          onConfirm={async () => {
+            if (contractToFinalize !== null) {
+              await handleChangeStatus(contractToFinalize, 'finalizado');
+            }
+          }}
+          variant="warning"
+          title="Finalizar contrato"
+          confirmLabel="Sí, finalizar"
+          message="¿Estás seguro de que deseas finalizar este contrato? Una vez finalizado no podrá utilizarse para nuevos traslados de residuos."
+        />
 
         <ConfirmModal
           isOpen={contractToDelete !== null}

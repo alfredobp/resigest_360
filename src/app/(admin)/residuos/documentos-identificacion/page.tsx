@@ -189,6 +189,8 @@ export default function DocumentosIdentificacionPage() {
     let matchStatus = true;
     if (filterStatus === 'all') {
       matchStatus = true;
+    } else if (filterStatus === 'sin_contrato') {
+      matchStatus = Boolean(d.estado_traslado && d.estado_traslado !== 'borrador' && !d.contract_id && !d.contrato_externo_referencia);
     } else if (filterStatus === 'incidencias') {
       matchStatus = d.estado_traslado === 'rechazado_parcial' || d.estado_traslado === 'rechazado_total';
     } else if (filterStatus === 'borrador') {
@@ -313,6 +315,16 @@ export default function DocumentosIdentificacionPage() {
             >
               Borradores ({documents.filter(d => !d.estado_traslado || d.estado_traslado === 'borrador').length})
             </Button>
+            {documents.some(d => d.estado_traslado && d.estado_traslado !== 'borrador' && !d.contract_id && !d.contrato_externo_referencia) && (
+              <Button
+                variant={filterStatus === 'sin_contrato' ? 'primary' : 'outline'}
+                size="sm"
+                onClick={() => setFilterStatus('sin_contrato')}
+                className={filterStatus === 'sin_contrato' ? '!bg-red-600' : 'text-red-600 border-red-200 dark:border-red-900'}
+              >
+                ⚠️ Sin Contrato ({documents.filter(d => d.estado_traslado && d.estado_traslado !== 'borrador' && !d.contract_id && !d.contrato_externo_referencia).length})
+              </Button>
+            )}
           </div>
 
           <div className="mt-4 pt-4 border-t flex flex-wrap items-center gap-4">
@@ -375,6 +387,11 @@ export default function DocumentosIdentificacionPage() {
                             {tracking.hasDiscrepancy && (
                               <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30">
                                 ⚠️ Discrepancia Báscula: {(doc.diferencia_peso_kg || 0) > 0 ? '+' : ''}{doc.diferencia_peso_kg} kg
+                              </span>
+                            )}
+                            {doc.estado_traslado && doc.estado_traslado !== 'borrador' && !doc.contract_id && !doc.contrato_externo_referencia && (
+                              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30">
+                                ⚠️ Sin contrato acreditado (Art. 5)
                               </span>
                             )}
                           </div>
