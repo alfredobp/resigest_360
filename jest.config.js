@@ -43,6 +43,7 @@ module.exports = {
     'src/services/wasteContractService.ts',
     'src/lib/validations/formValidation.ts',
     'src/lib/validations/publicForms.ts',
+    'src/lib/validations/discrepancyJustification.ts',
     'src/lib/rateLimit.ts',
     'src/app/api/holded/route.ts',
     'src/app/api/deca/[token]/route.ts',
@@ -143,6 +144,12 @@ module.exports = {
       statements: 80
     },
     './src/lib/validations/publicForms.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/lib/validations/discrepancyJustification.ts': {
       branches: 80,
       functions: 80,
       lines: 80,

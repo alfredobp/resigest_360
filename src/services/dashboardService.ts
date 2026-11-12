@@ -226,7 +226,8 @@ export const dashboardService = {
         }
       }
 
-      const tieneDiscrepancia = (d.porcentaje_discrepancia && Math.abs(d.porcentaje_discrepancia) > 5) ||
+      const discrepanciaJustificada = !!d.justificacion_discrepancia?.trim();
+      const tieneDiscrepancia = (!discrepanciaJustificada && d.porcentaje_discrepancia && Math.abs(d.porcentaje_discrepancia) > 5) ||
         ['rechazado_parcial', 'rechazado_total'].includes(d.estado_traslado || '');
 
       if (tieneDiscrepancia) {

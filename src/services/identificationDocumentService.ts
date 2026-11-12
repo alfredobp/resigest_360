@@ -14,8 +14,10 @@ import type {
   RecordReceptionPayload,
   RecordIncidentPayload,
   CompleteTreatmentPayload,
+  JustifyDiscrepancyPayload,
   WasteContract,
 } from '@/types/wasteManagement';
+import { isWeightDiscrepancy, parseDiscrepancyJustification } from '@/lib/validations/discrepancyJustification';
 
 const supabase = createClient();
 
@@ -134,6 +136,25 @@ async function resolveDestinationValidationContext(
     hasAuthConfigured,
     isAuthValid,
     authorizedOpsForLer,
+  };
+}
+
+/**
+ * Valida la justificación de discrepancia y construye los campos a persistir (con autoría y fecha).
+ */
+async function buildJustificationFields(input: JustifyDiscrepancyPayload): Promise<Partial<IdentificationDocument>> {
+  const { causa, texto } = parseDiscrepancyJustification(input);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('Usuario no autenticado');
+  }
+  const metadata = (user.user_metadata || {}) as { full_name?: string; name?: string };
+  return {
+    causa_discrepancia: causa,
+    justificacion_discrepancia: texto,
+    justificacion_discrepancia_at: new Date().toISOString(),
+    justificacion_discrepancia_by: user.id,
+    justificacion_discrepancia_by_nombre: metadata.full_name || metadata.name || user.email || null,
   };
 }
 
@@ -536,7 +557,7 @@ export const identificationDocumentService = {
    */
   async recordReception(id: number, payload: RecordReceptionPayload): Promise<IdentificationDocument> {
     const doc = await this.getById(id);
-    const { signatureBase64, ...rest } = payload;
+    const { signatureBase64, causa_discrepancia, justificacion_discrepancia, ...rest } = payload;
     let firma_gestor_url = payload.firma_gestor_url;
 
     if (signatureBase64) {
@@ -559,6 +580,15 @@ export const identificationDocumentService = {
 
     const fechaLlegadaIso = normalizeLocalDateTimeToIso(payload.fecha_llegada_destino);
 
+    // Justificación de discrepancia aportada en la propia recepción (solo si se superan los umbrales)
+    let justificationFields: Partial<IdentificationDocument> = {};
+    if (isWeightDiscrepancy(pesoOrigen, pesoDestino) && (causa_discrepancia || justificacion_discrepancia?.trim())) {
+      justificationFields = await buildJustificationFields({
+        causa: causa_discrepancia as JustifyDiscrepancyPayload['causa'],
+        texto: justificacion_discrepancia || '',
+      });
+    }
+
     const updated = await this.update(id, {
       ...rest,
       fecha_llegada_destino: fechaLlegadaIso,
@@ -569,6 +599,7 @@ export const identificationDocumentService = {
       estado_traslado: nuevoEstadoTraslado,
       firmado_gestor: true,
       fecha_firma_gestor: fechaLlegadaIso,
+      ...justificationFields,
     });
 
     if (nuevoEstadoTraslado === 'aceptado') {
@@ -723,6 +754,42 @@ export const identificationDocumentService = {
   },
 
   /**
+   * 5. Justificar documentalmente una discrepancia de báscula (RD 553/2020).
+   * Editable mientras el DI no esté cerrado; en estado 'tratado' solo puede añadirse si no existía.
+   */
+  async justifyDiscrepancy(id: number, payload: JustifyDiscrepancyPayload): Promise<IdentificationDocument> {
+    // getById filtra por user_id del tenant autenticado
+    const doc = await this.getById(id);
+    const meta = getTrackingStatusMeta(doc);
+
+    if (!meta.hasDiscrepancy) {
+      throw new Error('El DI no presenta una discrepancia de báscula que requiera justificación.');
+    }
+    if (doc.estado_traslado === 'tratado' && doc.justificacion_discrepancia?.trim()) {
+      throw new Error('El DI está cerrado y la justificación ya registrada no puede modificarse.');
+    }
+
+    const fields = await buildJustificationFields(payload);
+    const updated = await this.update(id, fields);
+
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'justificar_discrepancia',
+      detalles: {
+        causa_discrepancia: fields.causa_discrepancia,
+        justificacion_discrepancia: fields.justificacion_discrepancia,
+        diferencia_peso_kg: doc.diferencia_peso_kg,
+        porcentaje_discrepancia: doc.porcentaje_discrepancia,
+        es_modificacion: !!doc.justificacion_discrepancia,
+      },
+    });
+
+    return updated;
+  },
+
+  /**
    * Obtener estadísticas de documentos
    */
   async getStats(): Promise<{
@@ -758,39 +825,34 @@ export function getTrackingStatusMeta(doc: IdentificationDocument): {
   step: number;
   hasDiscrepancy: boolean;
   discrepancyMessage?: string;
+  isDiscrepancyJustified: boolean;
 } {
   const estado: EstadoTraslado = doc.estado_traslado || 'borrador';
 
   const pesoOrigen = doc.peso_origen_kg || (doc.unidad === 'toneladas' ? doc.cantidad * 1000 : doc.cantidad) || 0;
-  const pesoDestino = doc.peso_destino_kg;
-  let hasDiscrepancy = false;
-  let discrepancyMessage = undefined;
-
-  if (pesoDestino !== undefined && pesoDestino !== null && pesoOrigen > 0) {
-    const diff = Math.abs(pesoDestino - pesoOrigen);
-    const pct = Math.abs((diff / pesoOrigen) * 100);
-    if (pct > 5 || diff > 200) {
-      hasDiscrepancy = true;
-      discrepancyMessage = `Discrepancia de peso: ${(doc.diferencia_peso_kg || 0) > 0 ? '+' : ''}${doc.diferencia_peso_kg || 0} kg (${doc.porcentaje_discrepancia || 0}%)`;
-    }
-  }
+  const hasDiscrepancy = isWeightDiscrepancy(pesoOrigen, doc.peso_destino_kg);
+  const discrepancyMessage = hasDiscrepancy
+    ? `Discrepancia de peso: ${(doc.diferencia_peso_kg || 0) > 0 ? '+' : ''}${doc.diferencia_peso_kg || 0} kg (${doc.porcentaje_discrepancia || 0}%)`
+    : undefined;
+  const isDiscrepancyJustified = hasDiscrepancy && !!doc.justificacion_discrepancia?.trim();
+  const common = { hasDiscrepancy, discrepancyMessage, isDiscrepancyJustified };
 
   switch (estado) {
     case 'en_transito':
-      return { key: estado, label: 'En Tránsito', badgeColor: 'info', step: 2, hasDiscrepancy, discrepancyMessage };
+      return { key: estado, label: 'En Tránsito', badgeColor: 'info', step: 2, ...common };
     case 'recepcionado':
-      return { key: estado, label: 'Recepcionado en Báscula', badgeColor: 'warning', step: 3, hasDiscrepancy, discrepancyMessage };
+      return { key: estado, label: 'Recepcionado en Báscula', badgeColor: 'warning', step: 3, ...common };
     case 'aceptado':
-      return { key: estado, label: 'Aceptado por Gestor', badgeColor: 'success', step: 4, hasDiscrepancy, discrepancyMessage };
+      return { key: estado, label: 'Aceptado por Gestor', badgeColor: 'success', step: 4, ...common };
     case 'rechazado_parcial':
-      return { key: estado, label: 'Aceptado Parcial / Rechazo', badgeColor: 'warning', step: 4, hasDiscrepancy, discrepancyMessage };
+      return { key: estado, label: 'Aceptado Parcial / Rechazo', badgeColor: 'warning', step: 4, ...common };
     case 'rechazado_total':
-      return { key: estado, label: 'Rechazo Total en Destino', badgeColor: 'error', step: 4, hasDiscrepancy, discrepancyMessage };
+      return { key: estado, label: 'Rechazo Total en Destino', badgeColor: 'error', step: 4, ...common };
     case 'tratado':
-      return { key: estado, label: 'Tratado y Cerrado', badgeColor: 'success', step: 5, hasDiscrepancy, discrepancyMessage };
+      return { key: estado, label: 'Tratado y Cerrado', badgeColor: 'success', step: 5, ...common };
     case 'borrador':
     default:
-      return { key: 'borrador', label: 'Borrador / Registrado', badgeColor: 'light', step: 1, hasDiscrepancy, discrepancyMessage };
+      return { key: 'borrador', label: 'Borrador / Registrado', badgeColor: 'light', step: 1, ...common };
   }
 }
 

@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
 import type { WasteContract, IdentificationDocument, MemoriaAnual, CommercialOperation } from '@/types/wasteManagement';
 import type { DecaDocument } from '@/types/deca';
+import { CAUSA_DISCREPANCIA_LABELS } from '@/lib/validations/discrepancyJustification';
 
 /**
  * Funciones auxiliares para formateo seguro de fechas
@@ -834,6 +835,29 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
     yPos += (motivoText.length * 4) + 2;
   }
   yPos += 4;
+
+  if (docData.justificacion_discrepancia) {
+    const causaLabel = docData.causa_discrepancia
+      ? CAUSA_DISCREPANCIA_LABELS[docData.causa_discrepancia] || docData.causa_discrepancia
+      : 'Sin causa tipificada';
+    doc.setFont('helvetica', 'bold');
+    doc.text('Justificación Discrepancia:', 18, yPos);
+    doc.setFont('helvetica', 'normal');
+    const justText = doc.splitTextToSize(`${causaLabel}: ${docData.justificacion_discrepancia}`, pageWidth - 75);
+    doc.text(justText, 62, yPos);
+    yPos += justText.length * 4;
+    const autoria = [
+      docData.justificacion_discrepancia_by_nombre,
+      docData.justificacion_discrepancia_at ? formatSafeDateTime(docData.justificacion_discrepancia_at) : null,
+    ].filter(Boolean).join(' · ');
+    if (autoria) {
+      doc.setFontSize(7);
+      doc.text(`Registrada por: ${autoria}`, 62, yPos);
+      doc.setFontSize(8);
+      yPos += 4;
+    }
+    yPos += 2;
+  }
 
   // --- SECCIÓN 6: FIRMAS DE LOS INTERVINIENTES ---
   yPos = Math.max(yPos, pageHeight - 55);

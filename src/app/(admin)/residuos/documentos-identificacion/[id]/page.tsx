@@ -17,6 +17,12 @@ import authorizationService from '@/services/authorizationService';
 import siraService from '@/services/siraService';
 import companyService from '@/services/companyService';
 import { generateIdentificationDocumentPDF } from '@/lib/pdfUtils';
+import {
+  CAUSAS_DISCREPANCIA,
+  CAUSA_DISCREPANCIA_LABELS,
+  MIN_JUSTIFICATION_LENGTH,
+  isWeightDiscrepancy,
+} from '@/lib/validations/discrepancyJustification';
 import SignatureModal from '@/components/ui/signature/SignatureModal';
 import type {
   IdentificationDocument,
@@ -27,6 +33,7 @@ import type {
   CompleteTreatmentPayload,
   ResultadoRecepcion,
   SiraSubmission,
+  CausaDiscrepancia,
 } from '@/types/wasteManagement';
 
 function toLocalDateTimeInput(value?: string | null): string {
@@ -72,6 +79,8 @@ export default function DetalleDocumentoIdentificacionPage() {
   const [isReceptionModalOpen, setIsReceptionModalOpen] = useState(false);
   const [isTreatmentModalOpen, setIsTreatmentModalOpen] = useState(false);
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+  const [isJustifyModalOpen, setIsJustifyModalOpen] = useState(false);
+  const [justifyForm, setJustifyForm] = useState<{ causa: CausaDiscrepancia | ''; texto: string }>({ causa: '', texto: '' });
   const [submittingAction, setSubmittingAction] = useState(false);
   const [modalActionError, setModalActionError] = useState<string | null>(null);
   const [activeContracts, setActiveContracts] = useState<WasteContract[]>([]);
@@ -276,13 +285,53 @@ export default function DetalleDocumentoIdentificacionPage() {
       setSubmittingAction(true);
       setModalActionError(null);
       setError(null);
-      await identificationDocumentService.recordReception(document.id, receptionForm);
+      const receptionPayload: RecordReceptionPayload = receptionForm.causa_discrepancia
+        ? receptionForm
+        : { ...receptionForm, causa_discrepancia: undefined, justificacion_discrepancia: undefined };
+      await identificationDocumentService.recordReception(document.id, receptionPayload);
       setIsReceptionModalOpen(false);
       setSuccess('Recepción y pesaje en báscula registrados correctamente. Asiento sincronizado en el Archivo Cronológico.');
       toast.success('Recepción y pesaje en báscula registrados correctamente. Asiento sincronizado en el Archivo Cronológico.');
       await loadData();
     } catch (err: any) {
       const msg = `Error al registrar recepción: ${err.message}`;
+      setModalActionError(msg);
+      toast.error(msg);
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
+  const openJustifyModal = () => {
+    if (!document) return;
+    setModalActionError(null);
+    setJustifyForm({
+      causa: (document.causa_discrepancia as CausaDiscrepancia) || '',
+      texto: document.justificacion_discrepancia || '',
+    });
+    setIsJustifyModalOpen(true);
+  };
+
+  const handleJustifyDiscrepancy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!document) return;
+    if (!justifyForm.causa) {
+      setModalActionError('Seleccione la causa de la discrepancia.');
+      return;
+    }
+
+    try {
+      setSubmittingAction(true);
+      setModalActionError(null);
+      await identificationDocumentService.justifyDiscrepancy(document.id, {
+        causa: justifyForm.causa,
+        texto: justifyForm.texto,
+      });
+      setIsJustifyModalOpen(false);
+      toast.success('Discrepancia de báscula justificada correctamente.');
+      await loadData();
+    } catch (err: any) {
+      const msg = err.message || 'Error al justificar la discrepancia';
       setModalActionError(msg);
       toast.error(msg);
     } finally {
@@ -482,6 +531,8 @@ export default function DetalleDocumentoIdentificacionPage() {
   }
 
   const tracking = getTrackingStatusMeta(document);
+  const pesoOrigenTracking = document.peso_origen_kg || (document.unidad === 'toneladas' ? document.cantidad * 1000 : document.cantidad) || 0;
+  const receptionDiscrepancy = isWeightDiscrepancy(pesoOrigenTracking, receptionForm.peso_destino_kg);
   const pesoOrigenCalc = document.peso_origen_kg || (document.unidad === 'toneladas' ? document.cantidad * 1000 : document.cantidad) || 0;
 
   return (
@@ -680,14 +731,50 @@ export default function DetalleDocumentoIdentificacionPage() {
             </div>
 
             {/* Aviso de Discrepancia Normativa */}
-            {tracking.hasDiscrepancy && (
-              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300">
-                <div>
+            {tracking.hasDiscrepancy && !tracking.isDiscrepancyJustified && (
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex-1">
                   <p className="font-semibold">Atención: Discrepancia de báscula detectada ({tracking.discrepancyMessage})</p>
                   <p className="opacity-90 mt-0.5">
                     Según el RD 553/2020, las discrepancias relevantes entre el peso declarado por el remitente y el pesado por el gestor deben quedar justificadas documentalmente en el DI.
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={openJustifyModal}
+                  className="shrink-0 px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold transition-colors"
+                >
+                  Justificar discrepancia
+                </button>
+              </div>
+            )}
+
+            {/* Discrepancia justificada (trazabilidad para inspección) */}
+            {tracking.isDiscrepancyJustified && (
+              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300 flex flex-col sm:flex-row sm:items-start gap-3">
+                <div className="flex-1 space-y-1">
+                  <p className="font-semibold">
+                    ✓ Discrepancia justificada ({tracking.discrepancyMessage})
+                  </p>
+                  <p>
+                    <span className="font-semibold">Causa:</span>{' '}
+                    {document.causa_discrepancia ? CAUSA_DISCREPANCIA_LABELS[document.causa_discrepancia] : 'No tipificada'}
+                  </p>
+                  <p className="whitespace-pre-line">{document.justificacion_discrepancia}</p>
+                  <p className="opacity-75">
+                    Registrada{document.justificacion_discrepancia_by_nombre ? ` por ${document.justificacion_discrepancia_by_nombre}` : ''}
+                    {document.justificacion_discrepancia_at ? ` el ${new Date(document.justificacion_discrepancia_at).toLocaleString('es-ES')}` : ''}
+                  </p>
+                </div>
+                {document.estado_traslado !== 'tratado' && (
+                  <button
+                    type="button"
+                    onClick={openJustifyModal}
+                    className="shrink-0 px-3 py-1.5 rounded-lg border border-emerald-600/40 hover:bg-emerald-500/10 font-semibold transition-colors"
+                  >
+                    Editar
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1465,6 +1552,42 @@ export default function DetalleDocumentoIdentificacionPage() {
               </div>
             </div>
 
+            {/* Justificación de discrepancia de báscula (opcional en recepción) */}
+            {receptionDiscrepancy && (
+              <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 space-y-3">
+                <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
+                  Discrepancia de báscula superior al margen de tolerancia (5% o 200 kg)
+                </p>
+                <p className="text-xs text-amber-800/90 dark:text-amber-300/90">
+                  Puede justificarla ahora o más tarde desde el detalle del DI (RD 553/2020).
+                </p>
+                <div>
+                  <label className="block text-xs text-muted mb-1">Causa de la discrepancia</label>
+                  <select
+                    value={receptionForm.causa_discrepancia || ''}
+                    onChange={(e) => setReceptionForm({ ...receptionForm, causa_discrepancia: (e.target.value || undefined) as CausaDiscrepancia | undefined })}
+                    className="w-full text-xs rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1.5 text-foreground"
+                  >
+                    <option value="">— Justificar más tarde —</option>
+                    {CAUSAS_DISCREPANCIA.map((c) => (
+                      <option key={c} value={c}>{CAUSA_DISCREPANCIA_LABELS[c]}</option>
+                    ))}
+                  </select>
+                </div>
+                {receptionForm.causa_discrepancia && (
+                  <div>
+                    <label className="block text-xs text-muted mb-1">Justificación * (mín. {MIN_JUSTIFICATION_LENGTH} caracteres)</label>
+                    <TextArea
+                      value={receptionForm.justificacion_discrepancia || ''}
+                      onChange={(val) => setReceptionForm({ ...receptionForm, justificacion_discrepancia: val })}
+                      placeholder="Ej: El residuo se pesó en origen con humedad; tras el escurrido en planta se registra la merma..."
+                      rows={2}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Campos condicionales si hay rechazo o incidencia */}
             {receptionForm.resultado_recepcion !== 'aceptado' && (
               <div className="p-3 rounded-lg border border-red-500/30 bg-red-500/10 space-y-3">
@@ -1536,6 +1659,62 @@ export default function DetalleDocumentoIdentificacionPage() {
             </Button>
             <Button type="submit" disabled={submittingAction}>
               {submittingAction ? 'Guardando...' : 'Confirmar Recepción'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL: JUSTIFICAR DISCREPANCIA DE BÁSCULA */}
+      <Modal isOpen={isJustifyModalOpen} onClose={() => setIsJustifyModalOpen(false)} className="max-w-lg p-6">
+        <form onSubmit={handleJustifyDiscrepancy} className="space-y-4">
+          <div className="border-b pb-3 border-gray-200 dark:border-gray-800">
+            <h3 className="text-lg font-bold text-foreground">Justificar Discrepancia de Báscula</h3>
+          </div>
+          <p className="text-xs text-muted">
+            {tracking.discrepancyMessage}. Documente la causa de la diferencia entre el peso declarado en origen y el neto verificado en destino (RD 553/2020).
+            {document.estado_traslado === 'tratado' && ' El DI está cerrado: una vez guardada, la justificación no podrá modificarse.'}
+          </p>
+
+          {modalActionError && (
+            <Alert variant="error" title="No se pudo guardar la justificación" message={modalActionError} />
+          )}
+
+          <div>
+            <label className="block text-xs font-semibold text-muted uppercase mb-1">Causa *</label>
+            <select
+              value={justifyForm.causa}
+              onChange={(e) => setJustifyForm({ ...justifyForm, causa: e.target.value as CausaDiscrepancia | '' })}
+              className="w-full text-xs font-semibold rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary h-10"
+              required
+            >
+              <option value="">Seleccione una causa…</option>
+              {CAUSAS_DISCREPANCIA.map((c) => (
+                <option key={c} value={c}>{CAUSA_DISCREPANCIA_LABELS[c]}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-muted uppercase mb-1">
+              Justificación * <span className="normal-case font-normal">({justifyForm.texto.trim().length}/{MIN_JUSTIFICATION_LENGTH} mín.)</span>
+            </label>
+            <TextArea
+              value={justifyForm.texto}
+              onChange={(val) => setJustifyForm({ ...justifyForm, texto: val })}
+              placeholder="Describa la causa técnica de la diferencia de peso..."
+              rows={4}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-gray-200 dark:border-gray-800">
+            <Button type="button" variant="outline" onClick={() => setIsJustifyModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={submittingAction || !justifyForm.causa || justifyForm.texto.trim().length < MIN_JUSTIFICATION_LENGTH}
+            >
+              {submittingAction ? 'Guardando...' : 'Guardar Justificación'}
             </Button>
           </div>
         </form>
