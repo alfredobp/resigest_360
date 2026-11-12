@@ -58,7 +58,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   const contentClasses = isFullscreen
     ? "w-full h-full"
-    : "relative w-full rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-100 dark:border-gray-800";
+    : "relative w-full max-h-[90vh] overflow-y-auto rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-100 dark:border-gray-800";
 
   const modalElement = (
     <div className="fixed inset-0 flex items-center justify-center overflow-y-auto modal z-[999999] p-4 sm:p-6">
@@ -104,3 +104,6 @@ export const Modal: React.FC<ModalProps> = ({
     ? createPortal(modalElement, document.body)
     : null;
 };
+
+export { ConfirmModal } from "./ConfirmModal";
+export type { ConfirmModalProps, ConfirmVariant } from "./ConfirmModal";

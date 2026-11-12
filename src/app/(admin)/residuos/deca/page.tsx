@@ -10,7 +10,7 @@ import QRCode from 'qrcode';
 import { decaService } from '@/services/decaService';
 import type { DecaDocument, DecaFormData } from '@/types/deca';
 import { toast } from '@/context/ToastContext';
-import { Modal } from '@/components/ui/modal';
+import { Modal, ConfirmModal } from '@/components/ui/modal';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
@@ -56,6 +56,7 @@ export default function DecaManagementPage() {
   const [versionErrors, setVersionErrors] = useState<Record<string, string>>({});
   const [motivoVersion, setMotivoVersion] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [docToFinalize, setDocToFinalize] = useState<number | null>(null);
 
   // Formulario de creación
   const initialFormData: Partial<DecaFormData> = {
@@ -143,15 +144,18 @@ export default function DecaManagementPage() {
     setTimeout(() => setCopiedLink(null), 2500);
   };
 
-  const handleFinalize = async (id: number) => {
-    if (confirm('¿Deseas finalizar este servicio de transporte? Se registrará la fecha y hora de cierre y comenzará el plazo legal de 7 días naturales para el acceso público de inspección.')) {
-      try {
-        await decaService.finalizeService(id);
-        toast.success('Servicio de transporte finalizado con éxito.');
-        await loadDocuments();
-      } catch (err: any) {
-        toast.error(`Error al finalizar servicio: ${err.message}`);
-      }
+  const handleFinalize = (id: number) => {
+    setDocToFinalize(id);
+  };
+
+  const confirmFinalize = async () => {
+    if (docToFinalize === null) return;
+    try {
+      await decaService.finalizeService(docToFinalize);
+      toast.success('Servicio de transporte finalizado con éxito.');
+      await loadDocuments();
+    } catch (err: any) {
+      toast.error(`Error al finalizar servicio: ${err.message}`);
     }
   };
 
@@ -1147,6 +1151,16 @@ export default function DecaManagementPage() {
           </div>
         )}
       </Modal>
+
+      <ConfirmModal
+        isOpen={docToFinalize !== null}
+        onClose={() => setDocToFinalize(null)}
+        onConfirm={confirmFinalize}
+        variant="warning"
+        title="Finalizar servicio de transporte"
+        confirmLabel="Finalizar servicio"
+        message="¿Deseas finalizar este servicio de transporte? Se registrará la fecha y hora de cierre y comenzará el plazo legal de 7 días naturales para el acceso público de inspección."
+      />
     </div>
   );
 }

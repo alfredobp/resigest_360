@@ -14,6 +14,7 @@ import { generateMemoriaAnualPDF } from '@/lib/pdfUtils';
 import { type MemoriaAnual, type EstadoMemoria, type ResumenLER } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
+import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
 import Badge from '@/components/ui/badge/Badge';
 import Button from '@/components/ui/button/Button';
@@ -28,6 +29,7 @@ export default function DetalleMemoriaPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [processingExcel, setProcessingExcel] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   useEffect(() => {
     if (memoriaId) {
@@ -66,12 +68,13 @@ export default function DetalleMemoriaPage() {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!memoria) return;
+    setIsDeleteModalOpen(true);
+  };
 
-    if (!confirm('¿Estás seguro de que quieres eliminar esta memoria anual? Esta acción no se puede deshacer.')) {
-      return;
-    }
+  const confirmDelete = async () => {
+    if (!memoria) return;
 
     try {
       await deleteMemoria(memoria.id);
@@ -510,6 +513,14 @@ export default function DetalleMemoriaPage() {
           </ComponentCard>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        title="Eliminar memoria anual"
+        message="¿Estás seguro de que quieres eliminar esta memoria anual? Esta acción no se puede deshacer."
+      />
     </div>
   );
 }

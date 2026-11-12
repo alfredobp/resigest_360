@@ -8,7 +8,7 @@ import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import { toast } from '@/context/ToastContext';
-import { Modal } from '@/components/ui/modal';
+import { Modal, ConfirmModal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
 import identificationDocumentService, { getTrackingStatusMeta, normalizeOperationCode } from '@/services/identificationDocumentService';
@@ -65,6 +65,7 @@ export default function DetalleDocumentoIdentificacionPage() {
   const [siraSubmissions, setSiraSubmissions] = useState<SiraSubmission[]>([]);
   const [selectedXml, setSelectedXml] = useState<string | null>(null);
   const [isXmlModalOpen, setIsXmlModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // Estados de modales
   const [isDepartureModalOpen, setIsDepartureModalOpen] = useState(false);
@@ -295,10 +296,13 @@ export default function DetalleDocumentoIdentificacionPage() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!document || !confirm('¿Estás seguro de que deseas eliminar este documento?')) {
-      return;
-    }
+  const handleDelete = () => {
+    if (!document) return;
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!document) return;
 
     try {
       await identificationDocumentService.delete(document.id);
@@ -1535,6 +1539,14 @@ export default function DetalleDocumentoIdentificacionPage() {
             : 'Gestor Destinatario'
         }`}
         description="Dibuje su firma en el recuadro para validar la conformidad y registrarla en el documento oficial."
+      />
+
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        title="Eliminar documento"
+        message="¿Estás seguro de que deseas eliminar este documento? Esta acción no se puede deshacer."
       />
     </>
   );

@@ -26,7 +26,7 @@ import Button from '@/components/ui/button/Button';
 import { toast } from '@/context/ToastContext';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
-import { Modal } from '@/components/ui/modal';
+import { Modal, ConfirmModal } from '@/components/ui/modal';
 import LerSelector from '@/components/residuos/LerSelector';
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -58,6 +58,7 @@ export default function ArchivoCronologicoPage() {
   // Modal Nuevo Asiento
   const [modalOpen, setModalOpen] = useState(false);
   const [savingEntry, setSavingEntry] = useState(false);
+  const [entryToDelete, setEntryToDelete] = useState<number | null>(null);
   const [formData, setFormData] = useState<ChronologicalEntryFormData>({
     fecha: new Date().toISOString().split('T')[0],
     tipo_operacion: 'produccion_interna',
@@ -196,10 +197,14 @@ export default function ArchivoCronologicoPage() {
   };
 
   // Eliminar asiento
-  const handleDeleteEntry = async (id: number) => {
-    if (!confirm('¿Confirma la anulación o eliminación de este asiento cronológico?')) return;
+  const handleDeleteEntry = (id: number) => {
+    setEntryToDelete(id);
+  };
+
+  const confirmDeleteEntry = async () => {
+    if (entryToDelete === null) return;
     try {
-      await deleteChronologicalEntry(id);
+      await deleteChronologicalEntry(entryToDelete);
       const msg = 'Asiento eliminado correctamente.';
       setSuccess(msg);
       toast.success(msg);
@@ -795,6 +800,14 @@ export default function ArchivoCronologicoPage() {
           </form>
         </div>
       </Modal>
+
+      <ConfirmModal
+        isOpen={entryToDelete !== null}
+        onClose={() => setEntryToDelete(null)}
+        onConfirm={confirmDeleteEntry}
+        title="Anular o eliminar asiento"
+        message="¿Confirma la anulación o eliminación de este asiento cronológico? Esta acción no se puede deshacer."
+      />
     </div>
   );
 }

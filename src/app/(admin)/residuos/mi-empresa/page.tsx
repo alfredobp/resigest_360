@@ -9,6 +9,7 @@ import TextArea from '@/components/form/input/TextArea';
 import Button from '@/components/ui/button/Button';
 import ImageUpload from '@/components/common/ImageUpload';
 import Alert from '@/components/ui/alert/Alert';
+import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
@@ -33,6 +34,7 @@ export default function MiEmpresaPage() {
 
   // Estado para el nuevo centro de producción
   const [showCenterForm, setShowCenterForm] = useState(false);
+  const [centerToDelete, setCenterToDelete] = useState<number | null>(null);
   const [centerFormData, setCenterFormData] = useState<ProductionCenterFormData>({
     nombre: '',
     direccion: '',
@@ -199,15 +201,19 @@ export default function MiEmpresaPage() {
     }
   };
 
-  const handleDeleteCenter = async (id: number) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar este centro de producción?')) return;
+  const handleDeleteCenter = (id: number) => {
+    setCenterToDelete(id);
+  };
+
+  const confirmDeleteCenter = async () => {
+    if (centerToDelete === null) return;
 
     try {
-      await productionCenterService.delete(id);
+      await productionCenterService.delete(centerToDelete);
       const msg = 'Centro de producción eliminado correctamente';
       setSuccess(msg);
       toast.success(msg);
-      setProductionCenters(prev => prev.filter(c => c.id !== id));
+      setProductionCenters(prev => prev.filter(c => c.id !== centerToDelete));
     } catch (err: any) {
       setError(err.message);
       toast.error(`Error al eliminar centro de producción: ${err.message}`);
@@ -749,6 +755,14 @@ export default function MiEmpresaPage() {
             />
           </div>
         )}
+
+        <ConfirmModal
+          isOpen={centerToDelete !== null}
+          onClose={() => setCenterToDelete(null)}
+          onConfirm={confirmDeleteCenter}
+          title="Eliminar centro de producción"
+          message="¿Estás seguro de que deseas eliminar este centro de producción? Esta acción no se puede deshacer."
+        />
       </div>
     </>
   );

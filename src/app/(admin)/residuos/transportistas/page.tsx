@@ -6,6 +6,7 @@ import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
+import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
 import carrierService from '@/services/carrierService';
 import type { Carrier } from '@/types/wasteManagement';
@@ -17,6 +18,7 @@ export default function TransportistasPage() {
     const [error, setError] = useState<string | null>(null);
     const [showModal, setShowModal] = useState(false);
     const [selectedCarrier, setSelectedCarrier] = useState<Carrier | undefined>(undefined);
+    const [carrierToDelete, setCarrierToDelete] = useState<number | null>(null);
 
     useEffect(() => {
         loadData();
@@ -44,14 +46,16 @@ export default function TransportistasPage() {
         setShowModal(true);
     };
 
-    const handleDelete = async (id: number) => {
-        if (!confirm('¿Estás seguro de que deseas eliminar este transportista?')) {
-            return;
-        }
+    const handleDelete = (id: number) => {
+        setCarrierToDelete(id);
+    };
+
+    const confirmDelete = async () => {
+        if (carrierToDelete === null) return;
 
         try {
-            await carrierService.delete(id);
-            setCarriers((prev) => prev.filter((c) => c.id !== id));
+            await carrierService.delete(carrierToDelete);
+            setCarriers((prev) => prev.filter((c) => c.id !== carrierToDelete));
             toast.success('Transportista eliminado correctamente.');
         } catch (err: any) {
             toast.error(`Error al eliminar transportista: ${err.message}`);
@@ -161,6 +165,14 @@ export default function TransportistasPage() {
                     onClose={() => setShowModal(false)}
                     onSuccess={loadData}
                     carrier={selectedCarrier}
+                />
+
+                <ConfirmModal
+                    isOpen={carrierToDelete !== null}
+                    onClose={() => setCarrierToDelete(null)}
+                    onConfirm={confirmDelete}
+                    title="Eliminar transportista"
+                    message="¿Estás seguro de que deseas eliminar este transportista? Esta acción no se puede deshacer."
                 />
             </div>
         </>

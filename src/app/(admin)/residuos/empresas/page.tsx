@@ -7,6 +7,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
+import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
 import Input from '@/components/form/input/InputField';
 import EmpresaModal from '@/components/residuos/EmpresaModal';
@@ -43,6 +44,9 @@ function EmpresasContent() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [selectedCompanyForAuth, setSelectedCompanyForAuth] = useState<Company | null>(null);
 
+  // Modal Confirmación Eliminar
+  const [companyToDelete, setCompanyToDelete] = useState<{ id: number; razonSocial: string } | null>(null);
+
   useEffect(() => {
     const rolParam = searchParams.get('rol');
     if (rolParam) {
@@ -66,10 +70,13 @@ function EmpresasContent() {
     }
   };
 
-  const handleDelete = async (id: number, razonSocial: string) => {
-    if (!confirm(`¿Estás seguro de que deseas eliminar la empresa "${razonSocial}"?`)) {
-      return;
-    }
+  const handleDelete = (id: number, razonSocial: string) => {
+    setCompanyToDelete({ id, razonSocial });
+  };
+
+  const confirmDeleteCompany = async () => {
+    if (!companyToDelete) return;
+    const { id, razonSocial } = companyToDelete;
 
     try {
       await companyService.delete(id);
@@ -401,6 +408,14 @@ function EmpresasContent() {
             centers={selectedCompanyForAuth.production_centers || []}
           />
         )}
+
+        <ConfirmModal
+          isOpen={Boolean(companyToDelete)}
+          onClose={() => setCompanyToDelete(null)}
+          onConfirm={confirmDeleteCompany}
+          title="Eliminar empresa"
+          message={`¿Estás seguro de que deseas eliminar la empresa "${companyToDelete?.razonSocial || ''}"? Esta acción no se puede deshacer.`}
+        />
       </div>
     </>
   );

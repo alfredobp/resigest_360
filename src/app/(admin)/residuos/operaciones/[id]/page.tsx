@@ -13,6 +13,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
+import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
 
 const ESTADO_CONFIG: Record<EstadoOperacionComercial, { label: string; color: 'light' | 'info' | 'warning' | 'success' | 'error' | 'primary' }> = {
@@ -35,6 +36,7 @@ export default function DetalleOperacionComercialPage() {
   const [syncingHolded, setSyncingHolded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   useEffect(() => {
     if (opId) {
@@ -117,9 +119,13 @@ export default function DetalleOperacionComercialPage() {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!operation) return;
-    if (!confirm('¿Confirma la eliminación definitiva de esta operación comercial?')) return;
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!operation) return;
     try {
       await commercialOperationService.delete(operation.id);
       toast.success('Operación comercial eliminada correctamente.');
@@ -443,6 +449,14 @@ export default function DetalleOperacionComercialPage() {
           </div>
         </ComponentCard>
       </div>
+
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        title="Eliminar operación comercial"
+        message="¿Confirma la eliminación definitiva de esta operación comercial? Esta acción no se puede deshacer."
+      />
     </div>
   );
 }

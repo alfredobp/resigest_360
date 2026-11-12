@@ -7,6 +7,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
+import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
 import wasteContractService, { getContractEffectiveStatus, validateContractActivation } from '@/services/wasteContractService';
 import type { WasteContract } from '@/types/wasteManagement';
@@ -41,6 +42,7 @@ export default function ContractDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const [signingRole, setSigningRole] = useState<'productor' | 'gestor'>('productor');
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -60,10 +62,13 @@ export default function ContractDetailPage() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!contract || !confirm('¿Estás seguro de que deseas eliminar este contrato?')) {
-      return;
-    }
+  const handleDelete = () => {
+    if (!contract) return;
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!contract) return;
 
     try {
       await wasteContractService.delete(contract.id);
@@ -694,6 +699,14 @@ export default function ContractDetailPage() {
         onSave={handleSaveSignature}
         title={`Firmar Contrato como ${signingRole === 'productor' ? 'Productor' : 'Gestor'}`}
         description="Al pulsar en 'Confirmar Firma' se guardará su firma digital en el documento."
+      />
+
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        title="Eliminar contrato"
+        message="¿Estás seguro de que deseas eliminar este contrato? Esta acción no se puede deshacer."
       />
     </>
   );

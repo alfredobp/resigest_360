@@ -12,6 +12,7 @@ import companyService from '@/services/companyService';
 import { type MemoriaAnual, type EstadoMemoria, type TipoMemoria, type ProductionCenter } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
+import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
 import Badge from '@/components/ui/badge/Badge';
 import Button from '@/components/ui/button/Button';
@@ -33,6 +34,7 @@ export default function MemoriasAnualesPage() {
 
   // Estadísticas
   const [stats, setStats] = useState<any>(null);
+  const [memoriaToDelete, setMemoriaToDelete] = useState<number | null>(null);
 
   useEffect(() => {
     loadMemorias();
@@ -94,13 +96,15 @@ export default function MemoriasAnualesPage() {
     setFilteredMemorias(filtered);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar esta memoria anual?')) {
-      return;
-    }
+  const handleDelete = (id: number) => {
+    setMemoriaToDelete(id);
+  };
+
+  const confirmDelete = async () => {
+    if (memoriaToDelete === null) return;
 
     try {
-      await deleteMemoria(id);
+      await deleteMemoria(memoriaToDelete);
       const msg = 'Memoria anual eliminada correctamente';
       setSuccess(msg);
       toast.success(msg);
@@ -409,6 +413,14 @@ export default function MemoriasAnualesPage() {
           </div>
         )}
       </ComponentCard>
+
+      <ConfirmModal
+        isOpen={memoriaToDelete !== null}
+        onClose={() => setMemoriaToDelete(null)}
+        onConfirm={confirmDelete}
+        title="Eliminar memoria anual"
+        message="¿Estás seguro de que quieres eliminar esta memoria anual? Esta acción no se puede deshacer."
+      />
     </div>
   );
 }
