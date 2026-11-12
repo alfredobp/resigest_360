@@ -8,6 +8,7 @@ const mockSupabase = {
     getUser: jest.fn(),
   },
   from: jest.fn(),
+  rpc: jest.fn(),
   storage: {
     from: jest.fn(() => mockStorageFrom),
   },
@@ -1112,6 +1113,106 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
         justificacion_discrepancia: validPayload.texto,
       })).rejects.toThrow('causa válida');
       expect(spyUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Firma pública por token (getBySigningToken y signDocumentByToken)', () => {
+    const mockPublicDI = {
+      id: 205,
+      company_id: 9,
+      numero_documento: '410001234520260000001',
+      signing_token: 'uuid-di-token-123',
+    } as any;
+
+    it('getBySigningToken debe invocar la RPC get_di_by_signing_token y devolver el DI', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: mockPublicDI, error: null });
+
+      const res = await identificationDocumentService.getBySigningToken('uuid-di-token-123');
+
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('get_di_by_signing_token', {
+        p_token: 'uuid-di-token-123',
+      });
+      expect(res).toEqual(mockPublicDI);
+    });
+
+    it('getBySigningToken debe devolver null cuando la RPC devuelve null', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+
+      const res = await identificationDocumentService.getBySigningToken('token-inexistente');
+      expect(res).toBeNull();
+    });
+
+    it('getBySigningToken debe lanzar error descriptivo si falla la RPC', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: 'RPC timeout' } });
+
+      await expect(
+        identificationDocumentService.getBySigningToken('uuid-di-token-123')
+      ).rejects.toThrow('Error al obtener DI por token: RPC timeout');
+    });
+
+    it('signDocumentByToken debe subir la imagen, llamar a sign_di_by_signing_token y registrar auditoría', async () => {
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: mockPublicDI, error: null })
+        .mockResolvedValueOnce({
+          data: { ...mockPublicDI, firmado_transportista: true },
+          error: null,
+        });
+      mockStorageFrom.upload.mockResolvedValue({ error: null });
+      mockStorageFrom.getPublicUrl.mockReturnValue({
+        data: { publicUrl: 'https://storage/sig-trans.png' },
+      });
+
+      const res = await identificationDocumentService.signDocumentByToken(
+        'uuid-di-token-123',
+        'transportista',
+        'data:image/png;base64,iVBORw0KGgo=',
+        { nombre: 'Juan Conductor', dni: '12345678Z' }
+      );
+
+      expect(mockSupabase.rpc).toHaveBeenNthCalledWith(1, 'get_di_by_signing_token', {
+        p_token: 'uuid-di-token-123',
+      });
+      expect(mockSupabase.rpc).toHaveBeenNthCalledWith(2, 'sign_di_by_signing_token', {
+        p_token: 'uuid-di-token-123',
+        p_role: 'transportista',
+        p_signature_url: 'https://storage/sig-trans.png',
+        p_signer_name: 'Juan Conductor',
+        p_signer_dni: '12345678Z',
+      });
+      expect(res.firmado_transportista).toBe(true);
+    });
+
+    it('signDocumentByToken debe lanzar error si el token no corresponde a ningún DI', async () => {
+      mockSupabase.rpc.mockResolvedValueOnce({ data: null, error: null });
+
+      await expect(
+        identificationDocumentService.signDocumentByToken(
+          'token-invalido',
+          'productor',
+          'data:image/png;base64,iVBORw0KGgo='
+        )
+      ).rejects.toThrow('Documento de Identificación no encontrado o token inválido');
+    });
+
+    it('signDocumentByToken debe lanzar error si la RPC sign_di_by_signing_token devuelve error', async () => {
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: mockPublicDI, error: null })
+        .mockResolvedValueOnce({
+          data: null,
+          error: { message: 'El Documento de Identificación ya fue firmado por este rol' },
+        });
+      mockStorageFrom.upload.mockResolvedValue({ error: null });
+      mockStorageFrom.getPublicUrl.mockReturnValue({
+        data: { publicUrl: 'https://storage/sig-prod.png' },
+      });
+
+      await expect(
+        identificationDocumentService.signDocumentByToken(
+          'uuid-di-token-123',
+          'productor',
+          'data:image/png;base64,iVBORw0KGgo='
+        )
+      ).rejects.toThrow('Error al registrar firma pública del DI: El Documento de Identificación ya fue firmado por este rol');
     });
   });
 });

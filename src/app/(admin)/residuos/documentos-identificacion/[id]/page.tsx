@@ -451,6 +451,33 @@ export default function DetalleDocumentoIdentificacionPage() {
     }
   };
 
+  const handleCopyPublicSignLink = async (role?: 'productor' | 'transportista' | 'gestor') => {
+    if (!document?.signing_token) {
+      toast.warning(
+        'Este Documento de Identificación aún no tiene un token de firma pública asignado. Ejecute la migración SQL de firma pública en Supabase.'
+      );
+      return;
+    }
+    const baseUrl = window.location.origin;
+    const query = role ? `?role=${role}` : '';
+    const publicUrl = `${baseUrl}/public/sign-di/${document.signing_token}${query}`;
+    const roleLabel =
+      role === 'productor'
+        ? 'Productor'
+        : role === 'transportista'
+          ? 'Transportista'
+          : role === 'gestor'
+            ? 'Gestor'
+            : 'el DI';
+
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success(`Enlace de firma pública para ${roleLabel} copiado al portapapeles.`);
+    } catch {
+      toast.error('No se pudo copiar el enlace al portapapeles.');
+    }
+  };
+
   const handleSendSira = async () => {
     if (!document) return;
 
@@ -1009,11 +1036,30 @@ export default function DetalleDocumentoIdentificacionPage() {
                       </p>
                     )}
                     <p className="text-[10px] text-muted mt-1">{formatDateTime(document.fecha_firma_productor)}</p>
+                    {!document.firma_productor_url && (
+                      <div className="pt-2 space-y-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenSignatureModal('productor')}
+                          className="w-full text-xs"
+                        >
+                          ✍️ Añadir firma gráfica
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPublicSignLink('productor')}
+                          className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                        >
+                          <span>🔗</span> Copiar enlace de firma (Productor)
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     <Badge color="light">Pendiente de firma</Badge>
-                    <div>
+                    <div className="space-y-1.5">
                       <Button
                         size="sm"
                         variant="outline"
@@ -1022,6 +1068,13 @@ export default function DetalleDocumentoIdentificacionPage() {
                       >
                         ✍️ Firmar como Productor
                       </Button>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyPublicSignLink('productor')}
+                        className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                      >
+                        <span>🔗</span> Copiar enlace de firma (Productor)
+                      </button>
                     </div>
                   </div>
                 )}
@@ -1052,11 +1105,30 @@ export default function DetalleDocumentoIdentificacionPage() {
                       </p>
                     )}
                     <p className="text-[10px] text-muted mt-1">{formatDateTime(document.fecha_firma_transportista)}</p>
+                    {!document.firma_transportista_url && (
+                      <div className="pt-2 space-y-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenSignatureModal('transportista')}
+                          className="w-full text-xs"
+                        >
+                          ✍️ Añadir firma gráfica
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPublicSignLink('transportista')}
+                          className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                        >
+                          <span>🔗</span> Copiar enlace de firma (Transportista)
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     <Badge color="light">Pendiente en recogida</Badge>
-                    <div>
+                    <div className="space-y-1.5">
                       <Button
                         size="sm"
                         variant="outline"
@@ -1065,6 +1137,13 @@ export default function DetalleDocumentoIdentificacionPage() {
                       >
                         ✍️ Firmar como Transportista
                       </Button>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyPublicSignLink('transportista')}
+                        className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                      >
+                        <span>🔗</span> Copiar enlace de firma (Transportista)
+                      </button>
                     </div>
                   </div>
                 )}
@@ -1095,11 +1174,30 @@ export default function DetalleDocumentoIdentificacionPage() {
                       </p>
                     )}
                     <p className="text-[10px] text-muted mt-1">{formatDateTime(document.fecha_firma_gestor)}</p>
+                    {!document.firma_gestor_url && (
+                      <div className="pt-2 space-y-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenSignatureModal('gestor')}
+                          className="w-full text-xs"
+                        >
+                          ✍️ Añadir firma gráfica
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPublicSignLink('gestor')}
+                          className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                        >
+                          <span>🔗</span> Copiar enlace de firma (Gestor)
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     <Badge color="light">Pendiente en báscula</Badge>
-                    <div>
+                    <div className="space-y-1.5">
                       <Button
                         size="sm"
                         variant="outline"
@@ -1108,6 +1206,13 @@ export default function DetalleDocumentoIdentificacionPage() {
                       >
                         ✍️ Firmar como Gestor
                       </Button>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyPublicSignLink('gestor')}
+                        className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                      >
+                        <span>🔗</span> Copiar enlace de firma (Gestor)
+                      </button>
                     </div>
                   </div>
                 )}

@@ -451,6 +451,63 @@ export const identificationDocumentService = {
   },
 
   /**
+   * Obtener Documento de Identificación por token de firma pública (RPC SECURITY DEFINER)
+   */
+  async getBySigningToken(token: string): Promise<IdentificationDocument | null> {
+    const { data, error } = await supabase.rpc('get_di_by_signing_token', { p_token: token });
+
+    if (error) {
+      throw new Error(`Error al obtener DI por token: ${error.message}`);
+    }
+
+    return (data as IdentificationDocument | null) ?? null;
+  },
+
+  /**
+   * Firmar Documento de Identificación mediante token público sin sesión autenticada
+   */
+  async signDocumentByToken(
+    token: string,
+    role: 'productor' | 'transportista' | 'gestor',
+    signatureBase64: string,
+    signerInfo?: { nombre?: string; dni?: string }
+  ): Promise<IdentificationDocument> {
+    const doc = await this.getBySigningToken(token);
+    if (!doc) {
+      throw new Error('Documento de Identificación no encontrado o token inválido');
+    }
+
+    const publicUrl = await this.uploadSignatureImage(doc.id, `public-${role}`, signatureBase64);
+
+    const { data, error: updateError } = await supabase.rpc('sign_di_by_signing_token', {
+      p_token: token,
+      p_role: role,
+      p_signature_url: publicUrl,
+      p_signer_name: signerInfo?.nombre?.trim() || null,
+      p_signer_dni: signerInfo?.dni?.trim() || null,
+    });
+
+    if (updateError) {
+      throw new Error(`Error al registrar firma pública del DI: ${updateError.message}`);
+    }
+
+    await auditService.logAction({
+      company_id: (data as IdentificationDocument)?.company_id ?? doc.company_id ?? null,
+      entidad: 'di',
+      entidad_id: doc.id,
+      accion: 'actualizar',
+      detalles: {
+        numero_documento: doc.numero_documento,
+        rol_firma: role,
+        via: 'enlace_publico',
+        firmante_nombre: signerInfo?.nombre || undefined,
+      },
+    });
+
+    return data as IdentificationDocument;
+  },
+
+  /**
    * 1. Iniciar Traslado / Registrar Salida (Transportista)
    * Exige contrato vigente compatible o acreditación externa antes de pasar a 'en_transito' (F03).
    */

@@ -500,8 +500,10 @@ export interface IdentificationDocument {
   nombre_transportista?: string;
   dni_transportista?: string;
 
-  // Documentación
+  // Documentación y Firma Pública
   documento_url?: string;
+  signing_token?: string;
+  signing_token_expires_at?: string;
 
   // Estado administrativo general
   estado: 'borrador' | 'pendiente-firma' | 'completado' | 'cancelado';
