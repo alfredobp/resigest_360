@@ -191,6 +191,18 @@ export default function MiEmpresaPage() {
     }));
   };
 
+  const handleCompanyTypeChange = (newType: NonNullable<CompanyFormData['tipo_empresa']>) => {
+    // Si el perfil operativo actual ya coincide con este tipo de empresa, solo actualizamos el tipo
+    const currentProfileDef = formData.perfil_operativo ? PROFILE_DEFINITIONS[formData.perfil_operativo] : null;
+    if (currentProfileDef && currentProfileDef.defaultCompanyType === newType) {
+      setFormData((prev) => ({ ...prev, tipo_empresa: newType }));
+      return;
+    }
+
+    const matchingProfile = normalizeOperationalProfile(undefined, newType);
+    handleProfileChange(matchingProfile);
+  };
+
   const handleToggleModule = (mod: AppModule) => {
     setFormData((prev) => {
       const current = prev.modulos_activos || [];
@@ -649,9 +661,7 @@ export default function MiEmpresaPage() {
                           <button
                             key={tipo.value}
                             type="button"
-                            onClick={() =>
-                              setFormData((prev) => ({ ...prev, tipo_empresa: tipo.value }))
-                            }
+                            onClick={() => handleCompanyTypeChange(tipo.value)}
                             className={`flex flex-col items-start p-3.5 rounded-xl border text-left transition-all ${
                               isSelected
                                 ? 'border-2 border-brand-500 bg-brand-50/70 dark:bg-brand-950/30 dark:border-brand-400 shadow-xs'
