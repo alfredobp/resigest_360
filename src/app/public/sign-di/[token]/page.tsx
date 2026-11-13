@@ -14,22 +14,19 @@ type SigningRole = 'productor' | 'transportista' | 'gestor';
 
 const ROLE_META: Record<
   SigningRole,
-  { label: string; subtitle: string; icon: string }
+  { label: string; subtitle: string }
 > = {
   productor: {
     label: '1. Productor / Remitente',
     subtitle: 'Conformidad de entrega en origen',
-    icon: '🏭',
   },
   transportista: {
     label: '2. Transportista (En Carga)',
     subtitle: 'Conformidad de recogida y porte',
-    icon: '🚚',
   },
   gestor: {
     label: '3. Gestor Destinatario',
     subtitle: 'Conformidad de recepción en planta',
-    icon: '♻️',
   },
 };
 
@@ -266,18 +263,17 @@ function PublicDISignatureContent() {
                   }`}
                 >
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-lg">{meta.icon}</span>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-bold text-gray-900 dark:text-white">
+                        {meta.label}
+                      </span>
                       {signed ? (
-                        <Badge color="success" size="sm">✓ Firmado</Badge>
+                        <Badge color="success" size="sm">Firmado</Badge>
                       ) : (
                         <Badge color="light" size="sm">Pendiente</Badge>
                       )}
                     </div>
-                    <div className="text-xs font-bold text-gray-900 dark:text-white">
-                      {meta.label}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
                       {meta.subtitle}
                     </div>
                   </div>

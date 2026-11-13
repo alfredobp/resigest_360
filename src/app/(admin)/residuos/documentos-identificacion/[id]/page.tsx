@@ -1044,14 +1044,14 @@ export default function DetalleDocumentoIdentificacionPage() {
                           onClick={() => handleOpenSignatureModal('productor')}
                           className="w-full text-xs"
                         >
-                          ✍️ Añadir firma gráfica
+                          Añadir firma gráfica
                         </Button>
                         <button
                           type="button"
                           onClick={() => handleCopyPublicSignLink('productor')}
-                          className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                          className="w-full py-1.5 px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-xs font-medium text-center"
                         >
-                          <span>🔗</span> Copiar enlace de firma (Productor)
+                          Copiar enlace de firma (Productor)
                         </button>
                       </div>
                     )}
@@ -1066,14 +1066,14 @@ export default function DetalleDocumentoIdentificacionPage() {
                         onClick={() => handleOpenSignatureModal('productor')}
                         className="w-full text-xs"
                       >
-                        ✍️ Firmar como Productor
+                        Firmar como Productor
                       </Button>
                       <button
                         type="button"
                         onClick={() => handleCopyPublicSignLink('productor')}
-                        className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                        className="w-full py-1.5 px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-xs font-medium text-center"
                       >
-                        <span>🔗</span> Copiar enlace de firma (Productor)
+                        Copiar enlace de firma (Productor)
                       </button>
                     </div>
                   </div>
@@ -1113,14 +1113,14 @@ export default function DetalleDocumentoIdentificacionPage() {
                           onClick={() => handleOpenSignatureModal('transportista')}
                           className="w-full text-xs"
                         >
-                          ✍️ Añadir firma gráfica
+                          Añadir firma gráfica
                         </Button>
                         <button
                           type="button"
                           onClick={() => handleCopyPublicSignLink('transportista')}
-                          className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                          className="w-full py-1.5 px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-xs font-medium text-center"
                         >
-                          <span>🔗</span> Copiar enlace de firma (Transportista)
+                          Copiar enlace de firma (Transportista)
                         </button>
                       </div>
                     )}
@@ -1135,14 +1135,14 @@ export default function DetalleDocumentoIdentificacionPage() {
                         onClick={() => handleOpenSignatureModal('transportista')}
                         className="w-full text-xs"
                       >
-                        ✍️ Firmar como Transportista
+                        Firmar como Transportista
                       </Button>
                       <button
                         type="button"
                         onClick={() => handleCopyPublicSignLink('transportista')}
-                        className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                        className="w-full py-1.5 px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-xs font-medium text-center"
                       >
-                        <span>🔗</span> Copiar enlace de firma (Transportista)
+                        Copiar enlace de firma (Transportista)
                       </button>
                     </div>
                   </div>
@@ -1182,14 +1182,14 @@ export default function DetalleDocumentoIdentificacionPage() {
                           onClick={() => handleOpenSignatureModal('gestor')}
                           className="w-full text-xs"
                         >
-                          ✍️ Añadir firma gráfica
+                          Añadir firma gráfica
                         </Button>
                         <button
                           type="button"
                           onClick={() => handleCopyPublicSignLink('gestor')}
-                          className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                          className="w-full py-1.5 px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-xs font-medium text-center"
                         >
-                          <span>🔗</span> Copiar enlace de firma (Gestor)
+                          Copiar enlace de firma (Gestor)
                         </button>
                       </div>
                     )}
@@ -1204,14 +1204,14 @@ export default function DetalleDocumentoIdentificacionPage() {
                         onClick={() => handleOpenSignatureModal('gestor')}
                         className="w-full text-xs"
                       >
-                        ✍️ Firmar como Gestor
+                        Firmar como Gestor
                       </Button>
                       <button
                         type="button"
                         onClick={() => handleCopyPublicSignLink('gestor')}
-                        className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                        className="w-full py-1.5 px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-xs font-medium text-center"
                       >
-                        <span>🔗</span> Copiar enlace de firma (Gestor)
+                        Copiar enlace de firma (Gestor)
                       </button>
                     </div>
                   </div>
