@@ -441,6 +441,8 @@ export interface IdentificationDocument {
   numero_documento: string;
   fecha_documento: string;
   tipo_notificacion: 'sin-notificacion' | 'con-notificacion-previa';
+  numero_notificacion?: string;
+  prior_notification_id?: number;
 
   // Productor
   productor_razon_social: string;
@@ -1380,4 +1382,103 @@ export interface CompanyAuditDetail {
     totalCenters: number;
     totalTonsEstimated: number;
   };
+}
+
+// =====================================================
+// PRIOR NOTIFICATION (Notificación Previa de Traslado - NT)
+// =====================================================
+
+export type TipoNotificacionPrevia = 'general' | 'individual' | 'puntual';
+export type TipoTrasladoNT = 'autonomico' | 'interautonomico' | 'nacional' | 'intracomunitario';
+export type EstadoNotificacionPrevia =
+  | 'borrador'
+  | 'validada_sira'
+  | 'enviada_sira'
+  | 'aceptada'
+  | 'rechazada'
+  | 'caducada';
+
+export interface PriorNotification {
+  id: number;
+  user_id: string;
+  company_id: number;
+  production_center_id?: number;
+
+  numero_notificacion: string;
+  tipo_notificacion: TipoNotificacionPrevia;
+  tipo_traslado: TipoTrasladoNT;
+  numero_traslados_previstos?: number;
+  frecuencia?: string;
+
+  fecha_notificacion: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+
+  // Operador
+  operador_cif: string;
+  operador_razon_social: string;
+  operador_nima?: string;
+  operador_direccion?: string;
+  operador_municipio?: string;
+  operador_provincia?: string;
+  operador_codigo_postal?: string;
+  operador_telefono?: string;
+  operador_email?: string;
+
+  // Productor
+  productor_cif: string;
+  productor_razon_social: string;
+  productor_nima?: string;
+  productor_direccion?: string;
+  productor_municipio?: string;
+  productor_provincia?: string;
+  productor_codigo_postal?: string;
+  productor_telefono?: string;
+  productor_email?: string;
+
+  // Gestor
+  gestor_cif: string;
+  gestor_razon_social: string;
+  gestor_nima?: string;
+  gestor_numero_autorizacion?: string;
+  gestor_direccion?: string;
+  gestor_municipio?: string;
+  gestor_provincia?: string;
+  gestor_codigo_postal?: string;
+  gestor_telefono?: string;
+  gestor_email?: string;
+
+  // Transportista
+  transportista_cif?: string;
+  transportista_razon_social?: string;
+  transportista_nima?: string;
+  transportista_direccion?: string;
+  transportista_municipio?: string;
+  transportista_provincia?: string;
+  transportista_codigo_postal?: string;
+  transportista_telefono?: string;
+  transportista_email?: string;
+
+  // Residuo
+  codigo_ler: string;
+  descripcion_residuo: string;
+  peligrosidad: 'no-peligroso' | 'peligroso';
+  operacion_tratamiento: string;
+  estado_fisico: 'solido' | 'liquido' | 'pastoso' | 'gaseoso';
+  caracteristica_peligrosidad?: string;
+  cantidad_estimada_kg: number;
+
+  // Integración SIRA
+  estado: EstadoNotificacionPrevia;
+  sira_id?: string;
+  sira_envio_fecha?: string;
+  sira_error_detalles?: string;
+  notas?: string;
+
+  // Relaciones
+  company?: Company;
+  production_center?: ProductionCenter;
+
+  created_at: string;
+  updated_at: string;
 }

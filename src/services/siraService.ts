@@ -14,7 +14,7 @@ import { createClient } from '@/lib/supabase/client';
  * Mapeo de códigos de provincia (simplificado)
  * Intenta obtener el código INE de 2 dígitos a partir del nombre
  */
-const getProvinceCodeByName = (provinceName: string): string => {
+export const getProvinceCodeByName = (provinceName: string): string => {
   if (!provinceName) return '00';
   const p = provinceName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const map: Record<string, string> = {

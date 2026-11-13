@@ -578,8 +578,22 @@ export default function DetalleDocumentoIdentificacionPage() {
                 {tracking.label}
               </Badge>
             </div>
-            <p className="text-xs text-muted">
-              Régimen de traslados RD 553/2020 — {document.tipo_notificacion === 'con-notificacion-previa' ? 'Con Notificación Previa' : 'Sin Notificación'}
+            <p className="text-xs text-muted flex flex-wrap items-center gap-2">
+              <span>Régimen de traslados RD 553/2020 — {document.tipo_notificacion === 'con-notificacion-previa' ? 'Con Notificación Previa' : 'Sin Notificación'}</span>
+              {document.numero_notificacion && (
+                <span className="font-mono font-semibold text-foreground bg-muted px-2 py-0.5 rounded">
+                  NT: {document.numero_notificacion}
+                </span>
+              )}
+              {document.prior_notification_id && (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/residuos/notificaciones-previas/${document.prior_notification_id}`)}
+                  className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium"
+                >
+                  (Ver ficha NT →)
+                </button>
+              )}
             </p>
           </div>
           <div className="flex gap-2">

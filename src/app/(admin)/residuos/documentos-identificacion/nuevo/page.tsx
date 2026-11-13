@@ -19,7 +19,8 @@ import wasteTypeService from '@/services/wasteTypeService';
 import treatmentManagerService from '@/services/treatmentManagerService';
 import carrierService from '@/services/carrierService';
 import authorizationService, { type AuthorizedScopeResult } from '@/services/authorizationService';
-import type { IdentificationDocument, Company, WasteContract, ProductionCenter, WasteType, TreatmentManager, Carrier } from '@/types/wasteManagement';
+import { priorNotificationService } from '@/services/priorNotificationService';
+import type { IdentificationDocument, Company, WasteContract, ProductionCenter, WasteType, TreatmentManager, Carrier, PriorNotification } from '@/types/wasteManagement';
 import DatePicker from '@/components/form/date-picker';
 import LerSelector from '@/components/residuos/LerSelector';
 
@@ -38,6 +39,7 @@ export default function NuevoDocumentoIdentificacionPage() {
   const [internalCarriers, setInternalCarriers] = useState<Carrier[]>([]);
   const [wasteTypes, setWasteTypes] = useState<WasteType[]>([]);
   const [allContacts, setAllContacts] = useState<Company[]>([]);
+  const [priorNotifications, setPriorNotifications] = useState<PriorNotification[]>([]);
   const [destAuthScope, setDestAuthScope] = useState<AuthorizedScopeResult | null>(null);
   const [selectedOrigin, setSelectedOrigin] = useState<string>('principal');
   const [expeditionRole, setExpeditionRole] = useState<'productor' | 'gestor'>('productor');
@@ -139,19 +141,45 @@ export default function NuevoDocumentoIdentificacionPage() {
       });
       setContracts(validContracts);
 
-      // Cargar gestores, transportistas y contactos unificados
-      const [gestoresData, internalData, transportistasData, internalCarriersData, contactsData] = await Promise.all([
+      // Cargar gestores, transportistas, contactos unificados y notificaciones previas
+      const [gestoresData, internalData, transportistasData, internalCarriersData, contactsData, ntsData] = await Promise.all([
         companyService.getByType('gestor'),
         treatmentManagerService.getAll(),
         companyService.getByType('transportista'),
         carrierService.getAll(),
         companyService.getAllContacts(),
+        priorNotificationService.getAll().catch(() => []),
       ]);
       setGestores(gestoresData);
       setInternalGestores(internalData);
       setTransportistas(transportistasData);
       setInternalCarriers(internalCarriersData);
       setAllContacts(contactsData);
+      setPriorNotifications(ntsData || []);
+
+      // Si viene un parámetro ntId en la URL, pre-cargar dicha Notificación Previa
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryNtId = urlParams.get('ntId');
+        if (queryNtId && ntsData && ntsData.length > 0) {
+          const matchedNt = ntsData.find(n => String(n.id) === queryNtId);
+          if (matchedNt) {
+            setFormData(prev => ({
+              ...prev,
+              tipo_notificacion: 'con-notificacion-previa',
+              prior_notification_id: matchedNt.id,
+              numero_notificacion: matchedNt.numero_notificacion,
+              codigo_ler: matchedNt.codigo_ler || prev.codigo_ler,
+              descripcion_residuo: matchedNt.descripcion_residuo || prev.descripcion_residuo,
+              peligrosidad: matchedNt.peligrosidad || prev.peligrosidad,
+              operacion_tratamiento_ejecutada: matchedNt.operacion_tratamiento || prev.operacion_tratamiento_ejecutada,
+              gestor_razon_social: matchedNt.gestor_razon_social || prev.gestor_razon_social,
+              gestor_cif: matchedNt.gestor_cif || prev.gestor_cif,
+              gestor_nima: matchedNt.gestor_nima || prev.gestor_nima,
+            }));
+          }
+        }
+      }
 
       // Cargar tipos de residuos (LER)
       const wasteTypesData = await wasteTypeService.getAll();
@@ -479,6 +507,28 @@ export default function NuevoDocumentoIdentificacionPage() {
     }
   };
 
+  const handleSelectNt = (ntIdStr: string) => {
+    if (!ntIdStr) {
+      setFormData((prev) => ({ ...prev, prior_notification_id: undefined, numero_notificacion: '' }));
+      return;
+    }
+    const nt = priorNotifications.find((n) => String(n.id) === ntIdStr);
+    if (!nt) return;
+    setFormData((prev) => ({
+      ...prev,
+      prior_notification_id: nt.id,
+      numero_notificacion: nt.numero_notificacion,
+      tipo_notificacion: 'con-notificacion-previa',
+      codigo_ler: nt.codigo_ler || prev.codigo_ler,
+      descripcion_residuo: nt.descripcion_residuo || prev.descripcion_residuo,
+      peligrosidad: nt.peligrosidad || prev.peligrosidad,
+      operacion_tratamiento_ejecutada: nt.operacion_tratamiento || prev.operacion_tratamiento_ejecutada,
+      gestor_razon_social: nt.gestor_razon_social || prev.gestor_razon_social,
+      gestor_cif: nt.gestor_cif || prev.gestor_cif,
+      gestor_nima: nt.gestor_nima || prev.gestor_nima,
+    }));
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -572,6 +622,75 @@ export default function NuevoDocumentoIdentificacionPage() {
                   onChange={(e) => setFormData({ ...formData, fecha_documento: e.target.value })}
                   required
                 />
+              </div>
+
+              {/* Régimen de Notificación Previa y Selector NT */}
+              <div className="md:col-span-2 p-4 rounded-xl border border-border bg-muted/10 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label className="text-sm font-semibold text-foreground">
+                    Régimen de Notificación Previa (RD 553/2020)
+                  </label>
+                  <div className="flex items-center gap-4 text-sm">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="tipo_notificacion"
+                        checked={formData.tipo_notificacion === 'sin-notificacion'}
+                        onChange={() => setFormData({ ...formData, tipo_notificacion: 'sin-notificacion', prior_notification_id: undefined })}
+                        className="text-brand-600 focus:ring-brand-500"
+                      />
+                      <span>Sin Notificación Previa</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="tipo_notificacion"
+                        checked={formData.tipo_notificacion === 'con-notificacion-previa'}
+                        onChange={() => setFormData({ ...formData, tipo_notificacion: 'con-notificacion-previa' })}
+                        className="text-brand-600 focus:ring-brand-500"
+                      />
+                      <span>Con Notificación Previa (NT)</span>
+                    </label>
+                  </div>
+                </div>
+
+                {formData.tipo_notificacion === 'con-notificacion-previa' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-border">
+                    <div>
+                      <label className="block text-xs font-medium text-muted uppercase mb-1">
+                        Vincular Notificación Previa (NT) Existente:
+                      </label>
+                      <select
+                        className="w-full h-10 px-3 py-1.5 border rounded-lg bg-background text-foreground border-border text-sm"
+                        value={formData.prior_notification_id || ''}
+                        onChange={(e) => handleSelectNt(e.target.value)}
+                      >
+                        <option value="">-- Seleccionar de mis Notificaciones Previas --</option>
+                        {priorNotifications.map((nt) => (
+                          <option key={nt.id} value={nt.id}>
+                            {nt.numero_notificacion || `NT-${nt.id}`} - LER: {nt.codigo_ler} ({nt.gestor_razon_social})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-muted uppercase mb-1">
+                        Código Oficial NT (DCSNT para SIRA) *
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="Ej. NT10110000000120260000001"
+                        value={formData.numero_notificacion || ''}
+                        onChange={(e) => setFormData({ ...formData, numero_notificacion: e.target.value })}
+                        required={formData.tipo_notificacion === 'con-notificacion-previa'}
+                      />
+                      <p className="text-[11px] text-muted mt-1">
+                        Este código será comunicado en la etiqueta oficial &lt;DCSNT&gt; ante la Junta de Andalucía.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {expeditionRole === 'productor' ? (

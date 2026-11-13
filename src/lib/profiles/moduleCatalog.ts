@@ -118,6 +118,7 @@ export const ROUTE_MODULE_RULES: Array<{ prefix: string; module: AppModule }> = 
   { prefix: '/residuos/transportistas', module: 'flota_transporte' },
   { prefix: '/residuos/contratos', module: 'contratos' },
   { prefix: '/residuos/archivo-cronologico', module: 'archivo_cronologico' },
+  { prefix: '/residuos/notificaciones-previas', module: 'di' },
   { prefix: '/residuos/documentos-identificacion', module: 'di' },
   { prefix: '/residuos/deca', module: 'deca' },
   { prefix: '/residuos/empresas', module: 'empresas' },
