@@ -11,12 +11,14 @@ import {
 } from '@/types/wasteManagement';
 import { holdedService } from './holdedService';
 import { auditService } from './auditService';
+import { tenantContextService } from './tenantContextService';
 
 export interface CommercialOperationFilter {
   año?: number;
   estado?: EstadoOperacionComercial | 'todas';
   codigo_ler?: string;
   search?: string;
+  company_id?: number | null;
 }
 
 /**
@@ -73,12 +75,22 @@ export function calculateProfitability(data: Partial<CommercialOperationFormData
 
 export const commercialOperationService = {
   /**
+   * Verifica que el usuario y la empresa activa tienen permiso al módulo de Operaciones Comerciales.
+   */
+  async verifyAccess(): Promise<void> {
+    await tenantContextService.assertModuleAccess('operaciones_comerciales');
+  },
+
+  /**
    * Obtener todas las operaciones con filtros
    */
   async getAll(filters: CommercialOperationFilter = {}): Promise<CommercialOperation[]> {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No hay usuario autenticado');
+
+    const filterColumn = filters.company_id ? 'company_id' : 'user_id';
+    const filterValue = filters.company_id ?? user.id;
 
     let query = supabase
       .from('commercial_operations')
@@ -92,7 +104,7 @@ export const commercialOperationService = {
         cliente_comercial:companies!commercial_operations_cliente_comercial_id_fkey(*),
         identification_document:identification_documents(*)
       `)
-      .eq('user_id', user.id)
+      .eq(filterColumn, filterValue)
       .order('fecha', { ascending: false })
       .order('id', { ascending: false });
 
@@ -477,7 +489,7 @@ export const commercialOperationService = {
       ];
     });
 
-    const csvContent = `\uFEFF${  [headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n')}`;
+    const csvContent = `\uFEFF${[headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n')}`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

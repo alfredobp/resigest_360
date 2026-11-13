@@ -12,7 +12,23 @@ import Alert from '@/components/ui/alert/Alert';
 import { toast } from '@/context/ToastContext';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
-import type { Company, CompanyFormData, ProductionCenter, ProductionCenterFormData } from '@/types/wasteManagement';
+import { useTenant } from '@/context/TenantContext';
+import {
+  ALL_MODULES,
+  MODULE_LABELS,
+  PROFILE_DEFINITIONS,
+  getDefaultModulesForProfile,
+  getEffectiveModules,
+  normalizeOperationalProfile,
+} from '@/lib/profiles/moduleCatalog';
+import type {
+  AppModule,
+  Company,
+  CompanyFormData,
+  OperationalProfile,
+  ProductionCenter,
+  ProductionCenterFormData,
+} from '@/types/wasteManagement';
 
 const TIPOS_EMPRESA = [
   { value: 'productor', label: 'Productor' },
@@ -24,6 +40,7 @@ const TIPOS_EMPRESA = [
 
 export default function MiEmpresaPage() {
   const router = useRouter();
+  const { refreshTenant } = useTenant();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [company, setCompany] = useState<Company | null>(null);
@@ -61,6 +78,10 @@ export default function MiEmpresaPage() {
     email: '',
     persona_contacto: '',
     tipo_empresa: 'productor',
+    perfil_operativo: 'productor',
+    modulos_activos: getDefaultModulesForProfile('productor'),
+    is_my_company: true,
+    onboarding_completado: true,
     logo_url: '',
     notas: '',
     sira_usuario: '',
@@ -97,6 +118,14 @@ export default function MiEmpresaPage() {
           email: data.email || '',
           persona_contacto: data.persona_contacto || '',
           tipo_empresa: data.tipo_empresa,
+          perfil_operativo: normalizeOperationalProfile(
+            data.perfil_operativo,
+            data.tipo_empresa,
+            data.roles
+          ),
+          modulos_activos: getEffectiveModules(data),
+          is_my_company: true,
+          onboarding_completado: true,
           logo_url: data.logo_url || '',
           notas: data.notas || '',
           sira_usuario: data.sira_usuario || '',
@@ -114,6 +143,27 @@ export default function MiEmpresaPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleProfileChange = (newProfile: OperationalProfile) => {
+    const def = PROFILE_DEFINITIONS[newProfile];
+    setFormData((prev) => ({
+      ...prev,
+      perfil_operativo: newProfile,
+      tipo_empresa: def.defaultCompanyType,
+      roles: def.defaultRoles,
+      modulos_activos: getDefaultModulesForProfile(newProfile),
+    }));
+  };
+
+  const handleToggleModule = (mod: AppModule) => {
+    setFormData((prev) => {
+      const current = prev.modulos_activos || [];
+      const next = current.includes(mod)
+        ? current.filter((m) => m !== mod)
+        : [...current, mod];
+      return { ...prev, modulos_activos: next };
+    });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -161,8 +211,9 @@ export default function MiEmpresaPage() {
         toast.success(msg);
       }
 
-      // Recargar datos
+      // Recargar datos y contexto global del tenant
       await loadCompany();
+      await refreshTenant();
     } catch (err: any) {
       setError(err.message);
       toast.error(`Error al guardar datos de la empresa: ${err.message}`);
@@ -341,6 +392,49 @@ export default function MiEmpresaPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Perfil Operativo / Actividad</label>
+                <select
+                  name="perfil_operativo"
+                  value={formData.perfil_operativo || 'productor'}
+                  onChange={(e) => handleProfileChange(e.target.value as OperationalProfile)}
+                  className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
+                >
+                  {(Object.keys(PROFILE_DEFINITIONS) as OperationalProfile[]).map((key) => (
+                    <option key={key} value={key}>
+                      {PROFILE_DEFINITIONS[key].label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2">Módulos Activos en el Menú y Panel</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {ALL_MODULES.map((mod) => {
+                    const checked = (formData.modulos_activos || []).includes(mod);
+                    return (
+                      <label
+                        key={mod}
+                        className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+                          checked
+                            ? 'border-brand-400 bg-brand-50/60 dark:bg-brand-950/30 text-brand-900 dark:text-brand-200 font-semibold'
+                            : 'border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => handleToggleModule(mod)}
+                          className="rounded border-gray-300"
+                        />
+                        <span>{MODULE_LABELS[mod]}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </ComponentCard>

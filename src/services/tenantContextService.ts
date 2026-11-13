@@ -1,0 +1,237 @@
+import { createClient } from '@/lib/supabase/client';
+import {
+  getEffectiveModules,
+  getHomePathForProfile,
+  getModuleLabel,
+  normalizeOperationalProfile,
+} from '@/lib/profiles/moduleCatalog';
+import type {
+  AppModule,
+  Company,
+  MembershipRole,
+  OperationalProfile,
+} from '@/types/wasteManagement';
+
+export const ACTIVE_COMPANY_COOKIE = 'resigest_active_company_id';
+
+export interface AccessibleCompany {
+  company: Company;
+  membershipRole: MembershipRole;
+  canViewCommercial: boolean;
+  isOwner: boolean;
+}
+
+export interface FullTenantContext {
+  userId: string;
+  userEmail: string;
+  activeCompanyId: number | null;
+  activeCompany: Company | null;
+  companyIds: number[];
+  accessibleCompanies: AccessibleCompany[];
+  perfilOperativo: OperationalProfile;
+  activeModules: AppModule[];
+  membershipRole: MembershipRole;
+  canViewCommercial: boolean;
+  hasOwnCompany: boolean;
+  hasCompletedOnboarding: boolean;
+  isPlatformAdmin: boolean;
+  homePath: string;
+}
+
+const ADMIN_EMAILS = [
+  'alfredobape@gmail.com',
+  'demo@resigest.com',
+  process.env.NEXT_PUBLIC_ADMIN_EMAIL || '',
+  process.env.NOTIFICATION_ADMIN_EMAIL || '',
+]
+  .filter(Boolean)
+  .map((e) => e.toLowerCase().trim());
+
+export function getActiveCompanyCookie(cookieSource?: string): number | null {
+  const rawCookie =
+    cookieSource !== undefined
+      ? cookieSource
+      : typeof document !== 'undefined'
+        ? document.cookie
+        : '';
+
+  if (!rawCookie) return null;
+  const match = rawCookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${ACTIVE_COMPANY_COOKIE}=`));
+
+  if (!match) return null;
+  const rawVal = decodeURIComponent(match.slice(ACTIVE_COMPANY_COOKIE.length + 1));
+  const parsed = Number(rawVal);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+export function setActiveCompanyCookie(companyId: number | null): void {
+  if (typeof document === 'undefined') return;
+  if (companyId === null) {
+    document.cookie = `${ACTIVE_COMPANY_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+    return;
+  }
+  document.cookie = `${ACTIVE_COMPANY_COOKIE}=${encodeURIComponent(String(companyId))}; path=/; max-age=2592000; SameSite=Lax`;
+}
+
+export async function resolveTenantContext(
+  supabaseClient: any,
+  preferredCompanyId?: number | null
+): Promise<FullTenantContext> {
+  const { data: authData } = await supabaseClient.auth.getUser();
+  const user = authData?.user;
+  if (!user) {
+    throw new Error('Usuario no autenticado');
+  }
+
+  const userEmail = (user.email || '').toLowerCase().trim();
+  let isPlatformAdmin = ADMIN_EMAILS.includes(userEmail);
+
+  // Comprobar rol en profiles de forma segura
+  if (!isPlatformAdmin && typeof supabaseClient.from === 'function') {
+    try {
+      const { data: profile } = await supabaseClient
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (profile && (profile.role === 'admin' || profile.role === 'superadmin')) {
+        isPlatformAdmin = true;
+      }
+    } catch {
+      // Fallback seguro si no existe profiles en mock o tabla
+    }
+  }
+
+  let ownCompanies: Company[] = [];
+  if (typeof supabaseClient.from === 'function') {
+    try {
+      const { data } = await supabaseClient
+        .from('companies')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('activo', true)
+        .order('is_my_company', { ascending: false })
+        .order('created_at', { ascending: true });
+      if (Array.isArray(data)) {
+        ownCompanies = data as Company[];
+      }
+    } catch {
+      ownCompanies = [];
+    }
+  }
+
+  // Filtrar empresas titulares propias (o si solo creó una empresa marcada sin is_my_company)
+  const myCompanies = ownCompanies.filter((c) => c.is_my_company);
+  const primaryOwnCompanies = myCompanies.length > 0 ? myCompanies : [];
+
+  const accessibleMap = new Map<number, AccessibleCompany>();
+  primaryOwnCompanies.forEach((company) => {
+    accessibleMap.set(company.id, {
+      company,
+      membershipRole: 'owner',
+      canViewCommercial: true,
+      isOwner: true,
+    });
+  });
+
+  // Membresías de consultoría (Bloque 2)
+  if (typeof supabaseClient.from === 'function') {
+    try {
+      const { data: memberships } = await supabaseClient
+        .from('company_memberships')
+        .select('company_id, role, can_view_commercial, company:companies(*)')
+        .eq('user_id', user.id);
+
+      if (Array.isArray(memberships)) {
+        memberships.forEach((m: any) => {
+          const comp = m.company as Company | null;
+          if (!comp || comp.activo === false) return;
+          if (!accessibleMap.has(comp.id)) {
+            accessibleMap.set(comp.id, {
+              company: comp,
+              membershipRole: (m.role as MembershipRole) || 'consultor_operador',
+              canViewCommercial: Boolean(m.can_view_commercial),
+              isOwner: comp.user_id === user.id,
+            });
+          }
+        });
+      }
+    } catch {
+      // Tabla company_memberships aún no aplicada o no mockeada
+    }
+  }
+
+  const accessibleCompanies = Array.from(accessibleMap.values());
+  const targetId = preferredCompanyId !== undefined ? preferredCompanyId : getActiveCompanyCookie();
+
+  const selectedEntry =
+    (targetId ? accessibleCompanies.find((item) => item.company.id === targetId) : undefined) ||
+    accessibleCompanies.find((item) => item.isOwner) ||
+    accessibleCompanies[0] ||
+    null;
+
+  const activeCompany = selectedEntry?.company || null;
+  const canViewCommercial = selectedEntry ? selectedEntry.canViewCommercial : true;
+  const membershipRole: MembershipRole = selectedEntry?.membershipRole || 'owner';
+
+  const perfilOperativo: OperationalProfile = activeCompany
+    ? normalizeOperationalProfile(
+        activeCompany.perfil_operativo,
+        activeCompany.tipo_empresa,
+        activeCompany.roles
+      )
+    : 'productor';
+
+  const activeModules = activeCompany
+    ? getEffectiveModules(activeCompany, { canViewCommercial })
+    : [];
+
+  const hasOwnCompany = primaryOwnCompanies.length > 0;
+  const hasCompletedOnboarding = Boolean(
+    activeCompany && (activeCompany.onboarding_completado || accessibleCompanies.length > 0)
+  );
+
+  return {
+    userId: user.id,
+    userEmail,
+    activeCompanyId: activeCompany?.id ?? null,
+    activeCompany,
+    companyIds: ownCompanies.map((c) => c.id),
+    accessibleCompanies,
+    perfilOperativo,
+    activeModules,
+    membershipRole,
+    canViewCommercial,
+    hasOwnCompany,
+    hasCompletedOnboarding,
+    isPlatformAdmin,
+    homePath: getHomePathForProfile(perfilOperativo),
+  };
+}
+
+export const tenantContextService = {
+  async getTenantContext(preferredCompanyId?: number | null): Promise<FullTenantContext> {
+    const supabase = createClient();
+    return resolveTenantContext(supabase, preferredCompanyId);
+  },
+
+  async assertModuleAccess(module: AppModule, preferredCompanyId?: number | null): Promise<FullTenantContext> {
+    const ctx = await this.getTenantContext(preferredCompanyId);
+    if (!ctx.isPlatformAdmin && ctx.activeCompany && !ctx.activeModules.includes(module)) {
+      throw new Error(
+        `Acceso denegado: el módulo "${getModuleLabel(module)}" no está habilitado para la empresa activa.`
+      );
+    }
+    return ctx;
+  },
+
+  setActiveCompany(companyId: number | null): void {
+    setActiveCompanyCookie(companyId);
+  },
+};
+
+export default tenantContextService;
+

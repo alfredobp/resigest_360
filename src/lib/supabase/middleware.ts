@@ -1,8 +1,27 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { canAccessPath, getRequiredModuleForPath } from '@/lib/profiles/moduleCatalog'
+import { ACTIVE_COMPANY_COOKIE, resolveTenantContext } from '@/services/tenantContextService'
 
-// Rutas API accesibles sin sesión (formulario comercial y descarga de inspección DeCA por token)
-export const PUBLIC_API_PREFIXES = ['/api/contact', '/api/deca/']
+// Rutas API accesibles sin sesión (formulario comercial, descarga de inspección DeCA y acceso demo si está habilitado)
+export const PUBLIC_API_PREFIXES = ['/api/contact', '/api/deca/', '/api/demo/']
+
+export function isDemoAccessEnabled(): boolean {
+  return process.env.ENABLE_DEMO_ACCESS === 'true' || process.env.NEXT_PUBLIC_ENABLE_DEMO_ACCESS === 'true'
+}
+
+function redirectWithSupabaseCookies(
+  url: URL,
+  supabaseResponse: NextResponse
+): NextResponse {
+  const redirectResponse = NextResponse.redirect(url)
+  supabaseResponse.cookies.getAll().forEach((cookie) => {
+    redirectResponse.cookies.set(cookie.name, cookie.value, {
+      path: cookie.path || '/',
+    })
+  })
+  return redirectResponse
+}
 
 export async function updateSession(request: NextRequest) {
   // Check if environment variables are set
@@ -53,6 +72,17 @@ export async function updateSession(request: NextRequest) {
   }
 
   const pathname = request.nextUrl.pathname
+  const demoEnabled = isDemoAccessEnabled()
+
+  // Bloquear rutas demo si el flag no está activo
+  if (!demoEnabled && (pathname.startsWith('/accesos-prueba') || pathname.startsWith('/api/demo/'))) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Acceso demo deshabilitado.' }, { status: 403 })
+    }
+    const url = request.nextUrl.clone()
+    url.pathname = '/signin'
+    return NextResponse.redirect(url)
+  }
 
   // API protegida por defecto: sin sesión responde 401 JSON (no redirección)
   if (
@@ -69,47 +99,100 @@ export async function updateSession(request: NextRequest) {
   // Protected routes - redirect to signin if not authenticated
   if (
     !user &&
-    request.nextUrl.pathname !== '/' &&
-    !request.nextUrl.pathname.startsWith('/signin') &&
-    !request.nextUrl.pathname.startsWith('/signup') &&
-    !request.nextUrl.pathname.startsWith('/error-404') &&
-    !request.nextUrl.pathname.startsWith('/auth/') &&
-    !request.nextUrl.pathname.startsWith('/api/') && // Gestionado arriba (401 para API)
-    !request.nextUrl.pathname.startsWith('/public/') && // Public signature and other public pages
-    !request.nextUrl.pathname.startsWith('/mockups/') && // Design mockups showcase
-    !request.nextUrl.pathname.startsWith('/mobile/deca/') // Public driver view for DeCA inspection
+    pathname !== '/' &&
+    !pathname.startsWith('/signin') &&
+    !pathname.startsWith('/signup') &&
+    !pathname.startsWith('/accesos-prueba') &&
+    !pathname.startsWith('/error-404') &&
+    !pathname.startsWith('/auth/') &&
+    !pathname.startsWith('/api/') && // Gestionado arriba (401 para API)
+    !pathname.startsWith('/public/') && // Public signature and other public pages
+    !pathname.startsWith('/mockups/') && // Design mockups showcase
+    !pathname.startsWith('/mobile/deca/') // Public driver view for DeCA inspection
   ) {
     // Store the original URL to redirect back after login
     const url = request.nextUrl.clone()
     url.pathname = '/signin'
-    url.searchParams.set('redirectedFrom', request.nextUrl.pathname)
+    url.searchParams.set('redirectedFrom', pathname)
     return NextResponse.redirect(url)
   }
 
-  // If user is authenticated and trying to access root landing (/), signin, or signup, redirect to dashboard (/app)
+  // Resolver contexto real del tenant cuando la BD está disponible en el cliente SSR
+  const canQueryDatabase = typeof (supabase as any).from === 'function'
+  let tenantCtx = null
+  if (user && canQueryDatabase) {
+    const rawCookieId = request.cookies.get(ACTIVE_COMPANY_COOKIE)?.value
+    const preferredCompanyId = rawCookieId && Number(rawCookieId) > 0 ? Number(rawCookieId) : null
+    try {
+      tenantCtx = await resolveTenantContext(supabase, preferredCompanyId)
+    } catch {
+      tenantCtx = null
+    }
+  }
+
+  // If user is authenticated and trying to access root landing (/), signin, or signup, redirect to their home
   if (
     user &&
-    (request.nextUrl.pathname === '/' ||
-      request.nextUrl.pathname.startsWith('/signin') ||
-      request.nextUrl.pathname.startsWith('/signup'))
+    (pathname === '/' ||
+      pathname.startsWith('/signin') ||
+      pathname.startsWith('/signup'))
   ) {
     const url = request.nextUrl.clone()
-    url.pathname = '/app'
-    return NextResponse.redirect(url)
+    if (tenantCtx) {
+      url.pathname =
+        !tenantCtx.hasCompletedOnboarding && !tenantCtx.isPlatformAdmin
+          ? '/onboarding'
+          : tenantCtx.homePath
+    } else {
+      url.pathname = '/app'
+    }
+    return redirectWithSupabaseCookies(url, supabaseResponse)
   }
 
-  // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
-  // creating a new response object with NextResponse.next() make sure to:
-  // 1. Pass the request in it, like so:
-  //    const myNewResponse = NextResponse.next({ request })
-  // 2. Copy over the cookies, like so:
-  //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
-  // 3. Change the myNewResponse object to fit your needs, but avoid changing
-  //    the cookies!
-  // 4. Finally:
-  //    return myNewResponse
-  // If this is not done, you may be causing the browser and server to go out
-  // of sync and terminate the user's session prematurely!
+  // Control real de onboarding y permisos por ruta/módulo para usuarios autenticados
+  if (
+    user &&
+    tenantCtx &&
+    !pathname.startsWith('/api/') &&
+    !pathname.startsWith('/auth/') &&
+    !pathname.startsWith('/public/') &&
+    !pathname.startsWith('/mobile/deca/') &&
+    !pathname.startsWith('/accesos-prueba') &&
+    !pathname.startsWith('/error-404')
+  ) {
+    // 1. Redirigir a /onboarding si el usuario aún no ha configurado ninguna empresa
+    if (!tenantCtx.hasCompletedOnboarding && !tenantCtx.isPlatformAdmin) {
+      if (pathname !== '/onboarding' && !pathname.startsWith('/onboarding/')) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/onboarding'
+        return redirectWithSupabaseCookies(url, supabaseResponse)
+      }
+      return supabaseResponse
+    }
+
+    // 2. Si ya completó onboarding y entra a /onboarding, enviar a su homePath
+    if (tenantCtx.hasCompletedOnboarding && (pathname === '/onboarding' || pathname.startsWith('/onboarding/'))) {
+      const url = request.nextUrl.clone()
+      url.pathname = tenantCtx.homePath
+      return redirectWithSupabaseCookies(url, supabaseResponse)
+    }
+
+    // 3. Si es transportista y entra en /app, llevar a su vista móvil-first /transporte
+    if (!tenantCtx.isPlatformAdmin && tenantCtx.perfilOperativo === 'transportista' && pathname === '/app') {
+      const url = request.nextUrl.clone()
+      url.pathname = '/transporte'
+      return redirectWithSupabaseCookies(url, supabaseResponse)
+    }
+
+    // 4. Bloquear acceso por URL directa a módulos no habilitados para su perfil/empresa
+    if (!canAccessPath(pathname, tenantCtx.activeModules, tenantCtx.isPlatformAdmin)) {
+      const requiredModule = getRequiredModuleForPath(pathname)
+      const url = request.nextUrl.clone()
+      url.pathname = tenantCtx.homePath
+      url.searchParams.set('denied', requiredModule || 'restricted')
+      return redirectWithSupabaseCookies(url, supabaseResponse)
+    }
+  }
 
   return supabaseResponse
 }

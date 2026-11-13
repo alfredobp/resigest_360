@@ -4,31 +4,69 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSandbox } from '@/context/SandboxContext';
+import { useTenant } from '@/context/TenantContext';
+import { getDefaultModulesForProfile } from '@/lib/profiles/moduleCatalog';
 import dashboardService, { type ExecutiveDashboardData } from '@/services/dashboardService';
 import MonthlyWasteChart from '@/components/dashboard/MonthlyWasteChart';
-import ComponentCard from '@/components/common/ComponentCard';
 import Badge from '@/components/ui/badge/Badge';
 import Button from '@/components/ui/button/Button';
+import {
+  getDashboardHeaderConfig,
+  ProfileKpiGrid,
+  ProfileShortcutsCard,
+} from '@/components/dashboard/profiles/ProfileDashboardSections';
+import type { AppModule, OperationalProfile } from '@/types/wasteManagement';
 
 export default function ExecutiveDashboardPage() {
   const router = useRouter();
-  const { isPathVisible } = useSandbox();
-  const canCreateDI = isPathVisible('/residuos/documentos-identificacion');
-  const canCreateOp = isPathVisible('/residuos/operaciones');
-  const canViewChrono = isPathVisible('/residuos/archivo-cronologico');
+  const { profile: sandboxProfile } = useSandbox();
+  const {
+    tenant,
+    loading: tenantLoading,
+    activeCompanyId,
+    perfilOperativo,
+    isPlatformAdmin,
+    hasModule,
+    canViewCommercial,
+  } = useTenant();
+
+  // Si es admin usando el selector sandbox, usar el perfil simulado; en usuarios reales usar su perfil persistido
+  const effectiveProfile: OperationalProfile =
+    isPlatformAdmin && sandboxProfile !== 'all'
+      ? (sandboxProfile as OperationalProfile)
+      : perfilOperativo;
+
+  const effectiveHasModule = (mod: AppModule) => {
+    if (isPlatformAdmin && sandboxProfile !== 'all') {
+      return getDefaultModulesForProfile(effectiveProfile).includes(mod);
+    }
+    return hasModule(mod);
+  };
+
+  const canCreateDI = effectiveHasModule('di');
+  const canCreateOp = effectiveHasModule('operaciones_comerciales') && (isPlatformAdmin || canViewCommercial);
+  const canViewChrono = effectiveHasModule('archivo_cronologico');
+  const canViewContracts = effectiveHasModule('contratos');
+
   const [loading, setLoading] = useState(true);
   const [executiveData, setExecutiveData] = useState<ExecutiveDashboardData | null>(null);
   const [monthlyData, setMonthlyData] = useState<Array<{ name: string; value: number }>>([]);
   const [recentDIs, setRecentDIs] = useState<any[]>([]);
 
   useEffect(() => {
+    if (tenantLoading) return;
+
     async function loadData() {
       try {
         setLoading(true);
+        const scopedCompanyId = isPlatformAdmin && !activeCompanyId ? null : activeCompanyId;
         const [overview, monthly, recent] = await Promise.all([
-          dashboardService.getExecutiveOverview(),
-          dashboardService.getMonthlyWasteData(),
-          dashboardService.getRecentActivity()
+          dashboardService.getExecutiveOverview({
+            companyId: scopedCompanyId,
+            includeCommercial: canCreateOp,
+          }),
+          dashboardService.getMonthlyWasteData(scopedCompanyId),
+          dashboardService.getRecentActivity(scopedCompanyId),
         ]);
 
         setExecutiveData(overview);
@@ -42,47 +80,49 @@ export default function ExecutiveDashboardPage() {
     }
 
     loadData();
-  }, []);
+  }, [tenantLoading, activeCompanyId, isPlatformAdmin, canCreateOp, tenant?.userId]);
 
-  if (loading) {
+  if (loading || tenantLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center space-y-3">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto" />
-          <p className="text-sm text-gray-500">Cargando Centro de Control Ejecutivo...</p>
+          <p className="text-sm text-gray-500">Cargando panel operativo adaptado...</p>
         </div>
       </div>
     );
   }
 
-  const { conformidad, alertas, residuos, comercial } = executiveData || {
+  const data = executiveData || {
     conformidad: { estado: 'pendiente' as const, porcentaje: null, totalEvaluados: 0, totalConformes: 0, totalNoConformes: 0, fechaEvaluacion: new Date().toISOString() },
     alertas: { totalCriticas: 0, totalAdvertencias: 0, lista: [], disEnTransitoCount: 0, disDiscrepanciaCount: 0, disSinContratoCount: 0, disTratamientoNoAutorizadoCount: 0, contratosCaducadosCount: 0, contratosPorVencerCount: 0, autorizacionesPorVencerCount: 0 },
     residuos: { totalToneladas: 0, toneladasPeligrosas: 0, toneladasNoPeligrosas: 0, totalDIs: 0, disCompletados: 0, topLER: [] },
-    comercial: { totalOperaciones: 0, operacionesAbiertas: 0, facturacionVenta: 0, costesTotales: 0, margenBrutoTotal: 0, margenMedioTon: 0, rentabilidadPorcentaje: 0 }
+    comercial: { totalOperaciones: 0, operacionesAbiertas: 0, facturacionVenta: 0, costesTotales: 0, margenBrutoTotal: 0, margenMedioTon: 0, rentabilidadPorcentaje: 0 },
   };
 
+  const { conformidad, alertas, residuos } = data;
+  const headerConfig = getDashboardHeaderConfig(effectiveProfile);
   const hasAlerts = alertas.totalCriticas > 0 || alertas.totalAdvertencias > 0;
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Cabecera Ejecutiva */}
+      {/* Cabecera Ejecutiva Adaptada */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-              Centro de Control Ejecutivo
+              {headerConfig.title}
             </h1>
             <Badge variant="light" color="primary">
-              Control por Excepción
+              {headerConfig.badge}
             </Badge>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Supervisión normativa en tiempo real (Ley 7/2022 y RD 553/2020), balance de masas y rentabilidad de intermediación.
+            {headerConfig.subtitle}
           </p>
         </div>
 
-        {/* Acciones Rápidas */}
+        {/* Acciones Rápidas según perfil */}
         <div className="flex flex-wrap items-center gap-2">
           {canCreateDI && (
             <Button
@@ -90,7 +130,7 @@ export default function ExecutiveDashboardPage() {
               onClick={() => router.push('/residuos/documentos-identificacion/nuevo')}
               className="bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors"
             >
-              Nuevo Traslado (DI)
+              {effectiveProfile === 'productor' ? 'Nueva Retirada (DI)' : 'Nuevo Traslado (DI)'}
             </Button>
           )}
 
@@ -101,7 +141,18 @@ export default function ExecutiveDashboardPage() {
               onClick={() => router.push('/residuos/operaciones/nueva')}
               className="text-brand-600 dark:text-brand-400 font-medium hover:bg-brand-50 dark:hover:bg-brand-950/40"
             >
-              Nueva Operación
+              {effectiveProfile === 'chatarreria' ? 'Nuevo Pesaje / Compraventa' : 'Nueva Operación'}
+            </Button>
+          )}
+
+          {canViewContracts && effectiveProfile === 'productor' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push('/residuos/contratos')}
+              className="text-gray-700 dark:text-gray-300 font-medium"
+            >
+              Contratos
             </Button>
           )}
 
@@ -258,92 +309,12 @@ export default function ExecutiveDashboardPage() {
         </div>
       )}
 
-      {/* 4 GRANDES BLOQUES DE KPIS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* KPI 1: Volumen de Residuos */}
-        <ComponentCard title="Balance de Masas">
-          <div className="space-y-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Residuos Gestionados</span>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-extrabold text-gray-900 dark:text-white">
-                {residuos.totalToneladas.toFixed(2)}
-              </span>
-              <span className="text-xs font-medium text-gray-500">toneladas netas</span>
-            </div>
-
-            <div className="pt-2 border-t border-gray-100 dark:border-gray-800 grid grid-cols-2 gap-2 text-[11px]">
-              <div>
-                <span className="text-amber-600 dark:text-amber-400 font-semibold">Peligrosos:</span>
-                <p className="font-bold text-gray-800 dark:text-gray-200">{residuos.toneladasPeligrosas.toFixed(2)} t</p>
-              </div>
-              <div>
-                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">No Peligrosos:</span>
-                <p className="font-bold text-gray-800 dark:text-gray-200">{residuos.toneladasNoPeligrosas.toFixed(2)} t</p>
-              </div>
-            </div>
-          </div>
-        </ComponentCard>
-
-        {/* KPI 2: Trazabilidad y DIs */}
-        <ComponentCard title="Trazabilidad RD 553/2020">
-          <div className="space-y-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Documentos de Identificación</span>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-extrabold text-blue-600 dark:text-blue-400">
-                {residuos.totalDIs}
-              </span>
-              <span className="text-xs font-medium text-gray-500">expedidos</span>
-            </div>
-
-            <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[11px]">
-              <span className="text-gray-500">Completados / Tratados:</span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">{residuos.disCompletados}</span>
-            </div>
-          </div>
-        </ComponentCard>
-
-        {/* KPI 3: Facturación de Intermediación */}
-        {canCreateOp && (
-          <ComponentCard title="Facturación Comercial">
-            <div className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Ingresos de Venta</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-extrabold text-gray-900 dark:text-white">
-                  {comercial.facturacionVenta.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
-                </span>
-              </div>
-
-              <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[11px]">
-                <span className="text-gray-500">Costes Operativos:</span>
-                <span className="font-bold text-red-600 dark:text-red-400">
-                  {comercial.costesTotales.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
-                </span>
-              </div>
-            </div>
-          </ComponentCard>
-        )}
-
-        {/* KPI 4: Margen Bruto y Rentabilidad */}
-        {canCreateOp && (
-          <ComponentCard title="Rentabilidad Operativa">
-            <div className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Margen Bruto Total</span>
-              <div className="flex items-baseline gap-2">
-                <span className={`text-2xl font-extrabold ${comercial.margenBrutoTotal >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600'}`}>
-                  {comercial.margenBrutoTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
-                </span>
-              </div>
-
-              <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[11px]">
-                <span className="text-gray-500">Margen Medio / Tonelada:</span>
-                <span className="font-bold text-purple-600 dark:text-purple-400">
-                  {comercial.margenMedioTon.toFixed(2)} €/t
-                </span>
-              </div>
-            </div>
-          </ComponentCard>
-        )}
-      </div>
+      {/* 4 GRANDES BLOQUES DE KPIS ADAPTADOS AL PERFIL */}
+      <ProfileKpiGrid
+        profile={effectiveProfile}
+        data={data}
+        canViewCommercial={canCreateOp}
+      />
 
       {/* FILA INTERMEDIA: GRÁFICO MENSUAL Y TOP 5 RESIDUOS LER */}
       <div className="grid grid-cols-12 gap-6">
@@ -458,45 +429,9 @@ export default function ExecutiveDashboardPage() {
           </div>
         </div>
 
-        {/* Acceso Rápido a Módulos Clave */}
+        {/* Acceso Rápido a Módulos Clave según perfil */}
         <div className="col-span-12 lg:col-span-4">
-          <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6 space-y-3">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white pb-2 border-b border-gray-100 dark:border-gray-800">
-              Accesos Directos a Módulos
-            </h3>
-
-            <Link
-              href="/residuos/archivo-cronologico"
-              className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-semibold text-gray-800 dark:text-gray-200 group"
-            >
-              <span>Libro de Registro Cronológico</span>
-              <span className="text-gray-400 group-hover:text-brand-500 transition-colors">→</span>
-            </Link>
-
-            <Link
-              href="/residuos/operaciones"
-              className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-semibold text-gray-800 dark:text-gray-200 group"
-            >
-              <span>Operaciones Comerciales y Márgenes</span>
-              <span className="text-gray-400 group-hover:text-brand-500 transition-colors">→</span>
-            </Link>
-
-            <Link
-              href="/residuos/memorias-anuales"
-              className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-semibold text-gray-800 dark:text-gray-200 group"
-            >
-              <span>Memorias Anuales de Residuos</span>
-              <span className="text-gray-400 group-hover:text-brand-500 transition-colors">→</span>
-            </Link>
-
-            <Link
-              href="/residuos/empresas"
-              className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-semibold text-gray-800 dark:text-gray-200 group"
-            >
-              <span>Empresas, Roles y Autorizaciones</span>
-              <span className="text-gray-400 group-hover:text-brand-500 transition-colors">→</span>
-            </Link>
-          </div>
+          <ProfileShortcutsCard hasModule={effectiveHasModule} />
         </div>
       </div>
     </div>

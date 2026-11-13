@@ -689,4 +689,48 @@ describe('commercialOperationService - Operaciones Comerciales', () => {
       expect(res.invoiceId).toBe('inv-888');
     });
   });
+
+  describe('verifyAccess', () => {
+    it('debe validar el permiso del módulo operaciones_comerciales vía tenantContextService', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-prod', email: 'prod@resigest.test' } },
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'user' } }),
+          };
+        }
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: 1,
+                    user_id: 'uid-prod',
+                    is_my_company: true,
+                    activo: true,
+                    perfil_operativo: 'productor',
+                    onboarding_completado: true,
+                  },
+                ],
+              }),
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data: [] }),
+        };
+      });
+
+      await expect(commercialOperationService.verifyAccess()).rejects.toThrow('Acceso denegado');
+    });
+  });
 });

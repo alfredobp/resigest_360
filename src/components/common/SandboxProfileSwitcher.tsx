@@ -7,6 +7,7 @@
 
 import React, { useState } from 'react';
 import { useSandbox } from '@/context/SandboxContext';
+import { useTenant } from '@/context/TenantContext';
 import type { SandboxProfileType } from '@/types/deca';
 import { Sparkles, Truck, Factory, BatteryCharging, ShieldAlert, Building2, ChevronDown, Check, Info } from 'lucide-react';
 
@@ -51,7 +52,12 @@ const PROFILES: Array<{ id: SandboxProfileType; label: string; icon: React.Compo
 
 export default function SandboxProfileSwitcher() {
   const { profile, setProfile } = useSandbox();
+  const { isPlatformAdmin } = useTenant();
   const [open, setOpen] = useState(false);
+
+  if (!isPlatformAdmin) {
+    return null;
+  }
 
   const activeProfile = PROFILES.find((p) => p.id === profile) || PROFILES[0];
   const ActiveIcon = activeProfile.icon;
@@ -102,18 +108,16 @@ export default function SandboxProfileSwitcher() {
                       setProfile(p.id);
                       setOpen(false);
                     }}
-                    className={`w-full flex items-start gap-2.5 p-2 rounded-xl text-left transition ${
-                      isSelected
-                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                        : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                    }`}
+                    className={`w-full flex items-start gap-2.5 p-2 rounded-xl text-left transition ${isSelected
+                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                      : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                      }`}
                   >
                     <div
-                      className={`p-1.5 rounded-lg mt-0.5 ${
-                        isSelected
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-                      }`}
+                      className={`p-1.5 rounded-lg mt-0.5 ${isSelected
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                        }`}
                     >
                       <Icon className="w-3.5 h-3.5" />
                     </div>

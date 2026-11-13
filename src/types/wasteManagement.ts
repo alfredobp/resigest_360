@@ -124,6 +124,39 @@ export interface CarrierFormData {
 export type CompanyRole = 'productor' | 'gestor' | 'transportista' | 'negociante' | 'agente' | 'cliente' | 'proveedor';
 export type FacilityType = 'produccion' | 'tratamiento' | 'almacen' | 'sede_logistica';
 
+export type OperationalProfile =
+  | 'productor'
+  | 'chatarreria'
+  | 'gestor_rp'
+  | 'baterias'
+  | 'transportista'
+  | 'negociante'
+  | 'completo';
+
+export type AppModule =
+  | 'empresas'
+  | 'contratos'
+  | 'gestores'
+  | 'flota_transporte'
+  | 'di'
+  | 'deca'
+  | 'archivo_cronologico'
+  | 'operaciones_comerciales'
+  | 'memorias_anuales'
+  | 'sira_integraciones';
+
+export type MembershipRole = 'owner' | 'consultor_admin' | 'consultor_operador' | 'lectura';
+
+export interface CompanyMembership {
+  id: number;
+  company_id: number;
+  user_id: string;
+  role: MembershipRole;
+  can_view_commercial: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
 export interface Company {
   id: number;
   user_id: string;
@@ -160,6 +193,9 @@ export interface Company {
   tipo_empresa: 'productor' | 'gestor' | 'transportista' | 'negociante' | 'agente';
   roles?: CompanyRole[];
   is_my_company?: boolean;
+  perfil_operativo?: OperationalProfile;
+  modulos_activos?: AppModule[];
+  onboarding_completado?: boolean;
 
   // Logo
   logo_url?: string;
@@ -236,6 +272,9 @@ export interface CompanyFormData {
   tipo_empresa?: 'productor' | 'gestor' | 'transportista' | 'negociante' | 'agente';
   roles?: CompanyRole[];
   is_my_company?: boolean;
+  perfil_operativo?: OperationalProfile;
+  modulos_activos?: AppModule[];
+  onboarding_completado?: boolean;
   logo_url?: string;
   notas?: string;
   activo?: boolean;

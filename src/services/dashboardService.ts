@@ -31,6 +31,11 @@ export interface AlertException {
   fecha?: string;
 }
 
+export interface ExecutiveOverviewOptions {
+  companyId?: number | null;
+  includeCommercial?: boolean;
+}
+
 export interface ExecutiveDashboardData {
   conformidad: {
     estado: 'pendiente' | 'conforme' | 'incidencias';
@@ -75,27 +80,41 @@ export interface ExecutiveDashboardData {
     margenMedioTon: number;
     rentabilidadPorcentaje: number;
   };
+  planta?: {
+    entradasToneladas: number;
+    salidasToneladas: number;
+    existenciasToneladas: number;
+    totalAsientos: number;
+    totalContratos: number;
+    contratosVigentes: number;
+  };
 }
 
 export const dashboardService = {
   /**
    * Obtener visión ejecutiva global y excepciones en tiempo real
    */
-  async getExecutiveOverview(): Promise<ExecutiveDashboardData> {
+  async getExecutiveOverview(options: ExecutiveOverviewOptions = {}): Promise<ExecutiveDashboardData> {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
     const todayStr = new Date().toISOString().split('T')[0];
     const today = new Date();
+    const filterColumn = options.companyId ? 'company_id' : 'user_id';
+    const filterValue = options.companyId ?? user.id;
+    const includeCommercial = options.includeCommercial !== false;
 
-    // Cargar en paralelo DIs, Contratos, Autorizaciones (con LERs), Empresas y Operaciones Comerciales
-    const [disRes, contractsRes, authsRes, opsRes, companiesRes] = await Promise.all([
-      supabase.from('identification_documents').select('*').eq('user_id', user.id),
-      supabase.from('waste_contracts').select('*').eq('user_id', user.id),
-      supabase.from('environmental_authorizations').select('*, waste_codes:authorization_waste_codes(*)').eq('user_id', user.id),
-      supabase.from('commercial_operations').select('*').eq('user_id', user.id),
-      supabase.from('companies').select('id, cif, razon_social').eq('user_id', user.id)
+    // Cargar en paralelo DIs, Contratos, Autorizaciones (con LERs), Empresas, Archivo Cronológico y (si aplica) Operaciones Comerciales
+    const [disRes, contractsRes, authsRes, opsRes, companiesRes, chronoRes] = await Promise.all([
+      supabase.from('identification_documents').select('*').eq(filterColumn, filterValue),
+      supabase.from('waste_contracts').select('*').eq(filterColumn, filterValue),
+      supabase.from('environmental_authorizations').select('*, waste_codes:authorization_waste_codes(*)').eq(filterColumn, filterValue),
+      includeCommercial
+        ? supabase.from('commercial_operations').select('*').eq(filterColumn, filterValue)
+        : Promise.resolve({ data: [] as any[] }),
+      supabase.from('companies').select('id, cif, razon_social').eq('user_id', user.id),
+      supabase.from('chronological_registry').select('tipo_operacion, cantidad_kg').eq(filterColumn, filterValue),
     ]);
 
     const dis = disRes.data || [];
@@ -103,6 +122,7 @@ export const dashboardService = {
     const auths = authsRes.data || [];
     const ops = opsRes.data || [];
     const companies = companiesRes?.data || [];
+    const chronoEntries = chronoRes?.data || [];
 
     // Índice rápido de empresa por CIF y autorizaciones por company_id
     const companyIdByCif = new Map<string, number>();
@@ -398,6 +418,23 @@ export const dashboardService = {
       return weight(a.gravedad) - weight(b.gravedad);
     });
 
+    // Métricas de planta / archivo cronológico y contratos
+    let entradasKg = 0;
+    let salidasKg = 0;
+    chronoEntries.forEach((entry: any) => {
+      const kg = Number(entry.cantidad_kg) || 0;
+      if (entry.tipo_operacion === 'entrada_recepcion' || entry.tipo_operacion === 'produccion_interna') {
+        entradasKg += kg;
+      } else if (entry.tipo_operacion === 'salida_traslado' || entry.tipo_operacion === 'merma_ajuste') {
+        salidasKg += kg;
+      }
+    });
+
+    const entradasToneladas = Number((entradasKg / 1000).toFixed(3));
+    const salidasToneladas = Number((salidasKg / 1000).toFixed(3));
+    const existenciasToneladas = Number(Math.max(0, (entradasKg - salidasKg) / 1000).toFixed(3));
+    const contratosVigentes = contracts.filter((c: any) => getContractEffectiveStatus(c).status === 'vigente').length;
+
     return {
       conformidad: {
         estado: estadoConformidad,
@@ -435,6 +472,14 @@ export const dashboardService = {
         margenBrutoTotal: Number(margenBrutoTotal.toFixed(2)),
         margenMedioTon: Number(margenMedioTon.toFixed(2)),
         rentabilidadPorcentaje: Number(rentabilidadPorcentaje.toFixed(1))
+      },
+      planta: {
+        entradasToneladas,
+        salidasToneladas,
+        existenciasToneladas,
+        totalAsientos: chronoEntries.length,
+        totalContratos: contracts.length,
+        contratosVigentes,
       }
     };
   },
@@ -480,16 +525,19 @@ export const dashboardService = {
   /**
    * Obtener datos para el gráfico de producción mensual
    */
-  async getMonthlyWasteData() {
+  async getMonthlyWasteData(companyId?: number | null) {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
     const currentYear = new Date().getFullYear();
+    const filterColumn = companyId ? 'company_id' : 'user_id';
+    const filterValue = companyId ?? user.id;
+
     const { data } = await supabase
       .from('identification_documents')
       .select('cantidad, unidad, peso_destino_kg, peso_origen_kg, fecha_documento')
-      .eq('user_id', user.id)
+      .eq(filterColumn, filterValue)
       .gte('fecha_documento', `${currentYear}-01-01`)
       .order('fecha_documento', { ascending: true });
 
@@ -518,15 +566,18 @@ export const dashboardService = {
   /**
    * Obtener actividades recientes
    */
-  async getRecentActivity() {
+  async getRecentActivity(companyId?: number | null) {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
+    const filterColumn = companyId ? 'company_id' : 'user_id';
+    const filterValue = companyId ?? user.id;
+
     const { data: recentDIs } = await supabase
       .from('identification_documents')
       .select('id, numero_documento, fecha_documento, productor_razon_social, gestor_razon_social, estado, estado_traslado')
-      .eq('user_id', user.id)
+      .eq(filterColumn, filterValue)
       .order('created_at', { ascending: false })
       .limit(6);
 

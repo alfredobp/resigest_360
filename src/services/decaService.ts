@@ -239,7 +239,7 @@ export const decaService = {
       identification_document_id: di.id,
       company_id: di.company_id,
       numero_deca: '', // Se calculará automáticamente
-      
+
       // Cargador Contractual (definido por el usuario o empresa)
       cargador_razon_social: cargadorData.cargador_razon_social || di.productor_razon_social,
       cargador_nif: cargadorData.cargador_nif || di.productor_cif,
@@ -346,7 +346,7 @@ export const decaService = {
         .insert(fallbackPayload)
         .select()
         .single();
-      
+
       data = retryResult.data;
       error = retryResult.error;
     }

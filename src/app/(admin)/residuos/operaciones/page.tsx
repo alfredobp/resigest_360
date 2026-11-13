@@ -16,6 +16,7 @@ import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import { toast } from '@/context/ToastContext';
+import { useTenant } from '@/context/TenantContext';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -30,11 +31,15 @@ const ESTADO_CONFIG: Record<EstadoOperacionComercial, { label: string; color: 'l
 
 export default function OperacionesComercialesPage() {
   const router = useRouter();
+  const { tenant, loading: tenantLoading, activeCompanyId, hasModule, canViewCommercial, isPlatformAdmin } = useTenant();
   const [operations, setOperations] = useState<CommercialOperation[]>([]);
   const [stats, setStats] = useState<CommercialOperationStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const isAuthorized =
+    isPlatformAdmin || (hasModule('operaciones_comerciales') && canViewCommercial);
 
   // Filtros
   const [selectedYear, setSelectedYear] = useState<number | undefined>(CURRENT_YEAR);
@@ -42,6 +47,7 @@ export default function OperacionesComercialesPage() {
   const [searchTerm, setSearchTerm] = useState<string>('');
 
   const loadData = async () => {
+    if (!isAuthorized) return;
     try {
       setLoading(true);
       setError(null);
@@ -49,7 +55,8 @@ export default function OperacionesComercialesPage() {
       const filters: CommercialOperationFilter = {
         año: selectedYear,
         estado: selectedEstado !== 'todas' ? (selectedEstado as EstadoOperacionComercial) : 'todas',
-        search: searchTerm
+        search: searchTerm,
+        company_id: activeCompanyId,
       };
 
       const [opsData, statsData] = await Promise.all([
@@ -68,8 +75,13 @@ export default function OperacionesComercialesPage() {
   };
 
   useEffect(() => {
+    if (tenantLoading) return;
+    if (!isAuthorized && tenant) {
+      router.replace(tenant.homePath);
+      return;
+    }
     loadData();
-  }, [selectedYear, selectedEstado]);
+  }, [tenantLoading, isAuthorized, activeCompanyId, selectedYear, selectedEstado]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -213,16 +225,14 @@ export default function OperacionesComercialesPage() {
           <button
             key={tab.key}
             onClick={() => setSelectedEstado(tab.key)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
-              selectedEstado === tab.key
-                ? 'bg-primary text-white shadow-sm'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${selectedEstado === tab.key
+              ? 'bg-primary text-white shadow-sm'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+              }`}
           >
             {tab.label}
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-              selectedEstado === tab.key ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-            }`}>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${selectedEstado === tab.key ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+              }`}>
               {tab.count}
             </span>
           </button>

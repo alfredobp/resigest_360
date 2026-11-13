@@ -150,5 +150,141 @@ describe('Supabase Middleware updateSession', () => {
     expect(res.headers.get('location')).toContain('/signin');
     consoleSpy.mockRestore();
   });
+
+  describe('Control de acceso por perfil, onboarding y rutas demo', () => {
+    const origDemo = process.env.ENABLE_DEMO_ACCESS;
+    const origPublicDemo = process.env.NEXT_PUBLIC_ENABLE_DEMO_ACCESS;
+
+    afterEach(() => {
+      process.env.ENABLE_DEMO_ACCESS = origDemo;
+      process.env.NEXT_PUBLIC_ENABLE_DEMO_ACCESS = origPublicDemo;
+    });
+
+    const buildDbMockClient = (opts: {
+      role?: string;
+      companies?: any[];
+    }) => {
+      const fromMock = jest.fn((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            maybeSingle: jest.fn().mockResolvedValue({ data: { role: opts.role || 'user' } }),
+          };
+        }
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({ data: opts.companies || [] }),
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data: [] }),
+        };
+      });
+
+      return {
+        auth: { getUser: mockGetUser },
+        from: fromMock,
+      };
+    };
+
+    it('debe bloquear /accesos-prueba y /api/demo/signin si ENABLE_DEMO_ACCESS no está activo', async () => {
+      process.env.ENABLE_DEMO_ACCESS = 'false';
+      process.env.NEXT_PUBLIC_ENABLE_DEMO_ACCESS = 'false';
+      mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+
+      const pageRes = await updateSession(new NextRequest('https://resigest360.com/accesos-prueba'));
+      expect(pageRes.status).toBe(307);
+      expect(pageRes.headers.get('location')).toBe('https://resigest360.com/signin');
+
+      const apiRes = await updateSession(new NextRequest('https://resigest360.com/api/demo/signin'));
+      expect(apiRes.status).toBe(403);
+    });
+
+    it('debe permitir /accesos-prueba cuando ENABLE_DEMO_ACCESS=true', async () => {
+      process.env.ENABLE_DEMO_ACCESS = 'true';
+      mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+
+      const pageRes = await updateSession(new NextRequest('https://resigest360.com/accesos-prueba'));
+      expect(pageRes.status).toBe(200);
+    });
+
+    it('debe redirigir a /onboarding cuando el usuario autenticado no tiene empresa configurada', async () => {
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: 'uid-new', email: 'nuevo@resigest.test' } },
+        error: null,
+      });
+
+      (createServerClient as jest.Mock).mockImplementation((_u, _k, options) => {
+        capturedCookiesConfig = options.cookies;
+        return buildDbMockClient({ companies: [] });
+      });
+
+      const res = await updateSession(new NextRequest('https://resigest360.com/app'));
+      expect(res.status).toBe(307);
+      expect(res.headers.get('location')).toBe('https://resigest360.com/onboarding');
+    });
+
+    it('debe bloquear a un productor abrir /residuos/operaciones por URL directa', async () => {
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: 'uid-prod', email: 'prod@resigest.test' } },
+        error: null,
+      });
+
+      (createServerClient as jest.Mock).mockImplementation((_u, _k, options) => {
+        capturedCookiesConfig = options.cookies;
+        return buildDbMockClient({
+          companies: [
+            {
+              id: 1,
+              user_id: 'uid-prod',
+              is_my_company: true,
+              activo: true,
+              perfil_operativo: 'productor',
+              onboarding_completado: true,
+            },
+          ],
+        });
+      });
+
+      const res = await updateSession(new NextRequest('https://resigest360.com/residuos/operaciones'));
+      expect(res.status).toBe(307);
+      expect(res.headers.get('location')).toBe(
+        'https://resigest360.com/app?denied=operaciones_comerciales'
+      );
+    });
+
+    it('debe redirigir a un transportista de /app a /transporte', async () => {
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: 'uid-trans', email: 'trans@resigest.test' } },
+        error: null,
+      });
+
+      (createServerClient as jest.Mock).mockImplementation((_u, _k, options) => {
+        capturedCookiesConfig = options.cookies;
+        return buildDbMockClient({
+          companies: [
+            {
+              id: 2,
+              user_id: 'uid-trans',
+              is_my_company: true,
+              activo: true,
+              perfil_operativo: 'transportista',
+              onboarding_completado: true,
+            },
+          ],
+        });
+      });
+
+      const res = await updateSession(new NextRequest('https://resigest360.com/app'));
+      expect(res.status).toBe(307);
+      expect(res.headers.get('location')).toBe('https://resigest360.com/transporte');
+    });
+  });
 });
 
