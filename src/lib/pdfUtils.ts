@@ -52,6 +52,7 @@ function fitText(doc: jsPDF, text: string, maxWidth: number): string {
  */
 async function loadImageAsBase64(url: string): Promise<string | null> {
   if (!url) return null;
+  if (url.startsWith('data:image/')) return url;
   try {
     const response = await fetch(url);
     if (!response.ok) return null;
@@ -499,11 +500,17 @@ export async function generateContractPDF(contract: WasteContract) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.text('POR EL PRODUCTOR', 25, yPos + 5);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Firmado digitalmente', 25, yPos + 10);
-  if (contract.fecha_firma_productor) {
-    doc.setFontSize(7);
-    doc.text(`Fecha: ${formatSafeDateTime(contract.fecha_firma_productor)}`, 25, yPos + 15);
+  if (contract.firmado_productor && (contract.firma_productor_url || contract.fecha_firma_productor)) {
+    doc.setFont('helvetica', 'normal');
+    doc.text('Firmado digitalmente', 25, yPos + 10);
+    if (contract.fecha_firma_productor) {
+      doc.setFontSize(7);
+      doc.text(`Fecha: ${formatSafeDateTime(contract.fecha_firma_productor)}`, 25, yPos + 15);
+    }
+  } else {
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+    doc.text('Pendiente de firma', 25, yPos + 10);
   }
 
   // Firma Gestor
@@ -520,12 +527,19 @@ export async function generateContractPDF(contract: WasteContract) {
   doc.line(pageWidth - 85, yPos, pageWidth - 25, yPos);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
+  doc.setTextColor(0, 0, 0);
   doc.text('POR EL GESTOR AUTORIZADO', pageWidth - 85, yPos + 5);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Firmado digitalmente', pageWidth - 85, yPos + 10);
-  if (contract.fecha_firma_gestor) {
-    doc.setFontSize(7);
-    doc.text(`Fecha: ${formatSafeDateTime(contract.fecha_firma_gestor)}`, pageWidth - 85, yPos + 15);
+  if (contract.firmado_gestor && (contract.firma_gestor_url || contract.fecha_firma_gestor)) {
+    doc.setFont('helvetica', 'normal');
+    doc.text('Firmado digitalmente', pageWidth - 85, yPos + 10);
+    if (contract.fecha_firma_gestor) {
+      doc.setFontSize(7);
+      doc.text(`Fecha: ${formatSafeDateTime(contract.fecha_firma_gestor)}`, pageWidth - 85, yPos + 15);
+    }
+  } else {
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+    doc.text('Pendiente de firma', pageWidth - 85, yPos + 10);
   }
 
   // --- PIE DE PÁGINA ---

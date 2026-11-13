@@ -613,6 +613,77 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
     });
   });
 
+  describe('getByIdentificationDocument', () => {
+    it('debe retornar lista vacía si diId es 0 o falsy', async () => {
+      const result = await decaService.getByIdentificationDocument(0);
+      expect(result).toEqual([]);
+    });
+
+    it('debe consultar documentos DeCA por identification_document_id', async () => {
+      const mockDocs = [
+        { id: 10, numero_deca: 'DECA-2026-00010', identification_document_id: 120, version: 1, is_vigente: true },
+      ];
+      const orderMock = jest.fn().mockResolvedValue({ data: mockDocs, error: null });
+      const eqMock = jest.fn().mockReturnValue({ order: orderMock });
+      const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
+      mockSupabase.from.mockReturnValue({ select: selectMock });
+
+      const result = await decaService.getByIdentificationDocument(120);
+
+      expect(mockSupabase.from).toHaveBeenCalledWith('deca_documents');
+      expect(eqMock).toHaveBeenCalledWith('identification_document_id', 120);
+      expect(orderMock).toHaveBeenCalledWith('version', { ascending: false });
+      expect(result).toEqual(mockDocs);
+    });
+
+    it('debe retornar array vacío y registrar error si falla la consulta', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const orderMock = jest.fn().mockResolvedValue({ data: null, error: { message: 'DB error' } });
+      const eqMock = jest.fn().mockReturnValue({ order: orderMock });
+      const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
+      mockSupabase.from.mockReturnValue({ select: selectMock });
+
+      const result = await decaService.getByIdentificationDocument(120);
+
+      expect(result).toEqual([]);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('getLatestActiveVersion', () => {
+    it('debe retornar null si currentDoc es falsy', async () => {
+      const result = await decaService.getLatestActiveVersion(null as any);
+      expect(result).toBeNull();
+    });
+
+    it('debe retornar el mismo documento si ya es vigente', async () => {
+      const currentDoc = { id: 1, numero_deca: 'DECA-2026-00001', is_vigente: true } as any;
+      const result = await decaService.getLatestActiveVersion(currentDoc);
+      expect(result).toBe(currentDoc);
+    });
+
+    it('debe buscar y retornar la versión vigente si el documento está sustituido', async () => {
+      const historicalDoc = { id: 1, numero_deca: 'DECA-2026-00001', is_vigente: false, version: 1 } as any;
+      const activeDoc = { id: 2, numero_deca: 'DECA-2026-00001-v2', is_vigente: true, version: 2 };
+
+      const maybeSingleMock = jest.fn().mockResolvedValue({ data: activeDoc, error: null });
+      const limitMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const orderMock = jest.fn().mockReturnValue({ limit: limitMock });
+      const eqMock = jest.fn().mockReturnValue({ order: orderMock });
+      const ilikeMock = jest.fn().mockReturnValue({ eq: eqMock });
+      const selectMock = jest.fn().mockReturnValue({ ilike: ilikeMock });
+      mockSupabase.from.mockReturnValue({ select: selectMock });
+
+      const result = await decaService.getLatestActiveVersion(historicalDoc);
+
+      expect(mockSupabase.from).toHaveBeenCalledWith('deca_documents');
+      expect(ilikeMock).toHaveBeenCalledWith('numero_deca', 'DECA-2026-00001%');
+      expect(eqMock).toHaveBeenCalledWith('is_vigente', true);
+      expect(result).toEqual(activeDoc);
+    });
+  });
+
   describe('isTokenExpired', () => {
     it('debe retornar false si el DeCA no está finalizado', () => {
       const doc = { fecha_finalizacion: undefined } as any;

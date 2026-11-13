@@ -311,19 +311,38 @@ export default function NuevoDocumentoIdentificacionPage() {
         gestor_telefono: contract.treatment_manager!.telefono || '',
       }));
     } else if (contract.gestor_company) {
+      const authNum =
+        contract.environmental_authorization?.numero_autorizacion ||
+        contract.gestor_company.numero_autorizacion ||
+        (contract.gestor_company as any).numero_autorizacion_gestor ||
+        '';
+
       setFormData(prev => ({
         ...prev,
         contract_id: contract.id,
         gestor_razon_social: contract.gestor_company!.razon_social,
         gestor_cif: contract.gestor_company!.cif,
         gestor_nima: contract.gestor_company!.nima || '',
-        gestor_numero_autorizacion: '',
+        gestor_numero_autorizacion: authNum,
         gestor_direccion: contract.gestor_company!.domicilio_social || '',
         gestor_codigo_postal: contract.gestor_company!.codigo_postal_social || '',
         gestor_municipio: contract.gestor_company!.municipio_social || '',
         gestor_provincia: contract.gestor_company!.provincia_social || '',
         gestor_telefono: contract.gestor_company!.telefono || '',
       }));
+
+      // Si no viene en el contrato pero hay gestor_company_id, consultar autorizaciones asociadas
+      if (!authNum && (contract.gestor_company_id || contract.gestor_company.id)) {
+        const targetCompanyId = contract.gestor_company_id || contract.gestor_company.id;
+        authorizationService.getByCompany(targetCompanyId).then((auths: any[]) => {
+          if (auths && auths.length > 0 && auths[0].numero_autorizacion) {
+            setFormData(p => ({
+              ...p,
+              gestor_numero_autorizacion: auths[0].numero_autorizacion,
+            }));
+          }
+        }).catch(() => {});
+      }
     }
   };
 

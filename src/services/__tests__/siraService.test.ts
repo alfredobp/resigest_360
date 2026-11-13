@@ -408,6 +408,45 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
     });
   });
 
+  describe('generateE3LMessage', () => {
+    it('debe envolver el documento en el esquema E3L 3.6 completo con cabecera y cuerpo', () => {
+      const mockDoc = {
+        id: 1,
+        numero_documento: 'DI-2026-00001',
+        tipo_notificacion: 'con-notificacion-previa',
+        numero_notificacion: 'NT-2026-0001',
+        codigo_ler: '15 01 01',
+        descripcion_residuo: 'Envases de papel y cartón',
+        cantidad: 1500,
+        unidad: 'kg',
+        operacion_tratamiento: 'R03',
+        productor_razon_social: 'Productor Test SL',
+        productor_cif: 'B12345678',
+        productor_nima: '1234567890',
+        gestor_razon_social: 'Gestor Test SL',
+        gestor_cif: 'A87654321',
+        gestor_nima: '0987654321',
+        transportista_razon_social: 'Trans Test SL',
+        transportista_cif: 'B99887766',
+        transportista_nima: '1122334455',
+        fecha_documento: '2026-11-13',
+      } as any;
+
+      const xml = siraService.generateE3LMessage(mockDoc);
+
+      expect(xml).toContain('<?xml version="1.0"');
+      expect(xml).toContain('<e3l');
+      expect(xml).toContain('version="3.6"');
+      expect(xml).toContain('<header>');
+      expect(xml).toContain('<sender>');
+      expect(xml).toContain('<recipient>');
+      expect(xml).toContain('<waste>');
+      expect(xml).toContain('<wasteDCS');
+      expect(xml).toContain('</waste>');
+      expect(xml).toContain('</e3l>');
+    });
+  });
+
   describe('downloadXmlFile', () => {
     it('debe crear enlace y disparar descarga del archivo XML', () => {
       expect(() =>

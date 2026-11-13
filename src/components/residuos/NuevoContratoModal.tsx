@@ -168,10 +168,14 @@ export default function NuevoContratoModal({
     setGestorData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleDateChange = (field: 'fecha_contrato' | 'fecha_inicio' | 'fecha_fin') => (dates: Date[]) => {
-    if (dates && dates.length > 0) {
-      const dateStr = dates[0].toISOString().split('T')[0];
-      setFormData((prev) => ({ ...prev, [field]: dateStr }));
+  const handleDateChange = (field: 'fecha_contrato' | 'fecha_inicio' | 'fecha_fin') => (dates: Date[], dateStr?: string) => {
+    if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) {
+      setFormData((prev) => ({ ...prev, [field]: dateStr.trim() }));
+      clearFieldError(field);
+    } else if (dates && dates.length > 0) {
+      const d = dates[0];
+      const localStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      setFormData((prev) => ({ ...prev, [field]: localStr }));
       clearFieldError(field);
     }
   };
@@ -366,7 +370,7 @@ export default function NuevoContratoModal({
                 id="fecha_inicio"
                 mode="single"
                 onChange={handleDateChange('fecha_inicio')}
-                defaultDate={formData.fecha_inicio ? new Date(formData.fecha_inicio) : undefined}
+                defaultDate={formData.fecha_inicio || undefined}
               />
             </div>
 
@@ -376,7 +380,7 @@ export default function NuevoContratoModal({
                 id="fecha_fin"
                 mode="single"
                 onChange={handleDateChange('fecha_fin')}
-                defaultDate={formData.fecha_fin ? new Date(formData.fecha_fin) : undefined}
+                defaultDate={formData.fecha_fin || undefined}
               />
               {fieldErrors.fecha_fin && (
                 <p className="mt-1 text-xs text-error-500 font-medium flex items-center gap-1">

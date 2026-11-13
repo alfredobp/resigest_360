@@ -374,8 +374,10 @@ export interface WasteContract {
   // Documentación y Firmas
   documento_url?: string;
   firma_productor_url?: string;
+  firmado_productor?: boolean;
   fecha_firma_productor?: string;
   firma_gestor_url?: string;
+  firmado_gestor?: boolean;
   fecha_firma_gestor?: string;
 
   // Metadata
@@ -1312,6 +1314,7 @@ export type AuditLogEntity =
 export type AuditLogAction =
   | 'crear'
   | 'actualizar'
+  | 'rectificar'
   | 'eliminar'
   | 'cambiar_estado'
   | 'recepcionar_pesada'

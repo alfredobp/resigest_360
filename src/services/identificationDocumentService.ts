@@ -477,9 +477,30 @@ export const identificationDocumentService = {
       throw new Error('Documento de Identificación no encontrado o token inválido');
     }
 
-    const publicUrl = await this.uploadSignatureImage(doc.id, `public-${role}`, signatureBase64);
+    // Verificar si la parte solicitada ya ha sido firmada previamente (evitar sobrescrituras)
+    if (role === 'productor' && doc.firmado_productor && doc.firma_productor_url) {
+      throw new Error('La parte Productor ya ha firmado este documento y no puede ser modificada.');
+    }
+    if (role === 'transportista' && doc.firmado_transportista && doc.firma_transportista_url) {
+      throw new Error('La parte Transportista ya ha firmado este documento y no puede ser modificada.');
+    }
+    if (role === 'gestor' && doc.firmado_gestor && doc.firma_gestor_url) {
+      throw new Error('La parte Gestor ya ha firmado este documento y no puede ser modificada.');
+    }
 
-    const { data, error: updateError } = await supabase.rpc('sign_di_by_signing_token', {
+    // Intentar subida a Supabase Storage con fallback a Data URI si hay bloqueo RLS o red
+    let publicUrl: string;
+    try {
+      publicUrl = await this.uploadSignatureImage(doc.id, `public-${role}`, signatureBase64);
+    } catch (uploadErr: any) {
+      console.warn('[DI Public Sign] Storage remoto no disponible o bloqueado por RLS, guardando trazo como Data URI:', uploadErr?.message);
+      publicUrl = signatureBase64.startsWith('data:')
+        ? signatureBase64
+        : `data:image/png;base64,${signatureBase64}`;
+    }
+
+    let updatedDoc: IdentificationDocument;
+    const { data: rpcData, error: updateError } = await supabase.rpc('sign_di_by_signing_token', {
       p_token: token,
       p_role: role,
       p_signature_url: publicUrl,
@@ -487,24 +508,67 @@ export const identificationDocumentService = {
       p_signer_dni: signerInfo?.dni?.trim() || null,
     });
 
-    if (updateError) {
+    if (updateError && !updateError.message?.includes('function') && updateError.code !== '42883') {
       throw new Error(`Error al registrar firma pública del DI: ${updateError.message}`);
     }
 
-    await auditService.logAction({
-      company_id: (data as IdentificationDocument)?.company_id ?? doc.company_id ?? null,
-      entidad: 'di',
-      entidad_id: doc.id,
-      accion: 'actualizar',
-      detalles: {
-        numero_documento: doc.numero_documento,
-        rol_firma: role,
-        via: 'enlace_publico',
-        firmante_nombre: signerInfo?.nombre || undefined,
-      },
-    });
+    if (!rpcData) {
+      // Fallback directo a actualización de base de datos si la RPC aún no ha sido desplegada
+      const now = new Date().toISOString();
+      const updatePayload: Record<string, any> = { updated_at: now };
+      if (role === 'productor') {
+        updatePayload.firmado_productor = true;
+        updatePayload.firma_productor_url = publicUrl;
+        updatePayload.fecha_firma_productor = now;
+        if (signerInfo?.nombre?.trim()) updatePayload.nombre_productor = signerInfo.nombre.trim();
+        if (signerInfo?.dni?.trim()) updatePayload.dni_productor = signerInfo.dni.trim();
+      } else if (role === 'transportista') {
+        updatePayload.firmado_transportista = true;
+        updatePayload.firma_transportista_url = publicUrl;
+        updatePayload.fecha_firma_transportista = now;
+        if (signerInfo?.nombre?.trim()) updatePayload.nombre_transportista = signerInfo.nombre.trim();
+        if (signerInfo?.dni?.trim()) updatePayload.dni_transportista = signerInfo.dni.trim();
+      } else {
+        updatePayload.firmado_gestor = true;
+        updatePayload.firma_gestor_url = publicUrl;
+        updatePayload.fecha_firma_gestor = now;
+        if (signerInfo?.nombre?.trim()) updatePayload.nombre_gestor = signerInfo.nombre.trim();
+        if (signerInfo?.dni?.trim()) updatePayload.dni_gestor = signerInfo.dni.trim();
+      }
 
-    return data as IdentificationDocument;
+      const { data: directData, error: directError } = await supabase
+        .from('identification_documents')
+        .update(updatePayload)
+        .eq('id', doc.id)
+        .select()
+        .single();
+
+      if (directError || !directData) {
+        throw new Error(`Error al registrar firma pública del DI: ${directError?.message || updateError?.message || 'Error desconocido'}`);
+      }
+      updatedDoc = directData as IdentificationDocument;
+    } else {
+      updatedDoc = rpcData as IdentificationDocument;
+    }
+
+    try {
+      await auditService.logAction({
+        company_id: updatedDoc.company_id ?? doc.company_id ?? null,
+        entidad: 'di',
+        entidad_id: doc.id,
+        accion: 'actualizar',
+        detalles: {
+          numero_documento: doc.numero_documento,
+          rol_firma: role,
+          via: 'enlace_publico',
+          firmante_nombre: signerInfo?.nombre || undefined,
+        },
+      });
+    } catch {
+      // Silenciar si no hay sesión para registrar auditoría directa
+    }
+
+    return updatedDoc;
   },
 
   /**
@@ -535,6 +599,13 @@ export const identificationDocumentService = {
       }
       if (contract.estado !== 'vigente') {
         throw new Error(`No se puede iniciar el traslado: el contrato ${contract.numero_contrato || contract.id} está en estado '${contract.estado}' y debe estar vigente.`);
+      }
+      // N10: Un contrato incompleto o sin formalizar no puede autorizar la salida (art. 5 RD 553/2020)
+      const hasContractDoc = Boolean(contract.documento_url);
+      if (contract.firmado_productor === false && contract.firmado_gestor === false && !hasContractDoc && !extRef && !extEvidence) {
+        throw new Error(
+          `No se puede iniciar el traslado: el contrato ${contract.numero_contrato || contract.id} está incompleto o pendiente de formalización (requiere firmas digitales de ambas partes o documento contractual formalizado adjunto según art. 5 RD 553/2020).`
+        );
       }
       const depDate = new Date(payload.fecha_salida || doc.fecha_documento || new Date());
       if (contract.fecha_fin && new Date(contract.fecha_fin) < new Date(depDate.toISOString().split('T')[0])) {
@@ -722,13 +793,42 @@ export const identificationDocumentService = {
       throw new Error(`Operación de tratamiento inválida: '${payload.operacion_tratamiento}'. Debe indicar un código R01–R13 o D01–D15.`);
     }
 
-    // Idempotencia ante reintentos: si ya está cerrado con la misma operación, devolver sin duplicar
+    // Idempotencia y rectificación: si ya está cerrado con la misma operación, permitir rectificar notas/descripción/fecha
     if (doc.estado_traslado === 'tratado' && doc.estado === 'completado') {
       const currentExec = normalizeOperationCode(doc.operacion_tratamiento_ejecutada || doc.operacion_tratamiento);
-      if (currentExec === executedOp) {
-        return doc;
+      if (currentExec !== executedOp) {
+        throw new Error(`El DI ya fue cerrado anteriormente con la operación ${currentExec} y no puede sobrescribirse.`);
       }
-      throw new Error(`El DI ya fue cerrado anteriormente con la operación ${currentExec} y no puede sobrescribirse.`);
+
+      // Si la operación es la misma, actualizar campos descriptivos y registrar rectificación en auditoría
+      const fechaTratamientoIso = payload.fecha_tratamiento
+        ? normalizeLocalDateTimeToIso(payload.fecha_tratamiento)
+        : doc.fecha_tratamiento;
+
+      const newNotas = payload.notas !== undefined ? payload.notas : payload.descripcion_tratamiento;
+      const newDesc = payload.descripcion_tratamiento !== undefined ? payload.descripcion_tratamiento : payload.notas;
+
+      const updated = await this.update(id, {
+        descripcion_tratamiento: newDesc !== undefined ? newDesc : doc.descripcion_tratamiento,
+        notas: newNotas !== undefined ? newNotas : doc.notas,
+        fecha_tratamiento: fechaTratamientoIso,
+      });
+
+      await auditService.logAction({
+        company_id: updated.company_id,
+        entidad: 'di',
+        entidad_id: id,
+        accion: 'rectificar',
+        detalles: {
+          motivo: 'Rectificación de tratamiento / notas en DI ya tratado',
+          operacion: executedOp,
+          notas_anteriores: doc.notas || doc.descripcion_tratamiento || '',
+          notas_nuevas: updated.notas || updated.descripcion_tratamiento || '',
+          fecha_tratamiento: fechaTratamientoIso,
+        },
+      });
+
+      return updated;
     }
 
     // Validar compatibilidad con régimen de notificación previa (art. 3.2 RD 553/2020)
@@ -781,11 +881,11 @@ export const identificationDocumentService = {
     const updated = await this.update(id, {
       operacion_tratamiento: doc.operacion_tratamiento || executedOp,
       operacion_tratamiento_ejecutada: executedOp,
-      descripcion_tratamiento: payload.descripcion_tratamiento,
+      descripcion_tratamiento: payload.descripcion_tratamiento ?? payload.notas,
       fecha_tratamiento: fechaTratamientoIso,
       estado_traslado: 'tratado',
       estado: 'completado',
-      notas: payload.notas,
+      notas: payload.notas ?? payload.descripcion_tratamiento,
     });
 
     try {

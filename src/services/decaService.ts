@@ -100,6 +100,52 @@ export const decaService = {
   },
 
   /**
+   * Obtener los documentos DeCA vinculados a un Documento de Identificación (DI)
+   */
+  async getByIdentificationDocument(diId: number): Promise<DecaDocument[]> {
+    if (!diId) return [];
+
+    const { data, error } = await supabase
+      .from('deca_documents')
+      .select('*')
+      .eq('identification_document_id', diId)
+      .order('version', { ascending: false });
+
+    if (error) {
+      console.error('[DeCA Service] Error al consultar DeCA por DI:', error.message);
+      return [];
+    }
+
+    return (data || []) as DecaDocument[];
+  },
+
+  /**
+   * Obtener la versión vigente actual de un DeCA sustituido/histórico
+   */
+  async getLatestActiveVersion(currentDoc: DecaDocument): Promise<DecaDocument | null> {
+    if (!currentDoc) return null;
+    if (currentDoc.is_vigente) return currentDoc;
+
+    const baseNumero = (currentDoc.numero_deca || '').replace(/-v\d+$/, '');
+
+    const { data, error } = await supabase
+      .from('deca_documents')
+      .select('*')
+      .ilike('numero_deca', `${baseNumero}%`)
+      .eq('is_vigente', true)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[DeCA Service] Error al obtener versión vigente DeCA:', error.message);
+      return null;
+    }
+
+    return (data || null) as DecaDocument | null;
+  },
+
+  /**
    * Generar el siguiente número correlativo de DeCA evitando colisiones por sufijos '-v2' o múltiples registros
    */
   async getNextNumero(): Promise<string> {

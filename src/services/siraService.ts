@@ -339,13 +339,22 @@ const generateTransporterContent = (doc: any): string => {
                     <mail>${safeEmail}</mail>
                 </centerContact>`;
 
-  const authBlock = `
+  const transporterAuth = clean(
+    doc.transportista_numero_autorizacion ||
+    doc.transportista_n_autorizacion ||
+    doc.transportista_autorizacion ||
+    ''
+  );
+
+  const authBlock = transporterAuth
+    ? `
                 <wasteCenterAuthorization>
                     <authorizationId>
-                         <authorizationIdFree>${safeNima}</authorizationIdFree>
+                         <authorizationIdFree>${transporterAuth}</authorizationIdFree>
                     </authorizationId>
                     <authorizationCode>${isDanger ? 'T01' : 'T02'}</authorizationCode>
-                </wasteCenterAuthorization>`;
+                </wasteCenterAuthorization>`
+    : '';
 
   return `
         <DCSTransporterData>${cif ? `
@@ -627,6 +636,50 @@ export const siraService = {
     ${generateResidueBlock(doc)}
 
 </wasteDCS>`.trim();
+  },
+
+  /**
+   * Genera el mensaje E3L versión 3.6 completo con contenedor <e3l> y <header> reglamentario
+   * para validación directa con esquemas oficiales e3l.xsd (RD 553/2020).
+   */
+  generateE3LMessage(doc: any): string {
+    const dcsXml = this.generateDIXml(doc);
+    const date = new Date(doc.fecha_documento || new Date());
+    const formattedDate = date.toISOString().split('T')[0];
+    const compData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
+    const senderNif = this.escapeXml(doc.operador_cif || compData?.cif || doc.productor_cif || 'B00000000');
+    const senderName = this.escapeXml(doc.operador_razon_social || compData?.razon_social || doc.productor_razon_social || 'RESIGEST');
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<e3l xmlns="e3l://eterproject.org/3.0/e3l"
+     xmlns:waste="e3l://eterproject.org/3.0/waste"
+     xmlns:wassup="e3l://eterproject.org/3.0/wasteSupport"
+     xmlns:common="e3l://eterproject.org/3.0/common"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     version="3.6">
+    <header>
+        <messageID>${this.escapeXml(doc.numero_documento || 'DI-E3L')}-${date.getTime()}</messageID>
+        <sender>
+            <entityId>
+                <nationalId>${senderNif}</nationalId>
+            </entityId>
+            <entityName>
+                <reason>
+                    <reasonName>${senderName}</reasonName>
+                </reason>
+            </entityName>
+        </sender>
+        <recipient>
+            <entityId>
+                <nationalId>SIRA-JUNTA-ANDALUCIA</nationalId>
+            </entityId>
+        </recipient>
+        <creationDate>${formattedDate}</creationDate>
+    </header>
+    <waste>
+        ${dcsXml}
+    </waste>
+</e3l>`.trim();
   },
 
   formatNima(rawNima: string | undefined | null, provCode?: string): string {

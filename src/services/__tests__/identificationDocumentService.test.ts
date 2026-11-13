@@ -725,12 +725,32 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
         estado: 'completado',
       } as any;
       jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue(alreadyClosed);
+      jest.spyOn(identificationDocumentService, 'update').mockResolvedValue(alreadyClosed);
       await expect(
         identificationDocumentService.completeTreatment(61, { operacion_tratamiento: 'R4' })
       ).resolves.toEqual(alreadyClosed);
       await expect(
         identificationDocumentService.completeTreatment(61, { operacion_tratamiento: 'R13' })
       ).rejects.toThrow('no puede sobrescribirse');
+
+      // 2b. Rectificación de notas en DI cerrado (N08)
+      const updateSpy = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({
+        ...alreadyClosed,
+        notas: 'PRUEBA-RECTIFICACION-02',
+        descripcion_tratamiento: 'PRUEBA-RECTIFICACION-02',
+      });
+      const rectResult = await identificationDocumentService.completeTreatment(61, {
+        operacion_tratamiento: 'R4',
+        notas: 'PRUEBA-RECTIFICACION-02',
+      });
+      expect(rectResult.notas).toBe('PRUEBA-RECTIFICACION-02');
+      expect(updateSpy).toHaveBeenCalledWith(
+        61,
+        expect.objectContaining({
+          notas: 'PRUEBA-RECTIFICACION-02',
+          descripcion_tratamiento: 'PRUEBA-RECTIFICACION-02',
+        })
+      );
 
       // 3. Bloqueo D01 cuando DI es sin-notificacion
       jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
@@ -1213,6 +1233,110 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
           'data:image/png;base64,iVBORw0KGgo='
         )
       ).rejects.toThrow('Error al registrar firma pública del DI: El Documento de Identificación ya fue firmado por este rol');
+    });
+
+    it('signDocumentByToken debe rechazar si el rol ya firmó el documento previamente', async () => {
+      // Productor ya firmado
+      mockSupabase.rpc.mockResolvedValueOnce({
+        data: { ...mockPublicDI, firmado_productor: true, firma_productor_url: 'https://sig' },
+        error: null,
+      });
+      await expect(
+        identificationDocumentService.signDocumentByToken('uuid-di-token-123', 'productor', 'sig')
+      ).rejects.toThrow('La parte Productor ya ha firmado este documento');
+
+      // Transportista ya firmado
+      mockSupabase.rpc.mockResolvedValueOnce({
+        data: { ...mockPublicDI, firmado_transportista: true, firma_transportista_url: 'https://sig' },
+        error: null,
+      });
+      await expect(
+        identificationDocumentService.signDocumentByToken('uuid-di-token-123', 'transportista', 'sig')
+      ).rejects.toThrow('La parte Transportista ya ha firmado este documento');
+
+      // Gestor ya firmado
+      mockSupabase.rpc.mockResolvedValueOnce({
+        data: { ...mockPublicDI, firmado_gestor: true, firma_gestor_url: 'https://sig' },
+        error: null,
+      });
+      await expect(
+        identificationDocumentService.signDocumentByToken('uuid-di-token-123', 'gestor', 'sig')
+      ).rejects.toThrow('La parte Gestor ya ha firmado este documento');
+    });
+
+    it('signDocumentByToken debe utilizar fallback a Data URI si el upload en Storage falla', async () => {
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: mockPublicDI, error: null })
+        .mockResolvedValueOnce({
+          data: { ...mockPublicDI, firmado_productor: true },
+          error: null,
+        });
+      mockStorageFrom.upload.mockRejectedValueOnce(new Error('Storage RLS row security violation'));
+
+      const res = await identificationDocumentService.signDocumentByToken(
+        'uuid-di-token-123',
+        'productor',
+        'iVBORw0KGgoAAAANSUhEUg=='
+      );
+
+      expect(mockSupabase.rpc).toHaveBeenNthCalledWith(2, 'sign_di_by_signing_token', expect.objectContaining({
+        p_signature_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==',
+      }));
+      expect(res.firmado_productor).toBe(true);
+    });
+
+    it('signDocumentByToken debe ejecutar fallback directo de tabla si la RPC no retorna datos', async () => {
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: mockPublicDI, error: null })
+        .mockResolvedValueOnce({
+          data: null,
+          error: { message: 'function sign_di_by_signing_token does not exist', code: '42883' },
+        });
+
+      const singleMock = jest.fn().mockResolvedValue({
+        data: { ...mockPublicDI, firmado_gestor: true, nombre_gestor: 'Gestor Test' },
+        error: null,
+      });
+      const selectMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqMock = jest.fn().mockReturnValue({ select: selectMock });
+      const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
+      mockSupabase.from.mockReturnValue({ update: updateMock });
+
+      const res = await identificationDocumentService.signDocumentByToken(
+        'uuid-di-token-123',
+        'gestor',
+        'data:image/png;base64,xyz',
+        { nombre: 'Gestor Test', dni: '99887766A' }
+      );
+
+      expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({
+        firmado_gestor: true,
+        nombre_gestor: 'Gestor Test',
+        dni_gestor: '99887766A',
+      }));
+      expect(res.firmado_gestor).toBe(true);
+    });
+
+    it('signDocumentByToken debe lanzar error si el fallback directo de tabla también falla', async () => {
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: mockPublicDI, error: null })
+        .mockResolvedValueOnce({
+          data: null,
+          error: { message: 'function does not exist', code: '42883' },
+        });
+
+      const singleMock = jest.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'Direct update failed' },
+      });
+      const selectMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqMock = jest.fn().mockReturnValue({ select: selectMock });
+      const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
+      mockSupabase.from.mockReturnValue({ update: updateMock });
+
+      await expect(
+        identificationDocumentService.signDocumentByToken('uuid-di-token-123', 'productor', 'sig')
+      ).rejects.toThrow('Error al registrar firma pública del DI: Direct update failed');
     });
   });
 });

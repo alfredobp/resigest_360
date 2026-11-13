@@ -189,8 +189,8 @@ export default function DetalleDocumentoIdentificacionPage() {
       setTreatmentForm({
         operacion_tratamiento: normalizeOperationCode(docData.operacion_tratamiento_ejecutada || docData.operacion_tratamiento || 'R13'),
         fecha_tratamiento: docData.fecha_tratamiento ? toLocalDateTimeInput(docData.fecha_tratamiento) : toLocalDateTimeInput(),
-        descripcion_tratamiento: docData.descripcion_tratamiento || '',
-        notas: docData.notas || '',
+        descripcion_tratamiento: docData.descripcion_tratamiento || docData.notas || '',
+        notas: docData.notas || docData.descripcion_tratamiento || '',
       });
 
       setContractForm({
@@ -1005,6 +1005,22 @@ export default function DetalleDocumentoIdentificacionPage() {
                   </button>
                 </div>
               </div>
+
+              {(document.descripcion_tratamiento || document.notas) && (
+                <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                  <span className="text-muted text-xs font-semibold uppercase tracking-wider block mb-1">
+                    Notas de Tratamiento y Cierre
+                  </span>
+                  <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 text-xs text-foreground space-y-1">
+                    <p className="font-mono whitespace-pre-wrap">{document.descripcion_tratamiento || document.notas}</p>
+                    {document.fecha_tratamiento && (
+                      <p className="text-[11px] text-muted">
+                        Fecha certificada: {formatDateTime(document.fecha_tratamiento)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </ComponentCard>
@@ -1876,11 +1892,13 @@ export default function DetalleDocumentoIdentificacionPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-muted uppercase mb-1">Descripción del Proceso / Notas de Cierre</label>
+              <label className="block text-xs font-semibold text-muted uppercase mb-1">
+                {document.estado_traslado === 'tratado' ? 'Notas de Rectificación / Descripción del Proceso' : 'Descripción del Proceso / Notas de Cierre'}
+              </label>
               <TextArea
-                value={treatmentForm.descripcion_tratamiento || ''}
-                onChange={(val) => setTreatmentForm({ ...treatmentForm, descripcion_tratamiento: val })}
-                placeholder="Detalle sobre el proceso de reciclaje, valorización o inertización realizado..."
+                value={treatmentForm.descripcion_tratamiento || treatmentForm.notas || ''}
+                onChange={(val) => setTreatmentForm({ ...treatmentForm, descripcion_tratamiento: val, notas: val })}
+                placeholder="Detalle sobre el proceso de reciclaje, valorización o rectificación de tratamiento realizado..."
                 rows={3}
               />
             </div>
@@ -1891,7 +1909,11 @@ export default function DetalleDocumentoIdentificacionPage() {
               Cancelar
             </Button>
             <Button type="submit" disabled={submittingAction}>
-              {submittingAction ? 'Guardando...' : 'Cerrar Traslado y Certificar'}
+              {submittingAction
+                ? 'Guardando...'
+                : document.estado_traslado === 'tratado'
+                ? 'Guardar Rectificación'
+                : 'Cerrar Traslado y Certificar'}
             </Button>
           </div>
         </form>
@@ -1902,15 +1924,26 @@ export default function DetalleDocumentoIdentificacionPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b pb-3 border-gray-200 dark:border-gray-800">
             <h3 className="text-lg font-bold text-foreground">Payload XML E3L (SIRA / e-SIR)</h3>
-            {selectedXml && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => siraService.downloadXmlFile(selectedXml, `DI_${document.numero_documento}_e3l.xml`)}
-              >
-                <span>Descargar XML</span>
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {selectedXml && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => siraService.downloadXmlFile(selectedXml, `DI_${document.numero_documento}_wasteDCS.xml`)}
+                  >
+                    <span>Descargar wasteDCS (SIRA)</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => siraService.downloadXmlFile(siraService.generateE3LMessage(document), `DI_${document.numero_documento}_e3l_completo.xml`)}
+                  >
+                    <span>Descargar E3L 3.6 Completo</span>
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
           <p className="text-xs text-muted">
             Estructura XML generada conforme al estándar E3L v3.6 (namespaces <code>e3l://eterproject.org/3.0/*</code>).

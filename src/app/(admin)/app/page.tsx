@@ -30,21 +30,26 @@ export default function ExecutiveDashboardPage() {
     canViewCommercial,
   } = useTenant();
 
-  // Si es admin usando el selector sandbox, usar el perfil simulado; en usuarios reales usar su perfil persistido
+  // Si se selecciona un perfil en el Sandbox, usar la simulación; en otro caso usar el perfil persistido
   const effectiveProfile: OperationalProfile =
-    isPlatformAdmin && sandboxProfile !== 'all'
+    sandboxProfile && sandboxProfile !== 'all'
       ? (sandboxProfile as OperationalProfile)
       : perfilOperativo;
 
   const effectiveHasModule = (mod: AppModule) => {
-    if (isPlatformAdmin && sandboxProfile !== 'all') {
+    if (sandboxProfile && sandboxProfile !== 'all') {
       return getDefaultModulesForProfile(effectiveProfile).includes(mod);
     }
     return hasModule(mod);
   };
 
+  const effectiveCanViewCommercial =
+    sandboxProfile && sandboxProfile !== 'all'
+      ? (effectiveProfile === 'chatarreria' || effectiveProfile === 'negociante' || effectiveProfile === 'completo')
+      : canViewCommercial;
+
   const canCreateDI = effectiveHasModule('di');
-  const canCreateOp = effectiveHasModule('operaciones_comerciales') && (isPlatformAdmin || canViewCommercial);
+  const canCreateOp = effectiveHasModule('operaciones_comerciales') && (isPlatformAdmin || effectiveCanViewCommercial);
   const canViewChrono = effectiveHasModule('archivo_cronologico');
   const canViewContracts = effectiveHasModule('contratos');
 
