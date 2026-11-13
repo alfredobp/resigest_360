@@ -160,8 +160,8 @@ async function buildJustificationFields(input: JustifyDiscrepancyPayload): Promi
 
 export const identificationDocumentService = {
   /**
-   * Generar número de documento de identificación
-   * Formato: NIMA + AÑO + CORRELATIVO
+   * Generar número de documento de identificación interno
+   * Formato: NIMA + AÑO + CORRELATIVO (7 dígitos)
    */
   generateDocumentNumber(nima: string): string {
     const year = new Date().getFullYear();

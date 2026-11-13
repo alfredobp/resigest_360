@@ -30,6 +30,7 @@
         
         <entityCenter>
             <centerID centerCode="0000000014" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
         <centerAddress>
             <spanishAddress>
                 <vial vialCode="009" vialDescription="Calle"/>
@@ -39,6 +40,10 @@
                 <province provinceCode="11" provinceName="Cádiz"/>
             </spanishAddress>
         </centerAddress>
+        <centerContact>
+            <phone>900000000</phone>
+            <mail>contacto@resigest.com</mail>
+        </centerContact>
         <wasteCenterAuthorization>
             <authorizationId>
                 <authorizationIdFree>0000000014</authorizationIdFree>
@@ -66,6 +71,7 @@
         
         <entityCenter>
             <centerID centerCode="0000000014" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
         <centerAddress>
             <spanishAddress>
                 <vial vialCode="009" vialDescription="Calle"/>
@@ -75,6 +81,10 @@
                 <province provinceCode="11" provinceName="Cádiz"/>
             </spanishAddress>
         </centerAddress>
+        <centerContact>
+            <phone>900000000</phone>
+            <mail>contacto@resigest.com</mail>
+        </centerContact>
         <wasteCenterAuthorization>
             <authorizationId>
                 <authorizationIdFree>0000000014</authorizationIdFree>
@@ -102,6 +112,7 @@
         
         <entityCenter>
             <centerID centerCode="0000000013" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
         <centerAddress>
             <spanishAddress>
                 <vial vialCode="009" vialDescription="Calle"/>
@@ -111,6 +122,10 @@
                 <province provinceCode="11" provinceName="Cádiz"/>
             </spanishAddress>
         </centerAddress>
+        <centerContact>
+            <phone>900000000</phone>
+            <mail>contacto@resigest.com</mail>
+        </centerContact>
         <wasteCenterAuthorization>
             <authorizationId>
                 <authorizationIdFree>PRUEBA-WORK-20261113-AUT</authorizationIdFree>
@@ -151,6 +166,7 @@
         
         
         <DCSOtherResidueData>
+            <DCSNT>NT00000000000000000000000</DCSNT>
             <DCSClearWeight>500.000</DCSClearWeight>
             <DCSTransportCharacteristics>Sin características especiales</DCSTransportCharacteristics>
         </DCSOtherResidueData>
@@ -167,6 +183,7 @@
             </entityName>
             <entityCenter>
                 <centerID centerCode="0000000015" />
+                <centerEconomicActivity>S/D</centerEconomicActivity>
                 <centerAddress>
                     <spanishAddress>
                         <vial vialCode="009" vialDescription="Calle"/>
@@ -176,6 +193,10 @@
                         <province provinceCode="11" provinceName="Cádiz"/>
                     </spanishAddress>
                 </centerAddress>
+                <centerContact>
+                    <phone>900000000</phone>
+                    <mail>contacto@resigest.com</mail>
+                </centerContact>
                 <wasteCenterAuthorization>
                     <authorizationId>
                          <authorizationIdFree>0000000015</authorizationIdFree>

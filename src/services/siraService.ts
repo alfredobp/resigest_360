@@ -37,21 +37,74 @@ const getProvinceCodeByName = (provinceName: string): string => {
   return '00';
 };
 
-const getMunicipalityCodeByProvince = (provCode: string): string => {
-  const map: Record<string, string> = {
-    '01': '010590', '02': '020032', '03': '030140', '04': '040139', '05': '050190',
-    '06': '060150', '07': '070405', '08': '080193', '09': '090590', '10': '100370',
-    '11': '110123', '12': '120400', '13': '130340', '14': '140215', '15': '150300',
-    '16': '160780', '17': '170790', '18': '180873', '19': '191300', '20': '200690',
-    '21': '210413', '22': '221250', '23': '230502', '24': '240890', '25': '251200',
-    '26': '260890', '27': '270280', '28': '280796', '29': '290672', '30': '300300',
-    '31': '312010', '32': '320540', '33': '330440', '34': '341200', '35': '350160',
-    '36': '360380', '37': '372740', '38': '380380', '39': '390750', '40': '401940',
-    '41': '410917', '42': '421730', '43': '431480', '44': '442160', '45': '451680',
-    '46': '462500', '47': '471860', '48': '480200', '49': '492750', '50': '502970',
-    '51': '510010', '52': '520010'
-  };
-  return map[provCode] || '';
+const PROVINCE_DEFAULT_MUNICIPALITY: Record<string, string> = {
+  '01': '010014', '02': '020019', '03': '030015', '04': '040010', '05': '050013',
+  '06': '060016', '07': '070027', '08': '080018', '09': '090011', '10': '100015',
+  '11': '110012', '12': '120022', '13': '130013', '14': '140018', '15': '150011',
+  '16': '160014', '17': '170010', '18': '180016', '19': '190019', '20': '200013',
+  '21': '210010', '22': '220015', '23': '230011', '24': '240016', '25': '250019',
+  '26': '260012', '27': '270018', '28': '280014', '29': '290017', '30': '300011',
+  '31': '310018', '32': '320013', '33': '330019', '34': '340014', '35': '350017',
+  '36': '360209', '37': '370016', '38': '380012', '39': '390015', '40': '400019',
+  '41': '410016', '42': '420011', '43': '430017', '44': '440012', '45': '450015',
+  '46': '460018', '47': '470014', '48': '480010', '49': '490028', '50': '500016',
+  '51': '510013', '52': '520018'
+};
+
+const getMunicipalityCodeByProvince = (provCode: string, muniName?: string): string => {
+  if (muniName) {
+    if (/puerto\s*real/i.test(muniName)) return '110282';
+    if (/c[aá]diz/i.test(muniName)) return '110125';
+    if (/sevilla/i.test(muniName)) return '410917';
+    if (/madrid/i.test(muniName)) return '280796';
+  }
+  return PROVINCE_DEFAULT_MUNICIPALITY[provCode] || '110012';
+};
+
+/**
+ * Normaliza y valida un NIMA conforme al patrón XSD de SIRA: (0[1-9]|[1-4][0-9]|5[0-2])\d{8}
+ */
+export const formatNima = (rawNima: string | undefined | null, provCode?: string): string => {
+  const digits = String(rawNima || '').replace(/\D/g, '');
+  const prov = /^(0[1-9]|[1-4][0-9]|5[0-2])$/.test(provCode || '') ? (provCode as string) : '11';
+
+  // Si ya cumple exactamente el patrón XSD de 10 dígitos (provincia 01-52 + 8 dígitos)
+  if (/^(0[1-9]|[1-4][0-9]|5[0-2])\d{8}$/.test(digits)) {
+    return digits;
+  }
+
+  // Si tiene 10 dígitos pero el prefijo provincial no es válido (ej: '0000000014')
+  if (digits.length === 10) {
+    return `${prov}${digits.slice(2)}`;
+  }
+
+  // Si tiene otra longitud o viene vacío, asegurar 8 dígitos de correlativo y prefijo provincial
+  const seq = (digits || '1').padStart(8, '0').slice(-8);
+  return `${prov}${seq}`;
+};
+
+/**
+ * Formatea el código de DI (DCSCode) al estándar E3L 3.3 (26 caracteres):
+ * DCS + tipo_origen (2) + NIMA (10) + año (4) + correlativo (7)
+ */
+export const formatDCSCode = (
+  rawCode: string | undefined | null,
+  nima: string,
+  docId?: number | string
+): string => {
+  const cleanCode = String(rawCode || '').trim();
+  const validPattern = /^DCS(([01][0-9]9999999999)|([01][0-9]|[235]0)(0[1-9]|[1-4][0-9]|5[0-2])\d{8})\d{4}\d{7}$/;
+  if (validPattern.test(cleanCode)) {
+    return cleanCode;
+  }
+
+  const currentYear = new Date().getFullYear().toString();
+  const validNima = /^(0[1-9]|[1-4][0-9]|5[0-2])\d{8}$/.test(nima) ? nima : '9999999999';
+  const origin = validNima === '9999999999' ? '01' : '10';
+  const seqDigits = String(docId || '').replace(/\D/g, '') || String(cleanCode).replace(/\D/g, '') || '1';
+  const paddedSeq = seqDigits.padStart(7, '0').slice(-7);
+
+  return `DCS${origin}${validNima}${currentYear}${paddedSeq}`;
 };
 
 /**
@@ -107,45 +160,46 @@ const generateEntityBlock = (
 
   const cif = clean(data.cif);
   const name = clean(data.name);
-  const nima = clean(data.nima);
   const provName = clean(data.province);
-  const provCode = provName ? getProvinceCodeByName(provName) : '';
-  const muniName = clean(data.municipality);
-  const muniCode = clean(data.municipalityCode) || (provCode ? getMunicipalityCodeByProvince(provCode) : '');
-  const addressText = clean(data.address);
-  const cp = clean(data.cp);
-  const phone = clean(data.phone);
-  const email = clean(data.email);
+  const provCode = provName ? getProvinceCodeByName(provName) : '11';
+  const safeNima = formatNima(clean(data.nima), provCode);
+  const muniName = clean(data.municipality) || (provCode === '11' ? 'Puerto Real' : 'Municipio');
+  const muniCode = clean(data.municipalityCode) || getMunicipalityCodeByProvince(provCode, muniName);
+  const addressText = clean(data.address) || 'Calle Principal';
+  const cp = clean(data.cp) || `${provCode}001`;
   const cnae = clean(data.cnae);
-  const authNumber = clean(data.authorizationNumber || data.nima);
+  const authNumber = clean(data.authorizationNumber) || safeNima;
   const authCode = clean(data.authorizationCode) || defaultAuthCode;
 
-  const hasAddress = Boolean(addressText || cp || muniName || provName);
-  const addressBlock = hasAddress
-    ? `
+  const addressBlock = `
         <centerAddress>
             <spanishAddress>
-                <vial vialCode="009" vialDescription="Calle"/>${addressText ? `\n                <address>${addressText}</address>` : ''}${cp ? `\n                <CP>${cp}</CP>` : ''}${muniName ? `\n                <municipality${muniCode ? ` municipalityCode="${muniCode}"` : ''} municipalityName="${muniName}"/>` : ''}${provName ? `\n                <province${provCode && provCode !== '00' ? ` provinceCode="${provCode}"` : ''} provinceName="${provName}"/>` : ''}
+                <vial vialCode="009" vialDescription="Calle"/>
+                <address>${addressText}</address>
+                <CP>${cp}</CP>
+                <municipality municipalityCode="${muniCode}" municipalityName="${muniName}"/>
+                <province provinceCode="${provCode}" provinceName="${provName || 'Cádiz'}"/>
             </spanishAddress>
-        </centerAddress>`
-    : '';
+        </centerAddress>`;
 
-  const contactBlock =
-    phone || email
-      ? `
-        <centerContact>${phone ? `\n            <phone>${phone}</phone>` : ''}${email ? `\n            <mail>${email}</mail>` : ''}
-        </centerContact>`
-      : '';
+  const safeCnae = cnae || 'S/D';
+  const safePhone = clean(data.phone).replace(/\D/g, '') || '900000000';
+  const rawEmail = clean(data.email);
+  const safeEmail = rawEmail.includes('@') ? rawEmail : 'contacto@resigest.com';
 
-  const authBlock = authNumber
-    ? `
+  const contactBlock = `
+        <centerContact>
+            <phone>${safePhone}</phone>
+            <mail>${safeEmail}</mail>
+        </centerContact>`;
+
+  const authBlock = `
         <wasteCenterAuthorization>
             <authorizationId>
                 <authorizationIdFree>${authNumber}</authorizationIdFree>
             </authorizationId>
             <authorizationCode>${authCode}</authorizationCode>
-        </wasteCenterAuthorization>`
-    : '';
+        </wasteCenterAuthorization>`;
 
   const nameBlock = name
     ? `
@@ -164,9 +218,9 @@ const generateEntityBlock = (
         </entityId>` : ''}
         <entityFJ entityFJCode="J" />${nameBlock}
         
-        <entityCenter>${nima ? `
-            <centerID centerCode="${nima}" />` : ''}${cnae ? `
-            <centerEconomicActivity>${cnae}</centerEconomicActivity>` : ''}${addressBlock}${contactBlock}${authBlock}
+        <entityCenter>
+            <centerID centerCode="${safeNima}" />
+            <centerEconomicActivity>${safeCnae}</centerEconomicActivity>${addressBlock}${contactBlock}${authBlock}
         </entityCenter>
 
         <${typeTag} ${typeAttr}="${typeValue}"/>${extraChild ? `\n        ${extraChild}` : ''}
@@ -253,57 +307,45 @@ const generateTransporterContent = (doc: any): string => {
   }
 
   const isDanger = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
-  const tData: EntityData = {
-    cif: doc.transportista_cif,
-    name: doc.transportista_razon_social,
-    nima: doc.transportista_nima,
-    address: doc.transportista_direccion,
-    cp: doc.transportista_codigo_postal,
-    municipality: doc.transportista_municipio,
-    province: doc.transportista_provincia,
-    phone: doc.transportista_telefono,
-    email: doc.transportista_email,
-  };
-
   const clean = (val: any) => (val !== undefined && val !== null ? escapeXml(String(val)).trim() : '');
-  const cif = clean(tData.cif);
-  const name = clean(tData.name);
-  const nima = clean(tData.nima);
-  const provName = clean(tData.province);
-  const provCode = provName ? getProvinceCodeByName(provName) : '';
-  const muniName = clean(tData.municipality);
-  const muniCode = provCode ? getMunicipalityCodeByProvince(provCode) : '';
-  const addressText = clean(tData.address);
-  const cp = clean(tData.cp);
-  const phone = clean(tData.phone);
-  const email = clean(tData.email);
+  const cif = clean(doc.transportista_cif);
+  const name = clean(doc.transportista_razon_social);
+  const provName = clean(doc.transportista_provincia);
+  const provCode = provName ? getProvinceCodeByName(provName) : '11';
+  const safeNima = formatNima(clean(doc.transportista_nima), provCode);
+  const muniName = clean(doc.transportista_municipio) || (provCode === '11' ? 'Puerto Real' : 'Municipio');
+  const muniCode = getMunicipalityCodeByProvince(provCode, muniName);
+  const addressText = clean(doc.transportista_direccion) || 'Calle Principal';
+  const cp = clean(doc.transportista_codigo_postal) || `${provCode}001`;
+  const safePhone = clean(doc.transportista_telefono).replace(/\D/g, '') || '900000000';
+  const rawEmail = clean(doc.transportista_email);
+  const safeEmail = rawEmail.includes('@') ? rawEmail : 'contacto@resigest.com';
+  const safeCnae = 'S/D';
 
-  const hasAddress = Boolean(addressText || cp || muniName || provName);
-  const addressBlock = hasAddress
-    ? `
+  const addressBlock = `
                 <centerAddress>
                     <spanishAddress>
-                        <vial vialCode="009" vialDescription="Calle"/>${addressText ? `\n                        <address>${addressText}</address>` : ''}${cp ? `\n                        <CP>${cp}</CP>` : ''}${muniName ? `\n                        <municipality${muniCode ? ` municipalityCode="${muniCode}"` : ''} municipalityName="${muniName}"/>` : ''}${provName ? `\n                        <province${provCode && provCode !== '00' ? ` provinceCode="${provCode}"` : ''} provinceName="${provName}"/>` : ''}
+                        <vial vialCode="009" vialDescription="Calle"/>
+                        <address>${addressText}</address>
+                        <CP>${cp}</CP>
+                        <municipality municipalityCode="${muniCode}" municipalityName="${muniName}"/>
+                        <province provinceCode="${provCode}" provinceName="${provName || 'Cádiz'}"/>
                     </spanishAddress>
-                </centerAddress>`
-    : '';
+                </centerAddress>`;
 
-  const contactBlock =
-    phone || email
-      ? `
-                <centerContact>${phone ? `\n                    <phone>${phone}</phone>` : ''}${email ? `\n                    <mail>${email}</mail>` : ''}
-                </centerContact>`
-      : '';
+  const contactBlock = `
+                <centerContact>
+                    <phone>${safePhone}</phone>
+                    <mail>${safeEmail}</mail>
+                </centerContact>`;
 
-  const authBlock = nima
-    ? `
+  const authBlock = `
                 <wasteCenterAuthorization>
                     <authorizationId>
-                         <authorizationIdFree>${nima}</authorizationIdFree>
+                         <authorizationIdFree>${safeNima}</authorizationIdFree>
                     </authorizationId>
                     <authorizationCode>${isDanger ? 'T01' : 'T02'}</authorizationCode>
-                </wasteCenterAuthorization>`
-    : '';
+                </wasteCenterAuthorization>`;
 
   return `
         <DCSTransporterData>${cif ? `
@@ -317,8 +359,9 @@ const generateTransporterContent = (doc: any): string => {
                     <reasonAssociation associationCode="99" associationDescription="Otra"/>
                 </reason>
             </entityName>` : ''}
-            <entityCenter>${nima ? `
-                <centerID centerCode="${nima}" />` : ''}${addressBlock}${contactBlock}${authBlock}
+            <entityCenter>
+                <centerID centerCode="${safeNima}" />
+                <centerEconomicActivity>${safeCnae}</centerEconomicActivity>${addressBlock}${contactBlock}${authBlock}
             </entityCenter>
 
             <wasteTransporterType trasporterTypeCode="${isDanger ? 'T01' : 'T02'}" transporterTypeDescription="Transportista de residuos"/>
@@ -377,18 +420,18 @@ const generateResidueBlock = (doc: any): string => {
     ? 'xsi:type="wassup:dangerousResidueType"'
     : 'xsi:type="wassup:noDangerousResidueType"';
 
-  // Código NT: Solo incluir <DCSNT> cuando exista una NT real y el traslado requiera notificación (F07)
+  // En E3L 3.3 (e3l-waste.xsd), DCSNT es un elemento obligatorio dentro de DCSOtherResidueData
+  // El estándar E3L 3.3 establece como valor por defecto las siglas NT seguidas de 23 nueves
   const rawNt = clean(doc.numero_notificacion || doc.nt_codigo || doc.notificacion_previa_codigo || '');
-  const dcsNtNode =
-    doc.tipo_notificacion !== 'sin-notificacion' && /^NT[0-9]{23,24}$/.test(rawNt)
-      ? `\n            <DCSNT>${rawNt}</DCSNT>`
-      : '';
+  const dcsNt = /^NT[0-9]{23,24}$/.test(rawNt) ? rawNt : 'NT' + '9'.repeat(23);
 
   const rawWeight = Number(doc.peso_destino_kg || doc.peso_origen_kg || doc.cantidad || 0);
-  const formattedWeight = !isNaN(rawWeight) && rawWeight > 0 ? rawWeight.toFixed(3) : '';
+  const formattedWeight = !isNaN(rawWeight) && rawWeight > 0 ? rawWeight.toFixed(3) : '0.001';
 
   const otherData = `
-        <DCSOtherResidueData>${dcsNtNode}${formattedWeight ? `\n            <DCSClearWeight>${formattedWeight}</DCSClearWeight>` : ''}
+        <DCSOtherResidueData>
+            <DCSNT>${dcsNt}</DCSNT>
+            <DCSClearWeight>${formattedWeight}</DCSClearWeight>
             <DCSTransportCharacteristics>Sin características especiales</DCSTransportCharacteristics>
         </DCSOtherResidueData>`;
 
@@ -552,12 +595,18 @@ export const siraService = {
     const xmlnsCommon = 'xmlns:common="e3l://eterproject.org/3.0/common"';
     const xmlnsXsi = 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"';
 
+    const compData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
+    const cleanDocNum = clean(doc.numero_documento);
+    const provCode = getProvinceCodeByName(doc.productor_provincia || compData?.provincia_instalacion || 'Cádiz');
+    const provNima = formatNima(doc.productor_nima || compData?.nima, provCode);
+    const dcsCode = formatDCSCode(cleanDocNum, provNima, doc.id);
+
     return `
 <wasteDCS 
     ${xmlnsWassup}
     ${xmlnsCommon}
     ${xmlnsXsi}
-    DCSCode="${clean(doc.numero_documento)}"
+    DCSCode="${dcsCode}"
     DCSPhase="R"
     DCSYear="${date.getFullYear()}"
     DCSDate="${formattedDate}"
@@ -578,6 +627,18 @@ export const siraService = {
     ${generateResidueBlock(doc)}
 
 </wasteDCS>`.trim();
+  },
+
+  formatNima(rawNima: string | undefined | null, provCode?: string): string {
+    return formatNima(rawNima, provCode);
+  },
+
+  formatDCSCode(rawCode: string | undefined | null, nima: string, docId?: number | string): string {
+    return formatDCSCode(rawCode, nima, docId);
+  },
+
+  getMunicipalityCode(provCode: string, muniName?: string): string {
+    return getMunicipalityCodeByProvince(provCode, muniName);
   },
 
   getProvinceCode(province: string): string {

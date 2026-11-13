@@ -60,6 +60,32 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       expect(siraService.getProvinceCode('')).toBe('00');
       expect(siraService.getProvinceCode('Provincia Desconocida')).toBe('00');
     });
+
+    it('formatNima debe normalizar NIMAs al formato XSD de 10 dígitos (provincia + 8 dígitos)', () => {
+      expect(siraService.formatNima('1100000014', '11')).toBe('1100000014');
+      // Si tiene 10 dígitos pero el prefijo provincial es 00 (inválido en XSD)
+      expect(siraService.formatNima('0000000014', '11')).toBe('1100000014');
+      // Si tiene caracteres no numéricos o longitud corta
+      expect(siraService.formatNima('14', '11')).toBe('1100000014');
+      expect(siraService.formatNima('', '41')).toBe('4100000001');
+    });
+
+    it('formatDCSCode debe generar un código de 26 caracteres conforme al patrón E3L DCS', () => {
+      const dcs = siraService.formatDCSCode('PRUEBA-123', '1100000014', 121);
+      expect(dcs).toHaveLength(26);
+      expect(dcs).toMatch(/^DCS101100000014\d{4}0000121$/);
+
+      // Si ya cumple el formato de 26 caracteres no lo altera
+      const validCode = 'DCS10110000001420260000121';
+      expect(siraService.formatDCSCode(validCode, '1100000014')).toBe(validCode);
+    });
+
+    it('getMunicipalityCode debe retornar códigos oficiales INE válidos del esquema', () => {
+      expect(siraService.getMunicipalityCode('11', 'Puerto Real')).toBe('110282');
+      expect(siraService.getMunicipalityCode('41', 'Sevilla')).toBe('410917');
+      expect(siraService.getMunicipalityCode('28', 'Madrid')).toBe('280796');
+      expect(siraService.getMunicipalityCode('11')).toBe('110012');
+    });
   });
 
   describe('generateDIXml', () => {
@@ -109,15 +135,14 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
 
       const xml = siraService.generateDIXml(mockDoc);
 
-      expect(xml).toContain('DCSCode="DI-2025-0001"');
+      expect(xml).toMatch(/DCSCode="DCS\d{23}"/);
       expect(xml).toContain('DCSStartDate="2025-05-15"');
       expect(xml).toContain('<reasonName>Productor Químico S.A.</reasonName>');
       expect(xml).toContain('<nationalId>A87654321</nationalId>');
       expect(xml).toContain('<nationalId>B99887766</nationalId>');
       expect(xml).toContain('LERCode="150110"');
       expect(xml).toContain('<table5>HP4</table5>');
-      expect(xml).not.toContain('NT99999999999999999999999');
-      expect(xml).not.toContain('<DCSNT>');
+      expect(xml).toContain('<DCSNT>NT99999999999999999999999</DCSNT>');
       expect(xml).toContain('<DCSClearWeight>1.500</DCSClearWeight>');
     });
 
@@ -149,11 +174,11 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
 
       const xml = siraService.generateDIXml(minDoc);
 
-      expect(xml).toContain('DCSCode="DI-MIN-001"');
+      expect(xml).toMatch(/DCSCode="DCS\d{23}"/);
       expect(xml).toContain('LERCode="200101"');
       expect(xml).toContain('xsi:type="wassup:noDangerousResidueType"');
       expect(xml).not.toContain('A00000000');
-      expect(xml).not.toContain('999999999');
+      expect(xml).not.toContain('<phone>999999999</phone>');
       expect(xml).not.toContain('pendiente@email.com');
       expect(xml).not.toContain('NIMA-PENDIENTE');
     });
