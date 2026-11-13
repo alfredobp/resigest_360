@@ -6,11 +6,11 @@
     xmlns:wassup="e3l://eterproject.org/3.0/wasteSupport"
     xmlns:common="e3l://eterproject.org/3.0/common"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    DCSCode="78398938398320268444451"
+    DCSCode="PRUEBA-WORK-20261113-DI02-SIN-CT"
     DCSPhase="R"
     DCSYear="2026"
-    DCSDate="2026-10-29"
-    DCSStartDate="2026-09-30"
+    DCSDate="2026-11-13"
+    DCSStartDate="2026-11-13"
     DCSRegional="S"
     DCSSendtoOriginOrDestinationAuthority="N">
 
@@ -18,212 +18,173 @@
     
     <DCSTransferOperatorData>
         <entityId>
-            <nationalId>B72294969</nationalId>
+            <nationalId>B00000000</nationalId>
         </entityId>
         <entityFJ entityFJCode="J" />
-        
         <entityName>
             <reason>
-                <reasonName>Desguaces la torre sl</reasonName>
+                <reasonName>PRUEBA AUDITORÍA RESIGEST — PRODUCTOR FICTICIO</reasonName>
                 <reasonAssociation associationCode="99" associationDescription="Otra"/>
             </reason>
         </entityName>
         
         <entityCenter>
-            <centerID centerCode="783989383983" />
-            <centerEconomicActivity>S/D</centerEconomicActivity>
-            
+            <centerID centerCode="0000000014" />
         <centerAddress>
             <spanishAddress>
                 <vial vialCode="009" vialDescription="Calle"/>
-                <address>Calle Cruz de la Degollada 13, 1º b</address>
-                <CP>00000</CP>
-                <municipality municipalityCode="110123" municipalityName="Desconocido"/>
+                <address>CALLE FICTICIA 0</address>
+                <CP>11510</CP>
+                <municipality municipalityCode="110123" municipalityName="Puerto Real"/>
                 <province provinceCode="11" provinceName="Cádiz"/>
             </spanishAddress>
         </centerAddress>
-            
-        <centerContact>
-            <phone>617984325</phone>
-            <mail>info@desguacestorre.com</mail>
-        </centerContact>
-            
         <wasteCenterAuthorization>
             <authorizationId>
-                <authorizationIdFree>783989383983</authorizationIdFree>
+                <authorizationIdFree>0000000014</authorizationIdFree>
             </authorizationId>
-            <authorizationCode>A01</authorizationCode>
+            <authorizationCode>P02</authorizationCode>
         </wasteCenterAuthorization>
         </entityCenter>
 
         <wasteTransferOperatorType operatorTypeCode="P01"/>
-        
     </DCSTransferOperatorData>
 
     <!-- 2. Productor -->
     
     <DCSProducerData>
         <entityId>
-            <nationalId>B72294969</nationalId>
+            <nationalId>B00000000</nationalId>
         </entityId>
         <entityFJ entityFJCode="J" />
-        
         <entityName>
             <reason>
-                <reasonName>Desguaces la torre sl</reasonName>
+                <reasonName>PRUEBA AUDITORÍA RESIGEST — PRODUCTOR FICTICIO</reasonName>
                 <reasonAssociation associationCode="99" associationDescription="Otra"/>
             </reason>
         </entityName>
         
         <entityCenter>
-            <centerID centerCode="783989383983" />
-            <centerEconomicActivity>S/D</centerEconomicActivity>
-            
+            <centerID centerCode="0000000014" />
         <centerAddress>
             <spanishAddress>
                 <vial vialCode="009" vialDescription="Calle"/>
-                <address>Calle Cruz de la Degollada 13, 1º b</address>
-                <CP>11540</CP>
+                <address>CALLE FICTICIA 0</address>
+                <CP>11510</CP>
                 <municipality municipalityCode="110123" municipalityName="Puerto Real"/>
                 <province provinceCode="11" provinceName="Cádiz"/>
             </spanishAddress>
         </centerAddress>
-            
-        <centerContact>
-            <phone>999999999</phone>
-            <mail>pendiente@email.com</mail>
-        </centerContact>
-            
         <wasteCenterAuthorization>
             <authorizationId>
-                <authorizationIdFree>783989383983</authorizationIdFree>
+                <authorizationIdFree>0000000014</authorizationIdFree>
             </authorizationId>
-            <authorizationCode>A01</authorizationCode>
+            <authorizationCode>P02</authorizationCode>
         </wasteCenterAuthorization>
         </entityCenter>
 
-        <wasteProducerType producerTypeCode="P01"/>
-        
+        <wasteProducerType producerTypeCode="P02"/>
     </DCSProducerData>
 
     <!-- 3. Destinatario -->
     
     <DCSAdresseeData>
         <entityId>
-            <nationalId>B6353423123</nationalId>
+            <nationalId>B00000109</nationalId>
         </entityId>
         <entityFJ entityFJCode="J" />
-        
         <entityName>
             <reason>
-                <reasonName>Recitrans.sl</reasonName>
+                <reasonName>PRUEBA-WORK-20261113-GESTOR FICTICIO</reasonName>
                 <reasonAssociation associationCode="99" associationDescription="Otra"/>
             </reason>
         </entityName>
         
         <entityCenter>
-            <centerID centerCode="2222" />
-            <centerEconomicActivity>S/D</centerEconomicActivity>
-            
+            <centerID centerCode="0000000013" />
         <centerAddress>
             <spanishAddress>
                 <vial vialCode="009" vialDescription="Calle"/>
-                <address>avenida españa nº12</address>
-                <CP>28001</CP>
-                <municipality municipalityCode="280796" municipalityName="MADRID"/>
-                <province provinceCode="28" provinceName="MADRID"/>
+                <address>CALLE FICTICIA DE ENSAYO 0</address>
+                <CP>11510</CP>
+                <municipality municipalityCode="110123" municipalityName="Puerto Real"/>
+                <province provinceCode="11" provinceName="Cádiz"/>
             </spanishAddress>
         </centerAddress>
-            
-        <centerContact>
-            <phone>999999999</phone>
-            <mail>pendiente@email.com</mail>
-        </centerContact>
-            
         <wasteCenterAuthorization>
             <authorizationId>
-                <authorizationIdFree>2222</authorizationIdFree>
+                <authorizationIdFree>PRUEBA-WORK-20261113-AUT</authorizationIdFree>
             </authorizationId>
-            <authorizationCode>A01</authorizationCode>
+            <authorizationCode>G04</authorizationCode>
         </wasteCenterAuthorization>
         </entityCenter>
 
-        <wasteManagerType managerTypeCode="G01"/>
-        
+        <wasteManagerType managerTypeCode="G04"/>
     </DCSAdresseeData>
     
     <!-- 4. Datos del Residuo (Incluye Transportista) -->
     
     <DCSResidueData>
-        <DCSProducerResidueIdentification LERCode="130208" xsi:type="wassup:dangerousResidueType">
+        <DCSProducerResidueIdentification LERCode="170405" xsi:type="wassup:noDangerousResidueType">
             
         <residueBag>
              <bagProcess internalIdProcessCode="99"/>
-             <bagResidueId residueCode="999" residueDescription="Otros aceites de motor, de transmisión mecánica y lubricantes"/>
+             <bagResidueId residueCode="999" residueDescription="Hierro y acero"/>
         </residueBag>
             
-        <residueTables xsi:type="wassup:tablesDangerousType">
-            <table2>R01</table2>
-            <table5>HP4</table5>
+        <residueTables xsi:type="wassup:tablesNoDangerousType">
+            <table2>R13</table2>
         </residueTables>
         </DCSProducerResidueIdentification>
         
-        <DCSAdresseeResidueIdentification LERCode="130208" xsi:type="wassup:dangerousResidueType">
+        <DCSAdresseeResidueIdentification LERCode="170405" xsi:type="wassup:noDangerousResidueType">
             
         <residueBag>
              <bagProcess internalIdProcessCode="99"/>
-             <bagResidueId residueCode="999" residueDescription="Otros aceites de motor, de transmisión mecánica y lubricantes"/>
+             <bagResidueId residueCode="999" residueDescription="Hierro y acero"/>
         </residueBag>
             
-        <residueTables xsi:type="wassup:tablesDangerousType">
-            <table2>R01</table2>
-            <table5>HP4</table5>
+        <residueTables xsi:type="wassup:tablesNoDangerousType">
+            <table2>R13</table2>
         </residueTables>
         </DCSAdresseeResidueIdentification>
         
         
         <DCSOtherResidueData>
-            <DCSNT>NT99999999999999999999999</DCSNT>
-            <DCSClearWeight>23.000</DCSClearWeight>
+            <DCSClearWeight>500.000</DCSClearWeight>
             <DCSTransportCharacteristics>Sin características especiales</DCSTransportCharacteristics>
         </DCSOtherResidueData>
-        
         <DCSTransporterData>
             <entityId>
-                <nationalId>A00000000</nationalId>
+                <nationalId>B00000117</nationalId>
             </entityId>
             <entityFJ entityFJCode="J" />
             <entityName>
                 <reason>
-                    <reasonName>Transportista Genérico</reasonName>
+                    <reasonName>PRUEBA-WORK-20261113-TRANSPORTE FICTICIO</reasonName>
                     <reasonAssociation associationCode="99" associationDescription="Otra"/>
                 </reason>
             </entityName>
             <entityCenter>
-                <centerID centerCode="7839893839" />
-                <centerEconomicActivity>S/D</centerEconomicActivity>
+                <centerID centerCode="0000000015" />
                 <centerAddress>
                     <spanishAddress>
                         <vial vialCode="009" vialDescription="Calle"/>
-                        <address>Calle Isabel II bloque 1 2a</address>
-                        <CP>11540</CP>
-                        <municipality municipalityCode="110123" municipalityName="Cádiz"/>
+                        <address>CALLE FICTICIA 0</address>
+                        <CP>11510</CP>
+                        <municipality municipalityCode="110123" municipalityName="Puerto Real"/>
                         <province provinceCode="11" provinceName="Cádiz"/>
                     </spanishAddress>
                 </centerAddress>
-                <centerContact>
-                    <phone>999999999</phone>
-                    <mail>transporte@pendiente.com</mail>
-                </centerContact>
                 <wasteCenterAuthorization>
                     <authorizationId>
-                         <authorizationIdFree>7839893839</authorizationIdFree>
+                         <authorizationIdFree>0000000015</authorizationIdFree>
                     </authorizationId>
-                    <authorizationCode>A01</authorizationCode>
+                    <authorizationCode>T02</authorizationCode>
                 </wasteCenterAuthorization>
             </entityCenter>
 
-            <wasteTransporterType trasporterTypeCode="T01" transporterTypeDescription="Transportista de residuos"/>
+            <wasteTransporterType trasporterTypeCode="T02" transporterTypeDescription="Transportista de residuos"/>
             <DCSTransportWay transportWayCode="01" transportWayDescription="Carretera"/>
         </DCSTransporterData>
     </DCSResidueData>

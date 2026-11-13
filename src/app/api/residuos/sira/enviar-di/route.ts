@@ -45,9 +45,48 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Documento no encontrado o no tiene permisos para acceder a él' }, { status: 404 });
         }
 
-        // 2. Obtener credenciales de SIRA de la empresa
+        // 2. Obtener credenciales de SIRA de la empresa asignada o de la empresa principal del usuario
         const companyData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
-        const { sira_usuario, sira_password } = companyData || {};
+        let sira_usuario = companyData?.sira_usuario?.trim();
+        let sira_password = companyData?.sira_password?.trim();
+
+        // Fallback: Si la empresa asociada a este DI no tiene credenciales (ej. empresa cliente o de prueba previa),
+        // buscar las credenciales en la empresa principal del usuario (is_my_company configurada en Mi Empresa)
+        if (!sira_usuario || !sira_password) {
+            const { data: myCompany } = await supabase
+                .from('companies')
+                .select('id, razon_social, sira_usuario, sira_password')
+                .eq('user_id', user.id)
+                .eq('is_my_company', true)
+                .eq('activo', true)
+                .not('sira_usuario', 'is', null)
+                .neq('sira_usuario', '')
+                .limit(1)
+                .maybeSingle();
+
+            if (myCompany?.sira_usuario && myCompany?.sira_password) {
+                sira_usuario = myCompany.sira_usuario.trim();
+                sira_password = myCompany.sira_password.trim();
+                console.info(`ℹ️ Utilizando credenciales SIRA de la empresa principal del usuario (${myCompany.razon_social})`);
+            } else {
+                // Fallback adicional: Cualquier otra empresa activa del usuario con credenciales
+                const { data: anyCompany } = await supabase
+                    .from('companies')
+                    .select('id, razon_social, sira_usuario, sira_password')
+                    .eq('user_id', user.id)
+                    .eq('activo', true)
+                    .not('sira_usuario', 'is', null)
+                    .neq('sira_usuario', '')
+                    .limit(1)
+                    .maybeSingle();
+
+                if (anyCompany?.sira_usuario && anyCompany?.sira_password) {
+                    sira_usuario = anyCompany.sira_usuario.trim();
+                    sira_password = anyCompany.sira_password.trim();
+                    console.info(`ℹ️ Utilizando credenciales SIRA de empresa vinculada (${anyCompany.razon_social})`);
+                }
+            }
+        }
 
         console.info(`🔐 Intentando envío SIRA para DI ${doc.numero_documento}`);
         console.info(`📍 Empresa: ${doc.productor_razon_social} (ID: ${doc.company_id})`);
