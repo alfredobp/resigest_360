@@ -39,12 +39,12 @@ const TIPOS_EMPRESA: Array<{
   icon: string;
   description: string;
 }> = [
-  { value: 'productor', label: 'Productor', icon: '🏭', description: 'Genera residuos' },
-  { value: 'gestor', label: 'Gestor', icon: '♻️', description: 'Planta / Valorización' },
-  { value: 'transportista', label: 'Transportista', icon: '🚚', description: 'Recogida y porte' },
-  { value: 'negociante', label: 'Negociante', icon: '💼', description: 'Cuenta propia' },
-  { value: 'agente', label: 'Agente', icon: '🤝', description: 'Cuenta de terceros' },
-];
+    { value: 'productor', label: 'Productor', icon: '🏭', description: 'Genera residuos' },
+    { value: 'gestor', label: 'Gestor', icon: '♻️', description: 'Planta / Valorización' },
+    { value: 'transportista', label: 'Transportista', icon: '🚚', description: 'Recogida y porte' },
+    { value: 'negociante', label: 'Negociante', icon: '💼', description: 'Cuenta propia' },
+    { value: 'agente', label: 'Agente', icon: '🤝', description: 'Cuenta de terceros' },
+  ];
 
 const PROVINCIAS_POR_CP: Record<string, string> = {
   '01': 'Álava', '02': 'Albacete', '03': 'Alicante', '04': 'Almería', '05': 'Ávila',
@@ -264,12 +264,12 @@ export default function MiEmpresaPage() {
 
     const payload: CompanyFormData = sameInstallationAddress
       ? {
-          ...formData,
-          domicilio_instalacion: formData.domicilio_social,
-          codigo_postal_instalacion: formData.codigo_postal_social,
-          municipio_instalacion: formData.municipio_social,
-          provincia_instalacion: formData.provincia_social,
-        }
+        ...formData,
+        domicilio_instalacion: formData.domicilio_social,
+        codigo_postal_instalacion: formData.codigo_postal_social,
+        municipio_instalacion: formData.municipio_social,
+        provincia_instalacion: formData.provincia_social,
+      }
       : formData;
 
     try {
@@ -407,18 +407,16 @@ export default function MiEmpresaPage() {
           <button
             type="button"
             onClick={() => setActiveTab('identidad')}
-            className={`flex-1 min-w-[180px] flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
-              activeTab === 'identidad'
+            className={`flex-1 min-w-[180px] flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all ${activeTab === 'identidad'
                 ? 'bg-brand-600 text-white shadow-xs'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800/60'
-            }`}
+              }`}
           >
             <span className="text-base">🏢</span>
             <span>1. Identidad Fiscal</span>
             <span
-              className={`w-2 h-2 rounded-full ${
-                isFiscalComplete ? 'bg-emerald-400' : 'bg-amber-400'
-              }`}
+              className={`w-2 h-2 rounded-full ${isFiscalComplete ? 'bg-emerald-400' : 'bg-amber-400'
+                }`}
               title={isFiscalComplete ? 'Ficha fiscal completa' : 'Datos fiscales pendientes'}
             />
           </button>
@@ -426,21 +424,19 @@ export default function MiEmpresaPage() {
           <button
             type="button"
             onClick={() => setActiveTab('sedes')}
-            className={`flex-1 min-w-[180px] flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
-              activeTab === 'sedes'
+            className={`flex-1 min-w-[180px] flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all ${activeTab === 'sedes'
                 ? 'bg-brand-600 text-white shadow-xs'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800/60'
-            }`}
+              }`}
           >
             <span className="text-base">📍</span>
             <span>2. Domicilios y Sedes</span>
             {productionCenters.length > 0 && (
               <span
-                className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                  activeTab === 'sedes'
+                className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === 'sedes'
                     ? 'bg-white/20 text-white'
                     : 'bg-brand-50 text-brand-700 dark:bg-brand-950/60 dark:text-brand-300'
-                }`}
+                  }`}
               >
                 {productionCenters.length}
               </span>
@@ -450,21 +446,19 @@ export default function MiEmpresaPage() {
           <button
             type="button"
             onClick={() => setActiveTab('integraciones')}
-            className={`flex-1 min-w-[180px] flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
-              activeTab === 'integraciones'
+            className={`flex-1 min-w-[180px] flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all ${activeTab === 'integraciones'
                 ? 'bg-brand-600 text-white shadow-xs'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800/60'
-            }`}
+              }`}
           >
             <span className="text-base">🔌</span>
             <span>3. SIRA & Holded</span>
             {(formData.sira_activo || Boolean(formData.holded_api_key?.trim())) && (
               <span
-                className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                  activeTab === 'integraciones'
+                className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === 'integraciones'
                     ? 'bg-white/20 text-white'
                     : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                }`}
+                  }`}
               >
                 Activo
               </span>
@@ -627,13 +621,12 @@ export default function MiEmpresaPage() {
                       />
                       <div className="w-full bg-gray-200 dark:bg-gray-700 h-1.5 rounded-full overflow-hidden">
                         <div
-                          className={`h-full transition-all duration-300 ${
-                            isNimaValid
+                          className={`h-full transition-all duration-300 ${isNimaValid
                               ? 'bg-emerald-500'
                               : nimaTrimmed.length > 0
                                 ? 'bg-amber-500'
                                 : 'bg-transparent'
-                          }`}
+                            }`}
                           style={{ width: `${nimaProgressPct}%` }}
                         />
                       </div>
@@ -662,19 +655,17 @@ export default function MiEmpresaPage() {
                             key={tipo.value}
                             type="button"
                             onClick={() => handleCompanyTypeChange(tipo.value)}
-                            className={`flex flex-col items-start p-3.5 rounded-xl border text-left transition-all ${
-                              isSelected
+                            className={`flex flex-col items-start p-3.5 rounded-xl border text-left transition-all ${isSelected
                                 ? 'border-2 border-brand-500 bg-brand-50/70 dark:bg-brand-950/30 dark:border-brand-400 shadow-xs'
                                 : 'border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 hover:border-brand-400/50'
-                            }`}
+                              }`}
                           >
                             <span className="text-xl mb-1">{tipo.icon}</span>
                             <span
-                              className={`text-xs sm:text-sm font-bold ${
-                                isSelected
+                              className={`text-xs sm:text-sm font-bold ${isSelected
                                   ? 'text-brand-700 dark:text-brand-300'
                                   : 'text-gray-900 dark:text-white'
-                              }`}
+                                }`}
                             >
                               {tipo.label}
                             </span>
@@ -766,11 +757,10 @@ export default function MiEmpresaPage() {
                         return (
                           <label
                             key={mod}
-                            className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs cursor-pointer transition ${
-                              checked
+                            className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs cursor-pointer transition ${checked
                                 ? 'border-brand-400 bg-brand-50/60 dark:bg-brand-950/30 text-brand-900 dark:text-brand-200 font-semibold'
                                 : 'border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400'
-                            }`}
+                              }`}
                           >
                             <input
                               type="checkbox"
