@@ -6,6 +6,7 @@ import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
+import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
 import treatmentManagerService from '@/services/treatmentManagerService';
 import type { TreatmentManager } from '@/types/wasteManagement';
@@ -17,6 +18,7 @@ export default function GestoresPage() {
     const [error, setError] = useState<string | null>(null);
     const [showModal, setShowModal] = useState(false);
     const [selectedGestor, setSelectedGestor] = useState<TreatmentManager | undefined>(undefined);
+    const [gestorToDelete, setGestorToDelete] = useState<number | null>(null);
 
     useEffect(() => {
         loadData();
@@ -44,14 +46,16 @@ export default function GestoresPage() {
         setShowModal(true);
     };
 
-    const handleDelete = async (id: number) => {
-        if (!confirm('¿Estás seguro de que deseas eliminar este gestor?')) {
-            return;
-        }
+    const handleDelete = (id: number) => {
+        setGestorToDelete(id);
+    };
+
+    const confirmDelete = async () => {
+        if (gestorToDelete === null) return;
 
         try {
-            await treatmentManagerService.delete(id);
-            setGestores((prev) => prev.filter((g) => g.id !== id));
+            await treatmentManagerService.delete(gestorToDelete);
+            setGestores((prev) => prev.filter((g) => g.id !== gestorToDelete));
             toast.success('Gestor eliminado correctamente.');
         } catch (err: any) {
             toast.error(`Error al eliminar gestor: ${err.message}`);
@@ -166,6 +170,14 @@ export default function GestoresPage() {
                     onClose={() => setShowModal(false)}
                     onSuccess={loadData}
                     gestor={selectedGestor}
+                />
+
+                <ConfirmModal
+                    isOpen={gestorToDelete !== null}
+                    onClose={() => setGestorToDelete(null)}
+                    onConfirm={confirmDelete}
+                    title="Eliminar gestor"
+                    message="¿Estás seguro de que deseas eliminar este gestor? Esta acción no se puede deshacer."
                 />
             </div>
         </>

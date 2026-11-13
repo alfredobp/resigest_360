@@ -515,6 +515,13 @@ export interface IdentificationDocument {
   motivo_incidencia?: string;
   cantidad_rechazada_kg?: number;
 
+  // Justificación de discrepancia de báscula (RD 553/2020)
+  causa_discrepancia?: CausaDiscrepancia | null;
+  justificacion_discrepancia?: string | null;
+  justificacion_discrepancia_at?: string | null;
+  justificacion_discrepancia_by?: string | null;
+  justificacion_discrepancia_by_nombre?: string | null;
+
   // Firmas y Datos de Intervinientes
   firmado_productor: boolean;
   firmado_gestor: boolean;
@@ -532,8 +539,10 @@ export interface IdentificationDocument {
   nombre_transportista?: string;
   dni_transportista?: string;
 
-  // Documentación
+  // Documentación y Firma Pública
   documento_url?: string;
+  signing_token?: string;
+  signing_token_expires_at?: string;
 
   // Estado administrativo general
   estado: 'borrador' | 'pendiente-firma' | 'completado' | 'cancelado';
@@ -591,6 +600,9 @@ export interface RecordReceptionPayload {
   numero_albaran_gestor?: string;
   ticket_pesada_url?: string;
   resultado_recepcion: ResultadoRecepcion;
+  /** Justificación opcional si el peso en destino supera los umbrales de tolerancia */
+  causa_discrepancia?: CausaDiscrepancia;
+  justificacion_discrepancia?: string;
   tipo_incidencia?: TipoIncidencia | string;
   motivo_incidencia?: string;
   cantidad_rechazada_kg?: number;
@@ -598,6 +610,18 @@ export interface RecordReceptionPayload {
   dni_gestor?: string;
   firma_gestor_url?: string;
   signatureBase64?: string;
+}
+
+export type CausaDiscrepancia =
+  | 'merma_humedad'
+  | 'evaporacion'
+  | 'tara_bascula'
+  | 'estimacion_origen'
+  | 'otro';
+
+export interface JustifyDiscrepancyPayload {
+  causa: CausaDiscrepancia;
+  texto: string;
 }
 
 export interface RecordIncidentPayload {
@@ -1292,6 +1316,7 @@ export type AuditLogAction =
   | 'cambiar_estado'
   | 'recepcionar_pesada'
   | 'registrar_incidencia'
+  | 'justificar_discrepancia'
   | 'sincronizar_sira'
   | 'sincronizar_holded'
   | 'exportar_archivo'

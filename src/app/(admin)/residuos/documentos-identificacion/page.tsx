@@ -7,7 +7,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
-import { Modal } from '@/components/ui/modal';
+import { Modal, ConfirmModal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import Label from '@/components/form/Label';
 import TextArea from '@/components/form/input/TextArea';
@@ -44,6 +44,8 @@ export default function DocumentosIdentificacionPage() {
   const [matriculaTractora, setMatriculaTractora] = useState('');
   const [matriculaRemolque, setMatriculaRemolque] = useState('');
   const [observacionesDeCA, setObservacionesDeCA] = useState('');
+  const [docToDelete, setDocToDelete] = useState<number | null>(null);
+  const [docToSendSira, setDocToSendSira] = useState<number | null>(null);
 
   const clearDecaFieldError = (field: string) => {
     if (decaFieldErrors[field]) {
@@ -145,28 +147,32 @@ export default function DocumentosIdentificacionPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar este documento?')) {
-      return;
-    }
+  const handleDelete = (id: number) => {
+    setDocToDelete(id);
+  };
+
+  const confirmDelete = async () => {
+    if (docToDelete === null) return;
 
     try {
-      await identificationDocumentService.delete(id);
-      setDocuments((prev) => prev.filter((d) => d.id !== id));
+      await identificationDocumentService.delete(docToDelete);
+      setDocuments((prev) => prev.filter((d) => d.id !== docToDelete));
       toast.success('Documento de identificación eliminado correctamente.');
     } catch (err: any) {
       toast.error(`Error al eliminar: ${err.message}`);
     }
   };
 
-  const handleSendToSira = async (id: number) => {
-    if (!confirm('¿Deseas enviar este documento a SIRA (Junta de Andalucía)?')) {
-      return;
-    }
+  const handleSendToSira = (id: number) => {
+    setDocToSendSira(id);
+  };
+
+  const confirmSendToSira = async () => {
+    if (docToSendSira === null) return;
 
     try {
       setLoading(true);
-      const result = await siraService.sendDI(id);
+      const result = await siraService.sendDI(docToSendSira);
 
       if (result.success) {
         toast.success(`Documento enviado con éxito a SIRA.\nID de Registro: ${result.siraId}`);
@@ -183,6 +189,8 @@ export default function DocumentosIdentificacionPage() {
     let matchStatus = true;
     if (filterStatus === 'all') {
       matchStatus = true;
+    } else if (filterStatus === 'sin_contrato') {
+      matchStatus = Boolean(d.estado_traslado && d.estado_traslado !== 'borrador' && !d.contract_id && !d.contrato_externo_referencia);
     } else if (filterStatus === 'incidencias') {
       matchStatus = d.estado_traslado === 'rechazado_parcial' || d.estado_traslado === 'rechazado_total';
     } else if (filterStatus === 'borrador') {
@@ -307,6 +315,16 @@ export default function DocumentosIdentificacionPage() {
             >
               Borradores ({documents.filter(d => !d.estado_traslado || d.estado_traslado === 'borrador').length})
             </Button>
+            {documents.some(d => d.estado_traslado && d.estado_traslado !== 'borrador' && !d.contract_id && !d.contrato_externo_referencia) && (
+              <Button
+                variant={filterStatus === 'sin_contrato' ? 'primary' : 'outline'}
+                size="sm"
+                onClick={() => setFilterStatus('sin_contrato')}
+                className={filterStatus === 'sin_contrato' ? '!bg-red-600' : 'text-red-600 border-red-200 dark:border-red-900'}
+              >
+                ⚠️ Sin Contrato ({documents.filter(d => d.estado_traslado && d.estado_traslado !== 'borrador' && !d.contract_id && !d.contrato_externo_referencia).length})
+              </Button>
+            )}
           </div>
 
           <div className="mt-4 pt-4 border-t flex flex-wrap items-center gap-4">
@@ -369,6 +387,11 @@ export default function DocumentosIdentificacionPage() {
                             {tracking.hasDiscrepancy && (
                               <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30">
                                 ⚠️ Discrepancia Báscula: {(doc.diferencia_peso_kg || 0) > 0 ? '+' : ''}{doc.diferencia_peso_kg} kg
+                              </span>
+                            )}
+                            {doc.estado_traslado && doc.estado_traslado !== 'borrador' && !doc.contract_id && !doc.contrato_externo_referencia && (
+                              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30">
+                                ⚠️ Sin contrato acreditado (Art. 5)
                               </span>
                             )}
                           </div>
@@ -642,6 +665,24 @@ export default function DocumentosIdentificacionPage() {
           </div>
         )}
       </Modal>
+
+      <ConfirmModal
+        isOpen={docToDelete !== null}
+        onClose={() => setDocToDelete(null)}
+        onConfirm={confirmDelete}
+        title="Eliminar documento"
+        message="¿Estás seguro de que deseas eliminar este documento? Esta acción no se puede deshacer."
+      />
+
+      <ConfirmModal
+        isOpen={docToSendSira !== null}
+        onClose={() => setDocToSendSira(null)}
+        onConfirm={confirmSendToSira}
+        variant="primary"
+        title="Enviar documento a SIRA"
+        confirmLabel="Enviar a SIRA"
+        message="¿Deseas enviar este documento a SIRA (Junta de Andalucía)?"
+      />
     </>
   );
 }

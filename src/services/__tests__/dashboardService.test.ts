@@ -229,6 +229,20 @@ describe('dashboardService - Dashboard Ejecutivo e Indicadores', () => {
           peso_destino_kg: 0,
           peso_origen_kg: 0,
         },
+        {
+          id: 3,
+          numero_documento: 'DI-DISC-JUSTIFICADA',
+          estado: 'completado',
+          estado_traslado: 'aceptado',
+          porcentaje_discrepancia: -16.67,
+          diferencia_peso_kg: -0.5,
+          justificacion_discrepancia: 'Merma por escurrido del residuo húmedo en planta.', // no debe contar como incumplimiento
+          codigo_ler: '15 01 02',
+          unidad: 'kg',
+          cantidad: 0,
+          peso_destino_kg: 0,
+          peso_origen_kg: 0,
+        },
       ];
 
       const mockContracts = [

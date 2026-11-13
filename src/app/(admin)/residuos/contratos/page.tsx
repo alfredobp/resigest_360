@@ -7,6 +7,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
+import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
 import NuevoContratoModal from '@/components/residuos/NuevoContratoModal';
 import wasteContractService, { getContractEffectiveStatus } from '@/services/wasteContractService';
@@ -33,6 +34,8 @@ export default function ContratosPage() {
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [showNewContractModal, setShowNewContractModal] = useState(false);
+  const [contractToDelete, setContractToDelete] = useState<number | null>(null);
+  const [contractToFinalize, setContractToFinalize] = useState<number | null>(null);
 
   const handleDownloadPDF = async (contract: WasteContract) => {
     try {
@@ -78,14 +81,16 @@ export default function ContratosPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar este contrato?')) {
-      return;
-    }
+  const handleDelete = (id: number) => {
+    setContractToDelete(id);
+  };
+
+  const confirmDelete = async () => {
+    if (contractToDelete === null) return;
 
     try {
-      await wasteContractService.delete(id);
-      setContracts((prev) => prev.filter((c) => c.id !== id));
+      await wasteContractService.delete(contractToDelete);
+      setContracts((prev) => prev.filter((c) => c.id !== contractToDelete));
       toast.success('Contrato de tratamiento eliminado correctamente.');
     } catch (err: any) {
       toast.error(`Error al eliminar: ${err.message}`);
@@ -361,7 +366,7 @@ export default function ContratosPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleChangeStatus(contract.id, 'finalizado')}
+                          onClick={() => setContractToFinalize(contract.id)}
                         >
                           Finalizar
                         </Button>
@@ -392,6 +397,28 @@ export default function ContratosPage() {
             myCompany={myCompany}
           />
         )}
+
+        <ConfirmModal
+          isOpen={contractToFinalize !== null}
+          onClose={() => setContractToFinalize(null)}
+          onConfirm={async () => {
+            if (contractToFinalize !== null) {
+              await handleChangeStatus(contractToFinalize, 'finalizado');
+            }
+          }}
+          variant="warning"
+          title="Finalizar contrato"
+          confirmLabel="Sí, finalizar"
+          message="¿Estás seguro de que deseas finalizar este contrato? Una vez finalizado no podrá utilizarse para nuevos traslados de residuos."
+        />
+
+        <ConfirmModal
+          isOpen={contractToDelete !== null}
+          onClose={() => setContractToDelete(null)}
+          onConfirm={confirmDelete}
+          title="Eliminar contrato"
+          message="¿Estás seguro de que deseas eliminar este contrato? Esta acción no se puede deshacer."
+        />
       </div>
     </>
   );

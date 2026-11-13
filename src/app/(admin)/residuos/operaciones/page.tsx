@@ -15,6 +15,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
+import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
 import { useTenant } from '@/context/TenantContext';
 
@@ -37,6 +38,7 @@ export default function OperacionesComercialesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [opToDelete, setOpToDelete] = useState<number | null>(null);
 
   const isAuthorized =
     isPlatformAdmin || (hasModule('operaciones_comerciales') && canViewCommercial);
@@ -88,10 +90,14 @@ export default function OperacionesComercialesPage() {
     loadData();
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('¿Confirma la eliminación de esta operación comercial?')) return;
+  const handleDelete = (id: number) => {
+    setOpToDelete(id);
+  };
+
+  const confirmDelete = async () => {
+    if (opToDelete === null) return;
     try {
-      await commercialOperationService.delete(id);
+      await commercialOperationService.delete(opToDelete);
       const msg = 'Operación comercial eliminada correctamente.';
       setSuccess(msg);
       toast.success(msg);
@@ -428,6 +434,14 @@ export default function OperacionesComercialesPage() {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={opToDelete !== null}
+        onClose={() => setOpToDelete(null)}
+        onConfirm={confirmDelete}
+        title="Eliminar operación comercial"
+        message="¿Confirma la eliminación de esta operación comercial? Esta acción no se puede deshacer."
+      />
     </div>
   );
 }

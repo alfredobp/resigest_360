@@ -8,6 +8,7 @@ const mockSupabase = {
     getUser: jest.fn(),
   },
   from: jest.fn(),
+  rpc: jest.fn(),
   storage: {
     from: jest.fn(() => mockStorageFrom),
   },
@@ -952,5 +953,266 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
       spyUpdate.mockRestore();
     });
   });
-});
 
+  describe('Justificación de discrepancias de báscula', () => {
+    const baseDoc = {
+      id: 117,
+      company_id: 5,
+      estado_traslado: 'aceptado',
+      peso_origen_kg: 3,
+      peso_destino_kg: 2.5,
+      diferencia_peso_kg: -0.5,
+      porcentaje_discrepancia: -16.67,
+    } as any;
+    const validPayload = { causa: 'merma_humedad' as const, texto: 'Merma por escurrido del residuo húmedo en planta.' };
+
+    beforeEach(() => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-123', email: 'gestor@example.com', user_metadata: {} } },
+      });
+      mockSupabase.from.mockReturnValue({
+        insert: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: {}, error: null }),
+      });
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('getTrackingStatusMeta marca la discrepancia como justificada solo si hay texto', () => {
+      expect(getTrackingStatusMeta(baseDoc).isDiscrepancyJustified).toBe(false);
+      expect(getTrackingStatusMeta({ ...baseDoc, justificacion_discrepancia: '   ' }).isDiscrepancyJustified).toBe(false);
+      const meta = getTrackingStatusMeta({ ...baseDoc, justificacion_discrepancia: validPayload.texto });
+      expect(meta.hasDiscrepancy).toBe(true);
+      expect(meta.isDiscrepancyJustified).toBe(true);
+      // Sin discrepancia nunca se considera justificada
+      expect(getTrackingStatusMeta({ ...baseDoc, peso_destino_kg: 3, justificacion_discrepancia: 'x' }).isDiscrepancyJustified).toBe(false);
+    });
+
+    it('justifyDiscrepancy guarda causa, texto, autoría y fecha', async () => {
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue(baseDoc);
+      const spyUpdate = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({ ...baseDoc } as any);
+
+      await identificationDocumentService.justifyDiscrepancy(117, { ...validPayload, texto: `  ${validPayload.texto}  ` });
+
+      expect(spyUpdate).toHaveBeenCalledWith(117, expect.objectContaining({
+        causa_discrepancia: 'merma_humedad',
+        justificacion_discrepancia: validPayload.texto,
+        justificacion_discrepancia_by: 'user-123',
+        justificacion_discrepancia_by_nombre: 'gestor@example.com',
+        justificacion_discrepancia_at: expect.any(String),
+      }));
+      expect(mockSupabase.from).toHaveBeenCalledWith('audit_logs');
+    });
+
+    it('justifyDiscrepancy usa el nombre completo del usuario si existe', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-123', email: 'g@example.com', user_metadata: { full_name: 'Ana Gestora' } } },
+      });
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue(baseDoc);
+      const spyUpdate = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({ ...baseDoc } as any);
+
+      await identificationDocumentService.justifyDiscrepancy(117, validPayload);
+
+      expect(spyUpdate).toHaveBeenCalledWith(117, expect.objectContaining({ justificacion_discrepancia_by_nombre: 'Ana Gestora' }));
+    });
+
+    it('justifyDiscrepancy permite añadir la justificación en un DI cerrado sin justificar', async () => {
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({ ...baseDoc, estado_traslado: 'tratado' });
+      const spyUpdate = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({ ...baseDoc } as any);
+
+      await identificationDocumentService.justifyDiscrepancy(117, validPayload);
+      expect(spyUpdate).toHaveBeenCalled();
+    });
+
+    it('justifyDiscrepancy permite editar si el DI no está cerrado', async () => {
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({ ...baseDoc, justificacion_discrepancia: 'Texto previo suficientemente largo' });
+      const spyUpdate = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({ ...baseDoc } as any);
+
+      await identificationDocumentService.justifyDiscrepancy(117, validPayload);
+      expect(spyUpdate).toHaveBeenCalled();
+    });
+
+    it('justifyDiscrepancy impide modificar una justificación en un DI cerrado', async () => {
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        ...baseDoc,
+        estado_traslado: 'tratado',
+        justificacion_discrepancia: 'Texto previo suficientemente largo',
+      });
+      const spyUpdate = jest.spyOn(identificationDocumentService, 'update');
+
+      await expect(identificationDocumentService.justifyDiscrepancy(117, validPayload)).rejects.toThrow('no puede modificarse');
+      expect(spyUpdate).not.toHaveBeenCalled();
+    });
+
+    it('justifyDiscrepancy rechaza DIs sin discrepancia', async () => {
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({ ...baseDoc, peso_destino_kg: 3 });
+      await expect(identificationDocumentService.justifyDiscrepancy(117, validPayload)).rejects.toThrow('no presenta una discrepancia');
+    });
+
+    it('justifyDiscrepancy valida el contenido de la justificación', async () => {
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue(baseDoc);
+      const spyUpdate = jest.spyOn(identificationDocumentService, 'update');
+      await expect(identificationDocumentService.justifyDiscrepancy(117, { causa: 'otro', texto: 'corto' })).rejects.toThrow('al menos 20');
+      expect(spyUpdate).not.toHaveBeenCalled();
+    });
+
+    it('justifyDiscrepancy exige usuario autenticado', async () => {
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue(baseDoc);
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
+      await expect(identificationDocumentService.justifyDiscrepancy(117, validPayload)).rejects.toThrow('Usuario no autenticado');
+    });
+
+    it('recordReception guarda la justificación si hay discrepancia y se aporta', async () => {
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({ id: 117, peso_origen_kg: 3 } as any);
+      const spyUpdate = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({ id: 117, estado_traslado: 'aceptado' } as any);
+
+      await identificationDocumentService.recordReception(117, {
+        fecha_llegada_destino: '2026-11-12T13:35:00Z',
+        peso_destino_kg: 2.5,
+        resultado_recepcion: 'aceptado',
+        causa_discrepancia: 'merma_humedad',
+        justificacion_discrepancia: validPayload.texto,
+      });
+
+      const sent = spyUpdate.mock.calls[0][1];
+      expect(sent).toEqual(expect.objectContaining({
+        causa_discrepancia: 'merma_humedad',
+        justificacion_discrepancia: validPayload.texto,
+        justificacion_discrepancia_by: 'user-123',
+      }));
+    });
+
+    it('recordReception ignora la justificación si no hay discrepancia', async () => {
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({ id: 117, peso_origen_kg: 1000 } as any);
+      const spyUpdate = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({ id: 117, estado_traslado: 'aceptado' } as any);
+
+      await identificationDocumentService.recordReception(117, {
+        fecha_llegada_destino: '2026-11-12T13:35:00Z',
+        peso_destino_kg: 990,
+        resultado_recepcion: 'aceptado',
+        causa_discrepancia: 'otro',
+        justificacion_discrepancia: validPayload.texto,
+      });
+
+      const sent = spyUpdate.mock.calls[0][1];
+      expect(sent).not.toHaveProperty('justificacion_discrepancia');
+      expect(sent).not.toHaveProperty('causa_discrepancia');
+    });
+
+    it('recordReception rechaza una justificación incompleta', async () => {
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({ id: 117, peso_origen_kg: 3 } as any);
+      const spyUpdate = jest.spyOn(identificationDocumentService, 'update');
+
+      await expect(identificationDocumentService.recordReception(117, {
+        fecha_llegada_destino: '2026-11-12T13:35:00Z',
+        peso_destino_kg: 2.5,
+        resultado_recepcion: 'aceptado',
+        justificacion_discrepancia: validPayload.texto,
+      })).rejects.toThrow('causa válida');
+      expect(spyUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Firma pública por token (getBySigningToken y signDocumentByToken)', () => {
+    const mockPublicDI = {
+      id: 205,
+      company_id: 9,
+      numero_documento: '410001234520260000001',
+      signing_token: 'uuid-di-token-123',
+    } as any;
+
+    it('getBySigningToken debe invocar la RPC get_di_by_signing_token y devolver el DI', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: mockPublicDI, error: null });
+
+      const res = await identificationDocumentService.getBySigningToken('uuid-di-token-123');
+
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('get_di_by_signing_token', {
+        p_token: 'uuid-di-token-123',
+      });
+      expect(res).toEqual(mockPublicDI);
+    });
+
+    it('getBySigningToken debe devolver null cuando la RPC devuelve null', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+
+      const res = await identificationDocumentService.getBySigningToken('token-inexistente');
+      expect(res).toBeNull();
+    });
+
+    it('getBySigningToken debe lanzar error descriptivo si falla la RPC', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: 'RPC timeout' } });
+
+      await expect(
+        identificationDocumentService.getBySigningToken('uuid-di-token-123')
+      ).rejects.toThrow('Error al obtener DI por token: RPC timeout');
+    });
+
+    it('signDocumentByToken debe subir la imagen, llamar a sign_di_by_signing_token y registrar auditoría', async () => {
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: mockPublicDI, error: null })
+        .mockResolvedValueOnce({
+          data: { ...mockPublicDI, firmado_transportista: true },
+          error: null,
+        });
+      mockStorageFrom.upload.mockResolvedValue({ error: null });
+      mockStorageFrom.getPublicUrl.mockReturnValue({
+        data: { publicUrl: 'https://storage/sig-trans.png' },
+      });
+
+      const res = await identificationDocumentService.signDocumentByToken(
+        'uuid-di-token-123',
+        'transportista',
+        'data:image/png;base64,iVBORw0KGgo=',
+        { nombre: 'Juan Conductor', dni: '12345678Z' }
+      );
+
+      expect(mockSupabase.rpc).toHaveBeenNthCalledWith(1, 'get_di_by_signing_token', {
+        p_token: 'uuid-di-token-123',
+      });
+      expect(mockSupabase.rpc).toHaveBeenNthCalledWith(2, 'sign_di_by_signing_token', {
+        p_token: 'uuid-di-token-123',
+        p_role: 'transportista',
+        p_signature_url: 'https://storage/sig-trans.png',
+        p_signer_name: 'Juan Conductor',
+        p_signer_dni: '12345678Z',
+      });
+      expect(res.firmado_transportista).toBe(true);
+    });
+
+    it('signDocumentByToken debe lanzar error si el token no corresponde a ningún DI', async () => {
+      mockSupabase.rpc.mockResolvedValueOnce({ data: null, error: null });
+
+      await expect(
+        identificationDocumentService.signDocumentByToken(
+          'token-invalido',
+          'productor',
+          'data:image/png;base64,iVBORw0KGgo='
+        )
+      ).rejects.toThrow('Documento de Identificación no encontrado o token inválido');
+    });
+
+    it('signDocumentByToken debe lanzar error si la RPC sign_di_by_signing_token devuelve error', async () => {
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: mockPublicDI, error: null })
+        .mockResolvedValueOnce({
+          data: null,
+          error: { message: 'El Documento de Identificación ya fue firmado por este rol' },
+        });
+      mockStorageFrom.upload.mockResolvedValue({ error: null });
+      mockStorageFrom.getPublicUrl.mockReturnValue({
+        data: { publicUrl: 'https://storage/sig-prod.png' },
+      });
+
+      await expect(
+        identificationDocumentService.signDocumentByToken(
+          'uuid-di-token-123',
+          'productor',
+          'data:image/png;base64,iVBORw0KGgo='
+        )
+      ).rejects.toThrow('Error al registrar firma pública del DI: El Documento de Identificación ya fue firmado por este rol');
+    });
+  });
+});

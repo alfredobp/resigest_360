@@ -222,7 +222,7 @@ export default function EmpresaModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      className="max-w-3xl p-6 sm:p-8"
+      className="max-w-3xl max-h-[90vh] overflow-y-auto p-6 sm:p-8"
     >
       <div className="space-y-6">
         <div>

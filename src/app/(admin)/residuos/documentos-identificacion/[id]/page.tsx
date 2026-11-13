@@ -8,7 +8,7 @@ import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import { toast } from '@/context/ToastContext';
-import { Modal } from '@/components/ui/modal';
+import { Modal, ConfirmModal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
 import identificationDocumentService, { getTrackingStatusMeta, normalizeOperationCode } from '@/services/identificationDocumentService';
@@ -17,6 +17,12 @@ import authorizationService from '@/services/authorizationService';
 import siraService from '@/services/siraService';
 import companyService from '@/services/companyService';
 import { generateIdentificationDocumentPDF } from '@/lib/pdfUtils';
+import {
+  CAUSAS_DISCREPANCIA,
+  CAUSA_DISCREPANCIA_LABELS,
+  MIN_JUSTIFICATION_LENGTH,
+  isWeightDiscrepancy,
+} from '@/lib/validations/discrepancyJustification';
 import SignatureModal from '@/components/ui/signature/SignatureModal';
 import type {
   IdentificationDocument,
@@ -27,6 +33,7 @@ import type {
   CompleteTreatmentPayload,
   ResultadoRecepcion,
   SiraSubmission,
+  CausaDiscrepancia,
 } from '@/types/wasteManagement';
 
 function toLocalDateTimeInput(value?: string | null): string {
@@ -65,15 +72,28 @@ export default function DetalleDocumentoIdentificacionPage() {
   const [siraSubmissions, setSiraSubmissions] = useState<SiraSubmission[]>([]);
   const [selectedXml, setSelectedXml] = useState<string | null>(null);
   const [isXmlModalOpen, setIsXmlModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // Estados de modales
   const [isDepartureModalOpen, setIsDepartureModalOpen] = useState(false);
   const [isReceptionModalOpen, setIsReceptionModalOpen] = useState(false);
   const [isTreatmentModalOpen, setIsTreatmentModalOpen] = useState(false);
+  const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+  const [isJustifyModalOpen, setIsJustifyModalOpen] = useState(false);
+  const [justifyForm, setJustifyForm] = useState<{ causa: CausaDiscrepancia | ''; texto: string }>({ causa: '', texto: '' });
   const [submittingAction, setSubmittingAction] = useState(false);
   const [modalActionError, setModalActionError] = useState<string | null>(null);
   const [activeContracts, setActiveContracts] = useState<WasteContract[]>([]);
   const [authorizedOpsForLer, setAuthorizedOpsForLer] = useState<string[] | null>(null);
+  const [contractForm, setContractForm] = useState<{
+    contract_id?: number;
+    contrato_externo_referencia: string;
+    supuesto_excepcion_contrato: string;
+  }>({
+    contract_id: undefined,
+    contrato_externo_referencia: '',
+    supuesto_excepcion_contrato: '',
+  });
 
   // Estados de firma digital
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
@@ -173,6 +193,12 @@ export default function DetalleDocumentoIdentificacionPage() {
         notas: docData.notas || '',
       });
 
+      setContractForm({
+        contract_id: docData.contract_id || undefined,
+        contrato_externo_referencia: docData.contrato_externo_referencia || '',
+        supuesto_excepcion_contrato: docData.supuesto_excepcion_contrato || docData.contrato_externo_evidencia_url || '',
+      });
+
       const compData = await companyService.getUserCompany();
       setMyCompany(compData);
 
@@ -259,13 +285,53 @@ export default function DetalleDocumentoIdentificacionPage() {
       setSubmittingAction(true);
       setModalActionError(null);
       setError(null);
-      await identificationDocumentService.recordReception(document.id, receptionForm);
+      const receptionPayload: RecordReceptionPayload = receptionForm.causa_discrepancia
+        ? receptionForm
+        : { ...receptionForm, causa_discrepancia: undefined, justificacion_discrepancia: undefined };
+      await identificationDocumentService.recordReception(document.id, receptionPayload);
       setIsReceptionModalOpen(false);
       setSuccess('Recepción y pesaje en báscula registrados correctamente. Asiento sincronizado en el Archivo Cronológico.');
       toast.success('Recepción y pesaje en báscula registrados correctamente. Asiento sincronizado en el Archivo Cronológico.');
       await loadData();
     } catch (err: any) {
       const msg = `Error al registrar recepción: ${err.message}`;
+      setModalActionError(msg);
+      toast.error(msg);
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
+  const openJustifyModal = () => {
+    if (!document) return;
+    setModalActionError(null);
+    setJustifyForm({
+      causa: (document.causa_discrepancia as CausaDiscrepancia) || '',
+      texto: document.justificacion_discrepancia || '',
+    });
+    setIsJustifyModalOpen(true);
+  };
+
+  const handleJustifyDiscrepancy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!document) return;
+    if (!justifyForm.causa) {
+      setModalActionError('Seleccione la causa de la discrepancia.');
+      return;
+    }
+
+    try {
+      setSubmittingAction(true);
+      setModalActionError(null);
+      await identificationDocumentService.justifyDiscrepancy(document.id, {
+        causa: justifyForm.causa,
+        texto: justifyForm.texto,
+      });
+      setIsJustifyModalOpen(false);
+      toast.success('Discrepancia de báscula justificada correctamente.');
+      await loadData();
+    } catch (err: any) {
+      const msg = err.message || 'Error al justificar la discrepancia';
       setModalActionError(msg);
       toast.error(msg);
     } finally {
@@ -295,10 +361,47 @@ export default function DetalleDocumentoIdentificacionPage() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!document || !confirm('¿Estás seguro de que deseas eliminar este documento?')) {
+  const handleSaveContractCoverage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!document) return;
+
+    const hasInternalContract = Boolean(contractForm.contract_id);
+    const hasExternalRef = Boolean(contractForm.contrato_externo_referencia.trim());
+
+    if (!hasInternalContract && !hasExternalRef) {
+      setModalActionError('Debes seleccionar un contrato vigente en plataforma o indicar la referencia de un contrato externo acreditado (Art. 5 RD 553/2020).');
       return;
     }
+
+    try {
+      setSubmittingAction(true);
+      setModalActionError(null);
+      await identificationDocumentService.update(document.id, {
+        contract_id: hasInternalContract ? contractForm.contract_id : (null as any),
+        contrato_externo_referencia: hasInternalContract ? '' : contractForm.contrato_externo_referencia.trim(),
+        supuesto_excepcion_contrato: hasInternalContract ? '' : contractForm.supuesto_excepcion_contrato.trim(),
+      });
+      setIsContractModalOpen(false);
+      const msg = 'Cobertura contractual regularizada correctamente (Art. 5 RD 553/2020).';
+      setSuccess(msg);
+      toast.success(msg);
+      await loadData();
+    } catch (err: any) {
+      const msg = err.message || 'Error al actualizar cobertura contractual';
+      setModalActionError(msg);
+      toast.error(msg);
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
+  const handleDelete = () => {
+    if (!document) return;
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!document) return;
 
     try {
       await identificationDocumentService.delete(document.id);
@@ -345,6 +448,33 @@ export default function DetalleDocumentoIdentificacionPage() {
       toast.error(`Error al registrar firma: ${err.message}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCopyPublicSignLink = async (role?: 'productor' | 'transportista' | 'gestor') => {
+    if (!document?.signing_token) {
+      toast.warning(
+        'Este Documento de Identificación aún no tiene un token de firma pública asignado. Ejecute la migración SQL de firma pública en Supabase.'
+      );
+      return;
+    }
+    const baseUrl = window.location.origin;
+    const query = role ? `?role=${role}` : '';
+    const publicUrl = `${baseUrl}/public/sign-di/${document.signing_token}${query}`;
+    const roleLabel =
+      role === 'productor'
+        ? 'Productor'
+        : role === 'transportista'
+          ? 'Transportista'
+          : role === 'gestor'
+            ? 'Gestor'
+            : 'el DI';
+
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success(`Enlace de firma pública para ${roleLabel} copiado al portapapeles.`);
+    } catch {
+      toast.error('No se pudo copiar el enlace al portapapeles.');
     }
   };
 
@@ -428,6 +558,8 @@ export default function DetalleDocumentoIdentificacionPage() {
   }
 
   const tracking = getTrackingStatusMeta(document);
+  const pesoOrigenTracking = document.peso_origen_kg || (document.unidad === 'toneladas' ? document.cantidad * 1000 : document.cantidad) || 0;
+  const receptionDiscrepancy = isWeightDiscrepancy(pesoOrigenTracking, receptionForm.peso_destino_kg);
   const pesoOrigenCalc = document.peso_origen_kg || (document.unidad === 'toneladas' ? document.cantidad * 1000 : document.cantidad) || 0;
 
   return (
@@ -466,6 +598,30 @@ export default function DetalleDocumentoIdentificacionPage() {
 
         {error && <Alert variant="error" title="Error" message={error} />}
         {success && <Alert variant="success" title="Éxito" message={success} />}
+
+        {/* Banner de Regularización de Cobertura Contractual (Art. 5 RD 553/2020) */}
+        {!document.contract_id && !document.contrato_externo_referencia && (
+          <div className="p-4 rounded-2xl border border-red-300 dark:border-red-800 bg-red-50/80 dark:bg-red-950/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h4 className="text-sm font-bold text-red-800 dark:text-red-300 flex items-center gap-2">
+                <span>⚠️</span> Incidencia Normativa: Traslado sin contrato acreditado (Art. 5 RD 553/2020)
+              </h4>
+              <p className="text-xs text-red-700 dark:text-red-400">
+                Este Documento de Identificación no tiene un Contrato de Tratamiento vinculado ni una referencia de contrato externo acreditada. Regularízalo vinculando un contrato vigente o acreditando su referencia externa.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => {
+                setModalActionError(null);
+                setIsContractModalOpen(true);
+              }}
+              className="shrink-0 !bg-red-600 hover:!bg-red-700 !text-white"
+            >
+              Regularizar Contrato →
+            </Button>
+          </div>
+        )}
 
         {/* PIPELINE / STEPPER VISUAL RD 553/2020 */}
         <ComponentCard title="Ciclo de Vida del Traslado (RD 553/2020)">
@@ -602,14 +758,50 @@ export default function DetalleDocumentoIdentificacionPage() {
             </div>
 
             {/* Aviso de Discrepancia Normativa */}
-            {tracking.hasDiscrepancy && (
-              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300">
-                <div>
+            {tracking.hasDiscrepancy && !tracking.isDiscrepancyJustified && (
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex-1">
                   <p className="font-semibold">Atención: Discrepancia de báscula detectada ({tracking.discrepancyMessage})</p>
                   <p className="opacity-90 mt-0.5">
                     Según el RD 553/2020, las discrepancias relevantes entre el peso declarado por el remitente y el pesado por el gestor deben quedar justificadas documentalmente en el DI.
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={openJustifyModal}
+                  className="shrink-0 px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold transition-colors"
+                >
+                  Justificar discrepancia
+                </button>
+              </div>
+            )}
+
+            {/* Discrepancia justificada (trazabilidad para inspección) */}
+            {tracking.isDiscrepancyJustified && (
+              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300 flex flex-col sm:flex-row sm:items-start gap-3">
+                <div className="flex-1 space-y-1">
+                  <p className="font-semibold">
+                    ✓ Discrepancia justificada ({tracking.discrepancyMessage})
+                  </p>
+                  <p>
+                    <span className="font-semibold">Causa:</span>{' '}
+                    {document.causa_discrepancia ? CAUSA_DISCREPANCIA_LABELS[document.causa_discrepancia] : 'No tipificada'}
+                  </p>
+                  <p className="whitespace-pre-line">{document.justificacion_discrepancia}</p>
+                  <p className="opacity-75">
+                    Registrada{document.justificacion_discrepancia_by_nombre ? ` por ${document.justificacion_discrepancia_by_nombre}` : ''}
+                    {document.justificacion_discrepancia_at ? ` el ${new Date(document.justificacion_discrepancia_at).toLocaleString('es-ES')}` : ''}
+                  </p>
+                </div>
+                {document.estado_traslado !== 'tratado' && (
+                  <button
+                    type="button"
+                    onClick={openJustifyModal}
+                    className="shrink-0 px-3 py-1.5 rounded-lg border border-emerald-600/40 hover:bg-emerald-500/10 font-semibold transition-colors"
+                  >
+                    Editar
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -782,6 +974,37 @@ export default function DetalleDocumentoIdentificacionPage() {
                   <p className="text-foreground">{document.numero_envases || 1} ({document.tipo_envases})</p>
                 </div>
               )}
+
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                <span className="text-muted text-xs font-semibold uppercase tracking-wider block mb-1">
+                  Cobertura Contractual (Art. 5 RD 553/2020)
+                </span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  {document.contract_id ? (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                      ✓ Contrato vinculado: {document.contract?.numero_contrato || `CT #${document.contract_id}`}
+                    </span>
+                  ) : document.contrato_externo_referencia ? (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                      ✓ Contrato externo acreditado: {document.contrato_externo_referencia}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 dark:text-red-400">
+                      ⚠️ Sin contrato vinculado ni referencia acreditada
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalActionError(null);
+                      setIsContractModalOpen(true);
+                    }}
+                    className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                  >
+                    {document.contract_id || document.contrato_externo_referencia ? 'Editar contrato vinculado' : 'Regularizar contrato'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </ComponentCard>
@@ -813,11 +1036,30 @@ export default function DetalleDocumentoIdentificacionPage() {
                       </p>
                     )}
                     <p className="text-[10px] text-muted mt-1">{formatDateTime(document.fecha_firma_productor)}</p>
+                    {!document.firma_productor_url && (
+                      <div className="pt-2 space-y-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenSignatureModal('productor')}
+                          className="w-full text-xs"
+                        >
+                          ✍️ Añadir firma gráfica
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPublicSignLink('productor')}
+                          className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                        >
+                          <span>🔗</span> Copiar enlace de firma (Productor)
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     <Badge color="light">Pendiente de firma</Badge>
-                    <div>
+                    <div className="space-y-1.5">
                       <Button
                         size="sm"
                         variant="outline"
@@ -826,6 +1068,13 @@ export default function DetalleDocumentoIdentificacionPage() {
                       >
                         ✍️ Firmar como Productor
                       </Button>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyPublicSignLink('productor')}
+                        className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                      >
+                        <span>🔗</span> Copiar enlace de firma (Productor)
+                      </button>
                     </div>
                   </div>
                 )}
@@ -856,11 +1105,30 @@ export default function DetalleDocumentoIdentificacionPage() {
                       </p>
                     )}
                     <p className="text-[10px] text-muted mt-1">{formatDateTime(document.fecha_firma_transportista)}</p>
+                    {!document.firma_transportista_url && (
+                      <div className="pt-2 space-y-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenSignatureModal('transportista')}
+                          className="w-full text-xs"
+                        >
+                          ✍️ Añadir firma gráfica
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPublicSignLink('transportista')}
+                          className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                        >
+                          <span>🔗</span> Copiar enlace de firma (Transportista)
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     <Badge color="light">Pendiente en recogida</Badge>
-                    <div>
+                    <div className="space-y-1.5">
                       <Button
                         size="sm"
                         variant="outline"
@@ -869,6 +1137,13 @@ export default function DetalleDocumentoIdentificacionPage() {
                       >
                         ✍️ Firmar como Transportista
                       </Button>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyPublicSignLink('transportista')}
+                        className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                      >
+                        <span>🔗</span> Copiar enlace de firma (Transportista)
+                      </button>
                     </div>
                   </div>
                 )}
@@ -899,11 +1174,30 @@ export default function DetalleDocumentoIdentificacionPage() {
                       </p>
                     )}
                     <p className="text-[10px] text-muted mt-1">{formatDateTime(document.fecha_firma_gestor)}</p>
+                    {!document.firma_gestor_url && (
+                      <div className="pt-2 space-y-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenSignatureModal('gestor')}
+                          className="w-full text-xs"
+                        >
+                          ✍️ Añadir firma gráfica
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPublicSignLink('gestor')}
+                          className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                        >
+                          <span>🔗</span> Copiar enlace de firma (Gestor)
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     <Badge color="light">Pendiente en báscula</Badge>
-                    <div>
+                    <div className="space-y-1.5">
                       <Button
                         size="sm"
                         variant="outline"
@@ -912,6 +1206,13 @@ export default function DetalleDocumentoIdentificacionPage() {
                       >
                         ✍️ Firmar como Gestor
                       </Button>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyPublicSignLink('gestor')}
+                        className="w-full py-1.5 px-2.5 rounded-lg border border-brand-200 dark:border-brand-800/60 bg-brand-50/60 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100/70 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5"
+                      >
+                        <span>🔗</span> Copiar enlace de firma (Gestor)
+                      </button>
                     </div>
                   </div>
                 )}
@@ -939,11 +1240,26 @@ export default function DetalleDocumentoIdentificacionPage() {
               )}
 
               {/* Acción 3: Certificar Tratamiento y Cierre */}
-              {(document.estado_traslado === 'aceptado' || document.estado_traslado === 'rechazado_parcial') && (
-                <Button onClick={() => { setModalActionError(null); setIsTreatmentModalOpen(true); }}>
-                  <span>Certificar Tratamiento y Cierre</span>
+              {(document.estado_traslado === 'aceptado' || document.estado_traslado === 'rechazado_parcial' || document.estado_traslado === 'tratado') && (
+                <Button
+                  variant={document.estado_traslado === 'tratado' ? 'outline' : 'primary'}
+                  onClick={() => { setModalActionError(null); setIsTreatmentModalOpen(true); }}
+                >
+                  <span>{document.estado_traslado === 'tratado' ? 'Rectificar Tratamiento' : 'Certificar Tratamiento y Cierre'}</span>
                 </Button>
               )}
+
+              {/* Acción Regularizar / Vincular Contrato (Art. 5 RD 553/2020) */}
+              <Button
+                variant={!document.contract_id && !document.contrato_externo_referencia ? 'primary' : 'outline'}
+                onClick={() => { setModalActionError(null); setIsContractModalOpen(true); }}
+              >
+                <span>
+                  {!document.contract_id && !document.contrato_externo_referencia
+                    ? 'Vincular / Regularizar Contrato (Art. 5)'
+                    : 'Cambiar Contrato Vinculado'}
+                </span>
+              </Button>
 
               {/* Descargar PDF */}
               <Button
@@ -1341,6 +1657,42 @@ export default function DetalleDocumentoIdentificacionPage() {
               </div>
             </div>
 
+            {/* Justificación de discrepancia de báscula (opcional en recepción) */}
+            {receptionDiscrepancy && (
+              <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 space-y-3">
+                <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
+                  Discrepancia de báscula superior al margen de tolerancia (5% o 200 kg)
+                </p>
+                <p className="text-xs text-amber-800/90 dark:text-amber-300/90">
+                  Puede justificarla ahora o más tarde desde el detalle del DI (RD 553/2020).
+                </p>
+                <div>
+                  <label className="block text-xs text-muted mb-1">Causa de la discrepancia</label>
+                  <select
+                    value={receptionForm.causa_discrepancia || ''}
+                    onChange={(e) => setReceptionForm({ ...receptionForm, causa_discrepancia: (e.target.value || undefined) as CausaDiscrepancia | undefined })}
+                    className="w-full text-xs rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1.5 text-foreground"
+                  >
+                    <option value="">— Justificar más tarde —</option>
+                    {CAUSAS_DISCREPANCIA.map((c) => (
+                      <option key={c} value={c}>{CAUSA_DISCREPANCIA_LABELS[c]}</option>
+                    ))}
+                  </select>
+                </div>
+                {receptionForm.causa_discrepancia && (
+                  <div>
+                    <label className="block text-xs text-muted mb-1">Justificación * (mín. {MIN_JUSTIFICATION_LENGTH} caracteres)</label>
+                    <TextArea
+                      value={receptionForm.justificacion_discrepancia || ''}
+                      onChange={(val) => setReceptionForm({ ...receptionForm, justificacion_discrepancia: val })}
+                      placeholder="Ej: El residuo se pesó en origen con humedad; tras el escurrido en planta se registra la merma..."
+                      rows={2}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Campos condicionales si hay rechazo o incidencia */}
             {receptionForm.resultado_recepcion !== 'aceptado' && (
               <div className="p-3 rounded-lg border border-red-500/30 bg-red-500/10 space-y-3">
@@ -1412,6 +1764,62 @@ export default function DetalleDocumentoIdentificacionPage() {
             </Button>
             <Button type="submit" disabled={submittingAction}>
               {submittingAction ? 'Guardando...' : 'Confirmar Recepción'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL: JUSTIFICAR DISCREPANCIA DE BÁSCULA */}
+      <Modal isOpen={isJustifyModalOpen} onClose={() => setIsJustifyModalOpen(false)} className="max-w-lg p-6">
+        <form onSubmit={handleJustifyDiscrepancy} className="space-y-4">
+          <div className="border-b pb-3 border-gray-200 dark:border-gray-800">
+            <h3 className="text-lg font-bold text-foreground">Justificar Discrepancia de Báscula</h3>
+          </div>
+          <p className="text-xs text-muted">
+            {tracking.discrepancyMessage}. Documente la causa de la diferencia entre el peso declarado en origen y el neto verificado en destino (RD 553/2020).
+            {document.estado_traslado === 'tratado' && ' El DI está cerrado: una vez guardada, la justificación no podrá modificarse.'}
+          </p>
+
+          {modalActionError && (
+            <Alert variant="error" title="No se pudo guardar la justificación" message={modalActionError} />
+          )}
+
+          <div>
+            <label className="block text-xs font-semibold text-muted uppercase mb-1">Causa *</label>
+            <select
+              value={justifyForm.causa}
+              onChange={(e) => setJustifyForm({ ...justifyForm, causa: e.target.value as CausaDiscrepancia | '' })}
+              className="w-full text-xs font-semibold rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary h-10"
+              required
+            >
+              <option value="">Seleccione una causa…</option>
+              {CAUSAS_DISCREPANCIA.map((c) => (
+                <option key={c} value={c}>{CAUSA_DISCREPANCIA_LABELS[c]}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-muted uppercase mb-1">
+              Justificación * <span className="normal-case font-normal">({justifyForm.texto.trim().length}/{MIN_JUSTIFICATION_LENGTH} mín.)</span>
+            </label>
+            <TextArea
+              value={justifyForm.texto}
+              onChange={(val) => setJustifyForm({ ...justifyForm, texto: val })}
+              placeholder="Describa la causa técnica de la diferencia de peso..."
+              rows={4}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-gray-200 dark:border-gray-800">
+            <Button type="button" variant="outline" onClick={() => setIsJustifyModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={submittingAction || !justifyForm.causa || justifyForm.texto.trim().length < MIN_JUSTIFICATION_LENGTH}
+            >
+              {submittingAction ? 'Guardando...' : 'Guardar Justificación'}
             </Button>
           </div>
         </form>
@@ -1520,6 +1928,94 @@ export default function DetalleDocumentoIdentificacionPage() {
         </div>
       </Modal>
 
+      {/* MODAL 5: REGULARIZAR / VINCULAR COBERTURA CONTRACTUAL (ART. 5 RD 553/2020) */}
+      <Modal isOpen={isContractModalOpen} onClose={() => setIsContractModalOpen(false)} className="max-w-lg p-6">
+        <form onSubmit={handleSaveContractCoverage} className="space-y-4">
+          <div className="border-b pb-3 border-gray-200 dark:border-gray-800">
+            <h3 className="text-lg font-bold text-foreground">
+              Cobertura Contractual del Traslado (Art. 5 RD 553/2020)
+            </h3>
+          </div>
+          <p className="text-xs text-muted">
+            Todo traslado de residuos requiere disponer con carácter previo de un Contrato de Tratamiento vigente con el gestor destinatario. Seleccione un contrato registrado en la plataforma o acredite la referencia de su contrato externo.
+          </p>
+
+          {modalActionError && (
+            <Alert variant="error" title="Atención" message={modalActionError} />
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted uppercase mb-1.5">
+                1. Seleccionar Contrato Vigente en Plataforma
+              </label>
+              <select
+                value={contractForm.contract_id || ''}
+                onChange={(e) => {
+                  setModalActionError(null);
+                  setContractForm({
+                    ...contractForm,
+                    contract_id: e.target.value ? parseInt(e.target.value, 10) : undefined,
+                  });
+                }}
+                className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2.5 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="">-- Ninguno seleccionado (acreditar contrato externo abajo) --</option>
+                {activeContracts.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.numero_contrato || `CT-${c.id}`} — {c.gestor_company?.razon_social || c.treatment_manager?.razon_social || 'Gestor'} ({(c.codigos_ler || []).join(', ') || 'Varios LER'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {!contractForm.contract_id && (
+              <div className="p-3.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/40 space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-muted uppercase mb-1">
+                    2. O Referencia de Contrato Externo Acreditado *
+                  </label>
+                  <Input
+                    type="text"
+                    value={contractForm.contrato_externo_referencia}
+                    onChange={(e) => {
+                      setModalActionError(null);
+                      setContractForm({ ...contractForm, contrato_externo_referencia: e.target.value });
+                    }}
+                    placeholder="Ej: CT-EXT-2026-0041 (Contrato firmado fuera de plataforma)"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted uppercase mb-1">
+                    Justificante / Observaciones o Supuesto Legal
+                  </label>
+                  <Input
+                    type="text"
+                    value={contractForm.supuesto_excepcion_contrato}
+                    onChange={(e) =>
+                      setContractForm({
+                        ...contractForm,
+                        supuesto_excepcion_contrato: e.target.value,
+                      })
+                    }
+                    placeholder="Ej: Contrato marco archivado en expediente físico"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-gray-200 dark:border-gray-800">
+            <Button type="button" variant="outline" onClick={() => setIsContractModalOpen(false)} disabled={submittingAction}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={submittingAction}>
+              {submittingAction ? 'Guardando...' : 'Guardar Cobertura Contractual'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
       <SignatureModal
         isOpen={isSignatureModalOpen}
         onClose={() => setIsSignatureModalOpen(false)}
@@ -1535,6 +2031,14 @@ export default function DetalleDocumentoIdentificacionPage() {
             : 'Gestor Destinatario'
         }`}
         description="Dibuje su firma en el recuadro para validar la conformidad y registrarla en el documento oficial."
+      />
+
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        title="Eliminar documento"
+        message="¿Estás seguro de que deseas eliminar este documento? Esta acción no se puede deshacer."
       />
     </>
   );

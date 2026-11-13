@@ -63,10 +63,10 @@ BEGIN
   SELECT id INTO v_uid_productor FROM auth.users WHERE email = 'productor.prueba@resigest.test' LIMIT 1;
   IF v_uid_productor IS NULL THEN
     v_uid_productor := '11111111-1111-4111-8111-111111111101'::uuid;
-    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    VALUES (v_uid_productor, '00000000-0000-0000-0000-000000000000'::uuid, 'productor.prueba@resigest.test', crypt(v_pass, gen_salt('bf')), NOW(), 'authenticated', 'authenticated', '{"provider":"email","providers":["email"]}'::jsonb, '{"first_name":"Carlos","last_name":"Productor Prueba"}'::jsonb, NOW(), NOW());
+    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, confirmation_token, recovery_token, email_change_token_new, email_change, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+    VALUES (v_uid_productor, '00000000-0000-0000-0000-000000000000'::uuid, 'productor.prueba@resigest.test', crypt(v_pass, gen_salt('bf')), NOW(), 'authenticated', 'authenticated', '', '', '', '', '{"provider":"email","providers":["email"]}'::jsonb, '{"first_name":"Carlos","last_name":"Productor Prueba"}'::jsonb, NOW(), NOW());
   ELSE
-    UPDATE auth.users SET encrypted_password = crypt(v_pass, gen_salt('bf')), email_confirmed_at = COALESCE(email_confirmed_at, NOW()), updated_at = NOW() WHERE id = v_uid_productor;
+    UPDATE auth.users SET encrypted_password = crypt(v_pass, gen_salt('bf')), email_confirmed_at = COALESCE(email_confirmed_at, NOW()), confirmation_token = COALESCE(confirmation_token, ''), recovery_token = COALESCE(recovery_token, ''), email_change = COALESCE(email_change, ''), email_change_token_new = COALESCE(email_change_token_new, ''), updated_at = NOW() WHERE id = v_uid_productor;
   END IF;
   INSERT INTO public.profiles (id, email, first_name, last_name, role, location, created_at, updated_at)
   VALUES (v_uid_productor, 'productor.prueba@resigest.test', 'Carlos', 'Productor Prueba', 'user', 'Sevilla, España', NOW(), NOW())
@@ -76,10 +76,10 @@ BEGIN
   SELECT id INTO v_uid_gestor FROM auth.users WHERE email = 'gestor.prueba@resigest.test' LIMIT 1;
   IF v_uid_gestor IS NULL THEN
     v_uid_gestor := '22222222-2222-4222-8222-222222222202'::uuid;
-    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    VALUES (v_uid_gestor, '00000000-0000-0000-0000-000000000000'::uuid, 'gestor.prueba@resigest.test', crypt(v_pass, gen_salt('bf')), NOW(), 'authenticated', 'authenticated', '{"provider":"email","providers":["email"]}'::jsonb, '{"first_name":"Laura","last_name":"Gestor Chatarrería"}'::jsonb, NOW(), NOW());
+    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, confirmation_token, recovery_token, email_change_token_new, email_change, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+    VALUES (v_uid_gestor, '00000000-0000-0000-0000-000000000000'::uuid, 'gestor.prueba@resigest.test', crypt(v_pass, gen_salt('bf')), NOW(), 'authenticated', 'authenticated', '', '', '', '', '{"provider":"email","providers":["email"]}'::jsonb, '{"first_name":"Laura","last_name":"Gestor Chatarrería"}'::jsonb, NOW(), NOW());
   ELSE
-    UPDATE auth.users SET encrypted_password = crypt(v_pass, gen_salt('bf')), email_confirmed_at = COALESCE(email_confirmed_at, NOW()), updated_at = NOW() WHERE id = v_uid_gestor;
+    UPDATE auth.users SET encrypted_password = crypt(v_pass, gen_salt('bf')), email_confirmed_at = COALESCE(email_confirmed_at, NOW()), confirmation_token = COALESCE(confirmation_token, ''), recovery_token = COALESCE(recovery_token, ''), email_change = COALESCE(email_change, ''), email_change_token_new = COALESCE(email_change_token_new, ''), updated_at = NOW() WHERE id = v_uid_gestor;
   END IF;
   INSERT INTO public.profiles (id, email, first_name, last_name, role, location, created_at, updated_at)
   VALUES (v_uid_gestor, 'gestor.prueba@resigest.test', 'Laura', 'Gestor Chatarrería', 'user', 'Toledo, España', NOW(), NOW())
@@ -89,10 +89,10 @@ BEGIN
   SELECT id INTO v_uid_transportista FROM auth.users WHERE email = 'transportista.prueba@resigest.test' LIMIT 1;
   IF v_uid_transportista IS NULL THEN
     v_uid_transportista := '33333333-3333-4333-8333-333333333303'::uuid;
-    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    VALUES (v_uid_transportista, '00000000-0000-0000-0000-000000000000'::uuid, 'transportista.prueba@resigest.test', crypt(v_pass, gen_salt('bf')), NOW(), 'authenticated', 'authenticated', '{"provider":"email","providers":["email"]}'::jsonb, '{"first_name":"Miguel","last_name":"Transportista Ruta"}'::jsonb, NOW(), NOW());
+    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, confirmation_token, recovery_token, email_change_token_new, email_change, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+    VALUES (v_uid_transportista, '00000000-0000-0000-0000-000000000000'::uuid, 'transportista.prueba@resigest.test', crypt(v_pass, gen_salt('bf')), NOW(), 'authenticated', 'authenticated', '', '', '', '', '{"provider":"email","providers":["email"]}'::jsonb, '{"first_name":"Miguel","last_name":"Transportista Ruta"}'::jsonb, NOW(), NOW());
   ELSE
-    UPDATE auth.users SET encrypted_password = crypt(v_pass, gen_salt('bf')), email_confirmed_at = COALESCE(email_confirmed_at, NOW()), updated_at = NOW() WHERE id = v_uid_transportista;
+    UPDATE auth.users SET encrypted_password = crypt(v_pass, gen_salt('bf')), email_confirmed_at = COALESCE(email_confirmed_at, NOW()), confirmation_token = COALESCE(confirmation_token, ''), recovery_token = COALESCE(recovery_token, ''), email_change = COALESCE(email_change, ''), email_change_token_new = COALESCE(email_change_token_new, ''), updated_at = NOW() WHERE id = v_uid_transportista;
   END IF;
   INSERT INTO public.profiles (id, email, first_name, last_name, role, location, created_at, updated_at)
   VALUES (v_uid_transportista, 'transportista.prueba@resigest.test', 'Miguel', 'Transportista Ruta', 'user', 'Madrid, España', NOW(), NOW())
@@ -102,10 +102,10 @@ BEGIN
   SELECT id INTO v_uid_nuevo FROM auth.users WHERE email = 'nuevo.prueba@resigest.test' LIMIT 1;
   IF v_uid_nuevo IS NULL THEN
     v_uid_nuevo := '44444444-4444-4444-8444-444444444404'::uuid;
-    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    VALUES (v_uid_nuevo, '00000000-0000-0000-0000-000000000000'::uuid, 'nuevo.prueba@resigest.test', crypt(v_pass, gen_salt('bf')), NOW(), 'authenticated', 'authenticated', '{"provider":"email","providers":["email"]}'::jsonb, '{"first_name":"Nuevo","last_name":"Cliente Sin Configurar"}'::jsonb, NOW(), NOW());
+    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, confirmation_token, recovery_token, email_change_token_new, email_change, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+    VALUES (v_uid_nuevo, '00000000-0000-0000-0000-000000000000'::uuid, 'nuevo.prueba@resigest.test', crypt(v_pass, gen_salt('bf')), NOW(), 'authenticated', 'authenticated', '', '', '', '', '{"provider":"email","providers":["email"]}'::jsonb, '{"first_name":"Nuevo","last_name":"Cliente Sin Configurar"}'::jsonb, NOW(), NOW());
   ELSE
-    UPDATE auth.users SET encrypted_password = crypt(v_pass, gen_salt('bf')), email_confirmed_at = COALESCE(email_confirmed_at, NOW()), updated_at = NOW() WHERE id = v_uid_nuevo;
+    UPDATE auth.users SET encrypted_password = crypt(v_pass, gen_salt('bf')), email_confirmed_at = COALESCE(email_confirmed_at, NOW()), confirmation_token = COALESCE(confirmation_token, ''), recovery_token = COALESCE(recovery_token, ''), email_change = COALESCE(email_change, ''), email_change_token_new = COALESCE(email_change_token_new, ''), updated_at = NOW() WHERE id = v_uid_nuevo;
   END IF;
   INSERT INTO public.profiles (id, email, first_name, last_name, role, location, created_at, updated_at)
   VALUES (v_uid_nuevo, 'nuevo.prueba@resigest.test', 'Nuevo', 'Cliente Sin Configurar', 'user', 'España', NOW(), NOW())
@@ -118,10 +118,10 @@ BEGIN
   SELECT id INTO v_uid_consultor FROM auth.users WHERE email = 'consultor.prueba@metodoambiental.test' LIMIT 1;
   IF v_uid_consultor IS NULL THEN
     v_uid_consultor := '55555555-5555-4555-8555-555555555505'::uuid;
-    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    VALUES (v_uid_consultor, '00000000-0000-0000-0000-000000000000'::uuid, 'consultor.prueba@metodoambiental.test', crypt(v_pass, gen_salt('bf')), NOW(), 'authenticated', 'authenticated', '{"provider":"email","providers":["email"]}'::jsonb, '{"first_name":"Elena","last_name":"Consultora Método Ambiental"}'::jsonb, NOW(), NOW());
+    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, confirmation_token, recovery_token, email_change_token_new, email_change, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+    VALUES (v_uid_consultor, '00000000-0000-0000-0000-000000000000'::uuid, 'consultor.prueba@metodoambiental.test', crypt(v_pass, gen_salt('bf')), NOW(), 'authenticated', 'authenticated', '', '', '', '', '{"provider":"email","providers":["email"]}'::jsonb, '{"first_name":"Elena","last_name":"Consultora Método Ambiental"}'::jsonb, NOW(), NOW());
   ELSE
-    UPDATE auth.users SET encrypted_password = crypt(v_pass, gen_salt('bf')), email_confirmed_at = COALESCE(email_confirmed_at, NOW()), updated_at = NOW() WHERE id = v_uid_consultor;
+    UPDATE auth.users SET encrypted_password = crypt(v_pass, gen_salt('bf')), email_confirmed_at = COALESCE(email_confirmed_at, NOW()), confirmation_token = COALESCE(confirmation_token, ''), recovery_token = COALESCE(recovery_token, ''), email_change = COALESCE(email_change, ''), email_change_token_new = COALESCE(email_change_token_new, ''), updated_at = NOW() WHERE id = v_uid_consultor;
   END IF;
   INSERT INTO public.profiles (id, email, first_name, last_name, role, location, created_at, updated_at)
   VALUES (v_uid_consultor, 'consultor.prueba@metodoambiental.test', 'Elena', 'Consultora Método Ambiental', 'user', 'Sevilla, España', NOW(), NOW())
@@ -131,14 +131,66 @@ BEGIN
   SELECT id INTO v_uid_negociante FROM auth.users WHERE email = 'negociante.prueba@resigest.test' LIMIT 1;
   IF v_uid_negociante IS NULL THEN
     v_uid_negociante := '66666666-6666-4666-8666-666666666606'::uuid;
-    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    VALUES (v_uid_negociante, '00000000-0000-0000-0000-000000000000'::uuid, 'negociante.prueba@resigest.test', crypt(v_pass, gen_salt('bf')), NOW(), 'authenticated', 'authenticated', '{"provider":"email","providers":["email"]}'::jsonb, '{"first_name":"Gonzalo","last_name":"Negociante Comercial"}'::jsonb, NOW(), NOW());
+    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, confirmation_token, recovery_token, email_change_token_new, email_change, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+    VALUES (v_uid_negociante, '00000000-0000-0000-0000-000000000000'::uuid, 'negociante.prueba@resigest.test', crypt(v_pass, gen_salt('bf')), NOW(), 'authenticated', 'authenticated', '', '', '', '', '{"provider":"email","providers":["email"]}'::jsonb, '{"first_name":"Gonzalo","last_name":"Negociante Comercial"}'::jsonb, NOW(), NOW());
   ELSE
-    UPDATE auth.users SET encrypted_password = crypt(v_pass, gen_salt('bf')), email_confirmed_at = COALESCE(email_confirmed_at, NOW()), updated_at = NOW() WHERE id = v_uid_negociante;
+    UPDATE auth.users SET encrypted_password = crypt(v_pass, gen_salt('bf')), email_confirmed_at = COALESCE(email_confirmed_at, NOW()), confirmation_token = COALESCE(confirmation_token, ''), recovery_token = COALESCE(recovery_token, ''), email_change = COALESCE(email_change, ''), email_change_token_new = COALESCE(email_change_token_new, ''), updated_at = NOW() WHERE id = v_uid_negociante;
   END IF;
   INSERT INTO public.profiles (id, email, first_name, last_name, role, location, created_at, updated_at)
   VALUES (v_uid_negociante, 'negociante.prueba@resigest.test', 'Gonzalo', 'Negociante Comercial', 'user', 'Madrid, España', NOW(), NOW())
   ON CONFLICT (id) DO UPDATE SET role = 'user', first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, updated_at = NOW();
+
+  -- ============================================================================
+  -- SINCRONIZACIÓN DE TOKENS E IDENTIDADES EN AUTH (COMPATIBILIDAD GOTRUE)
+  -- ============================================================================
+  -- Supabase GoTrue lanza "Database error querying schema" si algún campo token es NULL
+  UPDATE auth.users
+  SET 
+    confirmation_token = COALESCE(confirmation_token, ''),
+    recovery_token = COALESCE(recovery_token, ''),
+    email_change = COALESCE(email_change, ''),
+    email_change_token_new = COALESCE(email_change_token_new, '')
+  WHERE email IN (
+    'productor.prueba@resigest.test',
+    'gestor.prueba@resigest.test',
+    'transportista.prueba@resigest.test',
+    'nuevo.prueba@resigest.test',
+    'consultor.prueba@metodoambiental.test',
+    'negociante.prueba@resigest.test'
+  );
+
+  -- GoTrue requiere la fila en auth.identities para permitir el login por email/password
+  INSERT INTO auth.identities (
+    id,
+    user_id,
+    provider_id,
+    identity_data,
+    provider,
+    last_sign_in_at,
+    created_at,
+    updated_at
+  )
+  SELECT
+    u.id::text,
+    u.id,
+    u.id::text,
+    json_build_object('sub', u.id::text, 'email', u.email)::jsonb,
+    'email',
+    NOW(),
+    NOW(),
+    NOW()
+  FROM auth.users u
+  WHERE u.email IN (
+    'productor.prueba@resigest.test',
+    'gestor.prueba@resigest.test',
+    'transportista.prueba@resigest.test',
+    'nuevo.prueba@resigest.test',
+    'consultor.prueba@metodoambiental.test',
+    'negociante.prueba@resigest.test'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM auth.identities i WHERE i.user_id = u.id AND i.provider = 'email'
+  );
 
   -- ============================================================================
   -- DATA 1: PRODUCTOR INDEPENDIENTE (Industrias Metálicas del Sur S.L.)
