@@ -86,6 +86,7 @@ const Input: FC<InputProps> = ({
         step={step}
         disabled={disabled}
         readOnly={readOnly}
+        required={required}
         aria-invalid={error ? "true" : undefined}
         aria-required={required ? "true" : undefined}
         className={inputClasses}

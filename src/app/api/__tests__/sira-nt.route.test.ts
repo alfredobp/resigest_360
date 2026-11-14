@@ -364,4 +364,43 @@ describe('POST /api/residuos/sira/enviar-nt', () => {
     expect(json.isTestMode).toBe(true);
     expect(json.siraId).toMatch(/^SIRA-TEST-NT-10-/);
   });
+
+  it('rechaza errores censales en producción si SIRA_ALLOW_TEST_CENSUS no es true (fail-closed)', async () => {
+    const prevNodeEnv = process.env.NODE_ENV;
+    const prevAllow = process.env.SIRA_ALLOW_TEST_CENSUS;
+    (process.env as any).NODE_ENV = 'production';
+    delete process.env.SIRA_ALLOW_TEST_CENSUS;
+
+    mockNtSingle.mockResolvedValue({
+      data: {
+        id: 10,
+        company_id: 1,
+        numero_notificacion: 'NT110000000120260000001',
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        '<SOAP-ENV:Envelope><SOAP-ENV:Body><ns3:sendWasteNTResponse><return><result><resultWrong><resultErrorList>' +
+        '<resultWrong code="JA000002" description="La instalación de Operador con NIMA: 1100000001 no está autorizada"/>' +
+        '</resultErrorList></resultWrong></result></return></ns3:sendWasteNTResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>',
+    });
+
+    try {
+      const res = await POST(makeReq({ notificationId: 10 }));
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error).toBe('SIRA ha rechazado la Notificación Previa');
+    } finally {
+      (process.env as any).NODE_ENV = prevNodeEnv;
+      if (prevAllow !== undefined) {
+        process.env.SIRA_ALLOW_TEST_CENSUS = prevAllow;
+      } else {
+        delete process.env.SIRA_ALLOW_TEST_CENSUS;
+      }
+    }
+  });
 });

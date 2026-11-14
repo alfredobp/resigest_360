@@ -3,6 +3,7 @@
 // ==============================================================================
 
 import { createClient } from '@/lib/supabase/client';
+import { auditService } from './auditService';
 import {
   type ChronologicalEntry,
   type ChronologicalEntryFormData,
@@ -237,6 +238,34 @@ export async function deleteChronologicalEntry(id: number): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay usuario autenticado');
 
+  let existing: {
+    fecha?: string | null;
+    numero_asiento?: string | null;
+    codigo_ler?: string | null;
+    company_id?: number | null;
+  } | null = null;
+
+  const lookupBuilder: any = supabase.from('chronological_registry');
+  if (typeof lookupBuilder?.select === 'function') {
+    const { data } = await lookupBuilder
+      .select('fecha, numero_asiento, codigo_ler, company_id')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    existing = data || null;
+
+    if (existing?.fecha) {
+      const entryDate = new Date(existing.fecha);
+      const fiveYearsAgo = new Date();
+      fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+      if (!Number.isNaN(entryDate.getTime()) && entryDate >= fiveYearsAgo) {
+        throw new Error(
+          'No se puede eliminar un asiento del archivo cronológico con menos de 5 años de antigüedad (Art. 64 Ley 7/2022).'
+        );
+      }
+    }
+  }
+
   const { error } = await supabase
     .from('chronological_registry')
     .delete()
@@ -247,6 +276,18 @@ export async function deleteChronologicalEntry(id: number): Promise<boolean> {
     console.error('Error al eliminar asiento cronológico:', error);
     throw error;
   }
+
+  await auditService.logAction({
+    company_id: existing?.company_id ?? null,
+    entidad: 'archivo_cronologico',
+    entidad_id: id,
+    accion: 'eliminar',
+    detalles: {
+      numero_asiento: existing?.numero_asiento ?? null,
+      codigo_ler: existing?.codigo_ler ?? null,
+      fecha: existing?.fecha ?? null,
+    },
+  });
 
   return true;
 }

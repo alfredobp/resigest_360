@@ -720,9 +720,11 @@ export const wasteContractService = {
     if (role === 'productor') {
       updateData.firma_productor_url = publicUrl;
       updateData.fecha_firma_productor = now;
+      updateData.firmado_productor = true;
     } else {
       updateData.firma_gestor_url = publicUrl;
       updateData.fecha_firma_gestor = now;
+      updateData.firmado_gestor = true;
     }
 
     return this.update(id, updateData);

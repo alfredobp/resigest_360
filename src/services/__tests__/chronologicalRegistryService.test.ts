@@ -388,6 +388,90 @@ describe('chronologicalRegistryService - Archivo Cronológico (Art. 64 Ley 7/202
 
       await expect(deleteChronologicalEntry(999)).rejects.toThrow('Delete error');
     });
+
+    it('debe bloquear la eliminación de asientos con menos de 5 años de antigüedad (Art. 64 Ley 7/2022)', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      const recentDate = new Date();
+      recentDate.setFullYear(recentDate.getFullYear() - 2);
+
+      const lookupChain: any = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({
+          data: {
+            fecha: recentDate.toISOString().split('T')[0],
+            numero_asiento: 'AS-2024-000010',
+            codigo_ler: '15 01 10*',
+            company_id: 5,
+          },
+          error: null,
+        }),
+        delete: jest.fn().mockReturnThis(),
+      };
+      mockSupabase.from.mockReturnValue(lookupChain);
+
+      await expect(deleteChronologicalEntry(10)).rejects.toThrow(
+        'No se puede eliminar un asiento del archivo cronológico con menos de 5 años de antigüedad (Art. 64 Ley 7/2022).'
+      );
+      expect(lookupChain.delete).not.toHaveBeenCalled();
+    });
+
+    it('debe permitir eliminar asientos con 5 o más años y registrar acción en auditoría', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      const oldDate = new Date();
+      oldDate.setFullYear(oldDate.getFullYear() - 6);
+      const oldDateStr = oldDate.toISOString().split('T')[0];
+
+      const lookupChain: any = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({
+          data: {
+            fecha: oldDateStr,
+            numero_asiento: 'AS-2020-000001',
+            codigo_ler: '20 01 01',
+            company_id: 7,
+          },
+          error: null,
+        }),
+      };
+
+      const deleteChain: any = {
+        delete: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+      };
+      deleteChain.then = (resolve: any) => Promise.resolve({ error: null }).then(resolve);
+
+      const auditChain: any = {
+        insert: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: { id: 99 }, error: null }),
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'audit_logs') return auditChain;
+        return lookupChain.select.mock.calls.length === 0 ? lookupChain : deleteChain;
+      });
+
+      const res = await deleteChronologicalEntry(15);
+      expect(res).toBe(true);
+      expect(deleteChain.delete).toHaveBeenCalled();
+      expect(auditChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          company_id: 7,
+          entidad: 'archivo_cronologico',
+          entidad_id: '15',
+          accion: 'eliminar',
+          detalles: expect.objectContaining({
+            numero_asiento: 'AS-2020-000001',
+            codigo_ler: '20 01 01',
+            fecha: oldDateStr,
+          }),
+        })
+      );
+    });
   });
 
   describe('syncEntryFromDI & syncAllClosedDIs', () => {

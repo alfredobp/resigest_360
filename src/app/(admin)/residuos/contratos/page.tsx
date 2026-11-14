@@ -121,7 +121,11 @@ export default function ContratosPage() {
     }
 
     try {
-      await wasteContractService.updateStatus(id, newStatus);
+      if (newStatus === 'vigente') {
+        await wasteContractService.activate(id);
+      } else {
+        await wasteContractService.updateStatus(id, newStatus);
+      }
       toast.success(`Estado del contrato actualizado a "${newStatus}" correctamente.`);
       await loadData();
     } catch (err: any) {

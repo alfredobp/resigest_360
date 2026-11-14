@@ -544,7 +544,7 @@ export async function generateContractPDF(contract: WasteContract) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.text('POR EL PRODUCTOR', 25, yPos + 5);
-  if (contract.firmado_productor && (contract.firma_productor_url || contract.fecha_firma_productor)) {
+  if ((contract.firmado_productor || Boolean(contract.firma_productor_url)) && (contract.firma_productor_url || contract.fecha_firma_productor)) {
     doc.setFont('helvetica', 'normal');
     doc.text('Firmado digitalmente', 25, yPos + 10);
     if (contract.fecha_firma_productor) {
@@ -573,7 +573,7 @@ export async function generateContractPDF(contract: WasteContract) {
   doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
   doc.text('POR EL GESTOR AUTORIZADO', pageWidth - 85, yPos + 5);
-  if (contract.firmado_gestor && (contract.firma_gestor_url || contract.fecha_firma_gestor)) {
+  if ((contract.firmado_gestor || Boolean(contract.firma_gestor_url)) && (contract.firma_gestor_url || contract.fecha_firma_gestor)) {
     doc.setFont('helvetica', 'normal');
     doc.text('Firmado digitalmente', pageWidth - 85, yPos + 10);
     if (contract.fecha_firma_gestor) {

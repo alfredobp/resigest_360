@@ -1044,6 +1044,7 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       expect(mockStorageFrom.upload).toHaveBeenCalled();
       expect(updateSpy).toHaveBeenCalledWith(1, expect.objectContaining({
         firma_productor_url: 'https://storage/signature-prod.png',
+        firmado_productor: true,
       }));
       expect(res.firma_productor_url).toBe('https://storage/signature-prod.png');
 
@@ -1069,6 +1070,7 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
 
       expect(updateSpy).toHaveBeenCalledWith(2, expect.objectContaining({
         firma_gestor_url: 'https://storage/signature-gestor.png',
+        firmado_gestor: true,
       }));
 
       updateSpy.mockRestore();

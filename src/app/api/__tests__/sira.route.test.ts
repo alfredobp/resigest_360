@@ -341,4 +341,40 @@ describe('POST /api/residuos/sira/enviar-di', () => {
     const json = await res.json();
     expect(json.error).toBe('SIRA ha rechazado el documento');
   });
+
+  it('rechaza errores censales en producción si SIRA_ALLOW_TEST_CENSUS no es true (fail-closed)', async () => {
+    const prevAllow = process.env.SIRA_ALLOW_TEST_CENSUS;
+    (process.env as any).NODE_ENV = 'production';
+    delete process.env.SIRA_ALLOW_TEST_CENSUS;
+
+    mockDocSingle.mockResolvedValue({
+      data: {
+        id: 14,
+        company_id: 2,
+        numero_documento: 'DI-2026-005',
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        '<resultErrorList><resultWrong code="JA000027" description="La NT asociada no se encuentra presentada."/></resultErrorList>',
+    }) as any;
+
+    try {
+      const res = await POST(makeReq({ documentId: 14 }));
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error).toBe('SIRA ha rechazado el documento');
+    } finally {
+      if (prevAllow !== undefined) {
+        process.env.SIRA_ALLOW_TEST_CENSUS = prevAllow;
+      } else {
+        delete process.env.SIRA_ALLOW_TEST_CENSUS;
+      }
+    }
+  });
 });
