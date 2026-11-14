@@ -281,7 +281,7 @@ export async function POST(req: NextRequest) {
                 notas: `${doc.notas || ''}${successNote}`
             })
             .eq('id', documentId)
-            .eq('user_id', user.id);
+            .eq('user_id', doc.user_id || user.id);
 
         // Registrar en audit_logs
         try {

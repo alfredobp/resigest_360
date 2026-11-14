@@ -212,7 +212,7 @@ export async function POST(req: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', notificationId)
-        .eq('user_id', user.id);
+        .eq('user_id', nt.user_id || user.id);
 
       return NextResponse.json({
         error: 'SIRA ha rechazado la Notificación Previa',
@@ -250,7 +250,7 @@ export async function POST(req: NextRequest) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', notificationId)
-      .eq('user_id', user.id);
+      .eq('user_id', nt.user_id || user.id);
 
     try {
       await supabase.from('audit_logs').insert({

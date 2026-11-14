@@ -5,6 +5,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { auditService } from './auditService';
+import { applyTenantScope } from './tenantContextService';
 import type { DecaDocument, DecaFormData, DecaAuditLog } from '@/types/deca';
 import type { IdentificationDocument } from '@/types/wasteManagement';
 
@@ -38,10 +39,11 @@ export const decaService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
-    const { data, error } = await supabase
+    const baseQuery = supabase
       .from('deca_documents')
-      .select('*')
-      .eq('user_id', user.id)
+      .select('*');
+
+    const { data, error } = await applyTenantScope(baseQuery, user.id)
       .order('fecha_transporte', { ascending: false })
       .order('id', { ascending: false });
 

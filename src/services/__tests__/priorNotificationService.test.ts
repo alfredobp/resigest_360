@@ -286,6 +286,7 @@ describe('priorNotificationService', () => {
       expect(xml).toContain('producerTypeCode="P03"');
       expect(xml).not.toContain('<table5>');
       expect(xml).toContain('<table2>R12</table2>');
+      expect(xml).toContain('<process operationIdProcessCode="R1201"/>');
     });
   });
 

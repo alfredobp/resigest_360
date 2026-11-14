@@ -75,6 +75,46 @@ export function setActiveCompanyCookie(companyId: number | null): void {
   document.cookie = `${ACTIVE_COMPANY_COOKIE}=${encodeURIComponent(String(companyId))}; path=/; max-age=2592000; SameSite=Lax`;
 }
 
+export function sanitizeCompanySecrets(
+  company: Company | null,
+  currentUserId?: string | null,
+  membershipRole?: MembershipRole
+): Company | null {
+  if (!company) return null;
+  const isDelegatedOrReadOnly =
+    membershipRole === 'lectura' ||
+    Boolean(company.user_id && currentUserId && company.user_id !== currentUserId);
+
+  if (!isDelegatedOrReadOnly) {
+    return company;
+  }
+
+  return {
+    ...company,
+    sira_password: company.sira_password ? '••••••••' : company.sira_password,
+    holded_api_key: company.holded_api_key
+      ? `••••${String(company.holded_api_key).slice(-4)}`
+      : company.holded_api_key,
+  };
+}
+
+export function applyTenantScope<T>(
+  query: T,
+  userId: string,
+  activeCompanyId?: number | null
+): T {
+  const companyId = activeCompanyId !== undefined ? activeCompanyId : getActiveCompanyCookie();
+  if (
+    companyId &&
+    Number.isInteger(companyId) &&
+    companyId > 0 &&
+    typeof (query as any)?.or === 'function'
+  ) {
+    return (query as any).or(`user_id.eq.${userId},company_id.eq.${companyId}`) as T;
+  }
+  return (query as any).eq('user_id', userId) as T;
+}
+
 export async function resolveTenantContext(
   supabaseClient: any,
   preferredCompanyId?: number | null
@@ -149,9 +189,10 @@ export async function resolveTenantContext(
           const comp = m.company as Company | null;
           if (!comp || comp.activo === false) return;
           if (!accessibleMap.has(comp.id)) {
+            const role = (m.role as MembershipRole) || 'consultor_operador';
             accessibleMap.set(comp.id, {
-              company: comp,
-              membershipRole: (m.role as MembershipRole) || 'consultor_operador',
+              company: sanitizeCompanySecrets(comp, user.id, role) as Company,
+              membershipRole: role,
               canViewCommercial: Boolean(m.can_view_commercial),
               isOwner: comp.user_id === user.id,
             });
@@ -198,7 +239,12 @@ export async function resolveTenantContext(
     userEmail,
     activeCompanyId: activeCompany?.id ?? null,
     activeCompany,
-    companyIds: ownCompanies.map((c) => c.id),
+    companyIds: Array.from(
+      new Set([
+        ...ownCompanies.map((c) => c.id),
+        ...accessibleCompanies.map((a) => a.company.id),
+      ])
+    ),
     accessibleCompanies,
     perfilOperativo,
     activeModules,

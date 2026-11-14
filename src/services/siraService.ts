@@ -429,6 +429,26 @@ const normalizeHpCode = (hp: string): string => {
   return match ? `HP${match[1]}` : 'HP4';
 };
 
+const DESTINATION_TRANSFER_STATES = new Set([
+  'recepcionado',
+  'aceptado',
+  'rechazado_parcial',
+  'rechazado_total',
+  'tratado',
+]);
+
+const isDestinationDCSPhase = (doc: any): boolean => {
+  if (!doc) return false;
+  return (
+    doc.dcs_phase === 'D' ||
+    doc.dcs_phase === 'T' ||
+    DESTINATION_TRANSFER_STATES.has(String(doc.estado_traslado || '')) ||
+    Boolean(doc.resultado_recepcion) ||
+    Boolean(doc.fecha_recepcion) ||
+    Number(doc.peso_destino_kg) > 0
+  );
+};
+
 const generateResidueBlock = (doc: any): string => {
   const clean = (val: any) => val ? escapeXml(String(val)).trim() : '';
   const isDangerous = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
@@ -452,10 +472,16 @@ const generateResidueBlock = (doc: any): string => {
     ? `\n            <table5>${normalizeHpCode(doc.caracteristica_peligrosidad || doc.codigo_hp || doc.hp || '')}</table5>`
     : '';
 
-  const buildTables = (opCode: string) => `
+  const buildTables = (opCode: string) => {
+    const processBlock =
+      opCode.length >= 5
+        ? `\n            <process operationIdProcessCode="${opCode.slice(0, 5)}"/>`
+        : '';
+    return `
         <residueTables ${residueTablesType}>
-            <table2>${opCode.slice(0, 3)}</table2>${hpBlock}
+            <table2>${opCode.slice(0, 3)}</table2>${hpBlock}${processBlock}
         </residueTables>`;
+  };
 
   const residueTypeAttr = isDangerous
     ? 'xsi:type="wassup:dangerousResidueType"'
@@ -480,6 +506,37 @@ const generateResidueBlock = (doc: any): string => {
 
   const transporterData = generateTransporterContent(doc);
 
+  let acceptanceData = '';
+  if (isDestinationDCSPhase(doc)) {
+    const isRejected =
+      doc.estado_traslado === 'rechazado_total' ||
+      doc.resultado_recepcion === 'rechazado_total';
+    const acceptanceCode = isRejected ? '04' : '03';
+    const acceptanceDate = String(
+      doc.fecha_recepcion ||
+      doc.fecha_tratamiento ||
+      doc.fecha_recogida ||
+      doc.fecha_documento ||
+      new Date().toISOString().split('T')[0]
+    ).split('T')[0];
+    const deliveryDate = String(
+      doc.fecha_recogida ||
+      doc.fecha_recepcion ||
+      doc.fecha_documento ||
+      acceptanceDate
+    ).split('T')[0];
+    const refusedBlock = isRejected
+      ? `\n        <DCSRefusedAction>${doc.accion_rechazo === 'reenvio' ? 'Redelivery' : 'Return'}</DCSRefusedAction>\n        <DCSRefusedActionDate>${acceptanceDate}</DCSRefusedActionDate>`
+      : '';
+    acceptanceData = `
+    <DCSAcceptanceData>
+        <DCSRealQuantity>${formattedWeight}</DCSRealQuantity>
+        <DCSAcceptance>${acceptanceCode}</DCSAcceptance>
+        <DCSAcceptanceDate>${acceptanceDate}</DCSAcceptanceDate>${refusedBlock}
+        <DCSDeliveryDate>${deliveryDate}</DCSDeliveryDate>
+    </DCSAcceptanceData>`;
+  }
+
   return `
     <DCSResidueData>
         <DCSProducerResidueIdentification LERCode="${cleanLer}" ${residueTypeAttr}>
@@ -492,7 +549,7 @@ const generateResidueBlock = (doc: any): string => {
             ${buildTables(opEjecutada)}
         </DCSAdresseeResidueIdentification>
         
-        ${otherData}${transporterData}
+        ${otherData}${transporterData}${acceptanceData}
     </DCSResidueData>`;
 };
 
@@ -654,6 +711,7 @@ export const siraService = {
       (!ANDALUSIA_PROVINCE_CODES.has(prodProvCode) || !ANDALUSIA_PROVINCE_CODES.has(gestProvCode));
     const provNima = formatNima(doc.productor_nima || compData?.nima, prodProvCode);
     const dcsCode = formatDCSCode(cleanDocNum, provNima, doc.id);
+    const dcsPhase = doc.dcs_phase || (isDestinationDCSPhase(doc) ? 'D' : 'R');
 
     return `
 <wasteDCS 
@@ -661,7 +719,7 @@ export const siraService = {
     ${xmlnsCommon}
     ${xmlnsXsi}
     DCSCode="${dcsCode}"
-    DCSPhase="R"
+    DCSPhase="${dcsPhase}"
     DCSYear="${date.getFullYear()}"
     DCSDate="${formattedDate}"
     DCSStartDate="${doc.fecha_recogida || formattedDate}"

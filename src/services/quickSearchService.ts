@@ -4,6 +4,7 @@
 // =====================================================
 
 import { createClient } from '@/lib/supabase/client';
+import { getActiveCompanyCookie } from '@/services/tenantContextService';
 
 export type SearchCategory = 'contracts' | 'documents' | 'companies' | 'gestores' | 'carriers';
 
@@ -39,6 +40,10 @@ export async function getTenantContext(): Promise<TenantContext> {
     .eq('user_id', user.id);
 
   const companyIds = (userCompanies || []).map((c: { id: number }) => c.id);
+  const activeCompanyId = getActiveCompanyCookie();
+  if (activeCompanyId && !companyIds.includes(activeCompanyId)) {
+    companyIds.push(activeCompanyId);
+  }
 
   return {
     userId: user.id,

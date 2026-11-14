@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import { applyTenantScope } from './tenantContextService';
 import type { PriorNotification } from '@/types/wasteManagement';
 import {
   formatNima,
@@ -138,13 +139,14 @@ export const priorNotificationService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
-    const { data, error } = await supabase
+    const baseQuery = supabase
       .from('prior_notifications')
       .select(`
         *,
         company:companies(*)
-      `)
-      .eq('user_id', user.id)
+      `);
+
+    const { data, error } = await applyTenantScope(baseQuery, user.id)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -161,14 +163,15 @@ export const priorNotificationService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
-    const { data, error } = await supabase
+    const baseQuery = supabase
       .from('prior_notifications')
       .select(`
         *,
         company:companies(*)
       `)
-      .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('id', id);
+
+    const { data, error } = await applyTenantScope(baseQuery, user.id)
       .single();
 
     if (error || !data) {
@@ -473,7 +476,7 @@ export const priorNotificationService = {
                  <bagResidueId residueCode="999" residueDescription="${clean(nt.descripcion_residuo)}"/>
             </residueBag>
             <residueTables ${residueTablesType}>
-                <table2>${cleanOp.slice(0, 3)}</table2>${hpBlock}
+                <table2>${cleanOp.slice(0, 3)}</table2>${hpBlock}${cleanOp.length >= 5 ? `\n                <process operationIdProcessCode="${cleanOp.slice(0, 5)}"/>` : ''}
             </residueTables>
         </NTResidueIdentification>
         <NTOtherResidueData>

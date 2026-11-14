@@ -4,6 +4,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { auditService } from './auditService';
+import { applyTenantScope } from './tenantContextService';
 import {
   type ChronologicalEntry,
   type ChronologicalEntryFormData,
@@ -32,10 +33,12 @@ export async function getChronologicalEntries(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay usuario autenticado');
 
-  let query = supabase
-    .from('chronological_registry')
-    .select('*, production_center:production_centers(*)')
-    .eq('user_id', user.id)
+  let query = applyTenantScope(
+    supabase
+      .from('chronological_registry')
+      .select('*, production_center:production_centers(*)'),
+    user.id
+  )
     .order('fecha', { ascending: false })
     .order('id', { ascending: false });
 

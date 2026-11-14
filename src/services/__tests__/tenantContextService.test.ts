@@ -11,8 +11,10 @@ jest.mock('@/lib/supabase/client', () => ({
 
 import {
   ACTIVE_COMPANY_COOKIE,
+  applyTenantScope,
   getActiveCompanyCookie,
   resolveTenantContext,
+  sanitizeCompanySecrets,
   setActiveCompanyCookie,
   tenantContextService,
 } from '../tenantContextService';
@@ -266,6 +268,53 @@ describe('tenantContextService - Contexto Multi-Empresa, Perfiles y Permisos', (
       expect(ctx.userId).toBe('uid-resilient');
       expect(ctx.accessibleCompanies).toEqual([]);
       tenantContextService.setActiveCompany(null);
+    });
+  });
+
+  describe('sanitizeCompanySecrets y applyTenantScope', () => {
+    it('enmascara credenciales SIRA y Holded para usuarios delegados o rol lectura y las conserva para propietarios', () => {
+      expect(sanitizeCompanySecrets(null, 'u1')).toBeNull();
+
+      const comp: any = {
+        id: 20,
+        user_id: 'uid-owner',
+        razon_social: 'Cliente S.L.',
+        sira_password: 'mi-password-secreto',
+        holded_api_key: '1234567890abcdef',
+      };
+
+      // Propietario normal conserva credenciales
+      expect(sanitizeCompanySecrets(comp, 'uid-owner', 'owner')).toEqual(comp);
+
+      // Consultor / delegado ve credenciales enmascaradas
+      const maskedDelegated = sanitizeCompanySecrets(comp, 'uid-consultor', 'consultor_admin');
+      expect(maskedDelegated?.sira_password).toBe('••••••••');
+      expect(maskedDelegated?.holded_api_key).toBe('••••cdef');
+
+      // Rol lectura incluso si coincidiera user_id también enmascara
+      const maskedReadOnly = sanitizeCompanySecrets(comp, 'uid-owner', 'lectura');
+      expect(maskedReadOnly?.sira_password).toBe('••••••••');
+      expect(maskedReadOnly?.holded_api_key).toBe('••••cdef');
+
+      // Sin credenciales no introduce valores falsos
+      const emptyComp: any = { id: 21, user_id: 'uid-owner', sira_password: '', holded_api_key: '' };
+      expect(sanitizeCompanySecrets(emptyComp, 'uid-consultor', 'lectura')).toEqual(emptyComp);
+    });
+
+    it('aplica .or con empresa activa cuando está soportado o .eq(user_id) como fallback', () => {
+      const orMock = jest.fn().mockReturnValue('or-result');
+      const eqMock = jest.fn().mockReturnValue('eq-result');
+      const queryWithOr = { or: orMock, eq: eqMock };
+      const queryWithoutOr = { eq: eqMock };
+
+      expect(applyTenantScope(queryWithOr, 'u-1', 42)).toBe('or-result');
+      expect(orMock).toHaveBeenCalledWith('user_id.eq.u-1,company_id.eq.42');
+
+      expect(applyTenantScope(queryWithOr, 'u-1', null)).toBe('eq-result');
+      expect(eqMock).toHaveBeenCalledWith('user_id', 'u-1');
+
+      expect(applyTenantScope(queryWithoutOr, 'u-1', 42)).toBe('eq-result');
+      expect(eqMock).toHaveBeenCalledWith('user_id', 'u-1');
     });
   });
 });

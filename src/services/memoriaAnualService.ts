@@ -5,6 +5,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { auditService } from './auditService';
+import { applyTenantScope } from './tenantContextService';
 import {
   type MemoriaAnual,
   type EstadoMemoria,
@@ -176,10 +177,11 @@ export async function getAllMemorias(): Promise<MemoriaAnual[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay usuario autenticado');
 
-  const { data, error } = await supabase
+  const baseQuery = supabase
     .from('memorias_anuales')
-    .select('*, production_center:production_centers(*)')
-    .eq('user_id', user.id)
+    .select('*, production_center:production_centers(*)');
+
+  const { data, error } = await applyTenantScope(baseQuery, user.id)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -200,11 +202,12 @@ export async function getMemoriaById(id: number): Promise<MemoriaAnual | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay usuario autenticado');
 
-  const { data, error } = await supabase
+  const baseQuery = supabase
     .from('memorias_anuales')
     .select('*')
-    .eq('id', id)
-    .eq('user_id', user.id)
+    .eq('id', id);
+
+  const { data, error } = await applyTenantScope(baseQuery, user.id)
     .single();
 
   if (error) {

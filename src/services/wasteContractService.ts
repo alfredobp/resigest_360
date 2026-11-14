@@ -5,6 +5,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { auditService } from './auditService';
+import { getActiveCompanyCookie } from './tenantContextService';
 import type {
   WasteContract,
   WasteContractFormData,
@@ -88,6 +89,10 @@ async function getTenantContext() {
     .eq('user_id', user.id);
 
   const companyIds = (userCompanies || []).map((c) => c.id);
+  const activeCompanyId = getActiveCompanyCookie();
+  if (activeCompanyId && !companyIds.includes(activeCompanyId)) {
+    companyIds.push(activeCompanyId);
+  }
 
   return {
     userId: user.id,

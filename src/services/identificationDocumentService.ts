@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { syncEntryFromDI } from '@/services/chronologicalRegistryService';
 import { auditService } from '@/services/auditService';
 import { authorizationService } from '@/services/authorizationService';
+import { applyTenantScope } from '@/services/tenantContextService';
 import type {
   IdentificationDocument,
   EstadoTraslado,
@@ -207,7 +208,7 @@ export const identificationDocumentService = {
       throw new Error('Usuario no autenticado');
     }
 
-    const { data, error } = await supabase
+    const baseQuery = supabase
       .from('identification_documents')
       .select(`
         *,
@@ -215,8 +216,9 @@ export const identificationDocumentService = {
         production_center:production_centers(*),
         contract:waste_contracts(*),
         waste_type:waste_types(*)
-      `)
-      .eq('user_id', user.id)
+      `);
+
+    const { data, error } = await applyTenantScope(baseQuery, user.id)
       .order('fecha_documento', { ascending: false });
 
     if (error) {
@@ -235,7 +237,7 @@ export const identificationDocumentService = {
       throw new Error('Usuario no autenticado');
     }
 
-    const { data, error } = await supabase
+    const baseQuery = supabase
       .from('identification_documents')
       .select(`
         *,
@@ -244,8 +246,9 @@ export const identificationDocumentService = {
         contract:waste_contracts(*),
         waste_type:waste_types(*)
       `)
-      .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('id', id);
+
+    const { data, error } = await applyTenantScope(baseQuery, user.id)
       .single();
 
     if (error) {

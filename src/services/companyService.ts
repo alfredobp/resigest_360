@@ -4,7 +4,11 @@
 // =====================================================
 
 import { createClient } from '@/lib/supabase/client';
-import { getActiveCompanyCookie, setActiveCompanyCookie } from '@/services/tenantContextService';
+import {
+  getActiveCompanyCookie,
+  sanitizeCompanySecrets,
+  setActiveCompanyCookie,
+} from '@/services/tenantContextService';
 import { auditService } from './auditService';
 import type { Company, CompanyFormData } from '@/types/wasteManagement';
 
@@ -100,7 +104,7 @@ export const companyService = {
         .maybeSingle();
 
       if (!memberErr && memberComp) {
-        return memberComp as Company;
+        return sanitizeCompanySecrets(memberComp as Company, user.id);
       }
     }
 

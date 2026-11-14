@@ -198,9 +198,52 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
         cantidad: 2,
       });
 
+      expect(xml).toContain('DCSPhase="R"');
       expect(xml).toContain('DCSRegional="N"');
       expect(xml).toContain('DCSSendtoOriginOrDestinationAuthority="S"');
       expect(xml).toContain('<table2>R12</table2>');
+      expect(xml).toContain('<process operationIdProcessCode="R1201"/>');
+    });
+
+    it('debe emitir DCSPhase="D" y <DCSAcceptanceData> al aceptar o rechazar en destino', () => {
+      const acceptedXml = siraService.generateDIXml({
+        numero_documento: 'DI-DEST-001',
+        fecha_documento: '2026-11-10',
+        fecha_recogida: '2026-11-11',
+        fecha_recepcion: '2026-11-12',
+        estado_traslado: 'aceptado',
+        resultado_recepcion: 'aceptado',
+        peso_destino_kg: 1850,
+        codigo_ler: '17 04 05',
+        peligrosidad: 'no-peligroso',
+        operacion_tratamiento: 'R1201',
+      });
+
+      expect(acceptedXml).toContain('DCSPhase="D"');
+      expect(acceptedXml).toContain('<DCSAcceptanceData>');
+      expect(acceptedXml).toContain('<DCSRealQuantity>1850.000</DCSRealQuantity>');
+      expect(acceptedXml).toContain('<DCSAcceptance>03</DCSAcceptance>');
+      expect(acceptedXml).toContain('<DCSAcceptanceDate>2026-11-12</DCSAcceptanceDate>');
+      expect(acceptedXml).toContain('<DCSDeliveryDate>2026-11-11</DCSDeliveryDate>');
+      expect(acceptedXml).not.toContain('<DCSRefusedAction>');
+
+      const rejectedXml = siraService.generateDIXml({
+        numero_documento: 'DI-DEST-002',
+        fecha_documento: '2026-11-10',
+        fecha_recepcion: '2026-11-13',
+        estado_traslado: 'rechazado_total',
+        resultado_recepcion: 'rechazado_total',
+        accion_rechazo: 'reenvio',
+        peso_destino_kg: 500,
+        codigo_ler: '15 01 10*',
+        peligrosidad: 'peligroso',
+        operacion_tratamiento: 'R13',
+      });
+
+      expect(rejectedXml).toContain('DCSPhase="D"');
+      expect(rejectedXml).toContain('<DCSAcceptance>04</DCSAcceptance>');
+      expect(rejectedXml).toContain('<DCSRefusedAction>Redelivery</DCSRefusedAction>');
+      expect(rejectedXml).toContain('<DCSRefusedActionDate>2026-11-13</DCSRefusedActionDate>');
     });
   });
 
