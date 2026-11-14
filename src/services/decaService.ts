@@ -304,7 +304,10 @@ export const decaService = {
       matricula_remolque?: string;
     }
   ): Promise<DecaDocument> {
-    const pesoKg = di.unidad === 'toneladas' ? di.cantidad * 1000 : di.cantidad;
+    const pesoKg =
+      di.peso_destino_kg ||
+      di.peso_origen_kg ||
+      ((di.unidad === 'toneladas' || di.unidad === 'm3') ? di.cantidad * 1000 : di.cantidad);
 
     const formData: DecaFormData = {
       identification_document_id: di.id,
@@ -423,6 +426,15 @@ export const decaService = {
     }
 
     if (error) {
+      try {
+        await supabase
+          .from('deca_documents')
+          .update({ is_vigente: true, updated_at: currentDeca.updated_at || new Date().toISOString() })
+          .eq('id', currentDeca.id)
+          .eq('user_id', user.id);
+      } catch {
+        // Best-effort rollback si falla la inserción de la nueva versión
+      }
       throw new Error(`Error al versionar DeCA: ${error.message}`);
     }
 

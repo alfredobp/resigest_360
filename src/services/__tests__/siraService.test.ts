@@ -445,6 +445,21 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       expect(xml).toContain('</waste>');
       expect(xml).toContain('</e3l>');
     });
+
+    it('debe convertir toneladas o m3 a kg en DCSClearWeight cuando no hay peso de báscula', () => {
+      const mockDocTonnes = {
+        id: 2,
+        numero_documento: 'DI-2026-00002',
+        codigo_ler: '15 01 01',
+        descripcion_residuo: 'Envases',
+        cantidad: 2.5,
+        unidad: 'toneladas',
+        operacion_tratamiento: 'R03',
+      } as any;
+
+      const xml = siraService.generateE3LMessage(mockDocTonnes);
+      expect(xml).toContain('<DCSClearWeight>2500.000</DCSClearWeight>');
+    });
   });
 
   describe('downloadXmlFile', () => {

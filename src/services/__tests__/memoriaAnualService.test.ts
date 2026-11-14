@@ -78,6 +78,11 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
       const doc = { cantidad: 3.25, unidad: 'toneladas' } as IdentificationDocument;
       expect(getEffectiveWeightTonnes(doc)).toBe(3.25);
     });
+
+    it('debe convertir a toneladas cuando la unidad es litros o unidades', () => {
+      expect(getEffectiveWeightTonnes({ cantidad: 500, unidad: 'litros' } as IdentificationDocument)).toBe(0.5);
+      expect(getEffectiveWeightTonnes({ cantidad: 250, unidad: 'unidades' } as IdentificationDocument)).toBe(0.25);
+    });
   });
 
   describe('createMemoria', () => {

@@ -161,25 +161,20 @@ export async function getChronologicalStats(
 }
 
 // =====================================================
-// CREAR ASIENTO MANUAL
+// GENERADOR CORRELATIVO UNIFICADO DE ASIENTOS
 // =====================================================
-export async function createChronologicalEntry(
-  data: ChronologicalEntryFormData
-): Promise<ChronologicalEntry> {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('No hay usuario autenticado');
-
-  const fechaObj = new Date(data.fecha || new Date());
-  const year = isNaN(fechaObj.getFullYear()) ? new Date().getFullYear() : fechaObj.getFullYear();
-
-  // Generar número de asiento correlativo evitando colisiones tras borrados o sincronizaciones
+async function getNextChronologicalAsientoNumber(
+  supabase: any,
+  userId: string,
+  year: number,
+  fallbackSeq = 1
+): Promise<string> {
   const { data: existingEntries, count } = await supabase
     .from('chronological_registry')
     .select('id, numero_asiento', { count: 'exact' })
-    .eq('user_id', user.id);
+    .eq('user_id', userId);
 
-  let maxSeq = count || 0;
+  let maxSeq = typeof count === 'number' ? count : 0;
   if (Array.isArray(existingEntries)) {
     for (const item of existingEntries) {
       const match = item.numero_asiento?.match(/-(\d+)$/);
@@ -192,8 +187,25 @@ export async function createChronologicalEntry(
     }
   }
 
-  const nextSeq = maxSeq + 1;
-  const numero_asiento = `AS-${year}-${String(nextSeq).padStart(6, '0')}`;
+  const hasQueryStats = typeof count === 'number' || Array.isArray(existingEntries);
+  const nextSeq = hasQueryStats ? maxSeq + 1 : Math.max(1, fallbackSeq);
+  return `AS-${year}-${String(nextSeq).padStart(6, '0')}`;
+}
+
+// =====================================================
+// CREAR ASIENTO MANUAL
+// =====================================================
+export async function createChronologicalEntry(
+  data: ChronologicalEntryFormData
+): Promise<ChronologicalEntry> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay usuario autenticado');
+
+  const fechaObj = new Date(data.fecha || new Date());
+  const year = isNaN(fechaObj.getFullYear()) ? new Date().getFullYear() : fechaObj.getFullYear();
+
+  const numero_asiento = await getNextChronologicalAsientoNumber(supabase, user.id, year, 1);
 
   const payload = {
     ...data,
@@ -246,21 +258,22 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Verificar si ya existe registro para este DI
+  // Verificar si ya existe registro para este DI en la cuenta del usuario
   const { data: existing } = await supabase
     .from('chronological_registry')
     .select('id')
     .eq('identification_document_id', di.id)
+    .eq('user_id', user.id)
     .maybeSingle();
 
-  // Peso verificado con preferencia de báscula de destino y conversión según unidad
+  // Peso verificado con preferencia de báscula de destino y conversión homogénea según unidad
   const rawCantidad = Number(di.cantidad) || 0;
-  const cantidadEnKg = di.unidad === 'kg' ? rawCantidad : rawCantidad * 1000;
+  const isTonnesOrM3 = !di.unidad || di.unidad === 'toneladas' || di.unidad === 'm3';
+  const cantidadEnKg = isTonnesOrM3 ? rawCantidad * 1000 : rawCantidad;
   const cantidadKg = Number(di.peso_destino_kg) || Number(di.peso_origen_kg) || cantidadEnKg;
   const fechaAsiento = di.fecha_entrega || di.fecha_salida || di.fecha_documento || new Date().toISOString().split('T')[0];
 
   const year = new Date(fechaAsiento).getFullYear();
-  const numero_asiento = `AS-${year}-${String(di.id).padStart(6, '0')}`;
 
   // Detectar si la empresa actual actúa como Gestor Receptora o Productor
   let isGestor = false;
@@ -332,16 +345,22 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
 
     if (error) console.error('Error al actualizar asiento desde DI:', error);
     return updated;
-  } 
-    const { data: created, error } = await supabase
-      .from('chronological_registry')
-      .insert([{ ...payload, numero_asiento }])
-      .select()
-      .single();
+  }
 
-    if (error) console.error('Error al crear asiento desde DI:', error);
-    return created;
-  
+  const numero_asiento = await getNextChronologicalAsientoNumber(
+    supabase,
+    user.id,
+    year,
+    Number(di.id) || 1
+  );
+  const { data: created, error } = await supabase
+    .from('chronological_registry')
+    .insert([{ ...payload, numero_asiento }])
+    .select()
+    .single();
+
+  if (error) console.error('Error al crear asiento desde DI:', error);
+  return created;
 }
 
 // =====================================================

@@ -538,7 +538,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       expect(result.numero_deca).toBe('DECA-2026-00001-v2');
     });
 
-    it('debe lanzar error si la inserción de la nueva versión falla definitivamente', async () => {
+    it('debe lanzar error si la inserción de la nueva versión falla definitivamente y revertir is_vigente', async () => {
       mockSupabase.auth.getUser.mockResolvedValue({
         data: { user: { id: 'user-deca-1' } },
       });
@@ -548,11 +548,14 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
         error: { message: 'Fatal database error on insert version' },
       });
       const selectMock = jest.fn().mockReturnValue({ single: insertFailMock });
+      const updateMock = jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }),
+      });
 
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === 'deca_documents') {
           return {
-            update: jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }) }),
+            update: updateMock,
             insert: jest.fn().mockReturnValue({ select: selectMock }),
           };
         }
@@ -562,6 +565,16 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       await expect(
         decaService.createNewVersion(currentDeca, {}, 'Error forzado')
       ).rejects.toThrow('Error al versionar DeCA: Fatal database error on insert version');
+
+      expect(updateMock).toHaveBeenCalledTimes(2);
+      expect(updateMock).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ is_vigente: false })
+      );
+      expect(updateMock).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ is_vigente: true })
+      );
     });
   });
 

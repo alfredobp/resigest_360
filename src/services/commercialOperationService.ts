@@ -322,9 +322,22 @@ export const commercialOperationService = {
       updated_at: new Date().toISOString()
     };
 
-    // Recalcular rentabilidad solo si se proporcionan campos económicos o de cantidad
+    // Recalcular rentabilidad solo si se proporcionan campos económicos o de cantidad,
+    // fusionando previamente con los valores persistidos para no sobrescribir precios con 0.
     if (hasFinancialFields) {
-      const profitability = calculateProfitability(data);
+      const existing = await this.getById(id);
+      const mergedFinancialData: Partial<CommercialOperationFormData> = {
+        cantidad_estimada_t: existing?.cantidad_estimada_t,
+        cantidad_real_t: existing?.cantidad_real_t ?? undefined,
+        tipo_precio_compra: existing?.tipo_precio_compra,
+        precio_unitario_compra: existing?.precio_unitario_compra,
+        tipo_precio_venta: existing?.tipo_precio_venta,
+        precio_unitario_venta: existing?.precio_unitario_venta,
+        coste_transporte: existing?.coste_transporte,
+        otros_costes: existing?.otros_costes,
+        ...data,
+      };
+      const profitability = calculateProfitability(mergedFinancialData);
       payload.coste_compra_total = profitability.coste_compra_total;
       payload.ingreso_venta_total = profitability.ingreso_venta_total;
       payload.coste_transporte = profitability.coste_transporte;

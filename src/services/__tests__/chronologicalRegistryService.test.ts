@@ -699,6 +699,76 @@ describe('chronologicalRegistryService - Archivo Cronológico (Art. 64 Ley 7/202
         }),
       ]);
     });
+
+    it('syncEntryFromDI no multiplica litros/unidades pero sí m3 y unifica correlativo cuando hay asientos previos', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      let selectCall = 0;
+      const existingChain: any = {
+        select: jest.fn(() => {
+          selectCall++;
+          if (selectCall === 1) {
+            return {
+              eq: jest.fn().mockReturnValue({
+                eq: jest.fn().mockReturnValue({
+                  maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+              }),
+            };
+          }
+          if (selectCall === 2) {
+            return {
+              eq: jest.fn().mockResolvedValue({
+                count: 4,
+                data: [{ id: 10, numero_asiento: 'AS-2025-000012' }],
+                error: null,
+              }),
+            };
+          }
+          return existingChain;
+        }),
+        insert: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({
+          data: { id: 506, numero_asiento: 'AS-2025-000013', cantidad_kg: 300 },
+          error: null,
+        }),
+      };
+
+      mockSupabase.from.mockReturnValue(existingChain);
+
+      const resLitros = await syncEntryFromDI({
+        id: 206,
+        numero_documento: 'DI-206',
+        cantidad: 300,
+        unidad: 'litros',
+        codigo_ler: '13 02 05*',
+        fecha_documento: '2025-05-01',
+      } as IdentificationDocument);
+
+      expect(resLitros?.numero_asiento).toBe('AS-2025-000013');
+      expect(existingChain.insert).toHaveBeenCalledWith([
+        expect.objectContaining({
+          numero_asiento: 'AS-2025-000013',
+          cantidad_kg: 300,
+        }),
+      ]);
+
+      selectCall = 0;
+      await syncEntryFromDI({
+        id: 207,
+        numero_documento: 'DI-207',
+        cantidad: 2,
+        unidad: 'm3',
+        codigo_ler: '15 01 01',
+        fecha_documento: '2025-05-02',
+      } as IdentificationDocument);
+
+      expect(existingChain.insert).toHaveBeenLastCalledWith([
+        expect.objectContaining({
+          cantidad_kg: 2000,
+        }),
+      ]);
+    });
   });
 
   describe('Exportaciones CSV y Excel XML', () => {

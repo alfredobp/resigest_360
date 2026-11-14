@@ -434,7 +434,9 @@ const generateResidueBlock = (doc: any): string => {
   const rawNt = clean(doc.numero_notificacion || doc.nt_codigo || doc.notificacion_previa_codigo || '');
   const dcsNt = /^NT[0-9]{23,24}$/.test(rawNt) ? rawNt : 'NT' + '9'.repeat(23);
 
-  const rawWeight = Number(doc.peso_destino_kg || doc.peso_origen_kg || doc.cantidad || 0);
+  const fallbackQty = Number(doc.cantidad || 0);
+  const fallbackKg = (doc.unidad === 'toneladas' || doc.unidad === 'm3') ? fallbackQty * 1000 : fallbackQty;
+  const rawWeight = Number(doc.peso_destino_kg || doc.peso_origen_kg || fallbackKg || 0);
   const formattedWeight = !isNaN(rawWeight) && rawWeight > 0 ? rawWeight.toFixed(3) : '0.001';
 
   const otherData = `

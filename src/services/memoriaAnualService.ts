@@ -356,7 +356,7 @@ export function getEffectiveWeightTonnes(doc: IdentificationDocument): number {
   if (doc.peso_origen_kg && doc.peso_origen_kg > 0) {
     return Number((Number(doc.peso_origen_kg) / 1000).toFixed(3));
   }
-  if (doc.unidad === 'kg') {
+  if (doc.unidad === 'kg' || doc.unidad === 'litros' || doc.unidad === 'unidades') {
     return Number(((Number(doc.cantidad) || 0) / 1000).toFixed(3));
   }
   return Number((Number(doc.cantidad) || 0).toFixed(3));

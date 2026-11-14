@@ -692,7 +692,10 @@ export const identificationDocumentService = {
       firma_gestor_url = await this.uploadSignatureImage(id, 'gestor', signatureBase64);
     }
 
-    const pesoOrigen = doc.peso_origen_kg || (doc.unidad === 'toneladas' ? doc.cantidad * 1000 : doc.cantidad) || 0;
+    const pesoOrigen =
+      doc.peso_origen_kg ||
+      ((doc.unidad === 'toneladas' || doc.unidad === 'm3') ? doc.cantidad * 1000 : doc.cantidad) ||
+      0;
     const pesoDestino = payload.peso_destino_kg;
     const diferencia = pesoDestino - pesoOrigen;
     const porcentaje = pesoOrigen > 0 ? (diferencia / pesoOrigen) * 100 : 0;

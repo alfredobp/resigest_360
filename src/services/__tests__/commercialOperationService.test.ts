@@ -362,6 +362,52 @@ describe('commercialOperationService - Operaciones Comerciales', () => {
       expect(updateChain.eq).toHaveBeenCalledWith('user_id', mockUser.id);
     });
 
+    it('debe fusionar precios existentes cuando solo se actualiza cantidad_real_t tras el pesaje en báscula', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      const getByIdSpy = jest.spyOn(commercialOperationService, 'getById').mockResolvedValue({
+        id: 10,
+        cantidad_estimada_t: 10,
+        cantidad_real_t: 0,
+        tipo_precio_compra: 'por_tonelada',
+        precio_unitario_compra: 40,
+        tipo_precio_venta: 'por_tonelada',
+        precio_unitario_venta: 110,
+        coste_transporte: 60,
+        otros_costes: 0,
+      } as any);
+
+      const updateChain = {
+        update: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({
+          data: {
+            id: 10,
+            cantidad_real_t: 8,
+            coste_compra_total: 320,
+            ingreso_venta_total: 880,
+            margen_bruto_total: 500,
+          },
+          error: null,
+        }),
+      };
+      mockSupabase.from.mockReturnValue(updateChain);
+
+      const res = await commercialOperationService.update(10, { cantidad_real_t: 8 });
+
+      expect(getByIdSpy).toHaveBeenCalledWith(10);
+      expect(updateChain.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cantidad_real_t: 8,
+          coste_compra_total: 320,
+          ingreso_venta_total: 880,
+          margen_bruto_total: 500,
+        })
+      );
+      expect(res.margen_bruto_total).toBe(500);
+      getByIdSpy.mockRestore();
+    });
+
     it('no debe sobrescribir campos económicos con cero cuando solo se actualiza el estado', async () => {
       mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const updateChain = {
