@@ -399,9 +399,8 @@ export default function NuevoContratoModal({
                 name="tipo_contrato"
                 value={formData.tipo_contrato}
                 onChange={handleChange}
-                className={`h-11 w-full appearance-none rounded-lg border bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:bg-dark dark:focus:border-primary ${
-                  fieldErrors.tipo_contrato ? 'border-error-500' : 'border-stroke dark:border-strokedark'
-                }`}
+                className={`h-11 w-full appearance-none rounded-lg border bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:bg-dark dark:focus:border-primary ${fieldErrors.tipo_contrato ? 'border-error-500' : 'border-stroke dark:border-strokedark'
+                  }`}
               >
                 {TIPOS_CONTRATO.map((tipo) => (
                   <option key={tipo.value} value={tipo.value}>
@@ -759,9 +758,8 @@ export default function NuevoContratoModal({
                       });
                       clearFieldError(`op_${idx}`);
                     }}
-                    className={`h-10 w-full px-3 text-sm rounded-lg border bg-white dark:bg-dark shadow-xs focus:border-primary ${
-                      fieldErrors[`op_${idx}`] ? 'border-error-500' : 'border-stroke'
-                    }`}
+                    className={`h-10 w-full px-3 text-sm rounded-lg border bg-white dark:bg-dark shadow-xs focus:border-primary ${fieldErrors[`op_${idx}`] ? 'border-error-500' : 'border-stroke'
+                      }`}
                   />
                   {fieldErrors[`op_${idx}`] && (
                     <p className="mt-1 text-xs text-error-500 font-medium flex items-center gap-1">

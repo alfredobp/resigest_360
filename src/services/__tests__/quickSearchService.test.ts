@@ -77,6 +77,15 @@ describe('quickSearchService - Servicio de búsqueda global multi-tenant', () =>
       expect(await quickSearchService.searchRecords('   ')).toEqual([]);
       expect(await quickSearchService.searchRecords('a')).toEqual([]);
       expect(mockSupabase.auth.getUser).not.toHaveBeenCalled();
+
+      mockSupabase.auth.getUser.mockResolvedValueOnce({
+        data: { user: { id: 'user-search-sanitized' } },
+      });
+      mockSupabase.from.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockResolvedValueOnce({ data: [] }),
+      });
+      expect(await quickSearchService.searchRecords('(%a),')).toEqual([]);
     });
 
     it('debe realizar búsquedas paralelas y formatear resultados cuando el usuario tiene empresas asociadas', async () => {

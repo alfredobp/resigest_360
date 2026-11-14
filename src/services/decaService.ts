@@ -81,6 +81,17 @@ export const decaService = {
   async getByToken(token: string): Promise<DecaDocument | null> {
     if (!token) return null;
 
+    if (typeof (supabase as any).rpc === 'function') {
+      const rpcRes = await (supabase as any).rpc('get_deca_by_token', { p_token: token });
+      if (rpcRes && !rpcRes.error) {
+        const doc = Array.isArray(rpcRes.data) ? rpcRes.data[0] : rpcRes.data;
+        if (!doc) {
+          console.warn('[DeCA Service] No se encontró fila en deca_documents para el token:', token);
+        }
+        return (doc || null) as DecaDocument | null;
+      }
+    }
+
     const { data, error } = await supabase
       .from('deca_documents')
       .select('*')
@@ -105,11 +116,19 @@ export const decaService = {
   async getByIdentificationDocument(diId: number): Promise<DecaDocument[]> {
     if (!diId) return [];
 
-    const { data, error } = await supabase
+    const authRes = await supabase.auth.getUser();
+    const user = authRes?.data?.user;
+
+    let query = supabase
       .from('deca_documents')
       .select('*')
-      .eq('identification_document_id', diId)
-      .order('version', { ascending: false });
+      .eq('identification_document_id', diId);
+
+    if (user?.id) {
+      query = query.eq('user_id', user.id);
+    }
+
+    const { data, error } = await query.order('version', { ascending: false });
 
     if (error) {
       console.error('[DeCA Service] Error al consultar DeCA por DI:', error.message);
@@ -128,11 +147,17 @@ export const decaService = {
 
     const baseNumero = (currentDoc.numero_deca || '').replace(/-v\d+$/, '');
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('deca_documents')
       .select('*')
       .ilike('numero_deca', `${baseNumero}%`)
-      .eq('is_vigente', true)
+      .eq('is_vigente', true);
+
+    if (currentDoc.user_id) {
+      query = query.eq('user_id', currentDoc.user_id);
+    }
+
+    const { data, error } = await query
       .order('version', { ascending: false })
       .limit(1)
       .maybeSingle();

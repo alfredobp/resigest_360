@@ -269,6 +269,8 @@ export const wasteContractService = {
    */
   async search(query: string): Promise<WasteContract[]> {
     const { userId, companyIds } = await getTenantContext();
+    const safeQuery = query.replace(/[%_(),]/g, '').trim();
+    if (!safeQuery) return [];
 
     let dbQuery = supabase
       .from('waste_contracts')
@@ -278,7 +280,7 @@ export const wasteContractService = {
         gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
         treatment_manager:treatment_managers(*)
       `)
-      .or(`numero_contrato.ilike.%${query}%,descripcion_residuos.ilike.%${query}%`);
+      .or(`numero_contrato.ilike.%${safeQuery}%,descripcion_residuos.ilike.%${safeQuery}%`);
 
     if (companyIds.length > 0) {
       dbQuery = dbQuery.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')}),gestor_company_id.in.(${companyIds.join(',')})`);

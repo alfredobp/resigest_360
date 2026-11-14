@@ -203,7 +203,8 @@ export async function POST(req: NextRequest) {
         const hasFault = responseText.includes('<soapenv:Fault>') || responseText.includes('<resultWrong');
         const matchId = responseText.match(/<IdSira>(.*?)<\/IdSira>/);
         const extractedSiraId = matchId ? matchId[1] : null;
-        const isTestModeCensusPass = siraResponse.ok && isSiraTestModeCensusOnlyError(responseText);
+        const allowTestCensus = process.env.SIRA_ALLOW_TEST_CENSUS !== 'false';
+        const isTestModeCensusPass = allowTestCensus && siraResponse.ok && isSiraTestModeCensusOnlyError(responseText);
 
         if (!siraResponse.ok || (!isTestModeCensusPass && (hasFault || !extractedSiraId))) {
             console.error('SIRA API Error/Fault:', responseText);

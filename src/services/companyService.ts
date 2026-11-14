@@ -249,7 +249,7 @@ export const companyService = {
    */
   async search(query: string): Promise<Company[]> {
     const { data: { user } } = await supabase.auth.getUser();
-    const cleanQuery = query.trim();
+    const cleanQuery = query.replace(/[%_(),]/g, '').trim();
     if (!cleanQuery) return this.getAllContacts();
 
     let req = supabase

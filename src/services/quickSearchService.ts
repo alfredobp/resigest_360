@@ -57,7 +57,10 @@ export const quickSearchService = {
     }
 
     const { userId, companyIds } = await getTenantContext();
-    const safeQuery = query.replace(/[%_]/g, '');
+    const safeQuery = query.replace(/[%_(),]/g, '').trim();
+    if (!safeQuery || safeQuery.length < 2) {
+      return [];
+    }
 
     const results: SearchRecordItem[] = [];
 

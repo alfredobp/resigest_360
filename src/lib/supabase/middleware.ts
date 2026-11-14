@@ -3,8 +3,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { canAccessPath, getRequiredModuleForPath } from '@/lib/profiles/moduleCatalog'
 import { ACTIVE_COMPANY_COOKIE, resolveTenantContext } from '@/services/tenantContextService'
 
-// Rutas API accesibles sin sesión (formulario comercial, descarga de inspección DeCA y acceso demo si está habilitado)
-export const PUBLIC_API_PREFIXES = ['/api/contact', '/api/deca/', '/api/demo/']
+// Rutas API accesibles sin sesión (formulario comercial, descarga de inspección DeCA, firma pública DI y acceso demo si está habilitado)
+export const PUBLIC_API_PREFIXES = ['/api/contact', '/api/deca/', '/api/demo/', '/api/public/']
 
 export function isDemoAccessEnabled(): boolean {
   return process.env.ENABLE_DEMO_ACCESS === 'true' || process.env.NEXT_PUBLIC_ENABLE_DEMO_ACCESS === 'true'

@@ -48,7 +48,7 @@ describe('adminPlatformService - Administración y Auditoría de Plataforma', ()
 
   describe('checkIsAdmin', () => {
     it('debe retornar true si el email está en la lista de administradores predefinidos', async () => {
-      const isAdmin = await adminPlatformService.checkIsAdmin('demo@resigest.com', 'user-123');
+      const isAdmin = await adminPlatformService.checkIsAdmin('alfredobape@gmail.com', 'user-123');
       expect(isAdmin).toBe(true);
     });
 

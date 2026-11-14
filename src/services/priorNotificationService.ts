@@ -162,10 +162,19 @@ export const priorNotificationService = {
       throw new Error('Falta el ID de empresa para asociar la Notificación Previa');
     }
 
+    const numeroNotificacion =
+      notificationData.numero_notificacion && String(notificationData.numero_notificacion).trim().length > 0
+        ? String(notificationData.numero_notificacion).trim()
+        : formatNTCode(
+            undefined,
+            notificationData.productor_nima || notificationData.operador_nima || ''
+          );
+
     const { data, error } = await supabase
       .from('prior_notifications')
       .insert({
         ...notificationData,
+        numero_notificacion: numeroNotificacion,
         user_id: user.id,
       })
       .select()

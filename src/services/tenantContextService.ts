@@ -40,7 +40,6 @@ export interface FullTenantContext {
 
 const ADMIN_EMAILS = [
   'alfredobape@gmail.com',
-  'demo@resigest.com',
   process.env.NEXT_PUBLIC_ADMIN_EMAIL || '',
   process.env.NOTIFICATION_ADMIN_EMAIL || '',
 ]
@@ -179,10 +178,10 @@ export async function resolveTenantContext(
 
   const perfilOperativo: OperationalProfile = activeCompany
     ? normalizeOperationalProfile(
-        activeCompany.perfil_operativo,
-        activeCompany.tipo_empresa,
-        activeCompany.roles
-      )
+      activeCompany.perfil_operativo,
+      activeCompany.tipo_empresa,
+      activeCompany.roles
+    )
     : 'productor';
 
   const activeModules = activeCompany

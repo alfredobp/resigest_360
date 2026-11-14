@@ -3,9 +3,9 @@
 // ==============================================================================
 
 import { createClient } from '@/lib/supabase/client';
-import type { 
-  PlatformOverviewStats, 
-  PlatformCompanyRecord, 
+import type {
+  PlatformOverviewStats,
+  PlatformCompanyRecord,
   CompanyAuditDetail,
   Company,
   ProductionCenter,
@@ -16,7 +16,6 @@ import type {
 
 const ADMIN_EMAILS = [
   'alfredobape@gmail.com',
-  'demo@resigest.com',
   process.env.NEXT_PUBLIC_ADMIN_EMAIL || '',
   process.env.NOTIFICATION_ADMIN_EMAIL || ''
 ].filter(Boolean).map(e => e.toLowerCase().trim());
@@ -228,7 +227,7 @@ export const adminPlatformService = {
     // 5. Filtrar por búsqueda si aplica
     if (params?.search && params.search.trim()) {
       const q = params.search.toLowerCase().trim();
-      records = records.filter(c => 
+      records = records.filter(c =>
         (c.razon_social && c.razon_social.toLowerCase().includes(q)) ||
         (c.nombre_comercial && c.nombre_comercial.toLowerCase().includes(q)) ||
         (c.cif && c.cif.toLowerCase().includes(q)) ||
@@ -242,8 +241,8 @@ export const adminPlatformService = {
     // 6. Filtrar por rol si aplica
     if (params?.role && params.role !== 'all') {
       records = records.filter(c => {
-        const roles = Array.isArray(c.roles) && c.roles.length > 0 
-          ? c.roles 
+        const roles = Array.isArray(c.roles) && c.roles.length > 0
+          ? c.roles
           : (c.tipo_empresa ? [c.tipo_empresa] : ['productor']);
         return roles.includes(params.role as CompanyRole);
       });
@@ -383,7 +382,7 @@ export const adminPlatformService = {
       c.created_at ? new Date(c.created_at).toLocaleDateString('es-ES') : ''
     ]);
 
-    const csvContent = `\uFEFF${  [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n')}`;
+    const csvContent = `\uFEFF${[headers.join(';'), ...rows.map(r => r.join(';'))].join('\n')}`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -399,7 +398,7 @@ export const adminPlatformService = {
    * Exportar el expediente y datos completos de una empresa a JSON estructurado
    */
   exportCompanyDataJSON(detail: CompanyAuditDetail): void {
-    const dataStr = `data:text/json;charset=utf-8,${  encodeURIComponent(JSON.stringify(detail, null, 2))}`;
+    const dataStr = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(detail, null, 2))}`;
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute('href', dataStr);
     const sanitizedName = (detail.company.razon_social || 'empresa').toLowerCase().replace(/[^a-z0-9]/g, '_');

@@ -37,6 +37,7 @@ describe('Supabase Middleware updateSession', () => {
   it('debe exportar los prefijos publicos de API esperados', () => {
     expect(PUBLIC_API_PREFIXES).toContain('/api/contact');
     expect(PUBLIC_API_PREFIXES).toContain('/api/deca/');
+    expect(PUBLIC_API_PREFIXES).toContain('/api/public/');
   });
 
   it('debe continuar sin crear cliente si faltan variables de entorno de Supabase', async () => {
@@ -72,6 +73,10 @@ describe('Supabase Middleware updateSession', () => {
     const decaReq = new NextRequest('https://resigest360.com/api/deca/token-123');
     const decaRes = await updateSession(decaReq);
     expect(decaRes.status).toBe(200);
+
+    const publicDiReq = new NextRequest('https://resigest360.com/api/public/sign-di');
+    const publicDiRes = await updateSession(publicDiReq);
+    expect(publicDiRes.status).toBe(200);
   });
 
   it('debe redirigir a /signin con redirectedFrom cuando un usuario no autenticado accede a ruta privada', async () => {

@@ -291,6 +291,25 @@ describe('priorNotificationService', () => {
       expect(res).toEqual(mockCreated);
     });
 
+    it('create autogenera numero_notificacion E3L cuando viene vacío', async () => {
+      const mockCreated = { id: 101, company_id: 1, numero_notificacion: 'NT10110000000220260000001' };
+      mockSingle.mockResolvedValue({ data: mockCreated, error: null });
+
+      const res = await priorNotificationService.create({
+        company_id: 1,
+        numero_notificacion: '   ',
+        productor_nima: '1100000002',
+      });
+
+      expect(res).toEqual(mockCreated);
+      expect(mockInsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          numero_notificacion: expect.stringMatching(/^NT101100000002\d{4}\d{7}$/),
+          user_id: 'user-nt-123',
+        })
+      );
+    });
+
     it('create valida que venga company_id', async () => {
       await expect(priorNotificationService.create({})).rejects.toThrow('Falta el ID de empresa');
     });

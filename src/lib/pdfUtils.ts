@@ -41,10 +41,10 @@ function fitText(doc: jsPDF, text: string, maxWidth: number): string {
   if (!text) return '-';
   if (doc.getTextWidth(text) <= maxWidth) return text;
   let truncated = text;
-  while (truncated.length > 0 && doc.getTextWidth(`${truncated  }...`) > maxWidth) {
+  while (truncated.length > 0 && doc.getTextWidth(`${truncated}...`) > maxWidth) {
     truncated = truncated.slice(0, -1);
   }
-  return truncated.length > 0 ? `${truncated  }...` : text;
+  return truncated.length > 0 ? `${truncated}...` : text;
 }
 
 /**
@@ -1128,10 +1128,10 @@ export async function generateMemoriaAnualPDF(memoria: MemoriaAnual) {
       doc.text(item.codigo_ler, 18, yPos + 5.5);
       doc.setFont('helvetica', 'normal');
 
-      const desc = item.descripcion.length > 50 ? `${item.descripcion.substring(0, 48)  }...` : item.descripcion;
+      const desc = item.descripcion.length > 50 ? `${item.descripcion.substring(0, 48)}...` : item.descripcion;
       doc.text(desc, 48, yPos + 5.5);
       doc.text(String(item.numero_movimientos), 145, yPos + 5.5);
-      doc.text(`${(item.cantidad_total || 0).toFixed(3)  } t`, 170, yPos + 5.5);
+      doc.text(`${(item.cantidad_total || 0).toFixed(3)} t`, 170, yPos + 5.5);
 
       yPos += 8;
     });
@@ -1398,7 +1398,7 @@ export async function generateDecaPDF(deca: DecaDocument, inspectionUrl: string)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.text('DOCUMENTO ELECTRÓNICO DE CONTROL ADMINISTRATIVO (DeCA)', 14, yPos);
-  
+
   yPos += 5;
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');

@@ -473,6 +473,37 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
 
       await expect(wasteContractService.search('algo')).rejects.toThrow('Error al buscar contratos: Search error');
     });
+
+    it('debe devolver lista vacía y sanitizar operadores PostgREST en search', async () => {
+      setupTenantContext('u-solo', []);
+      expect(await wasteContractService.search('(),_% ')).toEqual([]);
+
+      const mockResults = [{ id: 2, numero_contrato: 'CT123' }];
+      const queryChain = {
+        select: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        order: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockResolvedValue({ data: mockResults, error: null }),
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'waste_contracts') return queryChain;
+        return null;
+      });
+
+      const res = await wasteContractService.search('CT(1,2)%_3');
+      expect(queryChain.or).toHaveBeenCalledWith(
+        'numero_contrato.ilike.%CT123%,descripcion_residuos.ilike.%CT123%'
+      );
+      expect(res).toEqual(mockResults);
+    });
   });
 
   describe('create', () => {

@@ -7,27 +7,34 @@ import { generateDecaPDF } from '@/lib/pdfUtils';
 
 const mockMaybeSingle = jest.fn();
 const mockInsertAudit = jest.fn();
+let mockRpc: jest.Mock | undefined;
 
 jest.mock('@/lib/supabase/server', () => ({
-  createClient: async () => ({
-    from: (table: string) => {
-      if (table === 'deca_documents') {
-        return {
-          select: () => ({
-            eq: () => ({
-              maybeSingle: mockMaybeSingle,
+  createClient: async () => {
+    const client: any = {
+      from: (table: string) => {
+        if (table === 'deca_documents') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: mockMaybeSingle,
+              }),
             }),
-          }),
-        };
-      }
-      if (table === 'deca_audit_logs') {
-        return {
-          insert: mockInsertAudit,
-        };
-      }
-      return {};
-    },
-  }),
+          };
+        }
+        if (table === 'deca_audit_logs') {
+          return {
+            insert: mockInsertAudit,
+          };
+        }
+        return {};
+      },
+    };
+    if (mockRpc) {
+      client.rpc = mockRpc;
+    }
+    return client;
+  },
 }));
 
 jest.mock('@/services/decaService', () => ({
@@ -46,6 +53,7 @@ const makeReq = (url = 'https://resigest.com/api/deca/tok123', headers: Record<s
 describe('GET /api/deca/[token]', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRpc = undefined;
     mockInsertAudit.mockResolvedValue({ error: null });
     (decaService.isTokenExpired as jest.Mock).mockReturnValue(false);
     (generateDecaPDF as jest.Mock).mockResolvedValue({
@@ -145,6 +153,32 @@ describe('GET /api/deca/[token]', () => {
     const res = await GET(makeReq(), { params: Promise.resolve({ token: 'dca_err' }) });
     expect(res.status).toBe(500);
     errSpy.mockRestore();
+  });
+
+  it('utiliza RPC get_deca_by_token cuando está disponible en el cliente Supabase', async () => {
+    mockRpc = jest.fn()
+      .mockResolvedValueOnce({
+        data: { id: 15, user_id: 'user-rpc', numero_deca: 'DECA-2026-00015', version: 1 },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [{ id: 16, user_id: 'user-rpc', numero_deca: 'DECA-2026-00016', version: 1 }],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: 'rpc err' },
+      });
+
+    const resObj = await GET(makeReq(), { params: Promise.resolve({ token: 'dca_rpc_obj' }) });
+    expect(resObj.status).toBe(200);
+    expect(mockRpc).toHaveBeenCalledWith('get_deca_by_token', { p_token: 'dca_rpc_obj' });
+
+    const resArr = await GET(makeReq(), { params: Promise.resolve({ token: 'dca_rpc_arr' }) });
+    expect(resArr.status).toBe(200);
+
+    const resErr = await GET(makeReq(), { params: Promise.resolve({ token: 'dca_rpc_err' }) });
+    expect(resErr.status).toBe(404);
   });
 });
 
