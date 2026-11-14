@@ -36,11 +36,12 @@ import {
   createChronologicalEntry,
   deleteChronologicalEntry,
   syncEntryFromDI,
+  syncEntryFromCommercialOperation,
   syncAllClosedDIs,
   exportChronologicalToCSV,
   exportChronologicalToExcelXML,
 } from '../chronologicalRegistryService';
-import type { IdentificationDocument } from '@/types/wasteManagement';
+import type { CommercialOperation, IdentificationDocument } from '@/types/wasteManagement';
 
 describe('chronologicalRegistryService - Archivo Cronológico (Art. 64 Ley 7/2022)', () => {
   beforeEach(() => {
@@ -768,6 +769,152 @@ describe('chronologicalRegistryService - Archivo Cronológico (Art. 64 Ley 7/202
           cantidad_kg: 2000,
         }),
       ]);
+    });
+  });
+
+  describe('syncEntryFromCommercialOperation', () => {
+    it('debe retornar null si faltan datos mínimos o no hay usuario autenticado', async () => {
+      expect(await syncEntryFromCommercialOperation({} as CommercialOperation)).toBeNull();
+
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
+      expect(
+        await syncEntryFromCommercialOperation({
+          numero_operacion: 'OP-2025-0001',
+          codigo_ler: '17 04 05',
+        } as CommercialOperation)
+      ).toBeNull();
+    });
+
+    it('debe crear un nuevo asiento cuando la operación comercial aún no está sincronizada', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      let selectCall = 0;
+      const insertSingleMock = jest.fn().mockResolvedValue({
+        data: { id: 88, numero_asiento: 'AS-2025-000015' },
+        error: null,
+      });
+      const chain: any = {
+        select: jest.fn().mockImplementation(() => {
+          selectCall++;
+          if (selectCall === 1) {
+            return {
+              eq: jest.fn().mockReturnValue({
+                eq: jest.fn().mockReturnValue({
+                  maybeSingle: jest.fn().mockResolvedValue({ data: null }),
+                }),
+              }),
+            };
+          }
+          return {
+            eq: jest.fn().mockResolvedValue({
+              data: [{ numero_asiento: 'AS-2025-000014' }],
+              count: 14,
+            }),
+          };
+        }),
+        insert: jest.fn().mockReturnValue({
+          select: jest.fn().mockReturnValue({
+            single: insertSingleMock,
+          }),
+        }),
+      };
+
+      mockSupabase.from.mockReturnValue(chain);
+
+      const res = await syncEntryFromCommercialOperation({
+        id: 50,
+        company_id: 2,
+        origen_center_id: 7,
+        numero_operacion: 'OP-2025-0050',
+        fecha: '2025-06-10',
+        estado: 'completada',
+        codigo_ler: '15 01 10*',
+        descripcion_residuo: 'Envases metálicos contaminados',
+        peligrosidad: 'no-peligroso',
+        operacion_rd: 'R0401',
+        cantidad_estimada_t: 4,
+        cantidad_real_t: 3.75,
+        origen_cif: 'A11111111',
+        origen_nombre_personalizado: 'Industrias Sur S.L.',
+        origen_nima: '4100000001',
+        transportista_cif: 'B22222222',
+        transportista_nombre_personalizado: 'Transportes Rápidos',
+        transportista_matricula: '9999-XYZ',
+        destino_cif: 'B33333333',
+        destino_nombre_personalizado: 'Recuperaciones Norte',
+        destino_nima: '2800000003',
+        destino_autorizacion: 'AUT-999',
+      } as CommercialOperation);
+
+      expect(res?.numero_asiento).toBe('AS-2025-000015');
+      expect(chain.insert).toHaveBeenCalledWith([
+        expect.objectContaining({
+          numero_asiento: 'AS-2025-000015',
+          tipo_operacion: 'salida_traslado',
+          peligrosidad: 'peligroso',
+          cantidad_kg: 3750,
+          numero_documento_referencia: 'OP-2025-0050',
+          origen_razon_social: 'Industrias Sur S.L.',
+          destino_razon_social: 'Recuperaciones Norte',
+        }),
+      ]);
+    });
+
+    it('debe actualizar asiento existente usando relaciones expandidas cuando no hay nombres personalizados', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      const updateSingleMock = jest.fn().mockResolvedValue({
+        data: { id: 300, cantidad_kg: 5000 },
+        error: null,
+      });
+      const chain: any = {
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnValue({
+              maybeSingle: jest.fn().mockResolvedValue({ data: { id: 300 } }),
+            }),
+          }),
+        }),
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            select: jest.fn().mockReturnValue({
+              single: updateSingleMock,
+            }),
+          }),
+        }),
+      };
+
+      mockSupabase.from.mockReturnValue(chain);
+
+      const res = await syncEntryFromCommercialOperation({
+        id: 51,
+        numero_operacion: 'OP-2025-0051',
+        fecha: '2025-07-01',
+        estado: 'liquidada',
+        codigo_ler: '17 04 05',
+        descripcion_residuo: 'Hierro y acero',
+        peligrosidad: 'no-peligroso',
+        cantidad_estimada_t: 5,
+        origen_productor: { cif: 'A44444444', razon_social: 'Productor Rel S.A.', nima: '1100000004' } as any,
+        transportista: { cif: 'B55555555', razon_social: 'Trans Rel S.L.', matricula: '1111-AAA' } as any,
+        destino_gestor: {
+          cif: 'B66666666',
+          razon_social: 'Gestor Rel S.L.',
+          nima: '2900000006',
+          numero_autorizacion: 'AN-001',
+        } as any,
+      } as CommercialOperation);
+
+      expect(res?.id).toBe(300);
+      expect(chain.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cantidad_kg: 5000,
+          origen_razon_social: 'Productor Rel S.A.',
+          transportista_razon_social: 'Trans Rel S.L.',
+          destino_razon_social: 'Gestor Rel S.L.',
+          destino_autorizacion: 'AN-001',
+        })
+      );
     });
   });
 

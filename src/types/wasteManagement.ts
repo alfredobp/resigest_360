@@ -365,6 +365,7 @@ export interface WasteContract {
   // Condiciones
   cantidad_maxima_anual?: number;
   unidad_cantidad?: string;
+  frecuencia_recogida?: string;
   precio_unitario?: number;
   moneda?: string;
 
@@ -415,6 +416,7 @@ export interface WasteContractFormData {
   operaciones_tratamiento?: string[];
   cantidad_maxima_anual?: number;
   unidad_cantidad?: string;
+  frecuencia_recogida?: string;
   precio_unitario?: number;
   moneda?: string;
   estado?: 'borrador' | 'vigente' | 'finalizado' | 'cancelado';

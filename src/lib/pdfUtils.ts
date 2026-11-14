@@ -457,7 +457,51 @@ export async function generateContractPDF(contract: WasteContract) {
     ? `${contract.precio_unitario} ${contract.moneda || 'EUR'}`
     : 'Según matriz de residuos o tarifas vigentes en báscula';
   doc.text(precioText, 80, yPos);
-  yPos += 12;
+  yPos += 6.5;
+
+  // Periodicidad Estimada (Art. 5 RD 553/2020)
+  doc.setFont('helvetica', 'bold');
+  doc.text('Periodicidad Estimada de Traslados:', 25, yPos);
+  doc.setFont('helvetica', 'normal');
+  const periodicidadText = doc.splitTextToSize(
+    contract.frecuencia_recogida || 'Según necesidades operativas de producción y límites legales de almacenamiento',
+    pageWidth - 110
+  );
+  doc.text(periodicidadText, 85, yPos);
+  yPos += (periodicidadText.length * 4.5) + 8;
+
+  // --- CONDICIONES DE ACEPTACIÓN Y RECHAZO (ART. 5 RD 553/2020) ---
+  if (yPos > pageHeight - 60) {
+    doc.addPage();
+    yPos = 30;
+  }
+  yPos = drawSectionHeader('CONDICIONES DE ACEPTACIÓN Y RECHAZO (ART. 5 RD 553/2020)', yPos);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.text('Condiciones de aceptación:', 25, yPos);
+  yPos += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  const aceptacionLines = doc.splitTextToSize(
+    'Conformidad estricta del residuo entregado con el código LER contratado, ausencia de impropios no autorizados, envasado y etiquetado reglamentario vigente y verificación de peso neto en báscula calibrada de destino.',
+    pageWidth - 50
+  );
+  doc.text(aceptacionLines, 25, yPos);
+  yPos += (aceptacionLines.length * 4) + 5;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.text('Obligaciones en caso de rechazo (Art. 5.d y Art. 6.4 RD 553/2020):', 25, yPos);
+  yPos += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  const rechazoLines = doc.splitTextToSize(
+    'En caso de disconformidad en la recepción, el gestor comunicará motivadamente el rechazo al operador del traslado y al productor en un plazo máximo de 30 días naturales desde la recepción del residuo, acordando su devolución a la instalación de origen o el traslado a otra instalación de tratamiento autorizada a costa del operador del traslado.',
+    pageWidth - 50
+  );
+  doc.text(rechazoLines, 25, yPos);
+  yPos += (rechazoLines.length * 4) + 10;
 
   // --- NOTAS ADICIONALES ---
   if (contract.notas) {

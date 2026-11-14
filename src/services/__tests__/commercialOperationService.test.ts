@@ -22,6 +22,10 @@ jest.mock('../auditService', () => ({
   },
 }));
 
+jest.mock('../chronologicalRegistryService', () => ({
+  syncEntryFromCommercialOperation: jest.fn().mockResolvedValue(null),
+}));
+
 // Setup DOM mocks for export functions
 if (typeof URL.createObjectURL === 'undefined') {
   (URL as any).createObjectURL = jest.fn(() => 'blob:mock-url');
@@ -49,6 +53,7 @@ import {
 } from '../commercialOperationService';
 import { holdedService } from '../holdedService';
 import { auditService } from '../auditService';
+import { syncEntryFromCommercialOperation } from '../chronologicalRegistryService';
 import type { CommercialOperation, CommercialOperationFormData } from '@/types/wasteManagement';
 
 describe('commercialOperationService - Operaciones Comerciales', () => {
@@ -910,6 +915,34 @@ describe('commercialOperationService - Operaciones Comerciales', () => {
       });
 
       await expect(commercialOperationService.verifyAccess()).rejects.toThrow('Acceso denegado');
+    });
+
+    it('debe sincronizar con el Archivo Cronológico cuando la operación pasa a completada o liquidada', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      const updateChain = {
+        update: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({
+          data: {
+            id: 91,
+            numero_operacion: 'OP-2025-0091',
+            codigo_ler: '17 04 05',
+            estado: 'completada',
+          },
+          error: null,
+        }),
+      };
+      mockSupabase.from.mockReturnValue(updateChain);
+
+      await commercialOperationService.update(91, { estado: 'completada' });
+      expect(syncEntryFromCommercialOperation).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 91, numero_operacion: 'OP-2025-0091', estado: 'completada' })
+      );
+
+      // Si el registro cronológico falla, no bloquea el flujo comercial
+      (syncEntryFromCommercialOperation as jest.Mock).mockRejectedValueOnce(new Error('Sync fail'));
+      await expect(commercialOperationService.update(91, { estado: 'liquidada' })).resolves.toBeDefined();
     });
   });
 });

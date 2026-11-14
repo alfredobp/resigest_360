@@ -761,6 +761,183 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
       expect(data.salidas).toEqual([]);
     });
 
+    it('debe incluir salidas del gestor desde DIs rechazados y registros salida_traslado del Archivo Cronológico', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      const mockMemoria: Partial<MemoriaAnual> = {
+        id: 26,
+        user_id: mockUser.id,
+        año: 2025,
+        tipo_memoria: 'gestor',
+        documentos_identificacion_ids: [20, 21],
+      };
+
+      const memChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: mockMemoria, error: null }),
+      };
+
+      const diChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        in: jest.fn().mockResolvedValue({
+          data: [
+            {
+              id: 20,
+              estado: 'completado',
+              codigo_ler: '15 01 02',
+              descripcion_residuo: 'Plástico',
+              peso_destino_kg: 2000,
+              productor_cif: 'A88888888',
+              productor_razon_social: 'Productor Origen S.L.',
+              operacion_tratamiento: 'R0301',
+              numero_documento: 'DI-IN-20',
+            },
+            {
+              id: 21,
+              estado: 'completado',
+              estado_traslado: 'rechazado_total',
+              resultado_recepcion: 'rechazado_total',
+              codigo_ler: '17 04 05',
+              descripcion_residuo: 'Chatarra rechazada',
+              peso_origen_kg: 1500,
+              gestor_cif: 'B77777777',
+              gestor_razon_social: 'Gestor Final S.L.',
+              gestor_direccion: 'Polígono Gestor 1',
+              gestor_provincia: 'Cádiz',
+              gestor_municipio: 'Puerto Real',
+              gestor_nima: '1100000001',
+              operacion_tratamiento: 'R0401',
+              numero_documento: 'DI-REJ-21',
+            },
+            {
+              id: 22,
+              estado: 'completado',
+              estado_traslado: 'rechazado_parcial',
+              cantidad_rechazada_kg: 500,
+              peso_destino_kg: 1500,
+              codigo_ler: '15 01 10*',
+              descripcion_residuo: 'Envases parcialmente rechazados',
+              productor_cif: 'A11111111',
+              productor_razon_social: 'Productor Dev',
+              productor_direccion: 'Calle Origen 2',
+              productor_provincia: 'Sevilla',
+              productor_municipio: 'Sevilla',
+              productor_nima: '4100000001',
+              operacion_tratamiento: 'R1301',
+              numero_documento: 'DI-REJ-22',
+            },
+            {
+              id: 23,
+              estado: 'completado',
+              resultado_recepcion: 'rechazado_parcial',
+              codigo_ler: undefined,
+              descripcion_residuo: undefined,
+              peso_destino_kg: 0,
+              peso_origen_kg: 0,
+              cantidad: 0,
+              productor_cif: undefined,
+              gestor_cif: undefined,
+              productor_razon_social: undefined,
+              gestor_razon_social: undefined,
+              productor_direccion: undefined,
+              gestor_direccion: undefined,
+              operacion_tratamiento: undefined,
+              numero_documento: 'DI-REJ-23',
+            },
+          ],
+          error: null,
+        }),
+      };
+
+      const regChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockResolvedValue({
+          data: [
+            {
+              numero_asiento: 'AS-2025-000010',
+              numero_documento_referencia: 'DI-SAL-99',
+              codigo_ler: '15 01 01',
+              descripcion_residuo: 'Cartón embalado',
+              cantidad_kg: 3250,
+              destino_nif: 'B99999999',
+              destino_razon_social: 'Valorizadora Sur S.A.',
+              destino_nima: '4100000009',
+              destino_direccion: 'Polígono Sur 5',
+              destino_municipio: 'Sevilla',
+              destino_provincia: 'Sevilla',
+              operacion_rd: 'R0301',
+            },
+            {
+              numero_asiento: 'AS-2025-000011',
+              codigo_ler: undefined,
+              descripcion_residuo: undefined,
+              cantidad_kg: undefined,
+              destino_nif: undefined,
+              destino_razon_social: undefined,
+              destino_direccion: undefined,
+              operacion_rd: undefined,
+            },
+          ],
+          error: null,
+        }),
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'memorias_anuales') return memChain;
+        if (table === 'identification_documents') return diChain;
+        if (table === 'chronological_registry') return regChain;
+        return null;
+      });
+
+      const data = await generateExcelData(26);
+      expect(data.entradas).toHaveLength(4);
+      expect(data.salidas).toHaveLength(5);
+      expect(data.salidas[0]).toEqual(
+        expect.objectContaining({
+          codigo_ler: '17 04 05',
+          cantidad_toneladas: 1.5,
+          nif_destino: 'B77777777',
+          codigo_operacion_rd: 'R0401',
+        })
+      );
+      expect(data.salidas[1]).toEqual(
+        expect.objectContaining({
+          codigo_ler: '15 01 10*',
+          cantidad_toneladas: 0.5,
+          nif_destino: 'A11111111',
+          codigo_di: 'DI-REJ-22',
+        })
+      );
+      expect(data.salidas[3]).toEqual(
+        expect.objectContaining({
+          codigo_ler: '15 01 01',
+          cantidad_toneladas: 3.25,
+          nif_destino: 'B99999999',
+          codigo_di: 'DI-SAL-99',
+          codigo_operacion_rd: 'R0301',
+        })
+      );
+      expect(data.salidas[4]).toEqual(
+        expect.objectContaining({
+          codigo_ler: '',
+          cantidad_toneladas: 0,
+          codigo_di: 'AS-2025-000011',
+        })
+      );
+
+      // Fallback defensivo si chronological_registry lanza excepción o memoria.año falta
+      memChain.single.mockResolvedValueOnce({
+        data: { ...mockMemoria, año: undefined },
+        error: null,
+      });
+      regChain.lte.mockRejectedValueOnce(new Error('Table unavailable'));
+      const dataFallback = await generateExcelData(26);
+      expect(dataFallback.salidas).toHaveLength(3);
+    });
+
     it('debe soportar tipo_memoria gestor_raee en generateExcelData', async () => {
       mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const mockMemoria: Partial<MemoriaAnual> = {
@@ -1021,10 +1198,32 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
             codigo_operacion_rd: 'R03',
           },
         ],
-        salidas: [],
+        salidas: [
+          {
+            codigo_ler: '15 01 01',
+            descripcion_residuo: 'Cartón "prensado"',
+            cantidad_toneladas: 4.5,
+            nif_destino: 'B22334455',
+            razon_social_destino: 'Recicladora Final S.A.',
+            nima_destino: '4100000002',
+            codigo_operacion_rd: 'R0301',
+            codigo_di: 'DI-OUT-1',
+          },
+          {
+            codigo_ler: '15 01 02',
+            descripcion_residuo: undefined,
+            cantidad_toneladas: 1,
+            nif_destino: 'B00000000',
+            razon_social_destino: undefined,
+            nima_destino: undefined,
+            codigo_operacion_rd: 'R13',
+            codigo_di: undefined,
+          },
+        ],
       };
 
       expect(() => exportMemoriaToExcelXML(mockGestorMemoria, gestorData)).not.toThrow();
+      expect(() => exportMemoriaToExcelXML(mockGestorMemoria, { entradas: gestorData.entradas })).not.toThrow();
       expect(document.createElement).toHaveBeenCalledWith('a');
     });
 
@@ -1061,8 +1260,31 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
             codigo_operacion_rd: 'R03',
           },
         ],
+        salidas: [
+          {
+            codigo_ler: '17 04 05',
+            descripcion_residuo: 'Acero',
+            cantidad_toneladas: 6.2,
+            nif_destino: 'B55667788',
+            razon_social_destino: 'Fundición Sur',
+            nima_destino: '4100000008',
+            codigo_operacion_rd: 'R04',
+            codigo_di: 'DI-OUT-2',
+          },
+          {
+            codigo_ler: '17 04 07',
+            descripcion_residuo: undefined,
+            cantidad_toneladas: 1,
+            nif_destino: 'B00000001',
+            razon_social_destino: undefined,
+            nima_destino: undefined,
+            codigo_operacion_rd: 'R04',
+            codigo_di: undefined,
+          },
+        ],
       };
       expect(() => exportMemoriaToCSV(mockGestorMemoria, gestorData)).not.toThrow();
+      expect(() => exportMemoriaToCSV(mockGestorMemoria, { entradas: gestorData.entradas })).not.toThrow();
 
       const mockNegMemoria = { ...mockMemoria, tipo_memoria: 'negociante' } as any;
       const negData = [

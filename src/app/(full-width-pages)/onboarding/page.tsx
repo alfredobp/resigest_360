@@ -72,6 +72,10 @@ export default function OnboardingPage() {
       setError('Introduce un CIF/NIF válido (ej. B12345678).');
       return;
     }
+    if (nima.trim() && !companyService.validateNIMA(nima.trim())) {
+      setError('El código NIMA debe tener exactamente 10 dígitos numéricos.');
+      return;
+    }
     if (selectedProfile === 'transportista' && !matricula.trim()) {
       setError('Indica al menos una matrícula principal de vehículo.');
       return;

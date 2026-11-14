@@ -1187,6 +1187,58 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       expect(res.canActivate).toBe(true);
       expect(res.valid).toBe(true);
       expect(res.errors).toHaveLength(0);
+      expect(res.checklist.hasSignatures).toBe(false);
+      expect(res.warnings).toEqual(
+        expect.arrayContaining([expect.stringContaining('firmado por el productor y el gestor')])
+      );
+    });
+
+    it('debe bloquear la activación cuando faltan firmas explícitas o requireSignatures es true, y permitirla con firmas o documento adjunto', () => {
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 60);
+
+      const baseContract: any = {
+        company: { id: 1, razon_social: 'Productor' },
+        gestor_company: { id: 2, razon_social: 'Gestor' },
+        fecha_inicio: '2026-01-01',
+        fecha_fin: futureDate.toISOString().split('T')[0],
+        contract_waste_codes: [
+          { codigo_ler: '15 01 02', operacion_tratamiento: 'R03' },
+        ],
+      };
+
+      const rejectedByFlag = validateContractActivation({
+        ...baseContract,
+        firmado_productor: false,
+        firmado_gestor: true,
+      });
+      expect(rejectedByFlag.canActivate).toBe(false);
+      expect(rejectedByFlag.checklist.hasSignatures).toBe(false);
+      expect(rejectedByFlag.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('Art. 5 del RD 553/2020')])
+      );
+
+      const rejectedStrict = validateContractActivation(baseContract, { requireSignatures: true });
+      expect(rejectedStrict.canActivate).toBe(false);
+
+      const signedBoth = validateContractActivation(
+        {
+          ...baseContract,
+          firma_productor_url: 'https://storage/p.png',
+          firma_gestor_url: 'https://storage/g.png',
+        },
+        { requireSignatures: true }
+      );
+      expect(signedBoth.canActivate).toBe(true);
+      expect(signedBoth.checklist.hasSignatures).toBe(true);
+      expect(signedBoth.warnings).toHaveLength(0);
+
+      const withDoc = validateContractActivation(
+        { ...baseContract, documento_url: 'https://storage/contrato.pdf' },
+        { requireSignatures: true }
+      );
+      expect(withDoc.canActivate).toBe(true);
+      expect(withDoc.checklist.hasSignatures).toBe(true);
     });
   });
 

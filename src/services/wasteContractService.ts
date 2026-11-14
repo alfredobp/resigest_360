@@ -801,6 +801,7 @@ export interface ContractActivationValidation {
   canActivate: boolean;
   valid: boolean;
   errors: string[];
+  warnings?: string[];
   checklist: {
     hasProducer: boolean;
     hasGestor: boolean;
@@ -809,6 +810,7 @@ export interface ContractActivationValidation {
     isNotExpired: boolean;
     hasWasteCodes: boolean;
     hasOperations: boolean;
+    hasSignatures?: boolean;
   };
 }
 
@@ -818,9 +820,11 @@ export interface ContractActivationValidation {
 export function validateContractActivation(
   contract: Omit<Partial<WasteContract>, 'contract_waste_codes'> & {
     contract_waste_codes?: Array<Partial<ContractWasteCode> | ContractWasteCodeFormData>;
-  }
+  },
+  options?: { requireSignatures?: boolean }
 ): ContractActivationValidation {
   const errors: string[] = [];
+  const warnings: string[] = [];
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -869,18 +873,40 @@ export function validateContractActivation(
     errors.push('Debe definirse al menos una operación de tratamiento autorizada (R o D).');
   }
 
+  const hasSignatures = Boolean(
+    ((contract.firmado_productor || contract.firma_productor_url) &&
+      (contract.firmado_gestor || contract.firma_gestor_url)) ||
+    contract.documento_url
+  );
+  const signaturesExplicitlyRequired =
+    contract.firmado_productor === false ||
+    contract.firmado_gestor === false ||
+    Boolean(options?.requireSignatures);
+
+  if (!hasSignatures) {
+    const signatureMsg =
+      'El contrato debe estar firmado por el productor y el gestor (o disponer del documento firmado adjunto) conforme al Art. 5 del RD 553/2020.';
+    if (signaturesExplicitlyRequired) {
+      errors.push(signatureMsg);
+    } else {
+      warnings.push(signatureMsg);
+    }
+  }
+
   const canActivate =
     hasProducer &&
     hasGestor &&
     hasValidity &&
     isNotExpired &&
     hasWasteCodes &&
-    hasOperations;
+    hasOperations &&
+    (!signaturesExplicitlyRequired || hasSignatures);
 
   return {
     canActivate,
     valid: canActivate,
     errors,
+    warnings,
     checklist: {
       hasProducer,
       hasGestor,
@@ -889,6 +915,7 @@ export function validateContractActivation(
       isNotExpired,
       hasWasteCodes,
       hasOperations,
+      hasSignatures,
     },
   };
 }

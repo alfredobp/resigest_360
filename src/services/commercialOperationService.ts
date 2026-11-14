@@ -12,6 +12,21 @@ import {
 import { holdedService } from './holdedService';
 import { auditService } from './auditService';
 import { tenantContextService } from './tenantContextService';
+import { syncEntryFromCommercialOperation } from './chronologicalRegistryService';
+
+async function syncClosedOperationToChronologicalRegistry(op: CommercialOperation): Promise<void> {
+  if (
+    (op.estado === 'completada' || op.estado === 'liquidada') &&
+    op.numero_operacion &&
+    op.codigo_ler
+  ) {
+    try {
+      await syncEntryFromCommercialOperation(op);
+    } catch {
+      /* best-effort: no bloquear flujo comercial si falla el registro cronológico */
+    }
+  }
+}
 
 export interface CommercialOperationFilter {
   año?: number;
@@ -296,6 +311,8 @@ export const commercialOperationService = {
       },
     });
 
+    await syncClosedOperationToChronologicalRegistry(created as CommercialOperation);
+
     return created as CommercialOperation;
   },
 
@@ -371,6 +388,8 @@ export const commercialOperationService = {
       accion: 'actualizar',
       detalles: { estado: (updated as CommercialOperation).estado },
     });
+
+    await syncClosedOperationToChronologicalRegistry(updated as CommercialOperation);
 
     return updated as CommercialOperation;
   },
