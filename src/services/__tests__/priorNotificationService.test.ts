@@ -186,6 +186,46 @@ describe('priorNotificationService', () => {
       expect(result.valid).toBe(true);
       expect(result.warnings.length).toBeGreaterThan(0);
     });
+
+    it('exige 10 días de preaviso y máximo 3 años de vigencia (Art. 8.2 y 8.3 RD 553/2020) y acepta R14/R15/R1201', () => {
+      const lessThan10Days = validateNTForE3L({
+        ...validNt,
+        fecha_notificacion: '2026-05-01',
+        fecha_inicio: '2026-05-05',
+        fecha_fin: '2026-06-01',
+      });
+      expect(lessThan10Days.valid).toBe(false);
+      expect(lessThan10Days.errors.some((e) => e.includes('10 días naturales'))).toBe(true);
+
+      const endBeforeStart = validateNTForE3L({
+        ...validNt,
+        fecha_notificacion: '2026-05-01',
+        fecha_inicio: '2026-05-20',
+        fecha_fin: '2026-05-10',
+      });
+      expect(endBeforeStart.valid).toBe(false);
+      expect(endBeforeStart.errors.some((e) => e.includes('anterior a la fecha de inicio'))).toBe(true);
+
+      const moreThan3Years = validateNTForE3L({
+        ...validNt,
+        fecha_notificacion: '2026-05-01',
+        fecha_inicio: '2026-05-20',
+        fecha_fin: '2030-05-20',
+      });
+      expect(moreThan3Years.valid).toBe(false);
+      expect(moreThan3Years.errors.some((e) => e.includes('máximo de 3 años'))).toBe(true);
+
+      expect(
+        validateNTForE3L({
+          ...validNt,
+          operacion_tratamiento: 'R14',
+          fecha_notificacion: '2026-05-01',
+          fecha_inicio: '2026-05-15',
+          fecha_fin: '2027-05-15',
+        }).valid
+      ).toBe(true);
+      expect(validateNTForE3L({ ...validNt, operacion_tratamiento: 'R1201' }).valid).toBe(true);
+    });
   });
 
   describe('generateNTXml', () => {
@@ -230,7 +270,7 @@ describe('priorNotificationService', () => {
       expect(xml).toContain('<NTResidueQuantity>2500.000</NTResidueQuantity>');
     });
 
-    it('genera el XML <wasteNT> para residuo no peligroso sin tabla5', () => {
+    it('genera el XML <wasteNT> para residuo no peligroso con P03 y truncado a 3 dígitos en table2', () => {
       const xml = priorNotificationService.generateNTXml({
         id: 10,
         operador_cif: 'B11223344',
@@ -238,13 +278,14 @@ describe('priorNotificationService', () => {
         gestor_cif: 'B87654321',
         codigo_ler: '150101',
         peligrosidad: 'no-peligroso',
-        operacion_tratamiento: 'R3',
+        operacion_tratamiento: 'R1201',
         cantidad_estimada_kg: 1000,
       });
 
       expect(xml).toContain('noDangerousResidueType');
+      expect(xml).toContain('producerTypeCode="P03"');
       expect(xml).not.toContain('<table5>');
-      expect(xml).toContain('<table2>R03</table2>');
+      expect(xml).toContain('<table2>R12</table2>');
     });
   });
 

@@ -734,6 +734,139 @@ describe('commercialOperationService - Operaciones Comerciales', () => {
       expect(res.success).toBe(true);
       expect(res.invoiceId).toBe('inv-888');
     });
+
+    it('debe soportar IVA 0% (ISP Art. 84.Uno.2º.c LIVA), subtotal unitario sin doble multiplicación y domicilio_social', async () => {
+      const mockOp: Partial<CommercialOperation> = {
+        id: 12,
+        company_id: 20,
+        numero_operacion: 'OP-2025-000012',
+        codigo_ler: '17 04 05',
+        descripcion_residuo: 'Chatarra férrica',
+        tipo_precio_venta: 'por_tonelada',
+        cantidad_real_t: 10,
+        precio_unitario_venta: 120,
+        ingreso_venta_total: 1200,
+        fecha: '2025-06-01',
+        cliente_comercial_id: 30,
+        cliente_razon_social: 'Aceros Sur S.A.',
+        cliente_cif: 'A11223344',
+      };
+
+      jest.spyOn(commercialOperationService, 'getById').mockResolvedValue(mockOp as any);
+
+      let companySelectCall = 0;
+      const compChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn(() => {
+          companySelectCall++;
+          if (companySelectCall === 1) {
+            return Promise.resolve({
+              data: { holded_api_key: 'key-isp', razon_social: 'Mi Empresa' },
+              error: null,
+            });
+          }
+          return Promise.resolve({
+            data: {
+              id: 30,
+              razon_social: 'Aceros Sur S.A.',
+              cif: 'A11223344',
+              email: 'facturacion@acerossur.es',
+              domicilio_social: 'Pol. Ind. El Portal 5',
+              municipio_social: 'Jerez de la Frontera',
+              codigo_postal_social: '11408',
+              provincia_social: 'Cádiz',
+            },
+            error: null,
+          });
+        }),
+      };
+
+      const updateOpChain = {
+        update: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockResolvedValue({ error: null }),
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') return compChain;
+        if (table === 'commercial_operations') return updateOpChain;
+        return null;
+      });
+
+      (holdedService.createContact as jest.Mock).mockResolvedValue({ id: 'contact-isp-30' });
+      (holdedService.createInvoice as jest.Mock).mockResolvedValue({ id: 'inv-isp-12', docNumber: 'F25-0012' });
+
+      const res = await commercialOperationService.syncOperationToHolded(12, { taxRate: 0 });
+      expect(res.success).toBe(true);
+      expect(holdedService.createContact).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: 'Pol. Ind. El Portal 5',
+          city: 'Jerez de la Frontera',
+          postalCode: '11408',
+          province: 'Cádiz',
+        }),
+        'key-isp'
+      );
+      expect(holdedService.createInvoice).toHaveBeenCalledWith(
+        expect.objectContaining({
+          desc: expect.stringContaining('Inversión del Sujeto Pasivo (Art. 84.Uno.2º.c Ley 37/1992 del IVA)'),
+          items: [
+            expect.objectContaining({
+              units: 10,
+              subtotal: 120,
+              tax: 0,
+            }),
+          ],
+        }),
+        'key-isp'
+      );
+
+      // Caso lote_fijo con IVA 10%
+      companySelectCall = 0;
+      jest.spyOn(commercialOperationService, 'getById').mockResolvedValue({
+        ...mockOp,
+        tipo_precio_venta: 'lote_fijo',
+        ingreso_venta_total: 450,
+      } as any);
+
+      await commercialOperationService.syncOperationToHolded(12, { taxRate: 10 });
+      expect(holdedService.createInvoice).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          items: [
+            expect.objectContaining({
+              units: 1,
+              subtotal: 450,
+              tax: 10,
+            }),
+          ],
+        }),
+        'key-isp'
+      );
+
+      // Caso por_kg sin precio_unitario_venta explícito
+      companySelectCall = 0;
+      jest.spyOn(commercialOperationService, 'getById').mockResolvedValue({
+        ...mockOp,
+        tipo_precio_venta: 'por_kg',
+        cantidad_real_t: 2,
+        precio_unitario_venta: 0,
+        ingreso_venta_total: 500,
+      } as any);
+
+      await commercialOperationService.syncOperationToHolded(12, { taxRate: 21 });
+      expect(holdedService.createInvoice).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          items: [
+            expect.objectContaining({
+              units: 2000,
+              subtotal: 0.25,
+              tax: 21,
+            }),
+          ],
+        }),
+        'key-isp'
+      );
+    });
   });
 
   describe('verifyAccess', () => {

@@ -51,12 +51,44 @@ const PROVINCE_DEFAULT_MUNICIPALITY: Record<string, string> = {
   '51': '510013', '52': '520018'
 };
 
+const MUNICIPALITY_INE_PATTERNS: Array<[RegExp, string]> = [
+  [/puerto\s*real/i, '110282'],
+  [/c[aá]diz/i, '110125'],
+  [/jerez/i, '110200'],
+  [/algeciras/i, '110042'],
+  [/san\s*fernando/i, '110319'],
+  [/puerto\s+de\s+santa\s+mar[ií]a/i, '110276'],
+  [/chiclana/i, '110150'],
+  [/sevilla/i, '410917'],
+  [/dos\s*hermanas/i, '410388'],
+  [/alcal[aá]\s+de\s+guada[ií]ra/i, '410040'],
+  [/m[aá]laga/i, '290672'],
+  [/marbella/i, '290691'],
+  [/c[oó]rdoba/i, '140214'],
+  [/lucena/i, '140389'],
+  [/granada/i, '180877'],
+  [/motril/i, '181401'],
+  [/ja[eé]n/i, '230503'],
+  [/linares/i, '230555'],
+  [/almer[ií]a/i, '040139'],
+  [/el\s*ejido/i, '049027'],
+  [/huelva/i, '210417'],
+  [/madrid/i, '280796'],
+  [/barcelona/i, '080193'],
+  [/valencia/i, '462508'],
+  [/zaragoza/i, '502973'],
+  [/bilbao/i, '480200'],
+  [/murcia/i, '300302'],
+  [/valladolid/i, '471868'],
+];
+
+const ANDALUSIA_PROVINCE_CODES = new Set(['04', '11', '14', '18', '21', '23', '29', '41']);
+
 const getMunicipalityCodeByProvince = (provCode: string, muniName?: string): string => {
   if (muniName) {
-    if (/puerto\s*real/i.test(muniName)) return '110282';
-    if (/c[aá]diz/i.test(muniName)) return '110125';
-    if (/sevilla/i.test(muniName)) return '410917';
-    if (/madrid/i.test(muniName)) return '280796';
+    for (const [pattern, ineCode] of MUNICIPALITY_INE_PATTERNS) {
+      if (pattern.test(muniName)) return ineCode;
+    }
   }
   return PROVINCE_DEFAULT_MUNICIPALITY[provCode] || '110012';
 };
@@ -248,7 +280,7 @@ const generateOperatorBlock = (doc: any): string => {
     'wasteTransferOperatorType',
     'operatorTypeCode',
     'P01',
-    isDanger ? 'P01' : 'P02'
+    isDanger ? 'P01' : 'P03'
   );
 };
 
@@ -269,8 +301,8 @@ const generateProducerBlock = (doc: any): string => {
     },
     'wasteProducerType',
     'producerTypeCode',
-    isDanger ? 'P01' : 'P02',
-    isDanger ? 'P01' : 'P02'
+    isDanger ? 'P01' : 'P03',
+    isDanger ? 'P01' : 'P03'
   );
 };
 
@@ -422,7 +454,7 @@ const generateResidueBlock = (doc: any): string => {
 
   const buildTables = (opCode: string) => `
         <residueTables ${residueTablesType}>
-            <table2>${opCode}</table2>${hpBlock}
+            <table2>${opCode.slice(0, 3)}</table2>${hpBlock}
         </residueTables>`;
 
   const residueTypeAttr = isDangerous
@@ -560,7 +592,7 @@ export function validateDIForE3L(doc: any): E3LValidationResult {
     errors.push(`Código LER inválido para E3L (${doc?.codigo_ler || 'vacío'}): debe contener 6 dígitos numéricos.`);
   }
   const op = normalizeOperation(doc?.operacion_tratamiento_ejecutada || doc?.operacion_tratamiento || '');
-  if (!/^(R0[1-9]|R1[0-3]|D0[1-9]|D1[0-5])$/.test(op)) {
+  if (!/^(R(0[1-9]|1[0-5])|D(0[1-9]|1[0-5]))(\d{2})?$/.test(op)) {
     errors.push(`Operación de tratamiento inválida para tabla2 E3L (${op || 'vacía'}).`);
   }
   if (!doc?.cantidad || Number(doc.cantidad) <= 0) {
@@ -568,6 +600,13 @@ export function validateDIForE3L(doc: any): E3LValidationResult {
   }
 
   // En traslados con notificación previa, la NT es obligatoria según e3l-waste.xsd
+  const isDanger = doc?.peligrosidad === 'peligroso' || String(doc?.codigo_ler || '').includes('*');
+  if (
+    doc?.tipo_notificacion === 'sin-notificacion' &&
+    (isDanger || cleanLer === '200301' || op.startsWith('D') || op.startsWith('R01'))
+  ) {
+    errors.push('El traslado exige Notificación Previa (NT) según el art. 3.2 del RD 553/2020 (residuos peligrosos, LER 20 03 01, R01 o eliminación D).');
+  }
   const rawNt = String(doc?.numero_notificacion || doc?.nt_codigo || doc?.notificacion_previa_codigo || '').trim();
   if (doc?.tipo_notificacion === 'con-notificacion-previa' && !/^NT[0-9]{23,24}$/.test(rawNt)) {
     errors.push('El traslado requiere Notificación Previa (NT), pero falta un código NT oficial válido (^NT[0-9]{23,24}$).');
@@ -608,8 +647,12 @@ export const siraService = {
 
     const compData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
     const cleanDocNum = clean(doc.numero_documento);
-    const provCode = getProvinceCodeByName(doc.productor_provincia || compData?.provincia_instalacion || 'Cádiz');
-    const provNima = formatNima(doc.productor_nima || compData?.nima, provCode);
+    const prodProvCode = getProvinceCodeByName(doc.productor_provincia || compData?.provincia_instalacion || 'Cádiz');
+    const gestProvCode = doc.gestor_provincia ? getProvinceCodeByName(doc.gestor_provincia) : prodProvCode;
+    const isInterautonomico =
+      Boolean(doc.gestor_provincia) &&
+      (!ANDALUSIA_PROVINCE_CODES.has(prodProvCode) || !ANDALUSIA_PROVINCE_CODES.has(gestProvCode));
+    const provNima = formatNima(doc.productor_nima || compData?.nima, prodProvCode);
     const dcsCode = formatDCSCode(cleanDocNum, provNima, doc.id);
 
     return `
@@ -622,8 +665,8 @@ export const siraService = {
     DCSYear="${date.getFullYear()}"
     DCSDate="${formattedDate}"
     DCSStartDate="${doc.fecha_recogida || formattedDate}"
-    DCSRegional="S"
-    DCSSendtoOriginOrDestinationAuthority="N">
+    DCSRegional="${isInterautonomico ? 'N' : 'S'}"
+    DCSSendtoOriginOrDestinationAuthority="${isInterautonomico ? 'S' : 'N'}">
 
     <!-- 1. Operador del Traslado -->
     ${generateOperatorBlock(doc)}

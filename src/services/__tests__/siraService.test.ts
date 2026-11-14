@@ -82,6 +82,9 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
 
     it('getMunicipalityCode debe retornar códigos oficiales INE válidos del esquema', () => {
       expect(siraService.getMunicipalityCode('11', 'Puerto Real')).toBe('110282');
+      expect(siraService.getMunicipalityCode('11', 'Jerez de la Frontera')).toBe('110200');
+      expect(siraService.getMunicipalityCode('29', 'Málaga')).toBe('290672');
+      expect(siraService.getMunicipalityCode('14', 'Córdoba')).toBe('140214');
       expect(siraService.getMunicipalityCode('41', 'Sevilla')).toBe('410917');
       expect(siraService.getMunicipalityCode('28', 'Madrid')).toBe('280796');
       expect(siraService.getMunicipalityCode('11')).toBe('110012');
@@ -177,10 +180,27 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       expect(xml).toMatch(/DCSCode="DCS\d{23}"/);
       expect(xml).toContain('LERCode="200101"');
       expect(xml).toContain('xsi:type="wassup:noDangerousResidueType"');
+      expect(xml).toContain('producerTypeCode="P03"');
       expect(xml).not.toContain('A00000000');
       expect(xml).not.toContain('<phone>999999999</phone>');
       expect(xml).not.toContain('pendiente@email.com');
       expect(xml).not.toContain('NIMA-PENDIENTE');
+    });
+
+    it('debe soportar subcódigos de 4 dígitos y marcar DCSRegional="N" en traslados interautonómicos', () => {
+      const xml = siraService.generateDIXml({
+        numero_documento: 'DI-INTER-001',
+        productor_provincia: 'Sevilla',
+        gestor_provincia: 'Madrid',
+        codigo_ler: '15 01 01',
+        peligrosidad: 'no-peligroso',
+        operacion_tratamiento: 'R1201',
+        cantidad: 2,
+      });
+
+      expect(xml).toContain('DCSRegional="N"');
+      expect(xml).toContain('DCSSendtoOriginOrDestinationAuthority="S"');
+      expect(xml).toContain('<table2>R12</table2>');
     });
   });
 
@@ -220,6 +240,33 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       expect(res.valid).toBe(false);
       expect(res.errors.length).toBeGreaterThanOrEqual(6);
       expect(res.warnings.length).toBeGreaterThanOrEqual(4);
+    });
+
+    it('debe aceptar R14/R15/R1201 y exigir NT en residuos peligrosos (*), LER 20 03 01 y R01', () => {
+      const baseDoc = {
+        numero_documento: 'DI-300',
+        productor_cif: 'B00000000',
+        gestor_cif: 'B11111111',
+        transportista_cif: 'B22222222',
+        transportista_razon_social: 'Trans Test',
+        codigo_ler: '17 04 05',
+        operacion_tratamiento: 'R14',
+        cantidad: 1,
+        tipo_notificacion: 'sin-notificacion',
+      };
+
+      expect(siraService.validateDIForE3L(baseDoc).valid).toBe(true);
+      expect(siraService.validateDIForE3L({ ...baseDoc, operacion_tratamiento: 'R1201' }).valid).toBe(true);
+
+      const errDangerous = siraService.validateDIForE3L({ ...baseDoc, codigo_ler: '15 01 10*' });
+      expect(errDangerous.valid).toBe(false);
+      expect(errDangerous.errors.some((e) => e.includes('art. 3.2 del RD 553/2020'))).toBe(true);
+
+      const err200301 = siraService.validateDIForE3L({ ...baseDoc, codigo_ler: '20 03 01' });
+      expect(err200301.valid).toBe(false);
+
+      const errR01 = siraService.validateDIForE3L({ ...baseDoc, operacion_tratamiento: 'R01' });
+      expect(errR01.valid).toBe(false);
     });
   });
 

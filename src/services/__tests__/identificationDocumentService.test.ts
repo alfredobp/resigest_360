@@ -876,6 +876,88 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
         identificationDocumentService.completeTreatment(71, { operacion_tratamiento: 'R04' })
       ).rejects.toThrow('no está amparada por el contrato');
     });
+
+    it('debe exigir NT en residuos peligrosos (*), LER 20 03 01 y R01 (Art. 3.2 RD 553/2020) y soportar R14/R15/R1201', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+      const { normalizeOperationCode } = await import('../identificationDocumentService');
+      expect(normalizeOperationCode('R4')).toBe('R04');
+      expect(normalizeOperationCode('R14')).toBe('R14');
+      expect(normalizeOperationCode('R1201')).toBe('R1201');
+
+      // Residuo peligroso (*) sin NT en salida
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 80,
+        codigo_ler: '15 01 10*',
+        operacion_tratamiento: 'R13',
+        tipo_notificacion: 'sin-notificacion',
+      } as any);
+      await expect(
+        identificationDocumentService.recordDeparture(80, {
+          fecha_salida: '2026-11-10T12:40',
+          contrato_externo_referencia: 'EXT-1',
+          supuesto_excepcion_contrato: 'Operación exenta',
+        })
+      ).rejects.toThrow('exige Notificación Previa');
+
+      // LER 20 03 01 sin NT en salida
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 81,
+        codigo_ler: '20 03 01',
+        operacion_tratamiento: 'R13',
+        tipo_notificacion: 'sin-notificacion',
+      } as any);
+      await expect(
+        identificationDocumentService.recordDeparture(81, {
+          fecha_salida: '2026-11-10T12:40',
+          contrato_externo_referencia: 'EXT-1',
+          supuesto_excepcion_contrato: 'Operación exenta',
+        })
+      ).rejects.toThrow('exige Notificación Previa');
+
+      // R01 sin NT en salida
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 82,
+        codigo_ler: '15 01 01',
+        operacion_tratamiento: 'R01',
+        tipo_notificacion: 'sin-notificacion',
+      } as any);
+      await expect(
+        identificationDocumentService.recordDeparture(82, {
+          fecha_salida: '2026-11-10T12:40',
+          contrato_externo_referencia: 'EXT-1',
+          supuesto_excepcion_contrato: 'Operación exenta',
+        })
+      ).rejects.toThrow('exige Notificación Previa');
+
+      // Peligroso sin NT en completeTreatment
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 83,
+        codigo_ler: '15 01 10*',
+        peligrosidad: 'peligroso',
+        operacion_tratamiento: 'R13',
+        tipo_notificacion: 'sin-notificacion',
+      } as any);
+      await expect(
+        identificationDocumentService.completeTreatment(83, { operacion_tratamiento: 'R13' })
+      ).rejects.toThrow('requieren Notificación Previa');
+
+      // Soportar R14 y subcódigo R1201 en cierre de tratamiento
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 84,
+        codigo_ler: '15 01 01',
+        operacion_tratamiento: 'R14',
+        tipo_notificacion: 'sin-notificacion',
+      } as any);
+      const spyUpdate = jest.spyOn(identificationDocumentService, 'update').mockImplementation(
+        async (_id, payload) => ({ id: 84, ...payload } as any)
+      );
+      const resR14 = await identificationDocumentService.completeTreatment(84, { operacion_tratamiento: 'R14' });
+      expect(resR14.operacion_tratamiento_ejecutada).toBe('R14');
+
+      const resSub = await identificationDocumentService.completeTreatment(84, { operacion_tratamiento: 'R1201' });
+      expect(resSub.operacion_tratamiento_ejecutada).toBe('R1201');
+      spyUpdate.mockRestore();
+    });
   });
 
   describe('getStats', () => {

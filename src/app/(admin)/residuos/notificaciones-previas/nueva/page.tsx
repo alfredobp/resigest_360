@@ -28,8 +28,12 @@ export default function NuevaNotificacionPreviaPage() {
   const [managers, setManagers] = useState<TreatmentManager[]>([]);
   const [wasteTypes, setWasteTypes] = useState<WasteType[]>([]);
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const nextYear = new Date();
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const minStartDate = new Date(today);
+  minStartDate.setDate(minStartDate.getDate() + 10);
+  const minStartStr = minStartDate.toISOString().split('T')[0];
+  const nextYear = new Date(minStartDate);
   nextYear.setFullYear(nextYear.getFullYear() + 1);
   const nextYearStr = nextYear.toISOString().split('T')[0];
 
@@ -37,7 +41,7 @@ export default function NuevaNotificacionPreviaPage() {
     tipo_notificacion: 'general',
     tipo_traslado: 'autonomico',
     fecha_notificacion: todayStr,
-    fecha_inicio: todayStr,
+    fecha_inicio: minStartStr,
     fecha_fin: nextYearStr,
     peligrosidad: 'no-peligroso',
     caracteristica_peligrosidad: 'HP4',

@@ -592,7 +592,10 @@ export const commercialOperationService = {
   /**
    * Sincroniza la operación comercial con Holded ERP creando la factura de venta correspondiente
    */
-  async syncOperationToHolded(operationId: number): Promise<{ success: boolean; invoiceId?: string; docNumber?: string; message: string }> {
+  async syncOperationToHolded(
+    operationId: number,
+    options?: { taxRate?: 0 | 10 | 21 }
+  ): Promise<{ success: boolean; invoiceId?: string; docNumber?: string; message: string }> {
     try {
       const op = await this.getById(operationId);
       if (!op) {
@@ -634,10 +637,10 @@ export const commercialOperationService = {
               type: 'client',
               email: clientCompany.email || undefined,
               phone: clientCompany.telefono || undefined,
-              city: clientCompany.municipio || undefined,
-              postalCode: clientCompany.codigo_postal || undefined,
-              province: clientCompany.provincia || undefined,
-              address: clientCompany.direccion || undefined,
+              city: clientCompany.municipio_social || clientCompany.municipio_instalacion || clientCompany.municipio || undefined,
+              postalCode: clientCompany.codigo_postal_social || clientCompany.codigo_postal_instalacion || clientCompany.codigo_postal || undefined,
+              province: clientCompany.provincia_social || clientCompany.provincia_instalacion || clientCompany.provincia || undefined,
+              address: clientCompany.domicilio_social || clientCompany.domicilio_instalacion || clientCompany.direccion || undefined,
             }, apiKey);
 
             if (createdContact?.id) {
@@ -654,18 +657,37 @@ export const commercialOperationService = {
         ? op.cantidad_real_t
         : (op.cantidad_estimada_t || 1);
 
+      const taxRate: 0 | 10 | 21 = options?.taxRate !== undefined ? options.taxRate : 21;
+      const isLoteFijo = op.tipo_precio_venta === 'lote_fijo';
+      const units = isLoteFijo
+        ? 1
+        : op.tipo_precio_venta === 'por_kg'
+          ? Number((toneladas * 1000).toFixed(3))
+          : toneladas;
+      const unitSubtotal = isLoteFijo
+        ? Number(op.ingreso_venta_total || op.precio_unitario_venta || 0)
+        : (op.precio_unitario_venta && op.precio_unitario_venta > 0)
+          ? Number(op.precio_unitario_venta)
+          : (units > 0
+              ? Number(((op.ingreso_venta_total || 0) / units).toFixed(2))
+              : Number(op.ingreso_venta_total || 0));
+
+      const ispMention = taxRate === 0
+        ? ' — Inversión del Sujeto Pasivo (Art. 84.Uno.2º.c Ley 37/1992 del IVA)'
+        : '';
+
       const invoicePayload = {
         contactId: contactId || undefined,
         contactName: op.cliente_razon_social || 'Cliente Venta',
-        desc: `Factura Venta Residuo - Operación ${op.numero_operacion} (LER ${op.codigo_ler})`,
+        desc: `Factura Venta Residuo - Operación ${op.numero_operacion} (LER ${op.codigo_ler})${ispMention}`,
         date: Math.floor(new Date(op.fecha || Date.now()).getTime() / 1000),
         items: [
           {
             name: `Gestión / Venta Residuo LER ${op.codigo_ler}`,
-            desc: `${op.descripcion_residuo || 'Residuo'} - Operación ${op.numero_operacion}`,
-            units: toneladas,
-            subtotal: op.ingreso_venta_total,
-            tax: 21,
+            desc: `${op.descripcion_residuo || 'Residuo'} - Operación ${op.numero_operacion}${ispMention}`,
+            units,
+            subtotal: unitSubtotal,
+            tax: taxRate,
           }
         ]
       };

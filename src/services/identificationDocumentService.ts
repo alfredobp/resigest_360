@@ -22,14 +22,42 @@ import { isWeightDiscrepancy, parseDiscrepancyJustification } from '@/lib/valida
 const supabase = createClient();
 
 /**
- * Normaliza códigos de operación R/D para comparaciones consistentes (ej: 'R4' -> 'R04', 'D1' -> 'D01').
+ * Normaliza códigos de operación R/D para comparaciones consistentes (ej: 'R4' -> 'R04', 'D1' -> 'D01', 'R1201' -> 'R1201').
  */
 export function normalizeOperationCode(op?: string | null): string {
   if (!op) return '';
   const cleaned = op.trim().toUpperCase();
-  const match = cleaned.match(/^([RD])(\d{1,2})$/);
-  if (!match) return cleaned;
-  return `${match[1]}${match[2].padStart(2, '0')}`;
+  return cleaned.replace(/^([RD])(\d)$/, '$10$2');
+}
+
+/**
+ * Evalúa si un traslado está sujeto obligatoriamente a Notificación Previa (Art. 3.2 RD 553/2020):
+ * - Operaciones de eliminación (D01–D15 y subcódigos).
+ * - Valorización energética / incineración (R01 y subcódigos).
+ * - Residuos peligrosos (peligrosidad === 'peligroso' o LER con '*').
+ * - Residuos domésticos mezclados (LER 20 03 01).
+ */
+export function requiresPriorNotification(
+  doc: Partial<IdentificationDocument>,
+  operationCode?: string | null
+): { required: boolean; reason?: string } {
+  const op = normalizeOperationCode(operationCode || doc.operacion_tratamiento_ejecutada || doc.operacion_tratamiento);
+  const cleanLer = String(doc.codigo_ler || '').replace(/\D/g, '');
+  const isDangerous = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
+
+  if (op.startsWith('D')) {
+    return { required: true, reason: `la operación de eliminación ${op}` };
+  }
+  if (op === 'R01' || op.startsWith('R01')) {
+    return { required: true, reason: `la operación ${op} (valorización/incineración)` };
+  }
+  if (isDangerous) {
+    return { required: true, reason: `el residuo peligroso (LER ${doc.codigo_ler || 'peligroso'})` };
+  }
+  if (cleanLer === '200301') {
+    return { required: true, reason: 'el residuo mezclado municipal (LER 20 03 01)' };
+  }
+  return { required: false };
 }
 
 /**
@@ -627,10 +655,13 @@ export const identificationDocumentService = {
 
     // Validar operación prevista contra régimen de notificación y autorización ambiental
     const plannedOp = normalizeOperationCode(doc.operacion_tratamiento);
-    if (plannedOp && plannedOp.startsWith('D') && doc.tipo_notificacion === 'sin-notificacion') {
-      throw new Error(
-        `No se puede iniciar el traslado: la operación prevista ${plannedOp} (eliminación) exige Notificación Previa (art. 3.2 RD 553/2020).`
-      );
+    if (doc.tipo_notificacion === 'sin-notificacion') {
+      const ntCheck = requiresPriorNotification(doc, plannedOp);
+      if (ntCheck.required) {
+        throw new Error(
+          `No se puede iniciar el traslado: ${ntCheck.reason} exige Notificación Previa (art. 3.2 RD 553/2020).`
+        );
+      }
     }
     if (hasAuthConfigured) {
       if (!isAuthValid) {
@@ -792,8 +823,8 @@ export const identificationDocumentService = {
     const doc = await this.getById(id);
     const executedOp = normalizeOperationCode(payload.operacion_tratamiento);
 
-    if (!executedOp || !/^[RD]\d{2}$/.test(executedOp)) {
-      throw new Error(`Operación de tratamiento inválida: '${payload.operacion_tratamiento}'. Debe indicar un código R01–R13 o D01–D15.`);
+    if (!executedOp || !/^(R(0[1-9]|1[0-5])|D(0[1-9]|1[0-5]))(\d{2})?$/.test(executedOp)) {
+      throw new Error(`Operación de tratamiento inválida: '${payload.operacion_tratamiento}'. Debe indicar un código R01–R15, D01–D15 o subcódigo desagregado (ej. R1201).`);
     }
 
     // Idempotencia y rectificación: si ya está cerrado con la misma operación, permitir rectificar notas/descripción/fecha
@@ -835,10 +866,13 @@ export const identificationDocumentService = {
     }
 
     // Validar compatibilidad con régimen de notificación previa (art. 3.2 RD 553/2020)
-    if (executedOp.startsWith('D') && doc.tipo_notificacion === 'sin-notificacion') {
-      throw new Error(
-        `Operación ${executedOp} denegada: las operaciones de eliminación requieren Notificación Previa y este DI figura como 'Sin Notificación' (art. 3.2 RD 553/2020).`
-      );
+    if (doc.tipo_notificacion === 'sin-notificacion') {
+      const ntCheck = requiresPriorNotification(doc, executedOp);
+      if (ntCheck.required) {
+        throw new Error(
+          `Operación ${executedOp} denegada: ${ntCheck.reason} requieren Notificación Previa y este DI figura como 'Sin Notificación' (art. 3.2 RD 553/2020).`
+        );
+      }
     }
 
     // Validar contrato y autorización ambiental del gestor destino para el LER y operación

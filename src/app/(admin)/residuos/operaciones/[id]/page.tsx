@@ -34,6 +34,7 @@ export default function DetalleOperacionComercialPage() {
   const [loading, setLoading] = useState(true);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [syncingHolded, setSyncingHolded] = useState(false);
+  const [holdedTaxRate, setHoldedTaxRate] = useState<0 | 10 | 21>(21);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -74,7 +75,7 @@ export default function DetalleOperacionComercialPage() {
     try {
       setSyncingHolded(true);
       setError(null);
-      const res = await commercialOperationService.syncOperationToHolded(operation.id);
+      const res = await commercialOperationService.syncOperationToHolded(operation.id, { taxRate: holdedTaxRate });
       setSuccess(res.message);
       toast.success(res.message);
       await loadOperation();
@@ -656,18 +657,32 @@ export default function DetalleOperacionComercialPage() {
                 </span>
                 <span>Estado Cobro: {operation.estado_cobro_venta}</span>
               </div>
-              <div className="pt-2 flex justify-between items-center border-t border-emerald-100 dark:border-emerald-900/30">
-                <span className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
-                  Holded ERP Invoicing
-                </span>
-                <Button
-                  size="sm"
-                  variant={operation.factura_venta_ref ? "outline" : "primary"}
-                  disabled={syncingHolded}
-                  onClick={() => handleSyncHolded()}
-                >
-                  {syncingHolded ? 'Sincronizando...' : operation.factura_venta_ref ? 'Re-sincronizar Holded' : 'Emitir Factura Holded'}
-                </Button>
+              <div className="pt-2 space-y-2 border-t border-emerald-100 dark:border-emerald-900/30">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label htmlFor="holded-tax-rate" className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
+                    Holded ERP Invoicing (Régimen IVA)
+                  </label>
+                  <select
+                    id="holded-tax-rate"
+                    value={holdedTaxRate}
+                    onChange={(e) => setHoldedTaxRate(Number(e.target.value) as 0 | 10 | 21)}
+                    className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-gray-800 px-2.5 py-1 text-[11px] font-medium text-gray-800 dark:text-gray-200"
+                  >
+                    <option value={21}>21% IVA General</option>
+                    <option value={10}>10% IVA Reducido Gestión Residuos</option>
+                    <option value={0}>0% Inversión Sujeto Pasivo (Art. 84.Uno.2º.c LIVA)</option>
+                  </select>
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    variant={operation.factura_venta_ref ? "outline" : "primary"}
+                    disabled={syncingHolded}
+                    onClick={() => handleSyncHolded()}
+                  >
+                    {syncingHolded ? 'Sincronizando...' : operation.factura_venta_ref ? 'Re-sincronizar Holded' : 'Emitir Factura Holded'}
+                  </Button>
+                </div>
               </div>
             </div>
 

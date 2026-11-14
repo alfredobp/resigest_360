@@ -33,7 +33,7 @@ export const siraValidationSchema = z.object({
 
     operacion_tratamiento: z.string()
         .min(2, "Debe tener al menos 2 caracteres (Ej: R1 o R13)")
-        .regex(/^(R|D)\d{1,2}$/i, "Formato inválido. Debe ser R o D seguido de 1 o 2 dígitos (ej: R1, R01, R13, D10)"),
+        .regex(/^(?:[RD][1-9]|(?:R|D)(?:0[1-9]|1[0-5])(?:\d{2})?)$/i, "Formato inválido. Debe ser R01–R15 o D01–D15 (ej: R1, R01, R13, R14, R15, R1201, D10)"),
 
     peligrosidad: z.any().refine(val => val === 'peligroso' || val === 'no-peligroso', "Selecciona peligrosidad"),
     estado_fisico: z.any().refine(val => ['solido', 'liquido', 'pastoso', 'gaseoso'].includes(val), "Selecciona estado físico"),

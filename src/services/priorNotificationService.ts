@@ -77,7 +77,7 @@ export function validateNTForE3L(nt: Partial<PriorNotification>): E3LNTValidatio
   }
 
   const op = normalizeOperation(nt.operacion_tratamiento || '');
-  if (!/^(R0[1-9]|R1[0-3]|D0[1-9]|D1[0-5])$/.test(op)) {
+  if (!/^(R(0[1-9]|1[0-5])|D(0[1-9]|1[0-5]))(\d{2})?$/.test(op)) {
     errors.push(`Operación de tratamiento inválida (${op || 'vacía'}).`);
   }
 
@@ -87,6 +87,33 @@ export function validateNTForE3L(nt: Partial<PriorNotification>): E3LNTValidatio
 
   if (!nt.fecha_fin) {
     errors.push('Falta la fecha de finalización o vigencia de la Notificación Previa.');
+  }
+
+  if (nt.fecha_inicio && nt.fecha_fin) {
+    const startTime = new Date(nt.fecha_inicio).getTime();
+    const endTime = new Date(nt.fecha_fin).getTime();
+    if (!isNaN(startTime) && !isNaN(endTime)) {
+      if (endTime < startTime) {
+        errors.push('La fecha de finalización de la Notificación Previa no puede ser anterior a la fecha de inicio.');
+      } else {
+        const maxEnd = new Date(nt.fecha_inicio);
+        maxEnd.setFullYear(maxEnd.getFullYear() + 3);
+        if (endTime > maxEnd.getTime()) {
+          errors.push('La vigencia de la Notificación Previa no puede superar el plazo máximo de 3 años (art. 8.3 RD 553/2020).');
+        }
+      }
+    }
+  }
+
+  if (nt.fecha_notificacion && nt.fecha_inicio) {
+    const notifTime = new Date(nt.fecha_notificacion).getTime();
+    const startTime = new Date(nt.fecha_inicio).getTime();
+    if (!isNaN(notifTime) && !isNaN(startTime)) {
+      const diffDays = Math.round((startTime - notifTime) / (1000 * 60 * 60 * 24));
+      if (diffDays < 10) {
+        errors.push('La Notificación Previa debe presentarse con al menos 10 días naturales de antelación al inicio del traslado (art. 8.2 RD 553/2020).');
+      }
+    }
   }
 
   if (!nt.productor_nima) warnings.push('Falta NIMA del centro productor.');
@@ -356,7 +383,7 @@ export const priorNotificationService = {
                 <authorizationId>
                     <authorizationIdFree>${opNima}</authorizationIdFree>
                 </authorizationId>
-                <authorizationCode>${isDanger ? 'P01' : 'P02'}</authorizationCode>
+                <authorizationCode>${isDanger ? 'P01' : 'P03'}</authorizationCode>
             </wasteCenterAuthorization>
         </entityCenter>
         <wasteTransferOperatorType operatorTypeCode="P01"/>
@@ -394,10 +421,10 @@ export const priorNotificationService = {
                 <authorizationId>
                     <authorizationIdFree>${prodNima}</authorizationIdFree>
                 </authorizationId>
-                <authorizationCode>${isDanger ? 'P01' : 'P02'}</authorizationCode>
+                <authorizationCode>${isDanger ? 'P01' : 'P03'}</authorizationCode>
             </wasteCenterAuthorization>
         </entityCenter>
-        <wasteProducerType producerTypeCode="${isDanger ? 'P01' : 'P02'}"/>
+        <wasteProducerType producerTypeCode="${isDanger ? 'P01' : 'P03'}"/>
     </NTProducerData>
 
     <!-- 3. Destinatario -->
@@ -446,7 +473,7 @@ export const priorNotificationService = {
                  <bagResidueId residueCode="999" residueDescription="${clean(nt.descripcion_residuo)}"/>
             </residueBag>
             <residueTables ${residueTablesType}>
-                <table2>${cleanOp}</table2>${hpBlock}
+                <table2>${cleanOp.slice(0, 3)}</table2>${hpBlock}
             </residueTables>
         </NTResidueIdentification>
         <NTOtherResidueData>

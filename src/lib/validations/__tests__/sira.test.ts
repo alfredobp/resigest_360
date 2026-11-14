@@ -110,16 +110,16 @@ describe('siraValidationSchema - Validaciones normativas SIRA', () => {
   });
 
   describe('Operación de tratamiento (operacion_tratamiento)', () => {
-    it.each(['R1', 'R13', 'r01', 'D1', 'D10', 'd5'])(
-      'debe aceptar código de operación válido: %s',
-      (code) => {
-        const result = siraValidationSchema.safeParse({
-          ...validBasePayload,
-          operacion_tratamiento: code,
-        });
-        expect(result.success).toBe(true);
-      }
-    );
+      it.each(['R1', 'R13', 'R14', 'R15', 'R1201', 'D1501', 'r01', 'D1', 'D10', 'd5'])(
+        'debe aceptar código de operación válido: %s',
+        (code) => {
+          const result = siraValidationSchema.safeParse({
+            ...validBasePayload,
+            operacion_tratamiento: code,
+          });
+          expect(result.success).toBe(true);
+        }
+      );
 
     it('debe fallar si tiene menos de 2 caracteres', () => {
       const result = siraValidationSchema.safeParse({
