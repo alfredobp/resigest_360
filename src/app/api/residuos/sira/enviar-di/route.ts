@@ -46,6 +46,17 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Documento no encontrado o no tiene permisos para acceder a él' }, { status: 404 });
         }
 
+        // Validar estructura E3L del DI antes de enviar (si el validador está disponible)
+        if (typeof siraService.validateDIForE3L === 'function') {
+            const validation = siraService.validateDIForE3L(doc);
+            if (validation && !validation.valid) {
+                return NextResponse.json({
+                    error: 'El Documento de Identificación no cumple las reglas del esquema E3L',
+                    details: validation.errors,
+                }, { status: 400 });
+            }
+        }
+
         // 2. Obtener credenciales de SIRA de la empresa asignada o de la empresa principal del usuario
         const companyData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
         let sira_usuario = companyData?.sira_usuario?.trim();

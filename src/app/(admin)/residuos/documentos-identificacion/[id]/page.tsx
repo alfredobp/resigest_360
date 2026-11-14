@@ -541,7 +541,7 @@ export default function DetalleDocumentoIdentificacionPage() {
     );
   }
 
-  if (error || !document) {
+  if (!document) {
     return (
       <>
         <PageBreadCrumb pageTitle="Detalle del Documento" />
@@ -1431,13 +1431,12 @@ export default function DetalleDocumentoIdentificacionPage() {
                             {formatDateTime(sub.created_at)}
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              sub.estado === 'aceptado'
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${sub.estado === 'aceptado'
                                 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400'
                                 : sub.estado === 'rechazado'
-                                ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400'
-                                : 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400'
-                            }`}>
+                                  ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400'
+                                  : 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400'
+                              }`}>
                               {sub.estado.toUpperCase()}
                             </span>
                           </td>
@@ -1928,8 +1927,8 @@ export default function DetalleDocumentoIdentificacionPage() {
               {submittingAction
                 ? 'Guardando...'
                 : document.estado_traslado === 'tratado'
-                ? 'Guardar Rectificación'
-                : 'Cerrar Traslado y Certificar'}
+                  ? 'Guardar Rectificación'
+                  : 'Cerrar Traslado y Certificar'}
             </Button>
           </div>
         </form>
@@ -2072,13 +2071,12 @@ export default function DetalleDocumentoIdentificacionPage() {
         withSignerInputs={true}
         initialName={signerInitialData.nombre}
         initialDni={signerInitialData.dni}
-        title={`Firmar Documento de Identificación como ${
-          signingRole === 'productor'
+        title={`Firmar Documento de Identificación como ${signingRole === 'productor'
             ? 'Productor / Remitente'
             : signingRole === 'transportista'
-            ? 'Transportista en Carga'
-            : 'Gestor Destinatario'
-        }`}
+              ? 'Transportista en Carga'
+              : 'Gestor Destinatario'
+          }`}
         description="Dibuje su firma en el recuadro para validar la conformidad y registrarla en el documento oficial."
       />
 

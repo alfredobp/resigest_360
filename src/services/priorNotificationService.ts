@@ -58,6 +58,39 @@ export interface E3LNTValidationResult {
   warnings: string[];
 }
 
+export function validateNTDateRules(nt: Partial<PriorNotification>): string[] {
+  const errors: string[] = [];
+
+  if (nt.fecha_inicio && nt.fecha_fin) {
+    const startTime = new Date(nt.fecha_inicio).getTime();
+    const endTime = new Date(nt.fecha_fin).getTime();
+    if (!isNaN(startTime) && !isNaN(endTime)) {
+      if (endTime < startTime) {
+        errors.push('La fecha de finalización de la Notificación Previa no puede ser anterior a la fecha de inicio.');
+      } else {
+        const maxEnd = new Date(nt.fecha_inicio);
+        maxEnd.setFullYear(maxEnd.getFullYear() + 3);
+        if (endTime > maxEnd.getTime()) {
+          errors.push('La vigencia de la Notificación Previa no puede superar el plazo máximo de 3 años (art. 8.3 RD 553/2020).');
+        }
+      }
+    }
+  }
+
+  if (nt.fecha_notificacion && nt.fecha_inicio) {
+    const notifTime = new Date(nt.fecha_notificacion).getTime();
+    const startTime = new Date(nt.fecha_inicio).getTime();
+    if (!isNaN(notifTime) && !isNaN(startTime)) {
+      const diffDays = Math.round((startTime - notifTime) / (1000 * 60 * 60 * 24));
+      if (diffDays < 10) {
+        errors.push('La Notificación Previa debe presentarse con al menos 10 días naturales de antelación al inicio del traslado (art. 8.2 RD 553/2020).');
+      }
+    }
+  }
+
+  return errors;
+}
+
 export function validateNTForE3L(nt: Partial<PriorNotification>): E3LNTValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -90,32 +123,7 @@ export function validateNTForE3L(nt: Partial<PriorNotification>): E3LNTValidatio
     errors.push('Falta la fecha de finalización o vigencia de la Notificación Previa.');
   }
 
-  if (nt.fecha_inicio && nt.fecha_fin) {
-    const startTime = new Date(nt.fecha_inicio).getTime();
-    const endTime = new Date(nt.fecha_fin).getTime();
-    if (!isNaN(startTime) && !isNaN(endTime)) {
-      if (endTime < startTime) {
-        errors.push('La fecha de finalización de la Notificación Previa no puede ser anterior a la fecha de inicio.');
-      } else {
-        const maxEnd = new Date(nt.fecha_inicio);
-        maxEnd.setFullYear(maxEnd.getFullYear() + 3);
-        if (endTime > maxEnd.getTime()) {
-          errors.push('La vigencia de la Notificación Previa no puede superar el plazo máximo de 3 años (art. 8.3 RD 553/2020).');
-        }
-      }
-    }
-  }
-
-  if (nt.fecha_notificacion && nt.fecha_inicio) {
-    const notifTime = new Date(nt.fecha_notificacion).getTime();
-    const startTime = new Date(nt.fecha_inicio).getTime();
-    if (!isNaN(notifTime) && !isNaN(startTime)) {
-      const diffDays = Math.round((startTime - notifTime) / (1000 * 60 * 60 * 24));
-      if (diffDays < 10) {
-        errors.push('La Notificación Previa debe presentarse con al menos 10 días naturales de antelación al inicio del traslado (art. 8.2 RD 553/2020).');
-      }
-    }
-  }
+  errors.push(...validateNTDateRules(nt));
 
   if (!nt.productor_nima) warnings.push('Falta NIMA del centro productor.');
   if (!nt.gestor_nima) warnings.push('Falta NIMA de la instalación de destino.');
@@ -192,6 +200,11 @@ export const priorNotificationService = {
       throw new Error('Falta el ID de empresa para asociar la Notificación Previa');
     }
 
+    const dateErrors = validateNTDateRules(notificationData);
+    if (dateErrors.length > 0) {
+      throw new Error(dateErrors[0]);
+    }
+
     const numeroNotificacion =
       notificationData.numero_notificacion && String(notificationData.numero_notificacion).trim().length > 0
         ? String(notificationData.numero_notificacion).trim()
@@ -223,6 +236,11 @@ export const priorNotificationService = {
   async update(id: number, notificationData: Partial<PriorNotification>): Promise<PriorNotification> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
+
+    const dateErrors = validateNTDateRules(notificationData);
+    if (dateErrors.length > 0) {
+      throw new Error(dateErrors[0]);
+    }
 
     const { data, error } = await supabase
       .from('prior_notifications')

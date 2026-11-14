@@ -186,7 +186,7 @@ export default function ContractDetailPage() {
     );
   }
 
-  if (error || !contract) {
+  if (!contract) {
     return (
       <>
         <PageBreadCrumb pageTitle="Detalle del Contrato" />
@@ -226,6 +226,10 @@ export default function ContractDetailPage() {
             ← Volver
           </Button>
         </div>
+
+        {error && (
+          <Alert variant="error" title="Error" message={error} />
+        )}
 
         {downloadSuccess && (
           <Alert variant="success" title="Éxito" message={downloadSuccess} />

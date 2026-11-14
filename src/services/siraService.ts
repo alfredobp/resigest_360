@@ -511,6 +511,14 @@ const generateResidueBlock = (doc: any): string => {
     const isRejected =
       doc.estado_traslado === 'rechazado_total' ||
       doc.resultado_recepcion === 'rechazado_total';
+    const isPartialRejection =
+      doc.estado_traslado === 'rechazado_parcial' ||
+      doc.resultado_recepcion === 'rechazado_parcial';
+    const rejectedKg = Number(doc.cantidad_rechazada_kg || 0);
+    const realAcceptedWeight =
+      isPartialRejection && !isNaN(rejectedKg) && rejectedKg > 0 && rawWeight > rejectedKg
+        ? (rawWeight - rejectedKg).toFixed(3)
+        : formattedWeight;
     const acceptanceCode = isRejected ? '04' : '03';
     const acceptanceDate = String(
       doc.fecha_recepcion ||
@@ -530,7 +538,7 @@ const generateResidueBlock = (doc: any): string => {
       : '';
     acceptanceData = `
     <DCSAcceptanceData>
-        <DCSRealQuantity>${formattedWeight}</DCSRealQuantity>
+        <DCSRealQuantity>${realAcceptedWeight}</DCSRealQuantity>
         <DCSAcceptance>${acceptanceCode}</DCSAcceptance>
         <DCSAcceptanceDate>${acceptanceDate}</DCSAcceptanceDate>${refusedBlock}
         <DCSDeliveryDate>${deliveryDate}</DCSDeliveryDate>

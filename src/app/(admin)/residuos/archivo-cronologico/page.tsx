@@ -212,7 +212,7 @@ export default function ArchivoCronologicoPage() {
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       console.error(err);
-      const msg = 'Error al eliminar el asiento.';
+      const msg = err?.message || 'Error al eliminar el asiento.';
       setError(msg);
       toast.error(msg);
     }

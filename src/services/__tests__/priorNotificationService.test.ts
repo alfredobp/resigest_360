@@ -356,6 +356,24 @@ describe('priorNotificationService', () => {
       await expect(priorNotificationService.create({})).rejects.toThrow('Falta el ID de empresa');
     });
 
+    it('create y update rechazan plazos inferiores a 10 días de preaviso o superiores a 3 años', async () => {
+      await expect(
+        priorNotificationService.create({
+          company_id: 1,
+          fecha_notificacion: '2026-05-01',
+          fecha_inicio: '2026-05-05',
+          fecha_fin: '2026-06-01',
+        })
+      ).rejects.toThrow('10 días naturales');
+
+      await expect(
+        priorNotificationService.update(100, {
+          fecha_inicio: '2026-05-20',
+          fecha_fin: '2030-05-20',
+        })
+      ).rejects.toThrow('máximo de 3 años');
+    });
+
     it('create lanza error si el usuario no está autenticado', async () => {
       mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: null });
       await expect(priorNotificationService.create({ company_id: 1 })).rejects.toThrow('Usuario no autenticado');

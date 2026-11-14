@@ -245,6 +245,25 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       expect(rejectedXml).toContain('<DCSRefusedAction>Redelivery</DCSRefusedAction>');
       expect(rejectedXml).toContain('<DCSRefusedActionDate>2026-11-13</DCSRefusedActionDate>');
     });
+
+    it('descuenta cantidad_rechazada_kg de <DCSRealQuantity> en rechazos parciales', () => {
+      const partialXml = siraService.generateDIXml({
+        numero_documento: 'DI-DEST-003',
+        fecha_documento: '2026-11-10',
+        fecha_recepcion: '2026-11-14',
+        estado_traslado: 'rechazado_parcial',
+        resultado_recepcion: 'rechazado_parcial',
+        peso_destino_kg: 1000,
+        cantidad_rechazada_kg: 250,
+        codigo_ler: '15 01 01',
+        peligrosidad: 'no-peligroso',
+        operacion_tratamiento: 'R1201',
+      });
+
+      expect(partialXml).toContain('DCSPhase="D"');
+      expect(partialXml).toContain('<DCSRealQuantity>750.000</DCSRealQuantity>');
+      expect(partialXml).toContain('<DCSAcceptance>03</DCSAcceptance>');
+    });
   });
 
   describe('validateDIForE3L', () => {

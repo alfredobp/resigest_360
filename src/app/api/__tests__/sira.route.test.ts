@@ -74,6 +74,7 @@ jest.mock('@/lib/supabase/server', () => ({
 
 jest.mock('@/services/siraService', () => ({
   siraService: {
+    validateDIForE3L: jest.fn(() => ({ valid: true, errors: [], warnings: [] })),
     generateDIXml: jest.fn(() => '<wasteDCS DCSCode="DI-1"/>'),
     extractSiraError: jest.fn(() => 'JA000018: Error de validación SIRA'),
   },
@@ -101,6 +102,11 @@ describe('POST /api/residuos/sira/enviar-di', () => {
     mockDocUpdateEq.mockResolvedValue({ error: null });
     mockAuditInsert.mockResolvedValue({ error: null });
     mockCompanyMaybeSingle.mockResolvedValue({ data: null, error: null });
+    (siraService.validateDIForE3L as jest.Mock).mockReturnValue({
+      valid: true,
+      errors: [],
+      warnings: [],
+    });
   });
 
   afterEach(() => {
@@ -376,5 +382,28 @@ describe('POST /api/residuos/sira/enviar-di', () => {
         delete process.env.SIRA_ALLOW_TEST_CENSUS;
       }
     }
+  });
+
+  it('devuelve 400 si el DI no supera la validación estructural E3L previa', async () => {
+    mockDocSingle.mockResolvedValue({
+      data: {
+        id: 15,
+        company_id: 2,
+        numero_documento: 'DI-2026-006',
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+    (siraService.validateDIForE3L as jest.Mock).mockReturnValueOnce({
+      valid: false,
+      errors: ['Falta el CIF/NIF del Productor'],
+      warnings: [],
+    });
+
+    const res = await POST(makeReq({ documentId: 15 }));
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toContain('El Documento de Identificación no cumple las reglas del esquema E3L');
+    expect(json.details).toContain('Falta el CIF/NIF del Productor');
   });
 });

@@ -483,10 +483,21 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    SELECT to_jsonb(d) INTO v_result
+    SELECT
+      CASE
+        WHEN d.fecha_finalizacion IS NOT NULL AND d.fecha_finalizacion <= (now() - interval '7 days') THEN
+          jsonb_build_object(
+            'id', d.id,
+            'token', d.token,
+            'estado', d.estado,
+            'fecha_finalizacion', d.fecha_finalizacion,
+            'expired', true
+          )
+        ELSE to_jsonb(d)
+      END
+    INTO v_result
     FROM public.deca_documents d
     WHERE d.token = btrim(p_token)
-      AND (d.fecha_finalizacion IS NULL OR d.fecha_finalizacion > (now() - interval '7 days'))
     LIMIT 1;
 
     RETURN v_result;
