@@ -88,3 +88,24 @@ export const siraValidationSchema = z.object({
         }
     }
 });
+
+/**
+ * Determina si la respuesta XML de SIRA pasó al 100% la validación de esquema XSD (E3L v3.3)
+ * y únicamente contiene avisos/errores censales de RPGR en entorno de pruebas:
+ * - JA000002: NIMA de prueba no inscrito/autorizado en el censo real de la Junta.
+ * - JA000027: NT de prueba asociada no figura como presentada en el censo real.
+ */
+export function isSiraTestModeCensusOnlyError(responseText: string): boolean {
+    if (!responseText) return false;
+    if (
+        responseText.includes('<soapenv:Fault>') ||
+        responseText.includes('SAXParseException') ||
+        responseText.includes('cvc-') ||
+        responseText.includes('JA000026')
+    ) {
+        return false;
+    }
+    const codeMatches = [...responseText.matchAll(/<resultWrong\s+code="([^"]+)"/g)];
+    if (codeMatches.length === 0) return false;
+    return codeMatches.every((m) => m[1] === 'JA000002' || m[1] === 'JA000027');
+}

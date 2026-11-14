@@ -278,4 +278,67 @@ describe('POST /api/residuos/sira/enviar-di', () => {
     expect(json.error).toBe('SIRA timeout');
     expect(mockSubUpdateEq).toHaveBeenCalledWith('id', 500);
   });
+
+  it('acepta en Modo Prueba cuando SIRA HTTP 200 solo devuelve error censal JA000027 o JA000002 (XSD válido)', async () => {
+    mockDocSingle.mockResolvedValue({
+      data: {
+        id: 10,
+        company_id: 2,
+        numero_documento: 'DI-2026-001',
+        productor_razon_social: 'Prod S.L.',
+        notas: '',
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        '<SOAP-ENV:Envelope><SOAP-ENV:Body><ns3:sendWasteDCSResponse><return><result><resultWrong><resultErrorList>' +
+        '<resultWrong code="JA000027" description="La NT asociada no se encuentra presentada."/>' +
+        '</resultErrorList></resultWrong></result></return></ns3:sendWasteDCSResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>',
+    }) as any;
+
+    const res = await POST(makeReq({ documentId: 10 }));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.isTestMode).toBe(true);
+    expect(json.siraId).toMatch(/^SIRA-TEST-DI-10-/);
+    expect(mockSubUpdateEq).toHaveBeenCalledWith('id', 500);
+    expect(mockDocUpdateEq).toHaveBeenCalledWith('user_id', 'u-sira-1');
+    expect(mockAuditInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detalles: expect.objectContaining({
+          resultado: 'aceptada_modo_prueba',
+        }),
+      })
+    );
+  });
+
+  it('sigue rechazando HTTP 200 cuando hay error de validación XSD JA000026 junto a error censal', async () => {
+    mockDocSingle.mockResolvedValue({
+      data: {
+        id: 13,
+        company_id: 2,
+        numero_documento: 'DI-2026-004',
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        '<resultErrorList><resultWrong code="JA000026" description="SAXParseException cvc-pattern-valid"/></resultErrorList>',
+    }) as any;
+
+    const res = await POST(makeReq({ documentId: 13 }));
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('SIRA ha rechazado el documento');
+  });
 });

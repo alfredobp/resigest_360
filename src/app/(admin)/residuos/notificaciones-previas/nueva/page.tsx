@@ -150,12 +150,57 @@ export default function NuevaNotificacionPreviaPage() {
     }));
   };
 
+  const handleFillTestData = () => {
+    const formattedCode = priorNotificationService.formatNTCode('', '1100000001');
+    setFormData((prev) => ({
+      ...prev,
+      numero_notificacion: formattedCode,
+      operador_razon_social: prev.operador_razon_social || 'EMPRESA OPERADORA PRUEBAS S.L.',
+      operador_cif: prev.operador_cif || 'B11999999',
+      operador_nima: '',
+      operador_direccion: prev.operador_direccion || 'Polígono Industrial Zona Franca C/ Prueba 1',
+      operador_municipio: prev.operador_municipio || 'Cádiz',
+      operador_codigo_postal: prev.operador_codigo_postal || '11011',
+      operador_provincia: prev.operador_provincia || 'Cádiz',
+      productor_razon_social: prev.productor_razon_social || 'CENTRO PRODUCTOR PRUEBAS S.L.',
+      productor_cif: prev.productor_cif || 'B11999999',
+      productor_nima: '',
+      productor_direccion: prev.productor_direccion || 'Avda. de la Innovación 10',
+      productor_municipio: prev.productor_municipio || 'Jerez de la Frontera',
+      productor_codigo_postal: prev.productor_codigo_postal || '11405',
+      productor_provincia: prev.productor_provincia || 'Cádiz',
+      gestor_razon_social: 'GESTOR MEDIOAMBIENTAL DEMO S.A.',
+      gestor_cif: 'A41999999',
+      gestor_nima: '',
+      gestor_numero_autorizacion: 'G04',
+      gestor_direccion: 'Parque Tecnológico Reciclaje Parcela 4',
+      gestor_municipio: 'Los Barrios',
+      gestor_codigo_postal: '11370',
+      gestor_provincia: 'Cádiz',
+      codigo_ler: prev.codigo_ler || '150102',
+      descripcion_residuo: prev.descripcion_residuo || 'Envases de plástico de prueba',
+      peligrosidad: 'no-peligroso',
+      operacion_tratamiento: 'R13',
+      cantidad_estimada_kg: 2500,
+      numero_traslados_previstos: 5,
+    }));
+    toast.info('Datos de prueba cargados (sin necesidad de NIMA real).');
+  };
+
   const handleSubmit = async (e?: React.FormEvent, andSendToSira = false) => {
     if (e) e.preventDefault();
     setError(null);
 
+    const payloadToSave: Partial<PriorNotification> = {
+      ...formData,
+      numero_notificacion: priorNotificationService.formatNTCode(
+        formData.numero_notificacion || '',
+        formData.productor_nima || formData.operador_nima || '1100000001'
+      ),
+    };
+
     // Validación preliminar
-    const validation = priorNotificationService.validateForE3L(formData);
+    const validation = priorNotificationService.validateForE3L(payloadToSave);
     if (!validation.valid) {
       setError(`Errores de validación E3L:\n• ${validation.errors.join('\n• ')}`);
       toast.error('Por favor, completa los campos obligatorios para E3L.');
@@ -164,7 +209,7 @@ export default function NuevaNotificacionPreviaPage() {
 
     try {
       setSaving(true);
-      const created = await priorNotificationService.create(formData);
+      const created = await priorNotificationService.create(payloadToSave);
       toast.success('Notificación Previa guardada correctamente.');
 
       if (andSendToSira) {
@@ -195,7 +240,7 @@ export default function NuevaNotificacionPreviaPage() {
       <PageBreadCrumb pageTitle="Nueva Notificación Previa (NT)" />
 
       <div className="max-w-5xl mx-auto space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-3">
           <div>
             <h2 className="text-2xl font-bold text-foreground">
               Nueva Notificación Previa de Traslado (NT)
@@ -204,13 +249,22 @@ export default function NuevaNotificacionPreviaPage() {
               Genera y presenta el documento electrónico reglamentario E3L v3.3 ante la Junta de Andalucía.
             </p>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => router.push('/residuos/notificaciones-previas')}
-            className="flex items-center gap-1.5"
-          >
-            <ArrowLeft className="w-4 h-4" /> Volver
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleFillTestData}
+              className="flex items-center gap-1.5"
+            >
+              🧪 Rellenar Datos de Prueba
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => router.push('/residuos/notificaciones-previas')}
+              className="flex items-center gap-1.5"
+            >
+              <ArrowLeft className="w-4 h-4" /> Volver
+            </Button>
+          </div>
         </div>
 
         {error && (
@@ -402,14 +456,16 @@ export default function NuevaNotificacionPreviaPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">NIMA Productor (10 dígitos) *</label>
+                <label className="block text-sm font-medium mb-1">NIMA Productor (10 dígitos - Opcional en pruebas)</label>
                 <Input
                   type="text"
-                  placeholder="Ej. 1100000001"
+                  placeholder="Ej. 1100000001 (opcional en pruebas)"
                   value={formData.productor_nima || ''}
                   onChange={(e) => setFormData({ ...formData, productor_nima: e.target.value })}
-                  required
                 />
+                <p className="text-xs text-muted mt-1">
+                  Si lo dejas vacío, se usará un código de prueba válido para el esquema XML E3L.
+                </p>
               </div>
 
               <div>
@@ -490,14 +546,16 @@ export default function NuevaNotificacionPreviaPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">NIMA Gestor (10 dígitos) *</label>
+                <label className="block text-sm font-medium mb-1">NIMA Gestor (10 dígitos - Opcional en pruebas)</label>
                 <Input
                   type="text"
-                  placeholder="Ej. 1100000002"
+                  placeholder="Ej. 1100000002 (opcional en pruebas)"
                   value={formData.gestor_nima || ''}
                   onChange={(e) => setFormData({ ...formData, gestor_nima: e.target.value })}
-                  required
                 />
+                <p className="text-xs text-muted mt-1">
+                  Si lo dejas vacío, se usará un código de prueba válido para el esquema XML E3L.
+                </p>
               </div>
 
               <div>

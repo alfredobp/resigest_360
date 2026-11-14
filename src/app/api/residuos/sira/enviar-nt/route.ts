@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { priorNotificationService } from '@/services/priorNotificationService';
 import { siraService } from '@/services/siraService';
+import { isSiraTestModeCensusOnlyError } from '@/lib/validations/sira';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -179,11 +180,12 @@ export async function POST(req: NextRequest) {
     }
 
     // 8. Procesar respuesta
-    const hasFault = responseText.includes('<soapenv:Fault>') || responseText.includes('<resultWrong>');
+    const hasFault = responseText.includes('<soapenv:Fault>') || responseText.includes('<resultWrong');
     const matchId = responseText.match(/<IdSira>(.*?)<\/IdSira>/);
-    const siraId = matchId ? matchId[1] : null;
+    const extractedSiraId = matchId ? matchId[1] : null;
+    const isTestModeCensusPass = siraResponse.ok && isSiraTestModeCensusOnlyError(responseText);
 
-    if (!siraResponse.ok || hasFault || (!validateOnly && !siraId)) {
+    if (!siraResponse.ok || (!isTestModeCensusPass && (hasFault || (!validateOnly && !extractedSiraId)))) {
       const errorMessage = siraService.extractSiraError(responseText);
 
       if (submissionId) {
@@ -217,7 +219,11 @@ export async function POST(req: NextRequest) {
       }, { status: siraResponse.ok ? 400 : siraResponse.status });
     }
 
-    // 9. Éxito
+    const siraId = isTestModeCensusPass
+      ? `SIRA-TEST-NT-${notificationId}-${Date.now().toString().slice(-4)}`
+      : extractedSiraId;
+
+    // 9. Éxito (real o modo prueba)
     if (submissionId) {
       try {
         await supabase
@@ -251,7 +257,7 @@ export async function POST(req: NextRequest) {
         entidad_id: String(notificationId),
         accion: 'sincronizar_sira',
         detalles: {
-          resultado: 'aceptada',
+          resultado: isTestModeCensusPass ? 'aceptada_modo_prueba' : 'aceptada',
           sira_id: siraId,
           numero_notificacion: nt.numero_notificacion,
           submission_id: submissionId,
@@ -261,9 +267,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: validateOnly
-        ? 'Notificación Previa validada con éxito por SIRA'
-        : 'Notificación Previa presentada y aceptada por SIRA',
+      ...(isTestModeCensusPass ? { isTestMode: true } : {}),
+      message: isTestModeCensusPass
+        ? 'Notificación Previa validada en esquema E3L por SIRA y aceptada en Modo Prueba'
+        : validateOnly
+          ? 'Notificación Previa validada con éxito por SIRA'
+          : 'Notificación Previa presentada y aceptada por SIRA',
       siraId,
       submissionId,
     });

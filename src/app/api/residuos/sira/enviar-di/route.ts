@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { siraService } from '@/services/siraService';
+import { isSiraTestModeCensusOnlyError } from '@/lib/validations/sira';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -199,11 +200,12 @@ export async function POST(req: NextRequest) {
         // ------------------------------------
 
         // 7. Procesar respuesta y buscar errores dentro del XML
-        const hasFault = responseText.includes('<soapenv:Fault>') || responseText.includes('<resultWrong>');
+        const hasFault = responseText.includes('<soapenv:Fault>') || responseText.includes('<resultWrong');
         const matchId = responseText.match(/<IdSira>(.*?)<\/IdSira>/);
-        const siraId = matchId ? matchId[1] : null;
+        const extractedSiraId = matchId ? matchId[1] : null;
+        const isTestModeCensusPass = siraResponse.ok && isSiraTestModeCensusOnlyError(responseText);
 
-        if (!siraResponse.ok || hasFault || !siraId) {
+        if (!siraResponse.ok || (!isTestModeCensusPass && (hasFault || !extractedSiraId))) {
             console.error('SIRA API Error/Fault:', responseText);
 
             const errorMessage = siraService.extractSiraError(responseText);
@@ -247,7 +249,11 @@ export async function POST(req: NextRequest) {
             }, { status: siraResponse.ok ? 400 : siraResponse.status });
         }
 
-        // 8. Actualizar submission y estado del documento localmente (ÉXITO REAL)
+        const siraId = isTestModeCensusPass
+            ? `SIRA-TEST-DI-${documentId}-${Date.now().toString().slice(-4)}`
+            : extractedSiraId;
+
+        // 8. Actualizar submission y estado del documento localmente (ÉXITO REAL o MODO PRUEBA)
         if (submissionId) {
             try {
                 await supabase
@@ -261,11 +267,15 @@ export async function POST(req: NextRequest) {
             } catch { /* best-effort: no bloquear el flujo principal */ }
         }
 
+        const successNote = isTestModeCensusPass
+            ? `\n[SIRA Modo Prueba] XML E3L validado correctamente. ID: ${siraId}`
+            : `\n[SIRA] Enviado con éxito. ID SIRA: ${siraId}`;
+
         await supabase
             .from('identification_documents')
             .update({
                 estado: 'pendiente-firma',
-                notas: `${doc.notas || ''  }\n[SIRA] Enviado con éxito. ID SIRA: ${siraId}`
+                notas: `${doc.notas || ''}${successNote}`
             })
             .eq('id', documentId)
             .eq('user_id', user.id);
@@ -279,7 +289,7 @@ export async function POST(req: NextRequest) {
                 entidad_id: String(documentId),
                 accion: 'sincronizar_sira',
                 detalles: {
-                    resultado: 'aceptado',
+                    resultado: isTestModeCensusPass ? 'aceptada_modo_prueba' : 'aceptado',
                     sira_id: siraId,
                     numero_documento: doc.numero_documento,
                     submission_id: submissionId
@@ -289,7 +299,10 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            message: 'Documento aceptado correctamente por SIRA',
+            ...(isTestModeCensusPass ? { isTestMode: true } : {}),
+            message: isTestModeCensusPass
+                ? 'Documento validado en esquema E3L por SIRA y aceptado en Modo Prueba'
+                : 'Documento aceptado correctamente por SIRA',
             siraId,
             submissionId
         });

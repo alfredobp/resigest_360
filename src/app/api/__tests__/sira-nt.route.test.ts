@@ -336,4 +336,32 @@ describe('POST /api/residuos/sira/enviar-nt', () => {
 
     (process.env as any).NODE_ENV = prevEnv;
   });
+
+  it('acepta en Modo Prueba cuando SIRA HTTP 200 solo devuelve errores censales JA000002 (NIMA no autorizado) tras validar XML', async () => {
+    mockNtSingle.mockResolvedValue({
+      data: {
+        id: 10,
+        company_id: 1,
+        numero_notificacion: 'NT110000000120260000001',
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        '<SOAP-ENV:Envelope><SOAP-ENV:Body><ns3:sendWasteNTResponse><return><result><resultWrong><resultErrorList>' +
+        '<resultWrong code="JA000002" description="La instalación de Operador con NIMA: 1100000001 no está autorizada para el Tipo Inscripción: P01"/>' +
+        '<resultWrong code="JA000002" description="La instalación de Destino con NIMA: 1100000001 no está autorizada para el Tipo Inscripción: G04"/>' +
+        '</resultErrorList></resultWrong></result></return></ns3:sendWasteNTResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>',
+    });
+
+    const res = await POST(makeReq({ notificationId: 10 }));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.isTestMode).toBe(true);
+    expect(json.siraId).toMatch(/^SIRA-TEST-NT-10-/);
+  });
 });
