@@ -8,7 +8,7 @@ import Input from "@/components/form/input/InputField";
 interface SignatureModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (signature: string, signerData?: { nombre?: string; dni?: string }) => void;
+    onSave: (signature: string, signerData?: { nombre?: string; dni?: string }) => void | Promise<void>;
     title?: string;
     description?: string;
     withSignerInputs?: boolean;
@@ -36,8 +36,8 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
         }
     }, [isOpen, initialName, initialDni]);
 
-    const handleSave = (signature: string) => {
-        onSave(signature, withSignerInputs ? { nombre, dni } : undefined);
+    const handleSave = async (signature: string) => {
+        await onSave(signature, withSignerInputs ? { nombre, dni } : undefined);
         onClose();
     };
 

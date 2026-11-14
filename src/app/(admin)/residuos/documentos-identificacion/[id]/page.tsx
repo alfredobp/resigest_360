@@ -1639,6 +1639,8 @@ export default function DetalleDocumentoIdentificacionPage() {
             Introduzca los datos de pesaje neto y veredicto de conformidad según el pesaje de entrada en planta.
           </p>
 
+          {modalActionError && <Alert variant="error" title="Error en recepción" message={modalActionError} />}
+
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { canAccessPath } from '@/lib/profiles/moduleCatalog';
+import { createClient } from '@/lib/supabase/client';
 import {
   tenantContextService,
   setActiveCompanyCookie,
@@ -46,6 +47,25 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     refreshTenant();
+    const supabase = createClient();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setTenant(null);
+        setLoading(false);
+      } else if (
+        event === 'SIGNED_IN' ||
+        event === 'TOKEN_REFRESHED' ||
+        event === 'USER_UPDATED'
+      ) {
+        refreshTenant();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [refreshTenant]);
 
   const switchCompany = useCallback(

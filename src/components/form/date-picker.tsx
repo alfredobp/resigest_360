@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import flatpickr from 'flatpickr';
 import { Spanish } from 'flatpickr/dist/l10n/es.js';
 import 'flatpickr/dist/flatpickr.css';
@@ -27,14 +27,38 @@ export default function DatePicker({
   defaultDate,
   placeholder,
 }: PropsType) {
+  const onChangeRef = useRef(onChange);
+  const defaultDateRef = useRef(defaultDate);
+
   useEffect(() => {
+    onChangeRef.current = onChange;
+    defaultDateRef.current = defaultDate;
+  }, [onChange, defaultDate]);
+
+  const defaultDateKey =
+    defaultDate instanceof Date
+      ? defaultDate.getTime()
+      : Array.isArray(defaultDate)
+        ? defaultDate.map((d) => (d instanceof Date ? d.getTime() : String(d))).join(',')
+        : String(defaultDate ?? '');
+
+  useEffect(() => {
+    const stableOnChange: Hook = (selectedDates, dateStr, instance) => {
+      const handler = onChangeRef.current;
+      if (typeof handler === 'function') {
+        handler(selectedDates, dateStr, instance);
+      } else if (Array.isArray(handler)) {
+        handler.forEach((fn) => fn(selectedDates, dateStr, instance));
+      }
+    };
+
     const flatPickr = flatpickr(`#${id}`, {
       mode: mode || "single",
       static: true,
       monthSelectorType: "static",
       dateFormat: "Y-m-d",
-      defaultDate,
-      onChange,
+      defaultDate: defaultDateRef.current,
+      onChange: stableOnChange,
     });
 
     return () => {
@@ -42,7 +66,7 @@ export default function DatePicker({
         flatPickr.destroy();
       }
     };
-  }, [mode, onChange, id, defaultDate]);
+  }, [mode, id, defaultDateKey]);
 
   return (
     <div>

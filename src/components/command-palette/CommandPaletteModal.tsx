@@ -217,20 +217,30 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       return;
     }
 
+    let cancelled = false;
     setIsLoadingDb(true);
     const timer = setTimeout(async () => {
       try {
         const records = await quickSearchService.searchRecords(trimmed);
-        setDbResults(records);
+        if (!cancelled) {
+          setDbResults(records);
+        }
       } catch (err) {
         console.error("Error al buscar registros en Command Palette:", err);
-        setDbResults([]);
+        if (!cancelled) {
+          setDbResults([]);
+        }
       } finally {
-        setIsLoadingDb(false);
+        if (!cancelled) {
+          setIsLoadingDb(false);
+        }
       }
     }, 250);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [searchQuery]);
 
   // Mapear resultados de BD a items seleccionables

@@ -267,21 +267,6 @@ export default function UserMetaCard() {
         }
       }
 
-      if (company?.id && avatarUrl) {
-        try {
-          await supabase
-            .from('companies')
-            .update({ logo_url: avatarUrl })
-            .eq('id', company.id);
-        } catch (compErr) {
-          console.warn("Could not sync company logo:", compErr);
-        }
-      }
-
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('company-logo-updated'));
-      }
-
       // Reload profile
       await loadUserProfile();
       setAvatarFile(null);

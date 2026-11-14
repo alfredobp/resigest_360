@@ -262,6 +262,22 @@ export default function MiEmpresaPage() {
       return;
     }
 
+    if (!companyService.validateCIF(formData.cif.trim())) {
+      const msg = 'El formato del CIF/NIF introducido no es válido';
+      setError(msg);
+      setActiveTab('identidad');
+      toast.warning(msg);
+      return;
+    }
+
+    if (formData.nima && formData.nima.trim() !== '' && !companyService.validateNIMA(formData.nima.trim())) {
+      const msg = 'El código NIMA debe contener exactamente 10 dígitos numéricos';
+      setError(msg);
+      setActiveTab('identidad');
+      toast.warning(msg);
+      return;
+    }
+
     const payload: CompanyFormData = sameInstallationAddress
       ? {
         ...formData,
@@ -302,6 +318,13 @@ export default function MiEmpresaPage() {
   const handleAddCenter = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!company) return;
+
+    if (centerFormData.nima && centerFormData.nima.trim() !== '' && !companyService.validateNIMA(centerFormData.nima.trim())) {
+      const msg = 'El código NIMA del centro de producción debe tener 10 dígitos numéricos';
+      setError(msg);
+      toast.warning(msg);
+      return;
+    }
 
     try {
       setSaving(true);
