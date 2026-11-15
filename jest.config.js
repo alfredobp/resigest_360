@@ -28,6 +28,7 @@ module.exports = {
     '**/__tests__/**/*.test.(ts|tsx|js)',
     '**/?(*.)+(spec|test).(ts|tsx|js)'
   ],
+  testPathIgnorePatterns: ['/node_modules/', '/e2e/'],
   collectCoverageFrom: [
     'src/services/productionCenterService.ts',
     'src/lib/validations/sira.ts',
