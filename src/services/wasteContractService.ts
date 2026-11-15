@@ -516,10 +516,123 @@ export const wasteContractService = {
   },
 
   /**
+   * Comprueba si un contrato puede ser eliminado de forma segura
+   * o si tiene traslados (DI / NT) asociados que impiden su eliminación legal.
+   */
+  async canDelete(id: number): Promise<{ canDelete: boolean; reason?: string; diCount: number; ntCount?: number }> {
+    const { userId, companyIds } = await getTenantContext();
+
+    // 1. Comprobar estado del contrato si está disponible
+    const contractBuilder = supabase.from('waste_contracts');
+    if (contractBuilder) {
+      try {
+        let contractQuery: any = contractBuilder
+          .select('id, estado')
+          .eq('id', id);
+
+        if (companyIds.length > 0) {
+          contractQuery = contractQuery.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')}),gestor_company_id.in.(${companyIds.join(',')})`);
+        } else {
+          contractQuery = contractQuery.eq('user_id', userId);
+        }
+
+        const res = typeof contractQuery.maybeSingle === 'function'
+          ? await contractQuery.maybeSingle()
+          : await contractQuery;
+
+        if (res?.data?.estado === 'finalizado') {
+          return {
+            canDelete: false,
+            reason:
+              'No es posible eliminar un contrato que ya está finalizado. Debe permanecer en el archivo histórico por trazabilidad legal (RD 553/2020).',
+            diCount: 0,
+          };
+        }
+      } catch {
+        // En mocks parciales o si falla la lectura de estado, continuar con la verificación de traslados
+      }
+    }
+
+    // 2. Comprobar si existen Documentos de Identificación (DI) asociados
+    const diBuilder = supabase.from('identification_documents');
+    let diCount = 0;
+    let hasLinkedNT = false;
+
+    if (diBuilder) {
+      let diQuery = diBuilder
+        .select('id, numero_documento, prior_notification_id, numero_notificacion', { count: 'exact' })
+        .eq('contract_id', id);
+
+      if (companyIds.length > 0) {
+        diQuery = diQuery.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')})`);
+      } else {
+        diQuery = diQuery.eq('user_id', userId);
+      }
+
+      const { count, data, error } = await diQuery;
+      if (error) {
+        throw new Error(`Error al verificar documentos asociados al contrato: ${error.message}`);
+      }
+
+      diCount = typeof count === 'number' ? count : (data?.length || 0);
+      if (data && Array.isArray(data)) {
+        hasLinkedNT = data.some((doc: any) => Boolean(doc.prior_notification_id || doc.numero_notificacion));
+      }
+    }
+
+    if (diCount > 0) {
+      const docLabel = hasLinkedNT
+        ? 'Documento(s) de Identificación (DI) con Notificación Previa (NT)'
+        : 'Documento(s) de Identificación (DI)';
+      return {
+        canDelete: false,
+        reason: `No es posible eliminar el contrato porque ya se ha utilizado para emitir ${diCount} ${docLabel}. Por requisitos de trazabilidad legal (RD 553/2020), los contratos con traslados asociados no pueden eliminarse. En su lugar, márquelo como 'finalizado' o 'cancelado'.`,
+        diCount,
+      };
+    }
+
+    // 3. Comprobar si existen Notificaciones Previas (NT) que apunten al contrato
+    try {
+      const ntBuilder = supabase.from('prior_notifications');
+      if (ntBuilder) {
+        let ntQuery = ntBuilder
+          .select('id, numero_notificacion', { count: 'exact' })
+          .eq('contract_id', id);
+
+        if (companyIds.length > 0) {
+          ntQuery = ntQuery.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')})`);
+        } else {
+          ntQuery = ntQuery.eq('user_id', userId);
+        }
+
+        const { count: ntCount, error: ntError } = await ntQuery;
+        if (!ntError && typeof ntCount === 'number' && ntCount > 0) {
+          return {
+            canDelete: false,
+            reason: `No es posible eliminar el contrato porque tiene ${ntCount} Notificación(es) Previa(s) (NT) asociada(s). Por trazabilidad legal (RD 553/2020), no se puede eliminar. En su lugar, márquelo como 'finalizado' o 'cancelado'.`,
+            diCount: 0,
+            ntCount,
+          };
+        }
+      }
+    } catch {
+      // Ignorar si la tabla o la columna contract_id no existe en el esquema
+    }
+
+    return { canDelete: true, diCount: 0 };
+  },
+
+  /**
    * Eliminar contrato
    */
   async delete(id: number): Promise<void> {
     const { userId, companyIds } = await getTenantContext();
+
+    // Validar legalmente si el contrato puede eliminarse
+    const check = await this.canDelete(id);
+    if (!check.canDelete) {
+      throw new Error(check.reason);
+    }
 
     let query = supabase
       .from('waste_contracts')

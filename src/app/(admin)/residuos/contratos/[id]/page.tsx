@@ -76,6 +76,8 @@ export default function ContractDetailPage() {
       router.push('/residuos/contratos');
     } catch (err: any) {
       setError(`Error al eliminar: ${err.message}`);
+    } finally {
+      setIsDeleteModalOpen(false);
     }
   };
 
@@ -742,7 +744,7 @@ export default function ContractDetailPage() {
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={confirmDelete}
         title="Eliminar contrato"
-        message="¿Estás seguro de que deseas eliminar este contrato? Esta acción no se puede deshacer."
+        message="¿Estás seguro de que deseas eliminar este contrato? Esta acción solo es posible si no se ha utilizado para emitir Documentos de Identificación (DI) o Notificaciones Previas (NT)."
       />
     </>
   );

@@ -94,6 +94,8 @@ export default function ContratosPage() {
       toast.success('Contrato de tratamiento eliminado correctamente.');
     } catch (err: any) {
       toast.error(`Error al eliminar: ${err.message}`);
+    } finally {
+      setContractToDelete(null);
     }
   };
 
@@ -434,7 +436,7 @@ export default function ContratosPage() {
           onClose={() => setContractToDelete(null)}
           onConfirm={confirmDelete}
           title="Eliminar contrato"
-          message="¿Estás seguro de que deseas eliminar este contrato? Esta acción no se puede deshacer."
+          message="¿Estás seguro de que deseas eliminar este contrato? Esta acción solo es posible si el contrato no se ha utilizado para emitir Documentos de Identificación (DI) o Notificaciones Previas (NT)."
         />
       </div>
     </>
