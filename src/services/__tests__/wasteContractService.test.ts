@@ -911,6 +911,79 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       expect(result.reason).toContain('Notificación Previa (NT)');
     });
 
+    it('canDelete debe lanzar error si la verificación en identification_documents falla con error de BD', async () => {
+      setupTenantContext('user-1', []);
+
+      const contractChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnValue({
+          maybeSingle: jest.fn().mockResolvedValue({ data: { id: 10, estado: 'borrador' }, error: null }),
+        }),
+      };
+
+      const diChain: any = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+      };
+      diChain.then = (resolve: any) => resolve({ count: null, data: null, error: { message: 'db error' } });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'waste_contracts') return contractChain;
+        if (table === 'identification_documents') return diChain;
+        return null;
+      });
+
+      await expect(wasteContractService.canDelete(10)).rejects.toThrow('Error al verificar documentos asociados al contrato: db error');
+    });
+
+    it('canDelete debe retornar false si existen NTs que apunten al contrato', async () => {
+      setupTenantContext('user-1', [{ id: 5 }]);
+
+      const contractChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnValue({
+          maybeSingle: jest.fn().mockResolvedValue({ data: { id: 10, estado: 'borrador' }, error: null }),
+        }),
+      };
+
+      const diChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockResolvedValue({ count: 0, data: [], error: null }),
+      };
+
+      const ntChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockResolvedValue({ count: 3, error: null }),
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [{ id: 5 }], error: null }),
+          };
+        }
+        if (table === 'waste_contracts') return contractChain;
+        if (table === 'identification_documents') return diChain;
+        if (table === 'prior_notifications') return ntChain;
+        return null;
+      });
+
+      const result = await wasteContractService.canDelete(10);
+      expect(result.canDelete).toBe(false);
+      expect(result.ntCount).toBe(3);
+      expect(result.reason).toContain('tiene 3 Notificación(es) Previa(s) (NT) asociada(s)');
+    });
+
     it('canDelete debe retornar true si el contrato no tiene DIs ni NTs asociados', async () => {
       setupTenantContext('user-1', [{ id: 5 }]);
 
