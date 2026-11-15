@@ -184,8 +184,13 @@ export async function updateSession(request: NextRequest) {
       return redirectWithSupabaseCookies(url, supabaseResponse)
     }
 
-    // 4. Bloquear acceso por URL directa a módulos no habilitados para su perfil/empresa
-    if (!canAccessPath(pathname, tenantCtx.activeModules, tenantCtx.isPlatformAdmin)) {
+    // 4. Bloquear acceso por URL directa a módulos o rutas de creación no habilitadas para su perfil/rol
+    if (
+      !canAccessPath(pathname, tenantCtx.activeModules, tenantCtx.isPlatformAdmin, {
+        membershipRole: tenantCtx.membershipRole,
+        perfilOperativo: tenantCtx.perfilOperativo,
+      })
+    ) {
       const requiredModule = getRequiredModuleForPath(pathname)
       const url = request.nextUrl.clone()
       url.pathname = tenantCtx.homePath

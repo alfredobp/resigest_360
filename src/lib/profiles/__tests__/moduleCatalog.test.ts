@@ -1,12 +1,15 @@
 import {
   ALL_MODULES,
   canAccessPath,
+  canManageCompanyWithMembershipRole,
+  canWriteWithMembershipRole,
   getDefaultModulesForProfile,
   getEffectiveModules,
   getHomePathForProfile,
   getModuleLabel,
   getRequiredModuleForPath,
   isValidOperationalProfile,
+  isWriteOnlyPath,
   normalizeOperationalProfile,
 } from '../moduleCatalog';
 
@@ -104,6 +107,59 @@ describe('moduleCatalog - Perfiles Operativos y Módulos', () => {
       // Admin tiene acceso total
       expect(canAccessPath('/platform-admin', [], true)).toBe(true);
       expect(canAccessPath('/residuos/operaciones', [], true)).toBe(true);
+    });
+
+    it('debe evaluar permisos de escritura, gestión de empresa y restricciones de rol/transportista', () => {
+      expect(canWriteWithMembershipRole('owner')).toBe(true);
+      expect(canWriteWithMembershipRole('consultor_admin')).toBe(true);
+      expect(canWriteWithMembershipRole('consultor_operador')).toBe(true);
+      expect(canWriteWithMembershipRole('lectura')).toBe(false);
+      expect(canWriteWithMembershipRole('lectura', true)).toBe(true);
+      expect(canWriteWithMembershipRole(undefined)).toBe(true);
+
+      expect(canManageCompanyWithMembershipRole('owner')).toBe(true);
+      expect(canManageCompanyWithMembershipRole('consultor_admin')).toBe(true);
+      expect(canManageCompanyWithMembershipRole('consultor_operador')).toBe(false);
+      expect(canManageCompanyWithMembershipRole('lectura')).toBe(false);
+      expect(canManageCompanyWithMembershipRole('lectura', true)).toBe(true);
+      expect(canManageCompanyWithMembershipRole(undefined)).toBe(true);
+
+      expect(isWriteOnlyPath('')).toBe(false);
+      expect(isWriteOnlyPath('/residuos/contratos')).toBe(false);
+      expect(isWriteOnlyPath('/residuos/contratos/nuevo')).toBe(true);
+      expect(isWriteOnlyPath('/residuos/operaciones/nueva/')).toBe(true);
+      expect(isWriteOnlyPath('/residuos/contratos/12/editar?foo=1')).toBe(true);
+
+      const prodMods = getDefaultModulesForProfile('productor');
+      // Rol lectura bloqueado en rutas de creación/edición
+      expect(
+        canAccessPath('/residuos/contratos/nuevo', prodMods, false, {
+          membershipRole: 'lectura',
+        })
+      ).toBe(false);
+      expect(
+        canAccessPath('/residuos/contratos', prodMods, false, {
+          membershipRole: 'lectura',
+        })
+      ).toBe(true);
+
+      // Perfil transportista no accede a notificaciones previas ni a nuevo DI
+      const transMods = getDefaultModulesForProfile('transportista');
+      expect(
+        canAccessPath('/residuos/notificaciones-previas', transMods, false, {
+          perfilOperativo: 'transportista',
+        })
+      ).toBe(false);
+      expect(
+        canAccessPath('/residuos/documentos-identificacion/nuevo', transMods, false, {
+          perfilOperativo: 'transportista',
+        })
+      ).toBe(false);
+      expect(
+        canAccessPath('/residuos/documentos-identificacion', transMods, false, {
+          perfilOperativo: 'transportista',
+        })
+      ).toBe(true);
     });
   });
 });

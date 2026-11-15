@@ -9,6 +9,7 @@ import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
+import { useTenant } from '@/context/TenantContext';
 import NuevoContratoModal from '@/components/residuos/NuevoContratoModal';
 import wasteContractService, { getContractEffectiveStatus } from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
@@ -25,6 +26,7 @@ const STATUS_COLORS = {
 
 export default function ContratosPage() {
   const router = useRouter();
+  const { canWrite } = useTenant();
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -201,9 +203,11 @@ export default function ContratosPage() {
           <h2 className="text-2xl font-bold text-foreground">
             Contratos de Gestión de Residuos
           </h2>
-          <Button variant="outline" onClick={() => setShowNewContractModal(true)}>
-            + Nuevo Contrato
-          </Button>
+          {canWrite && (
+            <Button variant="outline" onClick={() => setShowNewContractModal(true)}>
+              + Nuevo Contrato
+            </Button>
+          )}
         </div>
 
         {error && (
@@ -274,14 +278,18 @@ export default function ContratosPage() {
               </svg>
               <h3 className="mt-4 text-lg font-medium text-foreground">No hay contratos</h3>
               <p className="mt-2 text-sm text-muted">
-                Comienza creando tu primer contrato de tratamiento
+                {canWrite
+                  ? 'Comienza creando tu primer contrato de tratamiento'
+                  : 'No hay contratos registrados para esta empresa'}
               </p>
-              <Button
-                className="mt-4"
-                onClick={() => setShowNewContractModal(true)}
-              >
-                Crear Primer Contrato
-              </Button>
+              {canWrite && (
+                <Button
+                  className="mt-4"
+                  onClick={() => setShowNewContractModal(true)}
+                >
+                  Crear Primer Contrato
+                </Button>
+              )}
             </div>
           </ComponentCard>
         ) : (
@@ -371,7 +379,7 @@ export default function ContratosPage() {
                         {downloadingId === contract.id ? 'Generando PDF...' : 'Descargar PDF'}
                       </Button>
 
-                      {contract.estado === 'borrador' && (
+                      {canWrite && contract.estado === 'borrador' && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -381,7 +389,7 @@ export default function ContratosPage() {
                         </Button>
                       )}
 
-                      {contract.estado === 'vigente' && (
+                      {canWrite && contract.estado === 'vigente' && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -391,14 +399,16 @@ export default function ContratosPage() {
                         </Button>
                       )}
 
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(contract.id)}
-                        className="text-red-600 hover:bg-red-50"
-                      >
-                        Eliminar
-                      </Button>
+                      {canWrite && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(contract.id)}
+                          className="text-red-600 hover:bg-red-50"
+                        >
+                          Eliminar
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </ComponentCard>

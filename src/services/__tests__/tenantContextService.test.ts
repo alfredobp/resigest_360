@@ -253,6 +253,68 @@ describe('tenantContextService - Contexto Multi-Empresa, Perfiles y Permisos', (
       await expect(
         tenantContextService.assertModuleAccess('operaciones_comerciales')
       ).rejects.toThrow('Acceso denegado');
+
+      const writeCtx = await tenantContextService.assertWriteAccess();
+      expect(writeCtx.canWrite).toBe(true);
+      expect(writeCtx.canManageCompany).toBe(true);
+    });
+
+    it('debe denegar assertWriteAccess cuando la membresía activa tiene rol lectura', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-reader', email: 'lector@resigest.test' } },
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'user' } }),
+          };
+        }
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({ data: [] }),
+            }),
+          };
+        }
+        if (table === 'company_memberships') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({
+              data: [
+                {
+                  company_id: 50,
+                  role: 'lectura',
+                  can_view_commercial: false,
+                  company: {
+                    id: 50,
+                    user_id: 'uid-owner',
+                    razon_social: 'Cliente Solo Lectura SL',
+                    is_my_company: true,
+                    activo: true,
+                    perfil_operativo: 'productor',
+                    onboarding_completado: true,
+                  },
+                },
+              ],
+            }),
+          };
+        }
+        return {};
+      });
+
+      const ctx = await tenantContextService.getTenantContext(50);
+      expect(ctx.membershipRole).toBe('lectura');
+      expect(ctx.canWrite).toBe(false);
+      expect(ctx.canManageCompany).toBe(false);
+
+      await expect(tenantContextService.assertWriteAccess(50)).rejects.toThrow(
+        'tu rol de solo lectura no permite crear'
+      );
     });
 
     it('debe tolerar errores en profiles o company_memberships', async () => {

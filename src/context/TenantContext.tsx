@@ -9,7 +9,7 @@ import {
   type AccessibleCompany,
   type FullTenantContext,
 } from '@/services/tenantContextService';
-import type { AppModule, Company, OperationalProfile } from '@/types/wasteManagement';
+import type { AppModule, Company, MembershipRole, OperationalProfile } from '@/types/wasteManagement';
 
 interface TenantContextValue {
   tenant: FullTenantContext | null;
@@ -19,6 +19,9 @@ interface TenantContextValue {
   perfilOperativo: OperationalProfile;
   activeModules: AppModule[];
   accessibleCompanies: AccessibleCompany[];
+  membershipRole: MembershipRole;
+  canWrite: boolean;
+  canManageCompany: boolean;
   isPlatformAdmin: boolean;
   canViewCommercial: boolean;
   hasModule: (module: AppModule) => boolean;
@@ -79,6 +82,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const activeModules = tenant?.activeModules ?? [];
   const isPlatformAdmin = tenant?.isPlatformAdmin ?? false;
   const perfilOperativo: OperationalProfile = tenant?.perfilOperativo ?? 'productor';
+  const membershipRole: MembershipRole = tenant?.membershipRole ?? 'owner';
+  const canWrite = tenant?.canWrite ?? true;
+  const canManageCompany = tenant?.canManageCompany ?? true;
 
   const hasModule = useCallback(
     (module: AppModule) => {
@@ -92,9 +98,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     (path?: string) => {
       if (!path) return true;
       if (!tenant) return true;
-      return canAccessPath(path, activeModules, isPlatformAdmin);
+      return canAccessPath(path, activeModules, isPlatformAdmin, {
+        membershipRole,
+        perfilOperativo,
+      });
     },
-    [tenant, activeModules, isPlatformAdmin]
+    [tenant, activeModules, isPlatformAdmin, membershipRole, perfilOperativo]
   );
 
   return (
@@ -107,6 +116,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         perfilOperativo,
         activeModules,
         accessibleCompanies: tenant?.accessibleCompanies ?? [],
+        membershipRole,
+        canWrite,
+        canManageCompany,
         isPlatformAdmin,
         canViewCommercial: tenant?.canViewCommercial ?? false,
         hasModule,
@@ -131,6 +143,9 @@ export const useTenant = (): TenantContextValue => {
       perfilOperativo: 'productor',
       activeModules: [],
       accessibleCompanies: [],
+      membershipRole: 'owner',
+      canWrite: true,
+      canManageCompany: true,
       isPlatformAdmin: false,
       canViewCommercial: false,
       hasModule: () => true,

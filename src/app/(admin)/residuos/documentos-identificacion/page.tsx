@@ -12,6 +12,7 @@ import Input from '@/components/form/input/InputField';
 import Label from '@/components/form/Label';
 import TextArea from '@/components/form/input/TextArea';
 import { toast } from '@/context/ToastContext';
+import { useTenant } from '@/context/TenantContext';
 import identificationDocumentService, { getTrackingStatusMeta } from '@/services/identificationDocumentService';
 import siraService from '@/services/siraService';
 import companyService from '@/services/companyService';
@@ -24,6 +25,8 @@ import type { DecaDocument } from '@/types/deca';
 
 export default function DocumentosIdentificacionPage() {
   const router = useRouter();
+  const { canWrite, perfilOperativo, isPlatformAdmin } = useTenant();
+  const canCreateOrDeleteDi = canWrite && (isPlatformAdmin || perfilOperativo !== 'transportista');
   const [loading, setLoading] = useState(true);
   const [documents, setDocuments] = useState<IdentificationDocument[]>([]);
   const [hasCompany, setHasCompany] = useState(false);
@@ -273,9 +276,11 @@ export default function DocumentosIdentificacionPage() {
               Control oficial de traslados, pesajes en báscula, incidencias y tratamiento (RD 553/2020)
             </p>
           </div>
-          <Button onClick={() => router.push('/residuos/documentos-identificacion/nuevo')}>
-            + Nuevo Documento
-          </Button>
+          {canCreateOrDeleteDi && (
+            <Button onClick={() => router.push('/residuos/documentos-identificacion/nuevo')}>
+              + Nuevo Documento
+            </Button>
+          )}
         </div>
 
         {/* Filtros por Ciclo de Vida */}
@@ -477,17 +482,19 @@ export default function DocumentosIdentificacionPage() {
                         Ver Detalle y Trazabilidad
                       </Button>
 
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenDecaModal(doc)}
-                        className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 flex items-center justify-center gap-1.5"
-                      >
-                        <Truck className="w-3.5 h-3.5" />
-                        ⚡ Generar DeCA
-                      </Button>
+                      {canWrite && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenDecaModal(doc)}
+                          className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 flex items-center justify-center gap-1.5"
+                        >
+                          <Truck className="w-3.5 h-3.5" />
+                          ⚡ Generar DeCA
+                        </Button>
+                      )}
 
-                      {(!doc.estado_traslado || doc.estado_traslado === 'borrador') && (
+                      {canCreateOrDeleteDi && (!doc.estado_traslado || doc.estado_traslado === 'borrador') && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -499,7 +506,7 @@ export default function DocumentosIdentificacionPage() {
                         </Button>
                       )}
 
-                      {(!doc.estado_traslado || doc.estado_traslado === 'borrador') && (
+                      {canCreateOrDeleteDi && (!doc.estado_traslado || doc.estado_traslado === 'borrador') && (
                         <Button
                           variant="outline"
                           size="sm"

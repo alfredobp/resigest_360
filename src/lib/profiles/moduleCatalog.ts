@@ -1,4 +1,4 @@
-import type { AppModule, CompanyRole, OperationalProfile } from '@/types/wasteManagement';
+import type { AppModule, CompanyRole, MembershipRole, OperationalProfile } from '@/types/wasteManagement';
 
 export interface ProfileDefinition {
   id: OperationalProfile;
@@ -224,18 +224,79 @@ export function getRequiredModuleForPath(pathname: string): AppModule | null {
 }
 
 /**
- * Determina si un usuario con ciertos módulos activos puede acceder a una ruta concreta.
+ * Determina si un rol de membresía tiene permisos de escritura sobre registros operativos.
+ */
+export function canWriteWithMembershipRole(
+  role?: MembershipRole | null,
+  isAdmin = false
+): boolean {
+  if (isAdmin) return true;
+  if (!role) return true;
+  return role === 'owner' || role === 'consultor_admin' || role === 'consultor_operador';
+}
+
+/**
+ * Determina si un rol de membresía puede editar la configuración e identidad de la empresa.
+ */
+export function canManageCompanyWithMembershipRole(
+  role?: MembershipRole | null,
+  isAdmin = false
+): boolean {
+  if (isAdmin) return true;
+  if (!role) return true;
+  return role === 'owner' || role === 'consultor_admin';
+}
+
+/**
+ * Identifica si una ruta corresponde exclusivamente a creación o edición de registros.
+ */
+export function isWriteOnlyPath(pathname: string): boolean {
+  if (!pathname) return false;
+  const clean = pathname.split('?')[0].replace(/\/+$/, '');
+  return (
+    clean.endsWith('/nuevo') ||
+    clean.endsWith('/nueva') ||
+    clean.endsWith('/editar')
+  );
+}
+
+/**
+ * Determina si un usuario con ciertos módulos activos y rol puede acceder a una ruta concreta.
  */
 export function canAccessPath(
   pathname: string,
   modules: AppModule[],
-  isAdmin = false
+  isAdmin = false,
+  options?: {
+    membershipRole?: MembershipRole;
+    perfilOperativo?: OperationalProfile;
+  }
 ): boolean {
   if (!pathname) return true;
   if (isAdmin) return true;
 
   if (pathname === '/platform-admin' || pathname.startsWith('/platform-admin/')) {
     return false;
+  }
+
+  // Bloquear rutas de creación/edición para usuarios con rol de solo lectura
+  if (
+    options?.membershipRole &&
+    !canWriteWithMembershipRole(options.membershipRole, false) &&
+    isWriteOnlyPath(pathname)
+  ) {
+    return false;
+  }
+
+  // Restricciones específicas del perfil transportista: no gestiona Notificaciones Previas (NT) ni emite nuevos DIs
+  if (options?.perfilOperativo === 'transportista') {
+    if (
+      pathname === '/residuos/notificaciones-previas' ||
+      pathname.startsWith('/residuos/notificaciones-previas/') ||
+      pathname === '/residuos/documentos-identificacion/nuevo'
+    ) {
+      return false;
+    }
   }
 
   if (

@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
 import {
+  canManageCompanyWithMembershipRole,
+  canWriteWithMembershipRole,
   getEffectiveModules,
   getHomePathForProfile,
   getModuleLabel,
@@ -31,6 +33,8 @@ export interface FullTenantContext {
   perfilOperativo: OperationalProfile;
   activeModules: AppModule[];
   membershipRole: MembershipRole;
+  canWrite: boolean;
+  canManageCompany: boolean;
   canViewCommercial: boolean;
   hasOwnCompany: boolean;
   hasCompletedOnboarding: boolean;
@@ -216,6 +220,8 @@ export async function resolveTenantContext(
   const activeCompany = selectedEntry?.company || null;
   const canViewCommercial = selectedEntry ? selectedEntry.canViewCommercial : true;
   const membershipRole: MembershipRole = selectedEntry?.membershipRole || 'owner';
+  const canWrite = canWriteWithMembershipRole(membershipRole, isPlatformAdmin);
+  const canManageCompany = canManageCompanyWithMembershipRole(membershipRole, isPlatformAdmin);
 
   const perfilOperativo: OperationalProfile = activeCompany
     ? normalizeOperationalProfile(
@@ -249,6 +255,8 @@ export async function resolveTenantContext(
     perfilOperativo,
     activeModules,
     membershipRole,
+    canWrite,
+    canManageCompany,
     canViewCommercial,
     hasOwnCompany,
     hasCompletedOnboarding,
@@ -268,6 +276,16 @@ export const tenantContextService = {
     if (!ctx.isPlatformAdmin && ctx.activeCompany && !ctx.activeModules.includes(module)) {
       throw new Error(
         `Acceso denegado: el módulo "${getModuleLabel(module)}" no está habilitado para la empresa activa.`
+      );
+    }
+    return ctx;
+  },
+
+  async assertWriteAccess(preferredCompanyId?: number | null): Promise<FullTenantContext> {
+    const ctx = await this.getTenantContext(preferredCompanyId);
+    if (!ctx.canWrite) {
+      throw new Error(
+        'Acceso denegado: tu rol de solo lectura no permite crear, modificar ni eliminar registros.'
       );
     }
     return ctx;

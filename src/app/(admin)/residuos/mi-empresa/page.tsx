@@ -62,7 +62,7 @@ const PROVINCIAS_POR_CP: Record<string, string> = {
 
 export default function MiEmpresaPage() {
   const router = useRouter();
-  const { refreshTenant } = useTenant();
+  const { refreshTenant, canManageCompany, canWrite, isPlatformAdmin, membershipRole } = useTenant();
   const [activeTab, setActiveTab] = useState<ActiveTab>('identidad');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -181,6 +181,7 @@ export default function MiEmpresaPage() {
   };
 
   const handleProfileChange = (newProfile: OperationalProfile) => {
+    if (!canManageCompany) return;
     const def = PROFILE_DEFINITIONS[newProfile];
     setFormData((prev) => ({
       ...prev,
@@ -192,6 +193,7 @@ export default function MiEmpresaPage() {
   };
 
   const handleCompanyTypeChange = (newType: NonNullable<CompanyFormData['tipo_empresa']>) => {
+    if (!canManageCompany) return;
     // Si el perfil operativo actual ya coincide con este tipo de empresa, solo actualizamos el tipo
     const currentProfileDef = formData.perfil_operativo ? PROFILE_DEFINITIONS[formData.perfil_operativo] : null;
     if (currentProfileDef && currentProfileDef.defaultCompanyType === newType) {
@@ -204,6 +206,7 @@ export default function MiEmpresaPage() {
   };
 
   const handleToggleModule = (mod: AppModule) => {
+    if (!isPlatformAdmin) return;
     setFormData((prev) => {
       const current = prev.modulos_activos || [];
       const next = current.includes(mod)
@@ -243,6 +246,10 @@ export default function MiEmpresaPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageCompany) {
+      toast.warning('Tu rol actual no tiene permisos para modificar los datos fiscales de la empresa.');
+      return;
+    }
     setError(null);
     setSuccess(null);
 
@@ -415,7 +422,17 @@ export default function MiEmpresaPage() {
           </div>
         )}
 
-        {!company && (
+        {!canManageCompany && (
+          <div className="mb-6">
+            <Alert
+              variant="warning"
+              title="Vista de consulta de ficha de empresa"
+              message={`Estás accediendo con rol "${membershipRole}". Solo el titular o consultor administrador puede modificar la identidad fiscal, el perfil operativo o las credenciales de integración.`}
+            />
+          </div>
+        )}
+
+        {!company && canManageCompany && (
           <div className="mb-6">
             <Alert
               variant="info"
@@ -758,8 +775,9 @@ export default function MiEmpresaPage() {
                     <select
                       name="perfil_operativo"
                       value={formData.perfil_operativo || 'productor'}
+                      disabled={!canManageCompany}
                       onChange={(e) => handleProfileChange(e.target.value as OperationalProfile)}
-                      className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
+                      className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {(Object.keys(PROFILE_DEFINITIONS) as OperationalProfile[]).map((key) => (
                         <option key={key} value={key}>
@@ -773,14 +791,23 @@ export default function MiEmpresaPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-2">Módulos Activos en el Menú y Panel</label>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <label className="block text-sm font-medium">Módulos Activos en el Menú y Panel</label>
+                      {!isPlatformAdmin && (
+                        <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                          Asignados automáticamente según el perfil operativo
+                        </span>
+                      )}
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                       {ALL_MODULES.map((mod) => {
                         const checked = (formData.modulos_activos || []).includes(mod);
                         return (
                           <label
                             key={mod}
-                            className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs cursor-pointer transition ${checked
+                            className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs transition ${
+                              isPlatformAdmin ? 'cursor-pointer' : 'cursor-default opacity-85'
+                            } ${checked
                                 ? 'border-brand-400 bg-brand-50/60 dark:bg-brand-950/30 text-brand-900 dark:text-brand-200 font-semibold'
                                 : 'border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400'
                               }`}
@@ -788,8 +815,9 @@ export default function MiEmpresaPage() {
                             <input
                               type="checkbox"
                               checked={checked}
+                              disabled={!isPlatformAdmin}
                               onChange={() => handleToggleModule(mod)}
-                              className="rounded border-gray-300"
+                              className="rounded border-gray-300 disabled:opacity-60"
                             />
                             <span>{MODULE_LABELS[mod]}</span>
                           </label>
@@ -1083,20 +1111,24 @@ export default function MiEmpresaPage() {
           {/* Barra de Acciones del Formulario Principal */}
           <div className="mt-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
             <div className="text-xs text-gray-500 dark:text-gray-400">
-              Los cambios realizados en cualquiera de las 3 pestañas se guardan conjuntamente.
+              {canManageCompany
+                ? 'Los cambios realizados en cualquiera de las 3 pestañas se guardan conjuntamente.'
+                : 'Modo de consulta: no tienes permisos para modificar los datos fiscales de esta empresa.'}
             </div>
             <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push('/residuos/contratos')}
+                onClick={() => router.push('/app')}
                 disabled={saving}
               >
-                Cancelar
+                Volver
               </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Guardando...' : company ? 'Actualizar Empresa' : 'Crear Empresa'}
-              </Button>
+              {canManageCompany && (
+                <Button type="submit" disabled={saving}>
+                  {saving ? 'Guardando...' : company ? 'Actualizar Empresa' : 'Crear Empresa'}
+                </Button>
+              )}
             </div>
           </div>
         </form>
@@ -1111,12 +1143,14 @@ export default function MiEmpresaPage() {
                   Delegaciones, plantas o centros adicionales asociados al mismo CIF
                 </p>
               </div>
-              <Button
-                onClick={() => setShowCenterForm(!showCenterForm)}
-                variant={showCenterForm ? 'outline' : 'primary'}
-              >
-                {showCenterForm ? 'Cancelar' : 'Nuevo Centro'}
-              </Button>
+              {canWrite && (
+                <Button
+                  onClick={() => setShowCenterForm(!showCenterForm)}
+                  variant={showCenterForm ? 'outline' : 'primary'}
+                >
+                  {showCenterForm ? 'Cancelar' : 'Nuevo Centro'}
+                </Button>
+              )}
             </div>
 
             {showCenterForm && (
@@ -1249,14 +1283,16 @@ export default function MiEmpresaPage() {
                           </p>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCenter(center.id)}
-                        className="text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900/40 transition-colors shrink-0"
-                        title="Eliminar centro"
-                      >
-                        Eliminar
-                      </button>
+                      {canWrite && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCenter(center.id)}
+                          className="text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900/40 transition-colors shrink-0"
+                          title="Eliminar centro"
+                        >
+                          Eliminar
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

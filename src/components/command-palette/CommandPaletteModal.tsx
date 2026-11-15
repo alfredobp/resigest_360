@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/context/ThemeContext";
+import { useTenant } from "@/context/TenantContext";
 import {
   quickSearchService,
   SearchRecordItem,
@@ -36,6 +37,8 @@ interface PaletteActionItem {
   title: string;
   subtitle: string;
   category: "action" | "navigation" | "records";
+  path?: string;
+  requiresWrite?: boolean;
   badge?: string;
   icon: React.ReactNode;
   onSelect: () => void;
@@ -47,6 +50,13 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
 }) => {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
+  const {
+    canAccessRoute,
+    canWrite,
+    activeModules,
+    isPlatformAdmin,
+    perfilOperativo,
+  } = useTenant();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -56,159 +66,184 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Navegación estática
-  const navigationActions = useMemo<PaletteActionItem[]>(() => [
-    {
-      id: "nav-dashboard",
-      title: "Dashboard Principal",
-      subtitle: "Vista general y métricas de residuos",
-      category: "navigation",
-      badge: "Vista",
-      icon: <LayoutDashboard className="w-4 h-4 text-brand-500" />,
-      onSelect: () => {
-        router.push("/app");
-        onClose();
+  // Navegación filtrada por rol y módulos activos
+  const navigationActions = useMemo<PaletteActionItem[]>(() => {
+    const items: PaletteActionItem[] = [
+      {
+        id: "nav-dashboard",
+        title: perfilOperativo === "transportista" ? "Vista Conductor (Móvil)" : "Dashboard Principal",
+        subtitle: perfilOperativo === "transportista" ? "Traslados asignados, QR y firmas en ruta" : "Vista general y métricas de residuos",
+        category: "navigation",
+        path: perfilOperativo === "transportista" ? "/transporte" : "/app",
+        badge: "Vista",
+        icon: <LayoutDashboard className="w-4 h-4 text-brand-500" />,
+        onSelect: () => {
+          router.push(perfilOperativo === "transportista" ? "/transporte" : "/app");
+          onClose();
+        },
       },
-    },
-    {
-      id: "nav-contratos",
-      title: "Contratos de Tratamiento",
-      subtitle: "Gestión de contratos con productores y gestores",
-      category: "navigation",
-      badge: "Módulo",
-      icon: <FileText className="w-4 h-4 text-emerald-500" />,
-      onSelect: () => {
-        router.push("/residuos/contratos");
-        onClose();
+      {
+        id: "nav-contratos",
+        title: "Contratos de Tratamiento",
+        subtitle: "Gestión de contratos con productores y gestores",
+        category: "navigation",
+        path: "/residuos/contratos",
+        badge: "Módulo",
+        icon: <FileText className="w-4 h-4 text-emerald-500" />,
+        onSelect: () => {
+          router.push("/residuos/contratos");
+          onClose();
+        },
       },
-    },
-    {
-      id: "nav-di",
-      title: "Documentos de Identificación (DI)",
-      subtitle: "Traslados, firmas y seguimiento de residuos",
-      category: "navigation",
-      badge: "Módulo",
-      icon: <Layers className="w-4 h-4 text-blue-500" />,
-      onSelect: () => {
-        router.push("/residuos/documentos-identificacion");
-        onClose();
+      {
+        id: "nav-di",
+        title: "Documentos de Identificación (DI)",
+        subtitle: "Traslados, firmas y seguimiento de residuos",
+        category: "navigation",
+        path: "/residuos/documentos-identificacion",
+        badge: "Módulo",
+        icon: <Layers className="w-4 h-4 text-blue-500" />,
+        onSelect: () => {
+          router.push("/residuos/documentos-identificacion");
+          onClose();
+        },
       },
-    },
-    {
-      id: "nav-deca",
-      title: "Control DeCA",
-      subtitle: "Verificación de firmas de transportistas",
-      category: "navigation",
-      badge: "Módulo",
-      icon: <ShieldCheck className="w-4 h-4 text-amber-500" />,
-      onSelect: () => {
-        router.push("/residuos/deca");
-        onClose();
+      {
+        id: "nav-deca",
+        title: "Control DeCA",
+        subtitle: "Verificación de firmas de transportistas",
+        category: "navigation",
+        path: "/residuos/deca",
+        badge: "Módulo",
+        icon: <ShieldCheck className="w-4 h-4 text-amber-500" />,
+        onSelect: () => {
+          router.push("/residuos/deca");
+          onClose();
+        },
       },
-    },
-    {
-      id: "nav-empresas",
-      title: "Empresas y Contactos",
-      subtitle: "Directorio unificado de productores y clientes",
-      category: "navigation",
-      badge: "Directorio",
-      icon: <Building2 className="w-4 h-4 text-purple-500" />,
-      onSelect: () => {
-        router.push("/residuos/empresas");
-        onClose();
+      {
+        id: "nav-empresas",
+        title: "Empresas y Contactos",
+        subtitle: "Directorio unificado de productores y clientes",
+        category: "navigation",
+        path: "/residuos/empresas",
+        badge: "Directorio",
+        icon: <Building2 className="w-4 h-4 text-purple-500" />,
+        onSelect: () => {
+          router.push("/residuos/empresas");
+          onClose();
+        },
       },
-    },
-    {
-      id: "nav-gestores",
-      title: "Gestores de Residuos",
-      subtitle: "Plantas de valorización y eliminación",
-      category: "navigation",
-      badge: "Directorio",
-      icon: <ShieldCheck className="w-4 h-4 text-teal-500" />,
-      onSelect: () => {
-        router.push("/residuos/gestores");
-        onClose();
+      {
+        id: "nav-gestores",
+        title: "Gestores de Residuos",
+        subtitle: "Plantas de valorización y eliminación",
+        category: "navigation",
+        path: "/residuos/gestores",
+        badge: "Directorio",
+        icon: <ShieldCheck className="w-4 h-4 text-teal-500" />,
+        onSelect: () => {
+          router.push("/residuos/gestores");
+          onClose();
+        },
       },
-    },
-    {
-      id: "nav-transportistas",
-      title: "Transportistas",
-      subtitle: "Empresas de transporte registradas",
-      category: "navigation",
-      badge: "Directorio",
-      icon: <Truck className="w-4 h-4 text-orange-500" />,
-      onSelect: () => {
-        router.push("/residuos/transportistas");
-        onClose();
+      {
+        id: "nav-transportistas",
+        title: "Transportistas",
+        subtitle: "Empresas de transporte registradas",
+        category: "navigation",
+        path: "/residuos/transportistas",
+        badge: "Directorio",
+        icon: <Truck className="w-4 h-4 text-orange-500" />,
+        onSelect: () => {
+          router.push("/residuos/transportistas");
+          onClose();
+        },
       },
-    },
-    {
-      id: "nav-archivo",
-      title: "Archivo Cronológico",
-      subtitle: "Libro de registro de entradas y salidas",
-      category: "navigation",
-      badge: "Registro",
-      icon: <FolderOpen className="w-4 h-4 text-indigo-500" />,
-      onSelect: () => {
-        router.push("/residuos/archivo-cronologico");
-        onClose();
+      {
+        id: "nav-archivo",
+        title: "Archivo Cronológico",
+        subtitle: "Libro de registro de entradas y salidas",
+        category: "navigation",
+        path: "/residuos/archivo-cronologico",
+        badge: "Registro",
+        icon: <FolderOpen className="w-4 h-4 text-indigo-500" />,
+        onSelect: () => {
+          router.push("/residuos/archivo-cronologico");
+          onClose();
+        },
       },
-    },
-    {
-      id: "nav-soporte",
-      title: "Soporte y Manual",
-      subtitle: "Documentación, preguntas frecuentes y asistencia",
-      category: "navigation",
-      badge: "Ayuda",
-      icon: <HelpCircle className="w-4 h-4 text-sky-500" />,
-      onSelect: () => {
-        router.push("/support");
-        onClose();
+      {
+        id: "nav-soporte",
+        title: "Soporte y Manual",
+        subtitle: "Documentación, preguntas frecuentes y asistencia",
+        category: "navigation",
+        path: "/support",
+        badge: "Ayuda",
+        icon: <HelpCircle className="w-4 h-4 text-sky-500" />,
+        onSelect: () => {
+          router.push("/support");
+          onClose();
+        },
       },
-    },
-  ], [router, onClose]);
+    ];
 
-  // Acciones directas del sistema
-  const systemActions = useMemo<PaletteActionItem[]>(() => [
-    {
-      id: "act-new-contract",
-      title: "Crear Nuevo Contrato",
-      subtitle: "Redactar un nuevo contrato de tratamiento",
-      category: "action",
-      badge: "Acción",
-      icon: <PlusCircle className="w-4 h-4 text-emerald-500" />,
-      onSelect: () => {
-        router.push("/residuos/contratos");
-        onClose();
-      },
-    },
-    {
-      id: "act-new-di",
-      title: "Crear Nuevo DI (Documento de Identificación)",
-      subtitle: "Registrar un nuevo traslado de residuos",
-      category: "action",
-      badge: "Acción",
-      icon: <PlusCircle className="w-4 h-4 text-blue-500" />,
-      onSelect: () => {
-        router.push("/residuos/documentos-identificacion/nuevo");
-        onClose();
-      },
-    },
-    {
-      id: "act-toggle-theme",
-      title: theme === "dark" ? "Cambiar a Modo Claro" : "Cambiar a Modo Oscuro",
-      subtitle: "Alternar la apariencia visual de la plataforma",
-      category: "action",
-      badge: "Tema",
-      icon: theme === "dark" ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-500" />,
-      onSelect: () => {
-        toggleTheme();
-        onClose();
-      },
-    },
-  ], [router, onClose, theme, toggleTheme]);
+    return items.filter((item) => !item.path || canAccessRoute(item.path));
+  }, [router, onClose, canAccessRoute, perfilOperativo]);
 
-  // Búsqueda en base de datos con debounce
+  // Acciones directas del sistema filtradas por permisos de escritura y módulo
+  const systemActions = useMemo<PaletteActionItem[]>(() => {
+    const actions: PaletteActionItem[] = [
+      {
+        id: "act-new-contract",
+        title: "Crear Nuevo Contrato",
+        subtitle: "Redactar un nuevo contrato de tratamiento",
+        category: "action",
+        path: "/residuos/contratos/nuevo",
+        requiresWrite: true,
+        badge: "Acción",
+        icon: <PlusCircle className="w-4 h-4 text-emerald-500" />,
+        onSelect: () => {
+          router.push("/residuos/contratos");
+          onClose();
+        },
+      },
+      {
+        id: "act-new-di",
+        title: "Crear Nuevo DI (Documento de Identificación)",
+        subtitle: "Registrar un nuevo traslado de residuos",
+        category: "action",
+        path: "/residuos/documentos-identificacion/nuevo",
+        requiresWrite: true,
+        badge: "Acción",
+        icon: <PlusCircle className="w-4 h-4 text-blue-500" />,
+        onSelect: () => {
+          router.push("/residuos/documentos-identificacion/nuevo");
+          onClose();
+        },
+      },
+      {
+        id: "act-toggle-theme",
+        title: theme === "dark" ? "Cambiar a Modo Claro" : "Cambiar a Modo Oscuro",
+        subtitle: "Alternar la apariencia visual de la plataforma",
+        category: "action",
+        badge: "Tema",
+        icon: theme === "dark" ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-500" />,
+        onSelect: () => {
+          toggleTheme();
+          onClose();
+        },
+      },
+    ];
+
+    return actions.filter((action) => {
+      if (action.requiresWrite && !canWrite) return false;
+      if (action.path && !canAccessRoute(action.path)) return false;
+      return true;
+    });
+  }, [router, onClose, theme, toggleTheme, canWrite, canAccessRoute]);
+
+  // Búsqueda en base de datos con debounce y filtrado por módulos activos
   useEffect(() => {
     const trimmed = searchQuery.trim();
     if (trimmed.length < 2) {
@@ -221,9 +256,13 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     setIsLoadingDb(true);
     const timer = setTimeout(async () => {
       try {
-        const records = await quickSearchService.searchRecords(trimmed);
+        const records = await quickSearchService.searchRecords(
+          trimmed,
+          4,
+          isPlatformAdmin ? undefined : { allowedModules: activeModules }
+        );
         if (!cancelled) {
-          setDbResults(records);
+          setDbResults(records.filter((r) => canAccessRoute(r.href)));
         }
       } catch (err) {
         console.error("Error al buscar registros en Command Palette:", err);
@@ -241,7 +280,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [searchQuery]);
+  }, [searchQuery, isPlatformAdmin, activeModules, canAccessRoute]);
 
   // Mapear resultados de BD a items seleccionables
   const dbActionItems = useMemo<PaletteActionItem[]>(() => {
