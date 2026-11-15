@@ -150,8 +150,8 @@ export const useTenant = (): TenantContextValue => {
       canViewCommercial: false,
       hasModule: () => true,
       canAccessRoute: () => true,
-      switchCompany: async () => {},
-      refreshTenant: async () => {},
+      switchCompany: async () => { },
+      refreshTenant: async () => { },
     };
   }
   return ctx;
