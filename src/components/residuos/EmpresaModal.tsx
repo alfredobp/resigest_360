@@ -386,8 +386,8 @@ export default function EmpresaModal({
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted">
               Domicilio Social / Sede
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="sm:col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+              <div className="sm:col-span-12">
                 <Label htmlFor="empresa_domicilio_social">Dirección</Label>
                 <Input
                   id="empresa_domicilio_social"
@@ -397,7 +397,7 @@ export default function EmpresaModal({
                 />
               </div>
 
-              <div>
+              <div className="sm:col-span-3">
                 <Label htmlFor="empresa_codigo_postal">Código Postal</Label>
                 <Input
                   id="empresa_codigo_postal"
@@ -417,6 +417,9 @@ export default function EmpresaModal({
 
               <ProvinceMunicipalityFields
                 unstyledWrapper
+                provinciaWrapperClassName="sm:col-span-4"
+                municipioWrapperClassName="sm:col-span-5"
+                order="provincia-first"
                 provincia={formData.provincia_social || ''}
                 municipio={formData.municipio_social || ''}
                 provinciaId="empresa_provincia"

@@ -24,6 +24,7 @@ import { priorNotificationService } from '@/services/priorNotificationService';
 import type { IdentificationDocument, Company, WasteContract, ProductionCenter, WasteType, TreatmentManager, Carrier, PriorNotification } from '@/types/wasteManagement';
 import DatePicker from '@/components/form/date-picker';
 import LerSelector from '@/components/residuos/LerSelector';
+import { getProvinceByPostalCode } from '@/lib/validations/spainLocations';
 
 export default function NuevoDocumentoIdentificacionPage() {
   const router = useRouter();
@@ -776,8 +777,6 @@ export default function NuevoDocumentoIdentificacionPage() {
                     id="productor_razon_social"
                     value={formData.productor_razon_social || ''}
                     onChange={(e) => setFormData({ ...formData, productor_razon_social: e.target.value })}
-                    disabled={expeditionRole === 'productor'}
-                    className={expeditionRole === 'productor' ? 'bg-muted' : ''}
                     error={!!validationErrors.productor_razon_social}
                     hint={validationErrors.productor_razon_social}
                     required
@@ -789,8 +788,6 @@ export default function NuevoDocumentoIdentificacionPage() {
                     id="productor_cif"
                     value={formData.productor_cif || ''}
                     onChange={(e) => setFormData({ ...formData, productor_cif: e.target.value })}
-                    disabled={expeditionRole === 'productor'}
-                    className={expeditionRole === 'productor' ? 'bg-muted' : ''}
                     error={!!validationErrors.productor_cif}
                     hint={validationErrors.productor_cif}
                     required
@@ -821,37 +818,53 @@ export default function NuevoDocumentoIdentificacionPage() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <ProvinceMunicipalityFields
-                    provinciaRequired
-                    municipioRequired
-                    provincia={formData.productor_provincia || ''}
-                    municipio={formData.productor_municipio || ''}
-                    provinciaId="productor_provincia"
-                    municipioId="productor_municipio"
-                    provinciaName="productor_provincia"
-                    municipioName="productor_municipio"
-                    provinciaError={!!validationErrors.productor_provincia}
-                    municipioError={!!validationErrors.productor_municipio}
-                    provinciaHint={validationErrors.productor_provincia}
-                    municipioHint={validationErrors.productor_municipio}
-                    disabled={expeditionRole === 'productor'}
-                    onChange={({ provincia, municipio }) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        productor_provincia: provincia,
-                        productor_municipio: municipio,
-                      }))
-                    }
-                  />
-                </div>
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div className="md:col-span-3">
+                      <label htmlFor="productor_codigo_postal" className="block text-sm font-medium mb-2">Código Postal</label>
+                      <Input
+                        id="productor_codigo_postal"
+                        value={formData.productor_codigo_postal || ''}
+                        onChange={(e) => {
+                          const cp = e.target.value;
+                          const detectedProv = getProvinceByPostalCode(cp);
+                          setFormData((prev) => ({
+                            ...prev,
+                            productor_codigo_postal: cp,
+                            productor_provincia: detectedProv || prev.productor_provincia,
+                          }));
+                        }}
+                        disabled={expeditionRole === 'productor'}
+                        placeholder="Ej. 11510"
+                      />
+                    </div>
 
-                <div>
-                  <label htmlFor="productor_codigo_postal" className="block text-sm font-medium mb-2">Código Postal</label>
-                  <Input
-                    id="productor_codigo_postal"
-                    value={formData.productor_codigo_postal || ''}
-                    onChange={(e) => setFormData({ ...formData, productor_codigo_postal: e.target.value })}
-                  />
+                    <ProvinceMunicipalityFields
+                      unstyledWrapper
+                      provinciaWrapperClassName="md:col-span-4"
+                      municipioWrapperClassName="md:col-span-5"
+                      order="provincia-first"
+                      provinciaRequired
+                      municipioRequired
+                      provincia={formData.productor_provincia || ''}
+                      municipio={formData.productor_municipio || ''}
+                      provinciaId="productor_provincia"
+                      municipioId="productor_municipio"
+                      provinciaName="productor_provincia"
+                      municipioName="productor_municipio"
+                      provinciaError={!!validationErrors.productor_provincia}
+                      municipioError={!!validationErrors.productor_municipio}
+                      provinciaHint={validationErrors.productor_provincia}
+                      municipioHint={validationErrors.productor_municipio}
+                      disabled={expeditionRole === 'productor'}
+                      onChange={({ provincia, municipio }) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          productor_provincia: provincia,
+                          productor_municipio: municipio,
+                        }))
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -907,8 +920,6 @@ export default function NuevoDocumentoIdentificacionPage() {
                     type="text"
                     value={formData.gestor_razon_social || ''}
                     onChange={(e) => setFormData({ ...formData, gestor_razon_social: e.target.value })}
-                    disabled={expeditionRole === 'gestor'}
-                    className={expeditionRole === 'gestor' ? 'bg-muted' : ''}
                     required
                   />
                 </div>
@@ -920,8 +931,6 @@ export default function NuevoDocumentoIdentificacionPage() {
                     type="text"
                     value={formData.gestor_cif || ''}
                     onChange={(e) => setFormData({ ...formData, gestor_cif: e.target.value })}
-                    disabled={expeditionRole === 'gestor'}
-                    className={expeditionRole === 'gestor' ? 'bg-muted' : ''}
                     required
                     error={!!validationErrors.gestor_cif}
                     hint={validationErrors.gestor_cif}
@@ -961,37 +970,53 @@ export default function NuevoDocumentoIdentificacionPage() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <ProvinceMunicipalityFields
-                    provinciaRequired
-                    municipioRequired
-                    provincia={formData.gestor_provincia || ''}
-                    municipio={formData.gestor_municipio || ''}
-                    provinciaId="gestor_provincia"
-                    municipioId="gestor_municipio"
-                    provinciaName="gestor_provincia"
-                    municipioName="gestor_municipio"
-                    provinciaError={!!validationErrors.gestor_provincia}
-                    municipioError={!!validationErrors.gestor_municipio}
-                    provinciaHint={validationErrors.gestor_provincia}
-                    municipioHint={validationErrors.gestor_municipio}
-                    disabled={expeditionRole === 'gestor'}
-                    onChange={({ provincia, municipio }) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        gestor_provincia: provincia,
-                        gestor_municipio: municipio,
-                      }))
-                    }
-                  />
-                </div>
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div className="md:col-span-3">
+                      <label htmlFor="gestor_codigo_postal" className="block text-sm font-medium mb-2">CP</label>
+                      <Input
+                        id="gestor_codigo_postal"
+                        value={formData.gestor_codigo_postal || ''}
+                        onChange={(e) => {
+                          const cp = e.target.value;
+                          const detectedProv = getProvinceByPostalCode(cp);
+                          setFormData((prev) => ({
+                            ...prev,
+                            gestor_codigo_postal: cp,
+                            gestor_provincia: detectedProv || prev.gestor_provincia,
+                          }));
+                        }}
+                        disabled={expeditionRole === 'gestor'}
+                        placeholder="28001"
+                      />
+                    </div>
 
-                <div>
-                  <label htmlFor="gestor_codigo_postal" className="block text-sm font-medium mb-2">CP</label>
-                  <Input
-                    id="gestor_codigo_postal"
-                    value={formData.gestor_codigo_postal || ''}
-                    onChange={(e) => setFormData({ ...formData, gestor_codigo_postal: e.target.value })}
-                  />
+                    <ProvinceMunicipalityFields
+                      unstyledWrapper
+                      provinciaWrapperClassName="md:col-span-4"
+                      municipioWrapperClassName="md:col-span-5"
+                      order="provincia-first"
+                      provinciaRequired
+                      municipioRequired
+                      provincia={formData.gestor_provincia || ''}
+                      municipio={formData.gestor_municipio || ''}
+                      provinciaId="gestor_provincia"
+                      municipioId="gestor_municipio"
+                      provinciaName="gestor_provincia"
+                      municipioName="gestor_municipio"
+                      provinciaError={!!validationErrors.gestor_provincia}
+                      municipioError={!!validationErrors.gestor_municipio}
+                      provinciaHint={validationErrors.gestor_provincia}
+                      municipioHint={validationErrors.gestor_municipio}
+                      disabled={expeditionRole === 'gestor'}
+                      onChange={({ provincia, municipio }) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          gestor_provincia: provincia,
+                          gestor_municipio: municipio,
+                        }))
+                      }
+                    />
+                  </div>
                 </div>
 
                 {/* Banner de Autorización Ambiental Consultable (Bloque 2) */}
@@ -1128,31 +1153,46 @@ export default function NuevoDocumentoIdentificacionPage() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <ProvinceMunicipalityFields
-                    provincia={formData.transportista_provincia || ''}
-                    municipio={formData.transportista_municipio || ''}
-                    provinciaId="transportista_provincia"
-                    municipioId="transportista_municipio"
-                    provinciaName="transportista_provincia"
-                    municipioName="transportista_municipio"
-                    onChange={({ provincia, municipio }) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        transportista_provincia: provincia,
-                        transportista_municipio: municipio,
-                      }))
-                    }
-                  />
-                </div>
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div className="md:col-span-3">
+                      <label htmlFor="transportista_codigo_postal" className="block text-sm font-medium mb-2">CP</label>
+                      <Input
+                        id="transportista_codigo_postal"
+                        type="text"
+                        value={formData.transportista_codigo_postal || ''}
+                        onChange={(e) => {
+                          const cp = e.target.value;
+                          const detectedProv = getProvinceByPostalCode(cp);
+                          setFormData((prev) => ({
+                            ...prev,
+                            transportista_codigo_postal: cp,
+                            transportista_provincia: detectedProv || prev.transportista_provincia,
+                          }));
+                        }}
+                        placeholder="28001"
+                      />
+                    </div>
 
-                <div>
-                  <label htmlFor="transportista_codigo_postal" className="block text-sm font-medium mb-2">CP</label>
-                  <Input
-                    id="transportista_codigo_postal"
-                    type="text"
-                    value={formData.transportista_codigo_postal || ''}
-                    onChange={(e) => setFormData({ ...formData, transportista_codigo_postal: e.target.value })}
-                  />
+                    <ProvinceMunicipalityFields
+                      unstyledWrapper
+                      provinciaWrapperClassName="md:col-span-4"
+                      municipioWrapperClassName="md:col-span-5"
+                      order="provincia-first"
+                      provincia={formData.transportista_provincia || ''}
+                      municipio={formData.transportista_municipio || ''}
+                      provinciaId="transportista_provincia"
+                      municipioId="transportista_municipio"
+                      provinciaName="transportista_provincia"
+                      municipioName="transportista_municipio"
+                      onChange={({ provincia, municipio }) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          transportista_provincia: provincia,
+                          transportista_municipio: municipio,
+                        }))
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             </div>

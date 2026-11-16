@@ -813,29 +813,26 @@ export default function MiEmpresaPage() {
                       />
                     </div>
 
-                    <div className="sm:col-span-9">
-                      <ProvinceMunicipalityFields
-                        unstyledWrapper
-                        wrapperClassName="grid grid-cols-1 sm:grid-cols-9 gap-4"
-                        provinciaWrapperClassName="sm:col-span-4"
-                        municipioWrapperClassName="sm:col-span-5"
-                        order="municipio-first"
-                        provincia={formData.provincia_social || ''}
-                        municipio={formData.municipio_social || ''}
-                        provinciaBadge={
-                          detectedProvSocial && (
-                            <span className="text-xs text-gray-400">CP {cpPrefixSocial}</span>
-                          )
-                        }
-                        onChange={({ provincia, municipio }) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            provincia_social: provincia,
-                            municipio_social: municipio,
-                          }))
-                        }
-                      />
-                    </div>
+                    <ProvinceMunicipalityFields
+                      unstyledWrapper
+                      provinciaWrapperClassName="sm:col-span-4"
+                      municipioWrapperClassName="sm:col-span-5"
+                      order="provincia-first"
+                      provincia={formData.provincia_social || ''}
+                      municipio={formData.municipio_social || ''}
+                      provinciaBadge={
+                        detectedProvSocial && (
+                          <span className="text-xs text-gray-400">CP {cpPrefixSocial}</span>
+                        )
+                      }
+                      onChange={({ provincia, municipio }) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          provincia_social: provincia,
+                          municipio_social: municipio,
+                        }))
+                      }
+                    />
                   </div>
 
                   {/* Domicilio de Instalación */}
@@ -867,23 +864,21 @@ export default function MiEmpresaPage() {
                           />
                         </div>
 
-                        <div className="sm:col-span-9">
-                          <ProvinceMunicipalityFields
-                            unstyledWrapper
-                            provinciaWrapperClassName="sm:col-span-4"
-                            municipioWrapperClassName="sm:col-span-5"
-                            order="municipio-first"
-                            provincia={formData.provincia_instalacion || ''}
-                            municipio={formData.municipio_instalacion || ''}
-                            onChange={({ provincia, municipio }) =>
-                              setFormData((prev) => ({
-                                ...prev,
-                                provincia_instalacion: provincia,
-                                municipio_instalacion: municipio,
-                              }))
-                            }
-                          />
-                        </div>
+                        <ProvinceMunicipalityFields
+                          unstyledWrapper
+                          provinciaWrapperClassName="sm:col-span-4"
+                          municipioWrapperClassName="sm:col-span-5"
+                          order="provincia-first"
+                          provincia={formData.provincia_instalacion || ''}
+                          municipio={formData.municipio_instalacion || ''}
+                          onChange={({ provincia, municipio }) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              provincia_instalacion: provincia,
+                              municipio_instalacion: municipio,
+                            }))
+                          }
+                        />
                       </div>
                     </div>
                   )}
@@ -1080,25 +1075,23 @@ export default function MiEmpresaPage() {
                         placeholder="Ej: 41001"
                       />
                     </div>
-                    <div className="sm:col-span-9">
-                      <ProvinceMunicipalityFields
-                        unstyledWrapper
-                        provinciaRequired
-                        municipioRequired
-                        provinciaWrapperClassName="sm:col-span-4"
-                        municipioWrapperClassName="sm:col-span-5"
-                        order="municipio-first"
-                        provincia={centerFormData.provincia || ''}
-                        municipio={centerFormData.municipio || ''}
-                        onChange={({ provincia, municipio }) =>
-                          setCenterFormData((prev) => ({
-                            ...prev,
-                            provincia,
-                            municipio,
-                          }))
-                        }
-                      />
-                    </div>
+                    <ProvinceMunicipalityFields
+                      unstyledWrapper
+                      provinciaRequired
+                      municipioRequired
+                      provinciaWrapperClassName="sm:col-span-4"
+                      municipioWrapperClassName="sm:col-span-5"
+                      order="provincia-first"
+                      provincia={centerFormData.provincia || ''}
+                      municipio={centerFormData.municipio || ''}
+                      onChange={({ provincia, municipio }) =>
+                        setCenterFormData((prev) => ({
+                          ...prev,
+                          provincia,
+                          municipio,
+                        }))
+                      }
+                    />
                     <div className="sm:col-span-12">
                       <label className="block text-sm font-medium mb-1">Descripción</label>
                       <TextArea

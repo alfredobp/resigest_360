@@ -279,8 +279,8 @@ export default function GestorModal({
                 {/* Ubicación */}
                 <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-foreground">Ubicación</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="md:col-span-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                        <div className="sm:col-span-12">
                             <Label htmlFor="gestor_direccion">Dirección</Label>
                             <Input
                                 id="gestor_direccion"
@@ -291,7 +291,7 @@ export default function GestorModal({
                             />
                         </div>
 
-                        <div>
+                        <div className="sm:col-span-3">
                             <Label htmlFor="gestor_codigo_postal">Código Postal</Label>
                             <Input
                                 id="gestor_codigo_postal"
@@ -312,6 +312,9 @@ export default function GestorModal({
 
                         <ProvinceMunicipalityFields
                             unstyledWrapper
+                            provinciaWrapperClassName="sm:col-span-4"
+                            municipioWrapperClassName="sm:col-span-5"
+                            order="provincia-first"
                             provincia={formData.provincia || ''}
                             municipio={formData.municipio || ''}
                             provinciaId="gestor_provincia"
