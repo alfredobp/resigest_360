@@ -77,6 +77,15 @@ describe('quickSearchService - Servicio de búsqueda global multi-tenant', () =>
       expect(await quickSearchService.searchRecords('   ')).toEqual([]);
       expect(await quickSearchService.searchRecords('a')).toEqual([]);
       expect(mockSupabase.auth.getUser).not.toHaveBeenCalled();
+
+      mockSupabase.auth.getUser.mockResolvedValueOnce({
+        data: { user: { id: 'user-search-sanitized' } },
+      });
+      mockSupabase.from.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockResolvedValueOnce({ data: [] }),
+      });
+      expect(await quickSearchService.searchRecords('(%a),')).toEqual([]);
     });
 
     it('debe realizar búsquedas paralelas y formatear resultados cuando el usuario tiene empresas asociadas', async () => {
@@ -373,6 +382,40 @@ describe('quickSearchService - Servicio de búsqueda global multi-tenant', () =>
       expect(results.find(r => r.id === 'doc-77')?.title).toBe('DI: 77');
       expect(results.find(r => r.id === 'doc-77')?.subtitle).toBe('Documento de Identificación');
       expect(results.find(r => r.id === 'comp-66')?.subtitle).toBe('Empresa');
+    });
+
+    it('debe filtrar categorías según allowedModules cuando se especifica en options', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-filtered-mods' } },
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'identification_documents') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            or: jest.fn().mockReturnThis(),
+            limit: jest.fn().mockResolvedValue({
+              data: [{ id: 500, numero_documento: 'DI-SOLO-500', estado: 'En tránsito' }],
+              error: null,
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data: [] }),
+        };
+      });
+
+      const results = await quickSearchService.searchRecords('500', 4, {
+        allowedModules: ['di'],
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].category).toBe('documents');
+      expect(mockSupabase.from).not.toHaveBeenCalledWith('waste_contracts');
+      expect(mockSupabase.from).not.toHaveBeenCalledWith('treatment_managers');
+      expect(mockSupabase.from).not.toHaveBeenCalledWith('carriers');
     });
   });
 });

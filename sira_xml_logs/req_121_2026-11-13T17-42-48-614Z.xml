@@ -1,0 +1,216 @@
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:e3l="e3l://esir2014">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <e3l:sendWasteDCS>
+         <wasteDCS 
+    xmlns:wassup="e3l://eterproject.org/3.0/wasteSupport"
+    xmlns:common="e3l://eterproject.org/3.0/common"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    DCSCode="PRUEBA-WORK-20261113-DI02-SIN-CT"
+    DCSPhase="R"
+    DCSYear="2026"
+    DCSDate="2026-11-13"
+    DCSStartDate="2026-11-13"
+    DCSRegional="S"
+    DCSSendtoOriginOrDestinationAuthority="N">
+
+    <!-- 1. Operador del Traslado -->
+    
+    <DCSTransferOperatorData>
+        <entityId>
+            <nationalId>B00000000</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        <entityName>
+            <reason>
+                <reasonName>PRUEBA AUDITORÍA RESIGEST — PRODUCTOR FICTICIO</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="0000000014" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="009" vialDescription="Calle"/>
+                <address>CALLE FICTICIA 0</address>
+                <CP>11510</CP>
+                <municipality municipalityCode="110123" municipalityName="Puerto Real"/>
+                <province provinceCode="11" provinceName="Cádiz"/>
+            </spanishAddress>
+        </centerAddress>
+        <centerContact>
+            <phone>900000000</phone>
+            <mail>contacto@resigest.com</mail>
+        </centerContact>
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>0000000014</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>P02</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteTransferOperatorType operatorTypeCode="P01"/>
+    </DCSTransferOperatorData>
+
+    <!-- 2. Productor -->
+    
+    <DCSProducerData>
+        <entityId>
+            <nationalId>B00000000</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        <entityName>
+            <reason>
+                <reasonName>PRUEBA AUDITORÍA RESIGEST — PRODUCTOR FICTICIO</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="0000000014" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="009" vialDescription="Calle"/>
+                <address>CALLE FICTICIA 0</address>
+                <CP>11510</CP>
+                <municipality municipalityCode="110123" municipalityName="Puerto Real"/>
+                <province provinceCode="11" provinceName="Cádiz"/>
+            </spanishAddress>
+        </centerAddress>
+        <centerContact>
+            <phone>900000000</phone>
+            <mail>contacto@resigest.com</mail>
+        </centerContact>
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>0000000014</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>P02</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteProducerType producerTypeCode="P02"/>
+    </DCSProducerData>
+
+    <!-- 3. Destinatario -->
+    
+    <DCSAdresseeData>
+        <entityId>
+            <nationalId>B00000109</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        <entityName>
+            <reason>
+                <reasonName>PRUEBA-WORK-20261113-GESTOR FICTICIO</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="0000000013" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="009" vialDescription="Calle"/>
+                <address>CALLE FICTICIA DE ENSAYO 0</address>
+                <CP>11510</CP>
+                <municipality municipalityCode="110123" municipalityName="Puerto Real"/>
+                <province provinceCode="11" provinceName="Cádiz"/>
+            </spanishAddress>
+        </centerAddress>
+        <centerContact>
+            <phone>900000000</phone>
+            <mail>contacto@resigest.com</mail>
+        </centerContact>
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>PRUEBA-WORK-20261113-AUT</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>G04</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteManagerType managerTypeCode="G04"/>
+    </DCSAdresseeData>
+    
+    <!-- 4. Datos del Residuo (Incluye Transportista) -->
+    
+    <DCSResidueData>
+        <DCSProducerResidueIdentification LERCode="170405" xsi:type="wassup:noDangerousResidueType">
+            
+        <residueBag>
+             <bagProcess internalIdProcessCode="99"/>
+             <bagResidueId residueCode="999" residueDescription="Hierro y acero"/>
+        </residueBag>
+            
+        <residueTables xsi:type="wassup:tablesNoDangerousType">
+            <table2>R13</table2>
+        </residueTables>
+        </DCSProducerResidueIdentification>
+        
+        <DCSAdresseeResidueIdentification LERCode="170405" xsi:type="wassup:noDangerousResidueType">
+            
+        <residueBag>
+             <bagProcess internalIdProcessCode="99"/>
+             <bagResidueId residueCode="999" residueDescription="Hierro y acero"/>
+        </residueBag>
+            
+        <residueTables xsi:type="wassup:tablesNoDangerousType">
+            <table2>R13</table2>
+        </residueTables>
+        </DCSAdresseeResidueIdentification>
+        
+        
+        <DCSOtherResidueData>
+            <DCSNT>NT00000000000000000000000</DCSNT>
+            <DCSClearWeight>500.000</DCSClearWeight>
+            <DCSTransportCharacteristics>Sin características especiales</DCSTransportCharacteristics>
+        </DCSOtherResidueData>
+        <DCSTransporterData>
+            <entityId>
+                <nationalId>B00000117</nationalId>
+            </entityId>
+            <entityFJ entityFJCode="J" />
+            <entityName>
+                <reason>
+                    <reasonName>PRUEBA-WORK-20261113-TRANSPORTE FICTICIO</reasonName>
+                    <reasonAssociation associationCode="99" associationDescription="Otra"/>
+                </reason>
+            </entityName>
+            <entityCenter>
+                <centerID centerCode="0000000015" />
+                <centerEconomicActivity>S/D</centerEconomicActivity>
+                <centerAddress>
+                    <spanishAddress>
+                        <vial vialCode="009" vialDescription="Calle"/>
+                        <address>CALLE FICTICIA 0</address>
+                        <CP>11510</CP>
+                        <municipality municipalityCode="110123" municipalityName="Puerto Real"/>
+                        <province provinceCode="11" provinceName="Cádiz"/>
+                    </spanishAddress>
+                </centerAddress>
+                <centerContact>
+                    <phone>900000000</phone>
+                    <mail>contacto@resigest.com</mail>
+                </centerContact>
+                <wasteCenterAuthorization>
+                    <authorizationId>
+                         <authorizationIdFree>0000000015</authorizationIdFree>
+                    </authorizationId>
+                    <authorizationCode>T02</authorizationCode>
+                </wasteCenterAuthorization>
+            </entityCenter>
+
+            <wasteTransporterType trasporterTypeCode="T02" transporterTypeDescription="Transportista de residuos"/>
+            <DCSTransportWay transportWayCode="01" transportWayDescription="Carretera"/>
+        </DCSTransporterData>
+    </DCSResidueData>
+
+</wasteDCS>
+      </e3l:sendWasteDCS>
+   </soapenv:Body>
+</soapenv:Envelope>

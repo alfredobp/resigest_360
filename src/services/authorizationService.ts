@@ -5,6 +5,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { auditService } from './auditService';
+import { applyTenantScope } from './tenantContextService';
 import type {
   EnvironmentalAuthorization,
   EnvironmentalAuthorizationFormData,
@@ -31,10 +32,11 @@ export const authorizationService = {
       throw new Error('Usuario no autenticado');
     }
 
-    const { data, error } = await supabase
+    const baseQuery = supabase
       .from('environmental_authorizations')
-      .select('*, company:companies(*), production_center:production_centers(*), waste_codes:authorization_waste_codes(*)')
-      .eq('user_id', user.id)
+      .select('*, company:companies(*), production_center:production_centers(*), waste_codes:authorization_waste_codes(*)');
+
+    const { data, error } = await applyTenantScope(baseQuery, user.id)
       .eq('activo', true)
       .order('created_at', { ascending: false });
 
@@ -55,10 +57,11 @@ export const authorizationService = {
       throw new Error('Usuario no autenticado');
     }
 
-    const { data, error } = await supabase
+    const baseQuery = supabase
       .from('environmental_authorizations')
-      .select('*, production_center:production_centers(*), waste_codes:authorization_waste_codes(*)')
-      .eq('user_id', user.id)
+      .select('*, production_center:production_centers(*), waste_codes:authorization_waste_codes(*)');
+
+    const { data, error } = await applyTenantScope(baseQuery, user.id, companyId)
       .eq('company_id', companyId)
       .eq('activo', true)
       .order('created_at', { ascending: false });

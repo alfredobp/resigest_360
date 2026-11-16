@@ -563,5 +563,32 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
       expect(result).toEqual(selectedComp);
       expect(eqId).toHaveBeenCalledWith('id', 99);
     });
+
+    it('getUserCompany debe soportar fallback por membresía cuando la empresa activa pertenece a otro owner', async () => {
+      companyService.setActiveCompanyId(105);
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'consultor-1' } } });
+
+      const memberComp = { id: 105, razon_social: 'Cliente Delegado 105' };
+
+      const ownerMaybeSingle = jest.fn().mockResolvedValue({ data: null, error: null });
+      const ownerEqActivo = jest.fn().mockReturnValue({ maybeSingle: ownerMaybeSingle });
+      const ownerEqUser = jest.fn().mockReturnValue({ eq: ownerEqActivo });
+      const ownerEqId = jest.fn().mockReturnValue({ eq: ownerEqUser });
+
+      const memberMaybeSingle = jest.fn().mockResolvedValue({ data: memberComp, error: null });
+      const memberEqActivo = jest.fn().mockReturnValue({ maybeSingle: memberMaybeSingle });
+      const memberEqId = jest.fn().mockReturnValue({ eq: memberEqActivo });
+
+      let call = 0;
+      mockSupabase.from.mockImplementation(() => {
+        call++;
+        return {
+          select: jest.fn().mockReturnValue({ eq: call === 1 ? ownerEqId : memberEqId }),
+        };
+      });
+
+      const result = await companyService.getUserCompany();
+      expect(result).toEqual(memberComp);
+    });
   });
 });

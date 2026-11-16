@@ -126,8 +126,24 @@ export default function AutorizacionModal({
 
   const handleRemoveWasteCode = (index: number) => {
     setWasteCodes((prev) => prev.filter((_, i) => i !== index));
-    clearFieldError(`ler_${index}`);
-    clearFieldError(`operaciones_${index}`);
+    setFieldErrors((prev) => {
+      const next: Record<string, string> = {};
+      for (const [key, val] of Object.entries(prev)) {
+        if (!key.startsWith('ler_') && !key.startsWith('operaciones_')) {
+          next[key] = val;
+        }
+      }
+      return next;
+    });
+    setSuggestedOpsByRow((prev) => {
+      const next: Record<number, string[]> = {};
+      for (const [k, v] of Object.entries(prev)) {
+        const idx = Number(k);
+        if (idx < index) next[idx] = v;
+        else if (idx > index) next[idx - 1] = v;
+      }
+      return next;
+    });
   };
 
   const handleWasteCodeChange = (

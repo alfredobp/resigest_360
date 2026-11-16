@@ -5,6 +5,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { auditService } from './auditService';
+import { applyTenantScope } from './tenantContextService';
 import type { DecaDocument, DecaFormData, DecaAuditLog } from '@/types/deca';
 import type { IdentificationDocument } from '@/types/wasteManagement';
 
@@ -38,10 +39,11 @@ export const decaService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
-    const { data, error } = await supabase
+    const baseQuery = supabase
       .from('deca_documents')
-      .select('*')
-      .eq('user_id', user.id)
+      .select('*');
+
+    const { data, error } = await applyTenantScope(baseQuery, user.id)
       .order('fecha_transporte', { ascending: false })
       .order('id', { ascending: false });
 
@@ -81,6 +83,17 @@ export const decaService = {
   async getByToken(token: string): Promise<DecaDocument | null> {
     if (!token) return null;
 
+    if (typeof (supabase as any).rpc === 'function') {
+      const rpcRes = await (supabase as any).rpc('get_deca_by_token', { p_token: token });
+      if (rpcRes && !rpcRes.error) {
+        const doc = Array.isArray(rpcRes.data) ? rpcRes.data[0] : rpcRes.data;
+        if (!doc) {
+          console.warn('[DeCA Service] No se encontró fila en deca_documents para el token:', token);
+        }
+        return (doc || null) as DecaDocument | null;
+      }
+    }
+
     const { data, error } = await supabase
       .from('deca_documents')
       .select('*')
@@ -97,6 +110,66 @@ export const decaService = {
     }
 
     return data as DecaDocument | null;
+  },
+
+  /**
+   * Obtener los documentos DeCA vinculados a un Documento de Identificación (DI)
+   */
+  async getByIdentificationDocument(diId: number): Promise<DecaDocument[]> {
+    if (!diId) return [];
+
+    const authRes = await supabase.auth.getUser();
+    const user = authRes?.data?.user;
+
+    let query = supabase
+      .from('deca_documents')
+      .select('*')
+      .eq('identification_document_id', diId);
+
+    if (user?.id) {
+      query = query.eq('user_id', user.id);
+    }
+
+    const { data, error } = await query.order('version', { ascending: false });
+
+    if (error) {
+      console.error('[DeCA Service] Error al consultar DeCA por DI:', error.message);
+      return [];
+    }
+
+    return (data || []) as DecaDocument[];
+  },
+
+  /**
+   * Obtener la versión vigente actual de un DeCA sustituido/histórico
+   */
+  async getLatestActiveVersion(currentDoc: DecaDocument): Promise<DecaDocument | null> {
+    if (!currentDoc) return null;
+    if (currentDoc.is_vigente) return currentDoc;
+
+    const baseNumero = (currentDoc.numero_deca || '').replace(/-v\d+$/, '');
+
+    let query = supabase
+      .from('deca_documents')
+      .select('*')
+      .ilike('numero_deca', `${baseNumero}%`)
+      .eq('is_vigente', true);
+
+    if (currentDoc.user_id) {
+      query = query.eq('user_id', currentDoc.user_id);
+    }
+
+    const { data, error } = await query
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[DeCA Service] Error al obtener versión vigente DeCA:', error.message);
+      return null;
+    }
+
+    return (data || null) as DecaDocument | null;
   },
 
   /**
@@ -233,13 +306,16 @@ export const decaService = {
       matricula_remolque?: string;
     }
   ): Promise<DecaDocument> {
-    const pesoKg = di.unidad === 'toneladas' ? di.cantidad * 1000 : di.cantidad;
+    const pesoKg =
+      di.peso_destino_kg ||
+      di.peso_origen_kg ||
+      ((di.unidad === 'toneladas' || di.unidad === 'm3') ? di.cantidad * 1000 : di.cantidad);
 
     const formData: DecaFormData = {
       identification_document_id: di.id,
       company_id: di.company_id,
       numero_deca: '', // Se calculará automáticamente
-      
+
       // Cargador Contractual (definido por el usuario o empresa)
       cargador_razon_social: cargadorData.cargador_razon_social || di.productor_razon_social,
       cargador_nif: cargadorData.cargador_nif || di.productor_cif,
@@ -346,12 +422,21 @@ export const decaService = {
         .insert(fallbackPayload)
         .select()
         .single();
-      
+
       data = retryResult.data;
       error = retryResult.error;
     }
 
     if (error) {
+      try {
+        await supabase
+          .from('deca_documents')
+          .update({ is_vigente: true, updated_at: currentDeca.updated_at || new Date().toISOString() })
+          .eq('id', currentDeca.id)
+          .eq('user_id', user.id);
+      } catch {
+        // Best-effort rollback si falla la inserción de la nueva versión
+      }
       throw new Error(`Error al versionar DeCA: ${error.message}`);
     }
 

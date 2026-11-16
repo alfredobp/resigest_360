@@ -5,6 +5,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { auditService } from './auditService';
+import { applyTenantScope } from './tenantContextService';
 import {
   type MemoriaAnual,
   type EstadoMemoria,
@@ -176,10 +177,11 @@ export async function getAllMemorias(): Promise<MemoriaAnual[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay usuario autenticado');
 
-  const { data, error } = await supabase
+  const baseQuery = supabase
     .from('memorias_anuales')
-    .select('*, production_center:production_centers(*)')
-    .eq('user_id', user.id)
+    .select('*, production_center:production_centers(*)');
+
+  const { data, error } = await applyTenantScope(baseQuery, user.id)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -200,11 +202,12 @@ export async function getMemoriaById(id: number): Promise<MemoriaAnual | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay usuario autenticado');
 
-  const { data, error } = await supabase
+  const baseQuery = supabase
     .from('memorias_anuales')
     .select('*')
-    .eq('id', id)
-    .eq('user_id', user.id)
+    .eq('id', id);
+
+  const { data, error } = await applyTenantScope(baseQuery, user.id)
     .single();
 
   if (error) {
@@ -333,8 +336,27 @@ export async function generateExcelData(
     case 'productor':
       return generateDataProductor(memoria, documentos);
     case 'gestor':
-    case 'gestor_raee':
-      return generateDataGestor(memoria, documentos);
+    case 'gestor_raee': {
+      let registrosSalida: any[] = [];
+      try {
+        const regTable: any = supabase.from('chronological_registry');
+        if (regTable && typeof regTable.select === 'function') {
+          const year = memoria.año || new Date().getFullYear();
+          const { data: regData } = await regTable
+            .select('*')
+            .eq('user_id', memoria.user_id)
+            .eq('tipo_operacion', 'salida_traslado')
+            .gte('fecha', `${year}-01-01`)
+            .lte('fecha', `${year}-12-31`);
+          if (Array.isArray(regData)) {
+            registrosSalida = regData;
+          }
+        }
+      } catch {
+        // Fallback silencioso si la tabla o consulta no está disponible en entorno actual
+      }
+      return generateDataGestor(memoria, documentos, registrosSalida);
+    }
     case 'negociante':
     case 'transportista':
     case 'agente':
@@ -356,7 +378,7 @@ export function getEffectiveWeightTonnes(doc: IdentificationDocument): number {
   if (doc.peso_origen_kg && doc.peso_origen_kg > 0) {
     return Number((Number(doc.peso_origen_kg) / 1000).toFixed(3));
   }
-  if (doc.unidad === 'kg') {
+  if (doc.unidad === 'kg' || doc.unidad === 'litros' || doc.unidad === 'unidades') {
     return Number(((Number(doc.cantidad) || 0) / 1000).toFixed(3));
   }
   return Number((Number(doc.cantidad) || 0).toFixed(3));
@@ -399,7 +421,8 @@ function generateDataProductor(
 
 function generateDataGestor(
   memoria: MemoriaAnual,
-  documentos: IdentificationDocument[]
+  documentos: IdentificationDocument[],
+  registrosSalida: any[] = []
 ): {
   entradas: EntradaMemoriaGestorEntrada[];
   salidas: EntradaMemoriaGestorSalida[];
@@ -432,8 +455,55 @@ function generateDataGestor(
     srap: false,
   }));
 
-  // Salidas hacia gestor final (en caso de rechazos o transferencias)
-  const salidas: EntradaMemoriaGestorSalida[] = [];
+  // Salidas hacia gestor final o devoluciones por rechazo desde DIs rechazados y Archivo Cronológico
+  const salidasDesdeDIs: EntradaMemoriaGestorSalida[] = documentos
+    .filter(
+      doc =>
+        doc.estado_traslado === 'rechazado_total' ||
+        doc.estado_traslado === 'rechazado_parcial' ||
+        doc.resultado_recepcion === 'rechazado_total' ||
+        doc.resultado_recepcion === 'rechazado_parcial'
+    )
+    .map(doc => ({
+      codigo_ler: doc.codigo_ler || '',
+      descripcion_residuo: doc.descripcion_residuo || '',
+      cantidad_toneladas:
+        doc.estado_traslado === 'rechazado_parcial' && doc.cantidad_rechazada_kg && doc.cantidad_rechazada_kg > 0
+          ? Number((Number(doc.cantidad_rechazada_kg) / 1000).toFixed(3))
+          : getEffectiveWeightTonnes(doc),
+      nima_destino: doc.gestor_nima || doc.productor_nima,
+      nif_destino: doc.gestor_cif || doc.productor_cif || '',
+      razon_social_destino: doc.gestor_razon_social || doc.productor_razon_social || '',
+      nombre_centro_destino: doc.gestor_direccion || doc.productor_direccion || '',
+      tipo_inscripcion_destino: 'G01',
+      provincia_destino: doc.gestor_provincia || doc.productor_provincia,
+      municipio_destino: doc.gestor_municipio || doc.productor_municipio,
+      pais_destino: 'España',
+      codigo_pais_destino: '108',
+      codigo_di: doc.numero_documento,
+      codigo_operacion_rd: doc.operacion_tratamiento || '',
+      codigo_operacion_rd_4cifras: doc.operacion_tratamiento?.substring(0, 4),
+    }));
+
+  const salidasDesdeCronologico: EntradaMemoriaGestorSalida[] = (registrosSalida || []).map(reg => ({
+    codigo_ler: reg.codigo_ler || '',
+    descripcion_residuo: reg.descripcion_residuo || '',
+    cantidad_toneladas: Number(((Number(reg.cantidad_kg) || 0) / 1000).toFixed(3)),
+    nima_destino: reg.destino_nima || undefined,
+    nif_destino: reg.destino_nif || '',
+    razon_social_destino: reg.destino_razon_social || '',
+    nombre_centro_destino: reg.destino_direccion || reg.destino_razon_social || '',
+    tipo_inscripcion_destino: 'G01',
+    provincia_destino: reg.destino_provincia || undefined,
+    municipio_destino: reg.destino_municipio || undefined,
+    pais_destino: 'España',
+    codigo_pais_destino: '108',
+    codigo_di: reg.numero_documento_referencia || reg.numero_asiento,
+    codigo_operacion_rd: reg.operacion_rd || '',
+    codigo_operacion_rd_4cifras: reg.operacion_rd ? String(reg.operacion_rd).substring(0, 4) : undefined,
+  }));
+
+  const salidas: EntradaMemoriaGestorSalida[] = [...salidasDesdeDIs, ...salidasDesdeCronologico];
 
   return { entradas, salidas };
 }
@@ -661,7 +731,7 @@ export function exportMemoriaToExcelXML(memoria: MemoriaAnual, excelData: any): 
       </Row>
     `).join('');
   } else if ((memoria.tipo_memoria === 'gestor' || memoria.tipo_memoria === 'gestor_raee') && excelData?.entradas) {
-    xmlRows = (excelData.entradas as EntradaMemoriaGestorEntrada[]).map(e => `
+    const entradasXml = (excelData.entradas as EntradaMemoriaGestorEntrada[]).map(e => `
       <Row>
         <Cell><Data ss:Type="String">Recepción</Data></Cell>
         <Cell><Data ss:Type="String">${e.codigo_ler}</Data></Cell>
@@ -674,6 +744,20 @@ export function exportMemoriaToExcelXML(memoria: MemoriaAnual, excelData: any): 
         <Cell><Data ss:Type="String">${e.codigo_di || ''}</Data></Cell>
       </Row>
     `).join('');
+    const salidasXml = ((excelData.salidas || []) as EntradaMemoriaGestorSalida[]).map(e => `
+      <Row>
+        <Cell><Data ss:Type="String">Salida</Data></Cell>
+        <Cell><Data ss:Type="String">${e.codigo_ler}</Data></Cell>
+        <Cell><Data ss:Type="String">${(e.descripcion_residuo || '').replace(/[<>&]/g, '')}</Data></Cell>
+        <Cell><Data ss:Type="Number">${e.cantidad_toneladas}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.nif_destino}</Data></Cell>
+        <Cell><Data ss:Type="String">${(e.razon_social_destino || '').replace(/[<>&]/g, '')}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.nima_destino || ''}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.codigo_operacion_rd}</Data></Cell>
+        <Cell><Data ss:Type="String">${e.codigo_di || ''}</Data></Cell>
+      </Row>
+    `).join('');
+    xmlRows = `${entradasXml}${salidasXml}`;
   } else if (Array.isArray(excelData)) {
     xmlRows = excelData.map((e: any) => `
       <Row>
@@ -766,7 +850,7 @@ export function exportMemoriaToCSV(memoria: MemoriaAnual, excelData: any): void 
       e.codigo_di || ''
     ]);
   } else if ((memoria.tipo_memoria === 'gestor' || memoria.tipo_memoria === 'gestor_raee') && excelData?.entradas) {
-    rows = (excelData.entradas as EntradaMemoriaGestorEntrada[]).map(e => [
+    const entradaRows = (excelData.entradas as EntradaMemoriaGestorEntrada[]).map(e => [
       'Recepción Gestor',
       e.codigo_ler,
       `"${(e.descripcion_residuo || '').replace(/"/g, '""')}"`,
@@ -777,6 +861,18 @@ export function exportMemoriaToCSV(memoria: MemoriaAnual, excelData: any): void 
       e.codigo_operacion_rd,
       e.codigo_di || ''
     ]);
+    const salidaRows = ((excelData.salidas || []) as EntradaMemoriaGestorSalida[]).map(e => [
+      'Salida Gestor',
+      e.codigo_ler,
+      `"${(e.descripcion_residuo || '').replace(/"/g, '""')}"`,
+      e.cantidad_toneladas.toFixed(3).replace('.', ','),
+      e.nif_destino,
+      `"${(e.razon_social_destino || '').replace(/"/g, '""')}"`,
+      e.nima_destino || '',
+      e.codigo_operacion_rd,
+      e.codigo_di || ''
+    ]);
+    rows = [...entradaRows, ...salidaRows];
   } else if (Array.isArray(excelData)) {
     rows = excelData.map((e: any) => [
       memoria.tipo_memoria,

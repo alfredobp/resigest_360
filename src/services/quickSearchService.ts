@@ -4,8 +4,14 @@
 // =====================================================
 
 import { createClient } from '@/lib/supabase/client';
+import { getActiveCompanyCookie } from '@/services/tenantContextService';
+import type { AppModule } from '@/types/wasteManagement';
 
 export type SearchCategory = 'contracts' | 'documents' | 'companies' | 'gestores' | 'carriers';
+
+export interface QuickSearchOptions {
+  allowedModules?: AppModule[];
+}
 
 export interface SearchRecordItem {
   id: string;
@@ -39,6 +45,10 @@ export async function getTenantContext(): Promise<TenantContext> {
     .eq('user_id', user.id);
 
   const companyIds = (userCompanies || []).map((c: { id: number }) => c.id);
+  const activeCompanyId = getActiveCompanyCookie();
+  if (activeCompanyId && !companyIds.includes(activeCompanyId)) {
+    companyIds.push(activeCompanyId);
+  }
 
   return {
     userId: user.id,
@@ -50,21 +60,34 @@ export const quickSearchService = {
   /**
    * Búsqueda en tiempo real a través de registros clave del tenant
    */
-  async searchRecords(rawQuery: string, limitPerCategory = 4): Promise<SearchRecordItem[]> {
+  async searchRecords(
+    rawQuery: string,
+    limitPerCategory = 4,
+    options?: QuickSearchOptions
+  ): Promise<SearchRecordItem[]> {
     const query = rawQuery ? rawQuery.trim() : '';
     if (!query || query.length < 2) {
       return [];
     }
 
+    const canQueryModule = (mod: AppModule): boolean => {
+      if (!options?.allowedModules) return true;
+      return options.allowedModules.includes(mod);
+    };
+
     const { userId, companyIds } = await getTenantContext();
-    const safeQuery = query.replace(/[%_]/g, '');
+    const safeQuery = query.replace(/[%_(),]/g, '').trim();
+    if (!safeQuery || safeQuery.length < 2) {
+      return [];
+    }
 
     const results: SearchRecordItem[] = [];
 
-    // Búsqueda en paralelo en entidades clave
+    // Búsqueda en paralelo en entidades clave según módulos habilitados
     const [contractsRes, docsRes, companiesRes, gestoresRes, carriersRes] = await Promise.allSettled([
       // 1. Contratos de tratamiento
       (async () => {
+        if (!canQueryModule('contratos')) return [];
         let q = supabase
           .from('waste_contracts')
           .select('id, numero_contrato, estado')
@@ -91,6 +114,7 @@ export const quickSearchService = {
 
       // 2. Documentos de identificación (DI)
       (async () => {
+        if (!canQueryModule('di')) return [];
         const { data, error } = await supabase
           .from('identification_documents')
           .select('id, numero_documento, codigo_ler, descripcion_residuo, estado')
@@ -111,6 +135,7 @@ export const quickSearchService = {
 
       // 3. Empresas del directorio
       (async () => {
+        if (!canQueryModule('empresas')) return [];
         const { data, error } = await supabase
           .from('companies')
           .select('id, razon_social, cif, nombre_comercial')
@@ -132,6 +157,7 @@ export const quickSearchService = {
 
       // 4. Gestores de tratamiento
       (async () => {
+        if (!canQueryModule('gestores')) return [];
         const { data, error } = await supabase
           .from('treatment_managers')
           .select('id, nombre, cif, numero_autorizacion')
@@ -153,6 +179,7 @@ export const quickSearchService = {
 
       // 5. Transportistas
       (async () => {
+        if (!canQueryModule('flota_transporte')) return [];
         const { data, error } = await supabase
           .from('carriers')
           .select('id, razon_social, cif, numero_autorizacion')

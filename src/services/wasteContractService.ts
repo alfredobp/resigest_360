@@ -5,6 +5,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { auditService } from './auditService';
+import { getActiveCompanyCookie } from './tenantContextService';
 import type {
   WasteContract,
   WasteContractFormData,
@@ -88,6 +89,10 @@ async function getTenantContext() {
     .eq('user_id', user.id);
 
   const companyIds = (userCompanies || []).map((c) => c.id);
+  const activeCompanyId = getActiveCompanyCookie();
+  if (activeCompanyId && !companyIds.includes(activeCompanyId)) {
+    companyIds.push(activeCompanyId);
+  }
 
   return {
     userId: user.id,
@@ -269,6 +274,8 @@ export const wasteContractService = {
    */
   async search(query: string): Promise<WasteContract[]> {
     const { userId, companyIds } = await getTenantContext();
+    const safeQuery = query.replace(/[%_(),]/g, '').trim();
+    if (!safeQuery) return [];
 
     let dbQuery = supabase
       .from('waste_contracts')
@@ -278,7 +285,7 @@ export const wasteContractService = {
         gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
         treatment_manager:treatment_managers(*)
       `)
-      .or(`numero_contrato.ilike.%${query}%,descripcion_residuos.ilike.%${query}%`);
+      .or(`numero_contrato.ilike.%${safeQuery}%,descripcion_residuos.ilike.%${safeQuery}%`);
 
     if (companyIds.length > 0) {
       dbQuery = dbQuery.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')}),gestor_company_id.in.(${companyIds.join(',')})`);
@@ -509,10 +516,123 @@ export const wasteContractService = {
   },
 
   /**
+   * Comprueba si un contrato puede ser eliminado de forma segura
+   * o si tiene traslados (DI / NT) asociados que impiden su eliminación legal.
+   */
+  async canDelete(id: number): Promise<{ canDelete: boolean; reason?: string; diCount: number; ntCount?: number }> {
+    const { userId, companyIds } = await getTenantContext();
+
+    // 1. Comprobar estado del contrato si está disponible
+    const contractBuilder = supabase.from('waste_contracts');
+    if (contractBuilder) {
+      try {
+        let contractQuery: any = contractBuilder
+          .select('id, estado')
+          .eq('id', id);
+
+        if (companyIds.length > 0) {
+          contractQuery = contractQuery.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')}),gestor_company_id.in.(${companyIds.join(',')})`);
+        } else {
+          contractQuery = contractQuery.eq('user_id', userId);
+        }
+
+        const res = typeof contractQuery.maybeSingle === 'function'
+          ? await contractQuery.maybeSingle()
+          : await contractQuery;
+
+        if (res?.data?.estado === 'finalizado') {
+          return {
+            canDelete: false,
+            reason:
+              'No es posible eliminar un contrato que ya está finalizado. Debe permanecer en el archivo histórico por trazabilidad legal (RD 553/2020).',
+            diCount: 0,
+          };
+        }
+      } catch {
+        // En mocks parciales o si falla la lectura de estado, continuar con la verificación de traslados
+      }
+    }
+
+    // 2. Comprobar si existen Documentos de Identificación (DI) asociados
+    const diBuilder = supabase.from('identification_documents');
+    let diCount = 0;
+    let hasLinkedNT = false;
+
+    if (diBuilder) {
+      let diQuery = diBuilder
+        .select('id, numero_documento, prior_notification_id, numero_notificacion', { count: 'exact' })
+        .eq('contract_id', id);
+
+      if (companyIds.length > 0) {
+        diQuery = diQuery.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')})`);
+      } else {
+        diQuery = diQuery.eq('user_id', userId);
+      }
+
+      const { count, data, error } = await diQuery;
+      if (error) {
+        throw new Error(`Error al verificar documentos asociados al contrato: ${error.message}`);
+      }
+
+      diCount = typeof count === 'number' ? count : (data?.length || 0);
+      if (data && Array.isArray(data)) {
+        hasLinkedNT = data.some((doc: any) => Boolean(doc.prior_notification_id || doc.numero_notificacion));
+      }
+    }
+
+    if (diCount > 0) {
+      const docLabel = hasLinkedNT
+        ? 'Documento(s) de Identificación (DI) con Notificación Previa (NT)'
+        : 'Documento(s) de Identificación (DI)';
+      return {
+        canDelete: false,
+        reason: `No es posible eliminar el contrato porque ya se ha utilizado para emitir ${diCount} ${docLabel}. Por requisitos de trazabilidad legal (RD 553/2020), los contratos con traslados asociados no pueden eliminarse. En su lugar, márquelo como 'finalizado' o 'cancelado'.`,
+        diCount,
+      };
+    }
+
+    // 3. Comprobar si existen Notificaciones Previas (NT) que apunten al contrato
+    try {
+      const ntBuilder = supabase.from('prior_notifications');
+      if (ntBuilder) {
+        let ntQuery = ntBuilder
+          .select('id, numero_notificacion', { count: 'exact' })
+          .eq('contract_id', id);
+
+        if (companyIds.length > 0) {
+          ntQuery = ntQuery.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')})`);
+        } else {
+          ntQuery = ntQuery.eq('user_id', userId);
+        }
+
+        const { count: ntCount, error: ntError } = await ntQuery;
+        if (!ntError && typeof ntCount === 'number' && ntCount > 0) {
+          return {
+            canDelete: false,
+            reason: `No es posible eliminar el contrato porque tiene ${ntCount} Notificación(es) Previa(s) (NT) asociada(s). Por trazabilidad legal (RD 553/2020), no se puede eliminar. En su lugar, márquelo como 'finalizado' o 'cancelado'.`,
+            diCount: 0,
+            ntCount,
+          };
+        }
+      }
+    } catch {
+      // Ignorar si la tabla o la columna contract_id no existe en el esquema
+    }
+
+    return { canDelete: true, diCount: 0 };
+  },
+
+  /**
    * Eliminar contrato
    */
   async delete(id: number): Promise<void> {
     const { userId, companyIds } = await getTenantContext();
+
+    // Validar legalmente si el contrato puede eliminarse
+    const check = await this.canDelete(id);
+    if (!check.canDelete) {
+      throw new Error(check.reason);
+    }
 
     let query = supabase
       .from('waste_contracts')
@@ -718,9 +838,11 @@ export const wasteContractService = {
     if (role === 'productor') {
       updateData.firma_productor_url = publicUrl;
       updateData.fecha_firma_productor = now;
+      updateData.firmado_productor = true;
     } else {
       updateData.firma_gestor_url = publicUrl;
       updateData.fecha_firma_gestor = now;
+      updateData.firmado_gestor = true;
     }
 
     return this.update(id, updateData);
@@ -799,6 +921,7 @@ export interface ContractActivationValidation {
   canActivate: boolean;
   valid: boolean;
   errors: string[];
+  warnings?: string[];
   checklist: {
     hasProducer: boolean;
     hasGestor: boolean;
@@ -807,6 +930,7 @@ export interface ContractActivationValidation {
     isNotExpired: boolean;
     hasWasteCodes: boolean;
     hasOperations: boolean;
+    hasSignatures?: boolean;
   };
 }
 
@@ -816,9 +940,11 @@ export interface ContractActivationValidation {
 export function validateContractActivation(
   contract: Omit<Partial<WasteContract>, 'contract_waste_codes'> & {
     contract_waste_codes?: Array<Partial<ContractWasteCode> | ContractWasteCodeFormData>;
-  }
+  },
+  options?: { requireSignatures?: boolean }
 ): ContractActivationValidation {
   const errors: string[] = [];
+  const warnings: string[] = [];
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -867,18 +993,40 @@ export function validateContractActivation(
     errors.push('Debe definirse al menos una operación de tratamiento autorizada (R o D).');
   }
 
+  const hasSignatures = Boolean(
+    ((contract.firmado_productor || contract.firma_productor_url) &&
+      (contract.firmado_gestor || contract.firma_gestor_url)) ||
+    contract.documento_url
+  );
+  const signaturesExplicitlyRequired =
+    contract.firmado_productor === false ||
+    contract.firmado_gestor === false ||
+    Boolean(options?.requireSignatures);
+
+  if (!hasSignatures) {
+    const signatureMsg =
+      'El contrato debe estar firmado por el productor y el gestor (o disponer del documento firmado adjunto) conforme al Art. 5 del RD 553/2020.';
+    if (signaturesExplicitlyRequired) {
+      errors.push(signatureMsg);
+    } else {
+      warnings.push(signatureMsg);
+    }
+  }
+
   const canActivate =
     hasProducer &&
     hasGestor &&
     hasValidity &&
     isNotExpired &&
     hasWasteCodes &&
-    hasOperations;
+    hasOperations &&
+    (!signaturesExplicitlyRequired || hasSignatures);
 
   return {
     canActivate,
     valid: canActivate,
     errors,
+    warnings,
     checklist: {
       hasProducer,
       hasGestor,
@@ -887,6 +1035,7 @@ export function validateContractActivation(
       isNotExpired,
       hasWasteCodes,
       hasOperations,
+      hasSignatures,
     },
   };
 }

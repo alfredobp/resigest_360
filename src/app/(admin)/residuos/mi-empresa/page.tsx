@@ -13,7 +13,23 @@ import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
-import type { Company, CompanyFormData, ProductionCenter, ProductionCenterFormData } from '@/types/wasteManagement';
+import { useTenant } from '@/context/TenantContext';
+import {
+  ALL_MODULES,
+  MODULE_LABELS,
+  PROFILE_DEFINITIONS,
+  getDefaultModulesForProfile,
+  getEffectiveModules,
+  normalizeOperationalProfile,
+} from '@/lib/profiles/moduleCatalog';
+import type {
+  AppModule,
+  Company,
+  CompanyFormData,
+  OperationalProfile,
+  ProductionCenter,
+  ProductionCenterFormData,
+} from '@/types/wasteManagement';
 
 type ActiveTab = 'identidad' | 'sedes' | 'integraciones';
 
@@ -45,6 +61,7 @@ const PROVINCIAS_POR_CP: Record<string, string> = {
 
 export default function MiEmpresaPage() {
   const router = useRouter();
+  const { refreshTenant, canManageCompany, canWrite, isPlatformAdmin, membershipRole } = useTenant();
   const [activeTab, setActiveTab] = useState<ActiveTab>('identidad');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -85,6 +102,10 @@ export default function MiEmpresaPage() {
     email: '',
     persona_contacto: '',
     tipo_empresa: 'productor',
+    perfil_operativo: 'productor',
+    modulos_activos: getDefaultModulesForProfile('productor'),
+    is_my_company: true,
+    onboarding_completado: true,
     logo_url: '',
     notas: '',
     sira_usuario: '',
@@ -132,6 +153,14 @@ export default function MiEmpresaPage() {
           email: data.email || '',
           persona_contacto: data.persona_contacto || '',
           tipo_empresa: data.tipo_empresa,
+          perfil_operativo: normalizeOperationalProfile(
+            data.perfil_operativo,
+            data.tipo_empresa,
+            data.roles
+          ),
+          modulos_activos: getEffectiveModules(data),
+          is_my_company: true,
+          onboarding_completado: true,
           logo_url: data.logo_url || '',
           notas: data.notas || '',
           sira_usuario: data.sira_usuario || '',
@@ -148,6 +177,42 @@ export default function MiEmpresaPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleProfileChange = (newProfile: OperationalProfile) => {
+    if (!canManageCompany) return;
+    const def = PROFILE_DEFINITIONS[newProfile];
+    setFormData((prev) => ({
+      ...prev,
+      perfil_operativo: newProfile,
+      tipo_empresa: def.defaultCompanyType,
+      roles: def.defaultRoles,
+      modulos_activos: getDefaultModulesForProfile(newProfile),
+    }));
+  };
+
+  const handleCompanyTypeChange = (newType: NonNullable<CompanyFormData['tipo_empresa']>) => {
+    if (!canManageCompany) return;
+    // Si el perfil operativo actual ya coincide con este tipo de empresa, solo actualizamos el tipo
+    const currentProfileDef = formData.perfil_operativo ? PROFILE_DEFINITIONS[formData.perfil_operativo] : null;
+    if (currentProfileDef && currentProfileDef.defaultCompanyType === newType) {
+      setFormData((prev) => ({ ...prev, tipo_empresa: newType }));
+      return;
+    }
+
+    const matchingProfile = normalizeOperationalProfile(undefined, newType);
+    handleProfileChange(matchingProfile);
+  };
+
+  const handleToggleModule = (mod: AppModule) => {
+    if (!isPlatformAdmin) return;
+    setFormData((prev) => {
+      const current = prev.modulos_activos || [];
+      const next = current.includes(mod)
+        ? current.filter((m) => m !== mod)
+        : [...current, mod];
+      return { ...prev, modulos_activos: next };
+    });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -180,6 +245,10 @@ export default function MiEmpresaPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageCompany) {
+      toast.warning('Tu rol actual no tiene permisos para modificar los datos fiscales de la empresa.');
+      return;
+    }
     setError(null);
     setSuccess(null);
 
@@ -199,14 +268,30 @@ export default function MiEmpresaPage() {
       return;
     }
 
+    if (!companyService.validateCIF(formData.cif.trim())) {
+      const msg = 'El formato del CIF/NIF introducido no es válido';
+      setError(msg);
+      setActiveTab('identidad');
+      toast.warning(msg);
+      return;
+    }
+
+    if (formData.nima && formData.nima.trim() !== '' && !companyService.validateNIMA(formData.nima.trim())) {
+      const msg = 'El código NIMA debe contener exactamente 10 dígitos numéricos';
+      setError(msg);
+      setActiveTab('identidad');
+      toast.warning(msg);
+      return;
+    }
+
     const payload: CompanyFormData = sameInstallationAddress
       ? {
-          ...formData,
-          domicilio_instalacion: formData.domicilio_social,
-          codigo_postal_instalacion: formData.codigo_postal_social,
-          municipio_instalacion: formData.municipio_social,
-          provincia_instalacion: formData.provincia_social,
-        }
+        ...formData,
+        domicilio_instalacion: formData.domicilio_social,
+        codigo_postal_instalacion: formData.codigo_postal_social,
+        municipio_instalacion: formData.municipio_social,
+        provincia_instalacion: formData.provincia_social,
+      }
       : formData;
 
     try {
@@ -225,7 +310,9 @@ export default function MiEmpresaPage() {
         toast.success(msg);
       }
 
+      // Recargar datos y contexto global del tenant
       await loadCompany();
+      await refreshTenant();
     } catch (err: any) {
       setError(err.message);
       toast.error(`Error al guardar datos de la empresa: ${err.message}`);
@@ -237,6 +324,13 @@ export default function MiEmpresaPage() {
   const handleAddCenter = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!company) return;
+
+    if (centerFormData.nima && centerFormData.nima.trim() !== '' && !companyService.validateNIMA(centerFormData.nima.trim())) {
+      const msg = 'El código NIMA del centro de producción debe tener 10 dígitos numéricos';
+      setError(msg);
+      toast.warning(msg);
+      return;
+    }
 
     try {
       setSaving(true);
@@ -325,7 +419,17 @@ export default function MiEmpresaPage() {
           </div>
         )}
 
-        {!company && (
+        {!canManageCompany && (
+          <div className="mb-6">
+            <Alert
+              variant="warning"
+              title="Vista de consulta de ficha de empresa"
+              message={`Estás accediendo con rol "${membershipRole}". Solo el titular o consultor administrador puede modificar la identidad fiscal, el perfil operativo o las credenciales de integración.`}
+            />
+          </div>
+        )}
+
+        {!company && canManageCompany && (
           <div className="mb-6">
             <Alert
               variant="info"
@@ -376,6 +480,11 @@ export default function MiEmpresaPage() {
             }`}
           >
             <span>Integraciones (SIRA y Holded)</span>
+            {(formData.sira_activo || Boolean(formData.holded_api_key?.trim())) && (
+              <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                Activo
+              </span>
+            )}
           </button>
         </div>
 
@@ -474,8 +583,8 @@ export default function MiEmpresaPage() {
                         placeholder="Ej: 4100012345 (10 dígitos)"
                         className="font-mono"
                       />
-                      {nimaTrimmed !== '' && (
-                        <div className="w-full bg-gray-100 dark:bg-gray-800 h-1 rounded-full overflow-hidden mt-2">
+{nimaTrimmed !== '' && (
+                        <div className="w-full bg-gray-100 dark:bg-gray-800 h-1.5 rounded-full overflow-hidden mt-2">
                           <div
                             className={`h-full transition-all duration-300 ${
                               isNimaValid ? 'bg-emerald-500' : 'bg-amber-500'
@@ -484,6 +593,9 @@ export default function MiEmpresaPage() {
                           />
                         </div>
                       )}
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                        2 dígitos de provincia INE + 8 dígitos correlativos requeridos por SIRA.
+                      </p>
                     </div>
                   </div>
 
@@ -499,9 +611,7 @@ export default function MiEmpresaPage() {
                           <button
                             key={tipo.value}
                             type="button"
-                            onClick={() =>
-                              setFormData((prev) => ({ ...prev, tipo_empresa: tipo.value }))
-                            }
+                            onClick={() => handleCompanyTypeChange(tipo.value)}
                             className={`flex flex-col items-start p-3 rounded-lg border text-left transition-colors ${
                               isSelected
                                 ? 'border-brand-600 bg-brand-50/50 dark:bg-brand-950/30 dark:border-brand-400'
@@ -588,6 +698,67 @@ export default function MiEmpresaPage() {
                       rows={4}
                       placeholder="Información adicional sobre la empresa..."
                     />
+                  </div>
+                </div>
+              </ComponentCard>
+
+              {/* Perfil Operativo y Módulos Activos */}
+              <ComponentCard title="Perfil Operativo y Módulos del Sistema">
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Perfil Operativo / Actividad de la Empresa</label>
+                    <select
+                      name="perfil_operativo"
+                      value={formData.perfil_operativo || 'productor'}
+                      disabled={!canManageCompany}
+                      onChange={(e) => handleProfileChange(e.target.value as OperationalProfile)}
+                      className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {(Object.keys(PROFILE_DEFINITIONS) as OperationalProfile[]).map((key) => (
+                        <option key={key} value={key}>
+                          {PROFILE_DEFINITIONS[key].label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      Cambiar de perfil ajusta los módulos activos por defecto recomendados para tu actividad.
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <label className="block text-sm font-medium">Módulos Activos en el Menú y Panel</label>
+                      {!isPlatformAdmin && (
+                        <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                          Asignados automáticamente según el perfil operativo
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {ALL_MODULES.map((mod) => {
+                        const checked = (formData.modulos_activos || []).includes(mod);
+                        return (
+                          <label
+                            key={mod}
+                            className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs transition ${
+                              isPlatformAdmin ? 'cursor-pointer' : 'cursor-default opacity-85'
+                            } ${checked
+                                ? 'border-brand-400 bg-brand-50/60 dark:bg-brand-950/30 text-brand-900 dark:text-brand-200 font-semibold'
+                                : 'border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400'
+                              }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={!isPlatformAdmin}
+                              onChange={() => handleToggleModule(mod)}
+                              className="rounded border-gray-300 disabled:opacity-60"
+                            />
+                            <span>{MODULE_LABELS[mod]}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </ComponentCard>
@@ -812,19 +983,28 @@ export default function MiEmpresaPage() {
             </div>
           )}
 
-          {/* Botones de Acción */}
-          <div className="mt-6 flex justify-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push('/residuos/contratos')}
-              disabled={saving}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Guardando...' : company ? 'Actualizar Empresa' : 'Crear Empresa'}
-            </Button>
+{/* Barra de Acciones del Formulario Principal */}
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              {canManageCompany
+                ? 'Los cambios realizados en cualquiera de las 3 pestañas se guardan conjuntamente.'
+                : 'Modo de consulta: no tienes permisos para modificar los datos fiscales de esta empresa.'}
+            </div>
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push('/residuos/contratos')}
+                disabled={saving}
+              >
+                Volver
+              </Button>
+              {canManageCompany && (
+                <Button type="submit" disabled={saving}>
+                  {saving ? 'Guardando...' : company ? 'Actualizar Empresa' : 'Crear Empresa'}
+                </Button>
+              )}
+            </div>
           </div>
         </form>
 
@@ -838,12 +1018,14 @@ export default function MiEmpresaPage() {
                   Delegaciones, plantas o centros adicionales asociados al mismo CIF
                 </p>
               </div>
-              <Button
-                onClick={() => setShowCenterForm(!showCenterForm)}
-                variant={showCenterForm ? 'outline' : 'primary'}
-              >
-                {showCenterForm ? 'Cancelar' : 'Nuevo Centro'}
-              </Button>
+              {canWrite && (
+                <Button
+                  onClick={() => setShowCenterForm(!showCenterForm)}
+                  variant={showCenterForm ? 'outline' : 'primary'}
+                >
+                  {showCenterForm ? 'Cancelar' : 'Nuevo Centro'}
+                </Button>
+              )}
             </div>
 
             {showCenterForm && (
@@ -971,14 +1153,16 @@ export default function MiEmpresaPage() {
                           </p>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCenter(center.id)}
-                        className="text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900/40 transition-colors shrink-0"
-                        title="Eliminar centro"
-                      >
-                        Eliminar
-                      </button>
+{canWrite && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCenter(center.id)}
+                          className="text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900/40 transition-colors shrink-0"
+                          title="Eliminar centro"
+                        >
+                          Eliminar
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

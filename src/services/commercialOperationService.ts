@@ -11,12 +11,29 @@ import {
 } from '@/types/wasteManagement';
 import { holdedService } from './holdedService';
 import { auditService } from './auditService';
+import { tenantContextService } from './tenantContextService';
+import { syncEntryFromCommercialOperation } from './chronologicalRegistryService';
+
+async function syncClosedOperationToChronologicalRegistry(op: CommercialOperation): Promise<void> {
+  if (
+    (op.estado === 'completada' || op.estado === 'liquidada') &&
+    op.numero_operacion &&
+    op.codigo_ler
+  ) {
+    try {
+      await syncEntryFromCommercialOperation(op);
+    } catch {
+      /* best-effort: no bloquear flujo comercial si falla el registro cronológico */
+    }
+  }
+}
 
 export interface CommercialOperationFilter {
   año?: number;
   estado?: EstadoOperacionComercial | 'todas';
   codigo_ler?: string;
   search?: string;
+  company_id?: number | null;
 }
 
 /**
@@ -73,12 +90,22 @@ export function calculateProfitability(data: Partial<CommercialOperationFormData
 
 export const commercialOperationService = {
   /**
+   * Verifica que el usuario y la empresa activa tienen permiso al módulo de Operaciones Comerciales.
+   */
+  async verifyAccess(): Promise<void> {
+    await tenantContextService.assertModuleAccess('operaciones_comerciales');
+  },
+
+  /**
    * Obtener todas las operaciones con filtros
    */
   async getAll(filters: CommercialOperationFilter = {}): Promise<CommercialOperation[]> {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No hay usuario autenticado');
+
+    const filterColumn = filters.company_id ? 'company_id' : 'user_id';
+    const filterValue = filters.company_id ?? user.id;
 
     let query = supabase
       .from('commercial_operations')
@@ -92,7 +119,7 @@ export const commercialOperationService = {
         cliente_comercial:companies!commercial_operations_cliente_comercial_id_fkey(*),
         identification_document:identification_documents(*)
       `)
-      .eq('user_id', user.id)
+      .eq(filterColumn, filterValue)
       .order('fecha', { ascending: false })
       .order('id', { ascending: false });
 
@@ -284,6 +311,8 @@ export const commercialOperationService = {
       },
     });
 
+    await syncClosedOperationToChronologicalRegistry(created as CommercialOperation);
+
     return created as CommercialOperation;
   },
 
@@ -310,9 +339,22 @@ export const commercialOperationService = {
       updated_at: new Date().toISOString()
     };
 
-    // Recalcular rentabilidad solo si se proporcionan campos económicos o de cantidad
+    // Recalcular rentabilidad solo si se proporcionan campos económicos o de cantidad,
+    // fusionando previamente con los valores persistidos para no sobrescribir precios con 0.
     if (hasFinancialFields) {
-      const profitability = calculateProfitability(data);
+      const existing = await this.getById(id);
+      const mergedFinancialData: Partial<CommercialOperationFormData> = {
+        cantidad_estimada_t: existing?.cantidad_estimada_t,
+        cantidad_real_t: existing?.cantidad_real_t ?? undefined,
+        tipo_precio_compra: existing?.tipo_precio_compra,
+        precio_unitario_compra: existing?.precio_unitario_compra,
+        tipo_precio_venta: existing?.tipo_precio_venta,
+        precio_unitario_venta: existing?.precio_unitario_venta,
+        coste_transporte: existing?.coste_transporte,
+        otros_costes: existing?.otros_costes,
+        ...data,
+      };
+      const profitability = calculateProfitability(mergedFinancialData);
       payload.coste_compra_total = profitability.coste_compra_total;
       payload.ingreso_venta_total = profitability.ingreso_venta_total;
       payload.coste_transporte = profitability.coste_transporte;
@@ -346,6 +388,8 @@ export const commercialOperationService = {
       accion: 'actualizar',
       detalles: { estado: (updated as CommercialOperation).estado },
     });
+
+    await syncClosedOperationToChronologicalRegistry(updated as CommercialOperation);
 
     return updated as CommercialOperation;
   },
@@ -477,7 +521,7 @@ export const commercialOperationService = {
       ];
     });
 
-    const csvContent = `\uFEFF${  [headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n')}`;
+    const csvContent = `\uFEFF${[headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n')}`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -567,7 +611,10 @@ export const commercialOperationService = {
   /**
    * Sincroniza la operación comercial con Holded ERP creando la factura de venta correspondiente
    */
-  async syncOperationToHolded(operationId: number): Promise<{ success: boolean; invoiceId?: string; docNumber?: string; message: string }> {
+  async syncOperationToHolded(
+    operationId: number,
+    options?: { taxRate?: 0 | 10 | 21 }
+  ): Promise<{ success: boolean; invoiceId?: string; docNumber?: string; message: string }> {
     try {
       const op = await this.getById(operationId);
       if (!op) {
@@ -609,10 +656,10 @@ export const commercialOperationService = {
               type: 'client',
               email: clientCompany.email || undefined,
               phone: clientCompany.telefono || undefined,
-              city: clientCompany.municipio || undefined,
-              postalCode: clientCompany.codigo_postal || undefined,
-              province: clientCompany.provincia || undefined,
-              address: clientCompany.direccion || undefined,
+              city: clientCompany.municipio_social || clientCompany.municipio_instalacion || clientCompany.municipio || undefined,
+              postalCode: clientCompany.codigo_postal_social || clientCompany.codigo_postal_instalacion || clientCompany.codigo_postal || undefined,
+              province: clientCompany.provincia_social || clientCompany.provincia_instalacion || clientCompany.provincia || undefined,
+              address: clientCompany.domicilio_social || clientCompany.domicilio_instalacion || clientCompany.direccion || undefined,
             }, apiKey);
 
             if (createdContact?.id) {
@@ -629,18 +676,37 @@ export const commercialOperationService = {
         ? op.cantidad_real_t
         : (op.cantidad_estimada_t || 1);
 
+      const taxRate: 0 | 10 | 21 = options?.taxRate !== undefined ? options.taxRate : 21;
+      const isLoteFijo = op.tipo_precio_venta === 'lote_fijo';
+      const units = isLoteFijo
+        ? 1
+        : op.tipo_precio_venta === 'por_kg'
+          ? Number((toneladas * 1000).toFixed(3))
+          : toneladas;
+      const unitSubtotal = isLoteFijo
+        ? Number(op.ingreso_venta_total || op.precio_unitario_venta || 0)
+        : (op.precio_unitario_venta && op.precio_unitario_venta > 0)
+          ? Number(op.precio_unitario_venta)
+          : (units > 0
+              ? Number(((op.ingreso_venta_total || 0) / units).toFixed(2))
+              : Number(op.ingreso_venta_total || 0));
+
+      const ispMention = taxRate === 0
+        ? ' — Inversión del Sujeto Pasivo (Art. 84.Uno.2º.c Ley 37/1992 del IVA)'
+        : '';
+
       const invoicePayload = {
         contactId: contactId || undefined,
         contactName: op.cliente_razon_social || 'Cliente Venta',
-        desc: `Factura Venta Residuo - Operación ${op.numero_operacion} (LER ${op.codigo_ler})`,
+        desc: `Factura Venta Residuo - Operación ${op.numero_operacion} (LER ${op.codigo_ler})${ispMention}`,
         date: Math.floor(new Date(op.fecha || Date.now()).getTime() / 1000),
         items: [
           {
             name: `Gestión / Venta Residuo LER ${op.codigo_ler}`,
-            desc: `${op.descripcion_residuo || 'Residuo'} - Operación ${op.numero_operacion}`,
-            units: toneladas,
-            subtotal: op.ingreso_venta_total,
-            tax: 21,
+            desc: `${op.descripcion_residuo || 'Residuo'} - Operación ${op.numero_operacion}${ispMention}`,
+            units,
+            subtotal: unitSubtotal,
+            tax: taxRate,
           }
         ]
       };

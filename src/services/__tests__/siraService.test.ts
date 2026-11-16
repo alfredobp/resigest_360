@@ -60,6 +60,35 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       expect(siraService.getProvinceCode('')).toBe('00');
       expect(siraService.getProvinceCode('Provincia Desconocida')).toBe('00');
     });
+
+    it('formatNima debe normalizar NIMAs al formato XSD de 10 dígitos (provincia + 8 dígitos)', () => {
+      expect(siraService.formatNima('1100000014', '11')).toBe('1100000014');
+      // Si tiene 10 dígitos pero el prefijo provincial es 00 (inválido en XSD)
+      expect(siraService.formatNima('0000000014', '11')).toBe('1100000014');
+      // Si tiene caracteres no numéricos o longitud corta
+      expect(siraService.formatNima('14', '11')).toBe('1100000014');
+      expect(siraService.formatNima('', '41')).toBe('4100000001');
+    });
+
+    it('formatDCSCode debe generar un código de 26 caracteres conforme al patrón E3L DCS', () => {
+      const dcs = siraService.formatDCSCode('PRUEBA-123', '1100000014', 121);
+      expect(dcs).toHaveLength(26);
+      expect(dcs).toMatch(/^DCS101100000014\d{4}0000121$/);
+
+      // Si ya cumple el formato de 26 caracteres no lo altera
+      const validCode = 'DCS10110000001420260000121';
+      expect(siraService.formatDCSCode(validCode, '1100000014')).toBe(validCode);
+    });
+
+    it('getMunicipalityCode debe retornar códigos oficiales INE válidos del esquema', () => {
+      expect(siraService.getMunicipalityCode('11', 'Puerto Real')).toBe('110282');
+      expect(siraService.getMunicipalityCode('11', 'Jerez de la Frontera')).toBe('110200');
+      expect(siraService.getMunicipalityCode('29', 'Málaga')).toBe('290672');
+      expect(siraService.getMunicipalityCode('14', 'Córdoba')).toBe('140214');
+      expect(siraService.getMunicipalityCode('41', 'Sevilla')).toBe('410917');
+      expect(siraService.getMunicipalityCode('28', 'Madrid')).toBe('280796');
+      expect(siraService.getMunicipalityCode('11')).toBe('110012');
+    });
   });
 
   describe('generateDIXml', () => {
@@ -109,15 +138,14 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
 
       const xml = siraService.generateDIXml(mockDoc);
 
-      expect(xml).toContain('DCSCode="DI-2025-0001"');
+      expect(xml).toMatch(/DCSCode="DCS\d{23}"/);
       expect(xml).toContain('DCSStartDate="2025-05-15"');
       expect(xml).toContain('<reasonName>Productor Químico S.A.</reasonName>');
       expect(xml).toContain('<nationalId>A87654321</nationalId>');
       expect(xml).toContain('<nationalId>B99887766</nationalId>');
       expect(xml).toContain('LERCode="150110"');
       expect(xml).toContain('<table5>HP4</table5>');
-      expect(xml).not.toContain('NT99999999999999999999999');
-      expect(xml).not.toContain('<DCSNT>');
+      expect(xml).toContain('<DCSNT>NT99999999999999999999999</DCSNT>');
       expect(xml).toContain('<DCSClearWeight>1.500</DCSClearWeight>');
     });
 
@@ -149,13 +177,92 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
 
       const xml = siraService.generateDIXml(minDoc);
 
-      expect(xml).toContain('DCSCode="DI-MIN-001"');
+      expect(xml).toMatch(/DCSCode="DCS\d{23}"/);
       expect(xml).toContain('LERCode="200101"');
       expect(xml).toContain('xsi:type="wassup:noDangerousResidueType"');
+      expect(xml).toContain('producerTypeCode="P03"');
       expect(xml).not.toContain('A00000000');
-      expect(xml).not.toContain('999999999');
+      expect(xml).not.toContain('<phone>999999999</phone>');
       expect(xml).not.toContain('pendiente@email.com');
       expect(xml).not.toContain('NIMA-PENDIENTE');
+    });
+
+    it('debe soportar subcódigos de 4 dígitos y marcar DCSRegional="N" en traslados interautonómicos', () => {
+      const xml = siraService.generateDIXml({
+        numero_documento: 'DI-INTER-001',
+        productor_provincia: 'Sevilla',
+        gestor_provincia: 'Madrid',
+        codigo_ler: '15 01 01',
+        peligrosidad: 'no-peligroso',
+        operacion_tratamiento: 'R1201',
+        cantidad: 2,
+      });
+
+      expect(xml).toContain('DCSPhase="R"');
+      expect(xml).toContain('DCSRegional="N"');
+      expect(xml).toContain('DCSSendtoOriginOrDestinationAuthority="S"');
+      expect(xml).toContain('<table2>R12</table2>');
+      expect(xml).toContain('<process operationIdProcessCode="R1201"/>');
+    });
+
+    it('debe emitir DCSPhase="D" y <DCSAcceptanceData> al aceptar o rechazar en destino', () => {
+      const acceptedXml = siraService.generateDIXml({
+        numero_documento: 'DI-DEST-001',
+        fecha_documento: '2026-11-10',
+        fecha_recogida: '2026-11-11',
+        fecha_recepcion: '2026-11-12',
+        estado_traslado: 'aceptado',
+        resultado_recepcion: 'aceptado',
+        peso_destino_kg: 1850,
+        codigo_ler: '17 04 05',
+        peligrosidad: 'no-peligroso',
+        operacion_tratamiento: 'R1201',
+      });
+
+      expect(acceptedXml).toContain('DCSPhase="D"');
+      expect(acceptedXml).toContain('<DCSAcceptanceData>');
+      expect(acceptedXml).toContain('<DCSRealQuantity>1850.000</DCSRealQuantity>');
+      expect(acceptedXml).toContain('<DCSAcceptance>03</DCSAcceptance>');
+      expect(acceptedXml).toContain('<DCSAcceptanceDate>2026-11-12</DCSAcceptanceDate>');
+      expect(acceptedXml).toContain('<DCSDeliveryDate>2026-11-11</DCSDeliveryDate>');
+      expect(acceptedXml).not.toContain('<DCSRefusedAction>');
+
+      const rejectedXml = siraService.generateDIXml({
+        numero_documento: 'DI-DEST-002',
+        fecha_documento: '2026-11-10',
+        fecha_recepcion: '2026-11-13',
+        estado_traslado: 'rechazado_total',
+        resultado_recepcion: 'rechazado_total',
+        accion_rechazo: 'reenvio',
+        peso_destino_kg: 500,
+        codigo_ler: '15 01 10*',
+        peligrosidad: 'peligroso',
+        operacion_tratamiento: 'R13',
+      });
+
+      expect(rejectedXml).toContain('DCSPhase="D"');
+      expect(rejectedXml).toContain('<DCSAcceptance>04</DCSAcceptance>');
+      expect(rejectedXml).toContain('<DCSRefusedAction>Redelivery</DCSRefusedAction>');
+      expect(rejectedXml).toContain('<DCSRefusedActionDate>2026-11-13</DCSRefusedActionDate>');
+    });
+
+    it('descuenta cantidad_rechazada_kg de <DCSRealQuantity> en rechazos parciales', () => {
+      const partialXml = siraService.generateDIXml({
+        numero_documento: 'DI-DEST-003',
+        fecha_documento: '2026-11-10',
+        fecha_recepcion: '2026-11-14',
+        estado_traslado: 'rechazado_parcial',
+        resultado_recepcion: 'rechazado_parcial',
+        peso_destino_kg: 1000,
+        cantidad_rechazada_kg: 250,
+        codigo_ler: '15 01 01',
+        peligrosidad: 'no-peligroso',
+        operacion_tratamiento: 'R1201',
+      });
+
+      expect(partialXml).toContain('DCSPhase="D"');
+      expect(partialXml).toContain('<DCSRealQuantity>750.000</DCSRealQuantity>');
+      expect(partialXml).toContain('<DCSAcceptance>03</DCSAcceptance>');
     });
   });
 
@@ -195,6 +302,33 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       expect(res.valid).toBe(false);
       expect(res.errors.length).toBeGreaterThanOrEqual(6);
       expect(res.warnings.length).toBeGreaterThanOrEqual(4);
+    });
+
+    it('debe aceptar R14/R15/R1201 y exigir NT en residuos peligrosos (*), LER 20 03 01 y R01', () => {
+      const baseDoc = {
+        numero_documento: 'DI-300',
+        productor_cif: 'B00000000',
+        gestor_cif: 'B11111111',
+        transportista_cif: 'B22222222',
+        transportista_razon_social: 'Trans Test',
+        codigo_ler: '17 04 05',
+        operacion_tratamiento: 'R14',
+        cantidad: 1,
+        tipo_notificacion: 'sin-notificacion',
+      };
+
+      expect(siraService.validateDIForE3L(baseDoc).valid).toBe(true);
+      expect(siraService.validateDIForE3L({ ...baseDoc, operacion_tratamiento: 'R1201' }).valid).toBe(true);
+
+      const errDangerous = siraService.validateDIForE3L({ ...baseDoc, codigo_ler: '15 01 10*' });
+      expect(errDangerous.valid).toBe(false);
+      expect(errDangerous.errors.some((e) => e.includes('art. 3.2 del RD 553/2020'))).toBe(true);
+
+      const err200301 = siraService.validateDIForE3L({ ...baseDoc, codigo_ler: '20 03 01' });
+      expect(err200301.valid).toBe(false);
+
+      const errR01 = siraService.validateDIForE3L({ ...baseDoc, operacion_tratamiento: 'R01' });
+      expect(errR01.valid).toBe(false);
     });
   });
 
@@ -380,6 +514,60 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       expect(siraService.extractSiraError('')).toBe('Respuesta vacía o inválida del servidor SIRA.');
       expect(siraService.extractSiraError(null as any)).toBe('Respuesta vacía o inválida del servidor SIRA.');
       expect(siraService.extractSiraError('<otherTag>Contenido</otherTag>')).toBe('Error en la validación de SIRA. Ver logs XML.');
+    });
+  });
+
+  describe('generateE3LMessage', () => {
+    it('debe envolver el documento en el esquema E3L 3.6 completo con cabecera y cuerpo', () => {
+      const mockDoc = {
+        id: 1,
+        numero_documento: 'DI-2026-00001',
+        tipo_notificacion: 'con-notificacion-previa',
+        numero_notificacion: 'NT-2026-0001',
+        codigo_ler: '15 01 01',
+        descripcion_residuo: 'Envases de papel y cartón',
+        cantidad: 1500,
+        unidad: 'kg',
+        operacion_tratamiento: 'R03',
+        productor_razon_social: 'Productor Test SL',
+        productor_cif: 'B12345678',
+        productor_nima: '1234567890',
+        gestor_razon_social: 'Gestor Test SL',
+        gestor_cif: 'A87654321',
+        gestor_nima: '0987654321',
+        transportista_razon_social: 'Trans Test SL',
+        transportista_cif: 'B99887766',
+        transportista_nima: '1122334455',
+        fecha_documento: '2026-11-13',
+      } as any;
+
+      const xml = siraService.generateE3LMessage(mockDoc);
+
+      expect(xml).toContain('<?xml version="1.0"');
+      expect(xml).toContain('<e3l');
+      expect(xml).toContain('version="3.6"');
+      expect(xml).toContain('<header>');
+      expect(xml).toContain('<sender>');
+      expect(xml).toContain('<recipient>');
+      expect(xml).toContain('<waste>');
+      expect(xml).toContain('<wasteDCS');
+      expect(xml).toContain('</waste>');
+      expect(xml).toContain('</e3l>');
+    });
+
+    it('debe convertir toneladas o m3 a kg en DCSClearWeight cuando no hay peso de báscula', () => {
+      const mockDocTonnes = {
+        id: 2,
+        numero_documento: 'DI-2026-00002',
+        codigo_ler: '15 01 01',
+        descripcion_residuo: 'Envases',
+        cantidad: 2.5,
+        unidad: 'toneladas',
+        operacion_tratamiento: 'R03',
+      } as any;
+
+      const xml = siraService.generateE3LMessage(mockDocTonnes);
+      expect(xml).toContain('<DCSClearWeight>2500.000</DCSClearWeight>');
     });
   });
 

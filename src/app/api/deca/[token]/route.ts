@@ -26,13 +26,22 @@ export async function GET(
     }
 
     const supabase = await createClient();
-    const { data } = await supabase
-      .from('deca_documents')
-      .select('*')
-      .eq('token', token)
-      .maybeSingle();
+    let deca: DecaDocument | null = null;
 
-    const deca = (data as DecaDocument | null) || null;
+    if (typeof (supabase as any).rpc === 'function') {
+      const rpcRes = await (supabase as any).rpc('get_deca_by_token', { p_token: token });
+      if (rpcRes && !rpcRes.error) {
+        const doc = Array.isArray(rpcRes.data) ? rpcRes.data[0] : rpcRes.data;
+        deca = (doc as DecaDocument | null) || null;
+      }
+    } else {
+      const { data } = await supabase
+        .from('deca_documents')
+        .select('*')
+        .eq('token', token)
+        .maybeSingle();
+      deca = (data as DecaDocument | null) || null;
+    }
 
     if (!deca) {
       return new Response(

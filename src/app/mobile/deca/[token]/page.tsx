@@ -22,6 +22,7 @@ export default function DecaDriverMobilePage({
   const token = resolvedParams.token;
 
   const [deca, setDeca] = useState<DecaDocument | null>(null);
+  const [latestVigenteDeca, setLatestVigenteDeca] = useState<DecaDocument | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
@@ -38,6 +39,18 @@ export default function DecaDriverMobilePage({
         }
 
         setDeca(data);
+
+        // Si la versión no está vigente, buscar la versión vigente activa
+        if (!data.is_vigente) {
+          try {
+            const active = await decaService.getLatestActiveVersion(data);
+            if (active && active.id !== data.id) {
+              setLatestVigenteDeca(active);
+            }
+          } catch (e) {
+            console.warn('Error al consultar versión vigente DeCA:', e);
+          }
+        }
 
         // Generar QR para la inspección
         const origin = window.location.origin;
@@ -132,16 +145,48 @@ export default function DecaDriverMobilePage({
           <div className="text-right">
             <span
               className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                isExpired
+                !deca.is_vigente
+                  ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                  : isExpired
                   ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                   : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
               }`}
             >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              {isExpired ? 'Finalizado (>7d)' : `v${deca.version} Vigente`}
+              {!deca.is_vigente ? (
+                <AlertTriangle className="w-3.5 h-3.5" />
+              ) : (
+                <CheckCircle2 className="w-3.5 h-3.5" />
+              )}
+              {!deca.is_vigente
+                ? `v${deca.version} Sustituida (Histórica)`
+                : isExpired
+                ? 'Finalizado (>7d)'
+                : `v${deca.version} Vigente`}
             </span>
           </div>
         </div>
+
+        {/* Banner destacado si la versión ha sido sustituida */}
+        {!deca.is_vigente && (
+          <div className="mb-3 p-3.5 bg-rose-950/80 border-2 border-rose-500 rounded-2xl text-rose-200 shadow-xl shadow-rose-950/40">
+            <div className="flex items-center gap-2 font-bold text-rose-300 text-xs sm:text-sm mb-1.5">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>VERSIÓN SUSTITUIDA (HISTÓRICA v{deca.version})</span>
+            </div>
+            <p className="text-xs text-rose-200/90 leading-relaxed mb-2.5">
+              Este documento de control ha sido sustituido por una revisión posterior. No debe presentarse en carretera como vigente.
+            </p>
+            {latestVigenteDeca && (
+              <Link
+                href={`/mobile/deca/${latestVigenteDeca.token}`}
+                className="inline-flex items-center justify-center gap-2 w-full bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs py-2 px-3 rounded-xl transition shadow-md shadow-rose-900/50"
+              >
+                <span>Abrir Revisión Vigente Actual (v{latestVigenteDeca.version})</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            )}
+          </div>
+        )}
 
         <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
           <div>
@@ -159,10 +204,10 @@ export default function DecaDriverMobilePage({
 
       {/* Tarjeta Central: Código QR de Gran Contraste para la Inspección */}
       <main className="space-y-4 my-auto">
-        <div className="bg-white rounded-3xl p-5 shadow-2xl text-center border-4 border-blue-500">
+        <div className={`bg-white rounded-3xl p-5 shadow-2xl text-center border-4 ${!deca.is_vigente ? 'border-amber-500' : 'border-blue-500'}`}>
           <div className="text-slate-900 text-xs font-bold uppercase tracking-wider mb-2 flex items-center justify-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            Código QR Oficial para Inspección
+            <span className={`w-2 h-2 rounded-full ${!deca.is_vigente ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`} />
+            {!deca.is_vigente ? `QR Versión Histórica (v${deca.version})` : 'Código QR Oficial para Inspección'}
           </div>
 
           {qrDataUrl && (
@@ -176,8 +221,9 @@ export default function DecaDriverMobilePage({
           )}
 
           <p className="text-slate-600 text-xs mt-2 px-2">
-            Muestre este código al agente de la <strong>Guardia Civil</strong> o inspectores de transporte. La lectura
-            descarga directamente el PDF reglamentario.
+            {!deca.is_vigente
+              ? 'Atención: Este código corresponde a una versión histórica sustituida. Para controles en carretera presente la versión vigente.'
+              : 'Muestre este código al agente de la Guardia Civil o inspectores de transporte. La lectura descarga directamente el PDF reglamentario.'}
           </p>
         </div>
 

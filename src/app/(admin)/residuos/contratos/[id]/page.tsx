@@ -76,6 +76,8 @@ export default function ContractDetailPage() {
       router.push('/residuos/contratos');
     } catch (err: any) {
       setError(`Error al eliminar: ${err.message}`);
+    } finally {
+      setIsDeleteModalOpen(false);
     }
   };
 
@@ -158,6 +160,19 @@ export default function ContractDetailPage() {
   };
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    const datePart = dateString.split('T')[0];
+    const parts = datePart.split('-');
+    if (parts.length === 3) {
+      const [y, m, d] = parts.map(Number);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        return new Date(y, m - 1, d).toLocaleDateString('es-ES', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+      }
+    }
     return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'long',
@@ -173,7 +188,7 @@ export default function ContractDetailPage() {
     );
   }
 
-  if (error || !contract) {
+  if (!contract) {
     return (
       <>
         <PageBreadCrumb pageTitle="Detalle del Contrato" />
@@ -213,6 +228,10 @@ export default function ContractDetailPage() {
             ← Volver
           </Button>
         </div>
+
+        {error && (
+          <Alert variant="error" title="Error" message={error} />
+        )}
 
         {downloadSuccess && (
           <Alert variant="success" title="Éxito" message={downloadSuccess} />
@@ -725,7 +744,7 @@ export default function ContractDetailPage() {
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={confirmDelete}
         title="Eliminar contrato"
-        message="¿Estás seguro de que deseas eliminar este contrato? Esta acción no se puede deshacer."
+        message="¿Estás seguro de que deseas eliminar este contrato? Esta acción solo es posible si no se ha utilizado para emitir Documentos de Identificación (DI) o Notificaciones Previas (NT)."
       />
     </>
   );

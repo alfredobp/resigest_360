@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveCompanyCookie } from '@/services/tenantContextService';
 
 const HOLDED_API_URL = 'https://api.holded.com/api/invoicing/v1';
 const SAFE_ID = /^[\w-]{1,64}$/;
@@ -8,7 +9,7 @@ const SAFE_ID = /^[\w-]{1,64}$/;
  * Resuelve la API Key de Holded en el servidor a partir de las empresas del usuario autenticado
  * (aislamiento multi-tenant). La clave nunca se acepta desde el cliente ni desde variables de entorno.
  */
-async function resolveHoldedKey(): Promise<{ apiKey: string } | { response: NextResponse }> {
+async function resolveHoldedKey(req?: NextRequest): Promise<{ apiKey: string } | { response: NextResponse }> {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -16,10 +17,19 @@ async function resolveHoldedKey(): Promise<{ apiKey: string } | { response: Next
         return { response: NextResponse.json({ error: 'No autorizado. Se requiere inicio de sesión.' }, { status: 401 }) };
     }
 
-    const { data: companies, error } = await supabase
+    const activeCompanyId = getActiveCompanyCookie(req?.headers?.get?.('cookie') || '');
+
+    let companyQuery: any = supabase
         .from('companies')
-        .select('holded_api_key')
-        .eq('user_id', user.id)
+        .select('holded_api_key');
+
+    if (activeCompanyId && typeof companyQuery.or === 'function') {
+        companyQuery = companyQuery.or(`user_id.eq.${user.id},id.eq.${activeCompanyId}`);
+    } else {
+        companyQuery = companyQuery.eq('user_id', user.id);
+    }
+
+    const { data: companies, error } = await companyQuery
         .not('holded_api_key', 'is', null)
         .order('is_my_company', { ascending: false })
         .limit(1);
@@ -37,7 +47,7 @@ function upstreamError(label: string, error: unknown) {
 }
 
 export async function GET(req: NextRequest) {
-    const resolved = await resolveHoldedKey();
+    const resolved = await resolveHoldedKey(req);
     if ('response' in resolved) return resolved.response;
 
     const { searchParams } = new URL(req.url);
@@ -75,7 +85,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-    const resolved = await resolveHoldedKey();
+    const resolved = await resolveHoldedKey(req);
     if ('response' in resolved) return resolved.response;
 
     const { searchParams } = new URL(req.url);

@@ -14,7 +14,7 @@ import { createClient } from '@/lib/supabase/client';
  * Mapeo de códigos de provincia (simplificado)
  * Intenta obtener el código INE de 2 dígitos a partir del nombre
  */
-const getProvinceCodeByName = (provinceName: string): string => {
+export const getProvinceCodeByName = (provinceName: string): string => {
   if (!provinceName) return '00';
   const p = provinceName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const map: Record<string, string> = {
@@ -37,21 +37,106 @@ const getProvinceCodeByName = (provinceName: string): string => {
   return '00';
 };
 
-const getMunicipalityCodeByProvince = (provCode: string): string => {
-  const map: Record<string, string> = {
-    '01': '010590', '02': '020032', '03': '030140', '04': '040139', '05': '050190',
-    '06': '060150', '07': '070405', '08': '080193', '09': '090590', '10': '100370',
-    '11': '110123', '12': '120400', '13': '130340', '14': '140215', '15': '150300',
-    '16': '160780', '17': '170790', '18': '180873', '19': '191300', '20': '200690',
-    '21': '210413', '22': '221250', '23': '230502', '24': '240890', '25': '251200',
-    '26': '260890', '27': '270280', '28': '280796', '29': '290672', '30': '300300',
-    '31': '312010', '32': '320540', '33': '330440', '34': '341200', '35': '350160',
-    '36': '360380', '37': '372740', '38': '380380', '39': '390750', '40': '401940',
-    '41': '410917', '42': '421730', '43': '431480', '44': '442160', '45': '451680',
-    '46': '462500', '47': '471860', '48': '480200', '49': '492750', '50': '502970',
-    '51': '510010', '52': '520010'
-  };
-  return map[provCode] || '';
+const PROVINCE_DEFAULT_MUNICIPALITY: Record<string, string> = {
+  '01': '010014', '02': '020019', '03': '030015', '04': '040010', '05': '050013',
+  '06': '060016', '07': '070027', '08': '080018', '09': '090011', '10': '100015',
+  '11': '110012', '12': '120022', '13': '130013', '14': '140018', '15': '150011',
+  '16': '160014', '17': '170010', '18': '180016', '19': '190019', '20': '200013',
+  '21': '210010', '22': '220015', '23': '230011', '24': '240016', '25': '250019',
+  '26': '260012', '27': '270018', '28': '280014', '29': '290017', '30': '300011',
+  '31': '310018', '32': '320013', '33': '330019', '34': '340014', '35': '350017',
+  '36': '360209', '37': '370016', '38': '380012', '39': '390015', '40': '400019',
+  '41': '410016', '42': '420011', '43': '430017', '44': '440012', '45': '450015',
+  '46': '460018', '47': '470014', '48': '480010', '49': '490028', '50': '500016',
+  '51': '510013', '52': '520018'
+};
+
+const MUNICIPALITY_INE_PATTERNS: Array<[RegExp, string]> = [
+  [/puerto\s*real/i, '110282'],
+  [/c[aá]diz/i, '110125'],
+  [/jerez/i, '110200'],
+  [/algeciras/i, '110042'],
+  [/san\s*fernando/i, '110319'],
+  [/puerto\s+de\s+santa\s+mar[ií]a/i, '110276'],
+  [/chiclana/i, '110150'],
+  [/sevilla/i, '410917'],
+  [/dos\s*hermanas/i, '410388'],
+  [/alcal[aá]\s+de\s+guada[ií]ra/i, '410040'],
+  [/m[aá]laga/i, '290672'],
+  [/marbella/i, '290691'],
+  [/c[oó]rdoba/i, '140214'],
+  [/lucena/i, '140389'],
+  [/granada/i, '180877'],
+  [/motril/i, '181401'],
+  [/ja[eé]n/i, '230503'],
+  [/linares/i, '230555'],
+  [/almer[ií]a/i, '040139'],
+  [/el\s*ejido/i, '049027'],
+  [/huelva/i, '210417'],
+  [/madrid/i, '280796'],
+  [/barcelona/i, '080193'],
+  [/valencia/i, '462508'],
+  [/zaragoza/i, '502973'],
+  [/bilbao/i, '480200'],
+  [/murcia/i, '300302'],
+  [/valladolid/i, '471868'],
+];
+
+const ANDALUSIA_PROVINCE_CODES = new Set(['04', '11', '14', '18', '21', '23', '29', '41']);
+
+const getMunicipalityCodeByProvince = (provCode: string, muniName?: string): string => {
+  if (muniName) {
+    for (const [pattern, ineCode] of MUNICIPALITY_INE_PATTERNS) {
+      if (pattern.test(muniName)) return ineCode;
+    }
+  }
+  return PROVINCE_DEFAULT_MUNICIPALITY[provCode] || '110012';
+};
+
+/**
+ * Normaliza y valida un NIMA conforme al patrón XSD de SIRA: (0[1-9]|[1-4][0-9]|5[0-2])\d{8}
+ */
+export const formatNima = (rawNima: string | undefined | null, provCode?: string): string => {
+  const digits = String(rawNima || '').replace(/\D/g, '');
+  const prov = /^(0[1-9]|[1-4][0-9]|5[0-2])$/.test(provCode || '') ? (provCode as string) : '11';
+
+  // Si ya cumple exactamente el patrón XSD de 10 dígitos (provincia 01-52 + 8 dígitos)
+  if (/^(0[1-9]|[1-4][0-9]|5[0-2])\d{8}$/.test(digits)) {
+    return digits;
+  }
+
+  // Si tiene 10 dígitos pero el prefijo provincial no es válido (ej: '0000000014')
+  if (digits.length === 10) {
+    return `${prov}${digits.slice(2)}`;
+  }
+
+  // Si tiene otra longitud o viene vacío, asegurar 8 dígitos de correlativo y prefijo provincial
+  const seq = (digits || '1').padStart(8, '0').slice(-8);
+  return `${prov}${seq}`;
+};
+
+/**
+ * Formatea el código de DI (DCSCode) al estándar E3L 3.3 (26 caracteres):
+ * DCS + tipo_origen (2) + NIMA (10) + año (4) + correlativo (7)
+ */
+export const formatDCSCode = (
+  rawCode: string | undefined | null,
+  nima: string,
+  docId?: number | string
+): string => {
+  const cleanCode = String(rawCode || '').trim();
+  const validPattern = /^DCS(([01][0-9]9999999999)|([01][0-9]|[235]0)(0[1-9]|[1-4][0-9]|5[0-2])\d{8})\d{4}\d{7}$/;
+  if (validPattern.test(cleanCode)) {
+    return cleanCode;
+  }
+
+  const currentYear = new Date().getFullYear().toString();
+  const validNima = /^(0[1-9]|[1-4][0-9]|5[0-2])\d{8}$/.test(nima) ? nima : '9999999999';
+  const origin = validNima === '9999999999' ? '01' : '10';
+  const seqDigits = String(docId || '').replace(/\D/g, '') || String(cleanCode).replace(/\D/g, '') || '1';
+  const paddedSeq = seqDigits.padStart(7, '0').slice(-7);
+
+  return `DCS${origin}${validNima}${currentYear}${paddedSeq}`;
 };
 
 /**
@@ -107,45 +192,46 @@ const generateEntityBlock = (
 
   const cif = clean(data.cif);
   const name = clean(data.name);
-  const nima = clean(data.nima);
   const provName = clean(data.province);
-  const provCode = provName ? getProvinceCodeByName(provName) : '';
-  const muniName = clean(data.municipality);
-  const muniCode = clean(data.municipalityCode) || (provCode ? getMunicipalityCodeByProvince(provCode) : '');
-  const addressText = clean(data.address);
-  const cp = clean(data.cp);
-  const phone = clean(data.phone);
-  const email = clean(data.email);
+  const provCode = provName ? getProvinceCodeByName(provName) : '11';
+  const safeNima = formatNima(clean(data.nima), provCode);
+  const muniName = clean(data.municipality) || (provCode === '11' ? 'Puerto Real' : 'Municipio');
+  const muniCode = clean(data.municipalityCode) || getMunicipalityCodeByProvince(provCode, muniName);
+  const addressText = clean(data.address) || 'Calle Principal';
+  const cp = clean(data.cp) || `${provCode}001`;
   const cnae = clean(data.cnae);
-  const authNumber = clean(data.authorizationNumber || data.nima);
+  const authNumber = clean(data.authorizationNumber) || safeNima;
   const authCode = clean(data.authorizationCode) || defaultAuthCode;
 
-  const hasAddress = Boolean(addressText || cp || muniName || provName);
-  const addressBlock = hasAddress
-    ? `
+  const addressBlock = `
         <centerAddress>
             <spanishAddress>
-                <vial vialCode="009" vialDescription="Calle"/>${addressText ? `\n                <address>${addressText}</address>` : ''}${cp ? `\n                <CP>${cp}</CP>` : ''}${muniName ? `\n                <municipality${muniCode ? ` municipalityCode="${muniCode}"` : ''} municipalityName="${muniName}"/>` : ''}${provName ? `\n                <province${provCode && provCode !== '00' ? ` provinceCode="${provCode}"` : ''} provinceName="${provName}"/>` : ''}
+                <vial vialCode="009" vialDescription="Calle"/>
+                <address>${addressText}</address>
+                <CP>${cp}</CP>
+                <municipality municipalityCode="${muniCode}" municipalityName="${muniName}"/>
+                <province provinceCode="${provCode}" provinceName="${provName || 'Cádiz'}"/>
             </spanishAddress>
-        </centerAddress>`
-    : '';
+        </centerAddress>`;
 
-  const contactBlock =
-    phone || email
-      ? `
-        <centerContact>${phone ? `\n            <phone>${phone}</phone>` : ''}${email ? `\n            <mail>${email}</mail>` : ''}
-        </centerContact>`
-      : '';
+  const safeCnae = cnae || 'S/D';
+  const safePhone = clean(data.phone).replace(/\D/g, '') || '900000000';
+  const rawEmail = clean(data.email);
+  const safeEmail = rawEmail.includes('@') ? rawEmail : 'contacto@resigest.com';
 
-  const authBlock = authNumber
-    ? `
+  const contactBlock = `
+        <centerContact>
+            <phone>${safePhone}</phone>
+            <mail>${safeEmail}</mail>
+        </centerContact>`;
+
+  const authBlock = `
         <wasteCenterAuthorization>
             <authorizationId>
                 <authorizationIdFree>${authNumber}</authorizationIdFree>
             </authorizationId>
             <authorizationCode>${authCode}</authorizationCode>
-        </wasteCenterAuthorization>`
-    : '';
+        </wasteCenterAuthorization>`;
 
   const nameBlock = name
     ? `
@@ -164,9 +250,9 @@ const generateEntityBlock = (
         </entityId>` : ''}
         <entityFJ entityFJCode="J" />${nameBlock}
         
-        <entityCenter>${nima ? `
-            <centerID centerCode="${nima}" />` : ''}${cnae ? `
-            <centerEconomicActivity>${cnae}</centerEconomicActivity>` : ''}${addressBlock}${contactBlock}${authBlock}
+        <entityCenter>
+            <centerID centerCode="${safeNima}" />
+            <centerEconomicActivity>${safeCnae}</centerEconomicActivity>${addressBlock}${contactBlock}${authBlock}
         </entityCenter>
 
         <${typeTag} ${typeAttr}="${typeValue}"/>${extraChild ? `\n        ${extraChild}` : ''}
@@ -194,7 +280,7 @@ const generateOperatorBlock = (doc: any): string => {
     'wasteTransferOperatorType',
     'operatorTypeCode',
     'P01',
-    isDanger ? 'P01' : 'P02'
+    isDanger ? 'P01' : 'P03'
   );
 };
 
@@ -215,8 +301,8 @@ const generateProducerBlock = (doc: any): string => {
     },
     'wasteProducerType',
     'producerTypeCode',
-    isDanger ? 'P01' : 'P02',
-    isDanger ? 'P01' : 'P02'
+    isDanger ? 'P01' : 'P03',
+    isDanger ? 'P01' : 'P03'
   );
 };
 
@@ -253,53 +339,50 @@ const generateTransporterContent = (doc: any): string => {
   }
 
   const isDanger = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
-  const tData: EntityData = {
-    cif: doc.transportista_cif,
-    name: doc.transportista_razon_social,
-    nima: doc.transportista_nima,
-    address: doc.transportista_direccion,
-    cp: doc.transportista_codigo_postal,
-    municipality: doc.transportista_municipio,
-    province: doc.transportista_provincia,
-    phone: doc.transportista_telefono,
-    email: doc.transportista_email,
-  };
-
   const clean = (val: any) => (val !== undefined && val !== null ? escapeXml(String(val)).trim() : '');
-  const cif = clean(tData.cif);
-  const name = clean(tData.name);
-  const nima = clean(tData.nima);
-  const provName = clean(tData.province);
-  const provCode = provName ? getProvinceCodeByName(provName) : '';
-  const muniName = clean(tData.municipality);
-  const muniCode = provCode ? getMunicipalityCodeByProvince(provCode) : '';
-  const addressText = clean(tData.address);
-  const cp = clean(tData.cp);
-  const phone = clean(tData.phone);
-  const email = clean(tData.email);
+  const cif = clean(doc.transportista_cif);
+  const name = clean(doc.transportista_razon_social);
+  const provName = clean(doc.transportista_provincia);
+  const provCode = provName ? getProvinceCodeByName(provName) : '11';
+  const safeNima = formatNima(clean(doc.transportista_nima), provCode);
+  const muniName = clean(doc.transportista_municipio) || (provCode === '11' ? 'Puerto Real' : 'Municipio');
+  const muniCode = getMunicipalityCodeByProvince(provCode, muniName);
+  const addressText = clean(doc.transportista_direccion) || 'Calle Principal';
+  const cp = clean(doc.transportista_codigo_postal) || `${provCode}001`;
+  const safePhone = clean(doc.transportista_telefono).replace(/\D/g, '') || '900000000';
+  const rawEmail = clean(doc.transportista_email);
+  const safeEmail = rawEmail.includes('@') ? rawEmail : 'contacto@resigest.com';
+  const safeCnae = 'S/D';
 
-  const hasAddress = Boolean(addressText || cp || muniName || provName);
-  const addressBlock = hasAddress
-    ? `
+  const addressBlock = `
                 <centerAddress>
                     <spanishAddress>
-                        <vial vialCode="009" vialDescription="Calle"/>${addressText ? `\n                        <address>${addressText}</address>` : ''}${cp ? `\n                        <CP>${cp}</CP>` : ''}${muniName ? `\n                        <municipality${muniCode ? ` municipalityCode="${muniCode}"` : ''} municipalityName="${muniName}"/>` : ''}${provName ? `\n                        <province${provCode && provCode !== '00' ? ` provinceCode="${provCode}"` : ''} provinceName="${provName}"/>` : ''}
+                        <vial vialCode="009" vialDescription="Calle"/>
+                        <address>${addressText}</address>
+                        <CP>${cp}</CP>
+                        <municipality municipalityCode="${muniCode}" municipalityName="${muniName}"/>
+                        <province provinceCode="${provCode}" provinceName="${provName || 'Cádiz'}"/>
                     </spanishAddress>
-                </centerAddress>`
-    : '';
+                </centerAddress>`;
 
-  const contactBlock =
-    phone || email
-      ? `
-                <centerContact>${phone ? `\n                    <phone>${phone}</phone>` : ''}${email ? `\n                    <mail>${email}</mail>` : ''}
-                </centerContact>`
-      : '';
+  const contactBlock = `
+                <centerContact>
+                    <phone>${safePhone}</phone>
+                    <mail>${safeEmail}</mail>
+                </centerContact>`;
 
-  const authBlock = nima
+  const transporterAuth = clean(
+    doc.transportista_numero_autorizacion ||
+    doc.transportista_n_autorizacion ||
+    doc.transportista_autorizacion ||
+    ''
+  );
+
+  const authBlock = transporterAuth
     ? `
                 <wasteCenterAuthorization>
                     <authorizationId>
-                         <authorizationIdFree>${nima}</authorizationIdFree>
+                         <authorizationIdFree>${transporterAuth}</authorizationIdFree>
                     </authorizationId>
                     <authorizationCode>${isDanger ? 'T01' : 'T02'}</authorizationCode>
                 </wasteCenterAuthorization>`
@@ -317,8 +400,9 @@ const generateTransporterContent = (doc: any): string => {
                     <reasonAssociation associationCode="99" associationDescription="Otra"/>
                 </reason>
             </entityName>` : ''}
-            <entityCenter>${nima ? `
-                <centerID centerCode="${nima}" />` : ''}${addressBlock}${contactBlock}${authBlock}
+            <entityCenter>
+                <centerID centerCode="${safeNima}" />
+                <centerEconomicActivity>${safeCnae}</centerEconomicActivity>${addressBlock}${contactBlock}${authBlock}
             </entityCenter>
 
             <wasteTransporterType trasporterTypeCode="${isDanger ? 'T01' : 'T02'}" transporterTypeDescription="Transportista de residuos"/>
@@ -345,6 +429,26 @@ const normalizeHpCode = (hp: string): string => {
   return match ? `HP${match[1]}` : 'HP4';
 };
 
+const DESTINATION_TRANSFER_STATES = new Set([
+  'recepcionado',
+  'aceptado',
+  'rechazado_parcial',
+  'rechazado_total',
+  'tratado',
+]);
+
+const isDestinationDCSPhase = (doc: any): boolean => {
+  if (!doc) return false;
+  return (
+    doc.dcs_phase === 'D' ||
+    doc.dcs_phase === 'T' ||
+    DESTINATION_TRANSFER_STATES.has(String(doc.estado_traslado || '')) ||
+    Boolean(doc.resultado_recepcion) ||
+    Boolean(doc.fecha_recepcion) ||
+    Number(doc.peso_destino_kg) > 0
+  );
+};
+
 const generateResidueBlock = (doc: any): string => {
   const clean = (val: any) => val ? escapeXml(String(val)).trim() : '';
   const isDangerous = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
@@ -368,31 +472,78 @@ const generateResidueBlock = (doc: any): string => {
     ? `\n            <table5>${normalizeHpCode(doc.caracteristica_peligrosidad || doc.codigo_hp || doc.hp || '')}</table5>`
     : '';
 
-  const buildTables = (opCode: string) => `
+  const buildTables = (opCode: string) => {
+    const processBlock =
+      opCode.length >= 5
+        ? `\n            <process operationIdProcessCode="${opCode.slice(0, 5)}"/>`
+        : '';
+    return `
         <residueTables ${residueTablesType}>
-            <table2>${opCode}</table2>${hpBlock}
+            <table2>${opCode.slice(0, 3)}</table2>${hpBlock}${processBlock}
         </residueTables>`;
+  };
 
   const residueTypeAttr = isDangerous
     ? 'xsi:type="wassup:dangerousResidueType"'
     : 'xsi:type="wassup:noDangerousResidueType"';
 
-  // Código NT: Solo incluir <DCSNT> cuando exista una NT real y el traslado requiera notificación (F07)
+  // En E3L 3.3 (e3l-waste.xsd), DCSNT es un elemento obligatorio dentro de DCSOtherResidueData
+  // El estándar E3L 3.3 establece como valor por defecto las siglas NT seguidas de 23 nueves
   const rawNt = clean(doc.numero_notificacion || doc.nt_codigo || doc.notificacion_previa_codigo || '');
-  const dcsNtNode =
-    doc.tipo_notificacion !== 'sin-notificacion' && /^NT[0-9]{23,24}$/.test(rawNt)
-      ? `\n            <DCSNT>${rawNt}</DCSNT>`
-      : '';
+  const dcsNt = /^NT[0-9]{23,24}$/.test(rawNt) ? rawNt : 'NT' + '9'.repeat(23);
 
-  const rawWeight = Number(doc.peso_destino_kg || doc.peso_origen_kg || doc.cantidad || 0);
-  const formattedWeight = !isNaN(rawWeight) && rawWeight > 0 ? rawWeight.toFixed(3) : '';
+  const fallbackQty = Number(doc.cantidad || 0);
+  const fallbackKg = (doc.unidad === 'toneladas' || doc.unidad === 'm3') ? fallbackQty * 1000 : fallbackQty;
+  const rawWeight = Number(doc.peso_destino_kg || doc.peso_origen_kg || fallbackKg || 0);
+  const formattedWeight = !isNaN(rawWeight) && rawWeight > 0 ? rawWeight.toFixed(3) : '0.001';
 
   const otherData = `
-        <DCSOtherResidueData>${dcsNtNode}${formattedWeight ? `\n            <DCSClearWeight>${formattedWeight}</DCSClearWeight>` : ''}
+        <DCSOtherResidueData>
+            <DCSNT>${dcsNt}</DCSNT>
+            <DCSClearWeight>${formattedWeight}</DCSClearWeight>
             <DCSTransportCharacteristics>Sin características especiales</DCSTransportCharacteristics>
         </DCSOtherResidueData>`;
 
   const transporterData = generateTransporterContent(doc);
+
+  let acceptanceData = '';
+  if (isDestinationDCSPhase(doc)) {
+    const isRejected =
+      doc.estado_traslado === 'rechazado_total' ||
+      doc.resultado_recepcion === 'rechazado_total';
+    const isPartialRejection =
+      doc.estado_traslado === 'rechazado_parcial' ||
+      doc.resultado_recepcion === 'rechazado_parcial';
+    const rejectedKg = Number(doc.cantidad_rechazada_kg || 0);
+    const realAcceptedWeight =
+      isPartialRejection && !isNaN(rejectedKg) && rejectedKg > 0 && rawWeight > rejectedKg
+        ? (rawWeight - rejectedKg).toFixed(3)
+        : formattedWeight;
+    const acceptanceCode = isRejected ? '04' : '03';
+    const acceptanceDate = String(
+      doc.fecha_recepcion ||
+      doc.fecha_tratamiento ||
+      doc.fecha_recogida ||
+      doc.fecha_documento ||
+      new Date().toISOString().split('T')[0]
+    ).split('T')[0];
+    const deliveryDate = String(
+      doc.fecha_recogida ||
+      doc.fecha_recepcion ||
+      doc.fecha_documento ||
+      acceptanceDate
+    ).split('T')[0];
+    const refusedBlock = isRejected
+      ? `\n        <DCSRefusedAction>${doc.accion_rechazo === 'reenvio' ? 'Redelivery' : 'Return'}</DCSRefusedAction>\n        <DCSRefusedActionDate>${acceptanceDate}</DCSRefusedActionDate>`
+      : '';
+    acceptanceData = `
+    <DCSAcceptanceData>
+        <DCSRealQuantity>${realAcceptedWeight}</DCSRealQuantity>
+        <DCSAcceptance>${acceptanceCode}</DCSAcceptance>
+        <DCSAcceptanceDate>${acceptanceDate}</DCSAcceptanceDate>${refusedBlock}
+        <DCSDeliveryDate>${deliveryDate}</DCSDeliveryDate>
+    </DCSAcceptanceData>`;
+  }
 
   return `
     <DCSResidueData>
@@ -406,7 +557,7 @@ const generateResidueBlock = (doc: any): string => {
             ${buildTables(opEjecutada)}
         </DCSAdresseeResidueIdentification>
         
-        ${otherData}${transporterData}
+        ${otherData}${transporterData}${acceptanceData}
     </DCSResidueData>`;
 };
 
@@ -506,7 +657,7 @@ export function validateDIForE3L(doc: any): E3LValidationResult {
     errors.push(`Código LER inválido para E3L (${doc?.codigo_ler || 'vacío'}): debe contener 6 dígitos numéricos.`);
   }
   const op = normalizeOperation(doc?.operacion_tratamiento_ejecutada || doc?.operacion_tratamiento || '');
-  if (!/^(R0[1-9]|R1[0-3]|D0[1-9]|D1[0-5])$/.test(op)) {
+  if (!/^(R(0[1-9]|1[0-5])|D(0[1-9]|1[0-5]))(\d{2})?$/.test(op)) {
     errors.push(`Operación de tratamiento inválida para tabla2 E3L (${op || 'vacía'}).`);
   }
   if (!doc?.cantidad || Number(doc.cantidad) <= 0) {
@@ -514,6 +665,13 @@ export function validateDIForE3L(doc: any): E3LValidationResult {
   }
 
   // En traslados con notificación previa, la NT es obligatoria según e3l-waste.xsd
+  const isDanger = doc?.peligrosidad === 'peligroso' || String(doc?.codigo_ler || '').includes('*');
+  if (
+    doc?.tipo_notificacion === 'sin-notificacion' &&
+    (isDanger || cleanLer === '200301' || op.startsWith('D') || op.startsWith('R01'))
+  ) {
+    errors.push('El traslado exige Notificación Previa (NT) según el art. 3.2 del RD 553/2020 (residuos peligrosos, LER 20 03 01, R01 o eliminación D).');
+  }
   const rawNt = String(doc?.numero_notificacion || doc?.nt_codigo || doc?.notificacion_previa_codigo || '').trim();
   if (doc?.tipo_notificacion === 'con-notificacion-previa' && !/^NT[0-9]{23,24}$/.test(rawNt)) {
     errors.push('El traslado requiere Notificación Previa (NT), pero falta un código NT oficial válido (^NT[0-9]{23,24}$).');
@@ -552,18 +710,29 @@ export const siraService = {
     const xmlnsCommon = 'xmlns:common="e3l://eterproject.org/3.0/common"';
     const xmlnsXsi = 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"';
 
+    const compData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
+    const cleanDocNum = clean(doc.numero_documento);
+    const prodProvCode = getProvinceCodeByName(doc.productor_provincia || compData?.provincia_instalacion || 'Cádiz');
+    const gestProvCode = doc.gestor_provincia ? getProvinceCodeByName(doc.gestor_provincia) : prodProvCode;
+    const isInterautonomico =
+      Boolean(doc.gestor_provincia) &&
+      (!ANDALUSIA_PROVINCE_CODES.has(prodProvCode) || !ANDALUSIA_PROVINCE_CODES.has(gestProvCode));
+    const provNima = formatNima(doc.productor_nima || compData?.nima, prodProvCode);
+    const dcsCode = formatDCSCode(cleanDocNum, provNima, doc.id);
+    const dcsPhase = doc.dcs_phase || (isDestinationDCSPhase(doc) ? 'D' : 'R');
+
     return `
 <wasteDCS 
     ${xmlnsWassup}
     ${xmlnsCommon}
     ${xmlnsXsi}
-    DCSCode="${clean(doc.numero_documento)}"
-    DCSPhase="R"
+    DCSCode="${dcsCode}"
+    DCSPhase="${dcsPhase}"
     DCSYear="${date.getFullYear()}"
     DCSDate="${formattedDate}"
     DCSStartDate="${doc.fecha_recogida || formattedDate}"
-    DCSRegional="S"
-    DCSSendtoOriginOrDestinationAuthority="N">
+    DCSRegional="${isInterautonomico ? 'N' : 'S'}"
+    DCSSendtoOriginOrDestinationAuthority="${isInterautonomico ? 'S' : 'N'}">
 
     <!-- 1. Operador del Traslado -->
     ${generateOperatorBlock(doc)}
@@ -578,6 +747,62 @@ export const siraService = {
     ${generateResidueBlock(doc)}
 
 </wasteDCS>`.trim();
+  },
+
+  /**
+   * Genera el mensaje E3L versión 3.6 completo con contenedor <e3l> y <header> reglamentario
+   * para validación directa con esquemas oficiales e3l.xsd (RD 553/2020).
+   */
+  generateE3LMessage(doc: any): string {
+    const dcsXml = this.generateDIXml(doc);
+    const date = new Date(doc.fecha_documento || new Date());
+    const formattedDate = date.toISOString().split('T')[0];
+    const compData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
+    const senderNif = this.escapeXml(doc.operador_cif || compData?.cif || doc.productor_cif || 'B00000000');
+    const senderName = this.escapeXml(doc.operador_razon_social || compData?.razon_social || doc.productor_razon_social || 'RESIGEST');
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<e3l xmlns="e3l://eterproject.org/3.0/e3l"
+     xmlns:waste="e3l://eterproject.org/3.0/waste"
+     xmlns:wassup="e3l://eterproject.org/3.0/wasteSupport"
+     xmlns:common="e3l://eterproject.org/3.0/common"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     version="3.6">
+    <header>
+        <messageID>${this.escapeXml(doc.numero_documento || 'DI-E3L')}-${date.getTime()}</messageID>
+        <sender>
+            <entityId>
+                <nationalId>${senderNif}</nationalId>
+            </entityId>
+            <entityName>
+                <reason>
+                    <reasonName>${senderName}</reasonName>
+                </reason>
+            </entityName>
+        </sender>
+        <recipient>
+            <entityId>
+                <nationalId>SIRA-JUNTA-ANDALUCIA</nationalId>
+            </entityId>
+        </recipient>
+        <creationDate>${formattedDate}</creationDate>
+    </header>
+    <waste>
+        ${dcsXml}
+    </waste>
+</e3l>`.trim();
+  },
+
+  formatNima(rawNima: string | undefined | null, provCode?: string): string {
+    return formatNima(rawNima, provCode);
+  },
+
+  formatDCSCode(rawCode: string | undefined | null, nima: string, docId?: number | string): string {
+    return formatDCSCode(rawCode, nima, docId);
+  },
+
+  getMunicipalityCode(provCode: string, muniName?: string): string {
+    return getMunicipalityCodeByProvince(provCode, muniName);
   },
 
   getProvinceCode(province: string): string {

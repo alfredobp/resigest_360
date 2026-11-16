@@ -17,6 +17,7 @@ const mockSubSingle = jest.fn();
 const mockSubUpdateEq = jest.fn();
 const mockDocUpdateEq = jest.fn();
 const mockAuditInsert = jest.fn();
+const mockCompanyMaybeSingle = jest.fn();
 
 jest.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
@@ -55,6 +56,17 @@ jest.mock('@/lib/supabase/server', () => ({
           insert: mockAuditInsert,
         };
       }
+      if (table === 'companies') {
+        const chain = {
+          select: () => chain,
+          eq: () => chain,
+          not: () => chain,
+          neq: () => chain,
+          limit: () => chain,
+          maybeSingle: mockCompanyMaybeSingle,
+        };
+        return chain;
+      }
       return {};
     },
   }),
@@ -62,6 +74,7 @@ jest.mock('@/lib/supabase/server', () => ({
 
 jest.mock('@/services/siraService', () => ({
   siraService: {
+    validateDIForE3L: jest.fn(() => ({ valid: true, errors: [], warnings: [] })),
     generateDIXml: jest.fn(() => '<wasteDCS DCSCode="DI-1"/>'),
     extractSiraError: jest.fn(() => 'JA000018: Error de validación SIRA'),
   },
@@ -88,6 +101,12 @@ describe('POST /api/residuos/sira/enviar-di', () => {
     mockSubUpdateEq.mockResolvedValue({ error: null });
     mockDocUpdateEq.mockResolvedValue({ error: null });
     mockAuditInsert.mockResolvedValue({ error: null });
+    mockCompanyMaybeSingle.mockResolvedValue({ data: null, error: null });
+    (siraService.validateDIForE3L as jest.Mock).mockReturnValue({
+      valid: true,
+      errors: [],
+      warnings: [],
+    });
   });
 
   afterEach(() => {
@@ -110,6 +129,42 @@ describe('POST /api/residuos/sira/enviar-di', () => {
     mockDocSingle.mockResolvedValue({ data: null, error: new Error('Not found') });
     const res = await POST(makeReq({ documentId: 999 }));
     expect(res.status).toBe(404);
+  });
+
+  it('utiliza las credenciales de la empresa principal si doc.company no tiene credenciales', async () => {
+    mockDocSingle.mockResolvedValue({
+      data: {
+        id: 11,
+        company_id: 2,
+        numero_documento: 'DI-2026-002',
+        productor_razon_social: 'Prod S.L.',
+        notas: '',
+        company: null,
+      },
+      error: null,
+    });
+
+    mockCompanyMaybeSingle.mockResolvedValue({
+      data: {
+        id: 99,
+        razon_social: 'Mi Empresa Principal',
+        sira_usuario: 'user_fallback',
+        sira_password: 'pass_fallback',
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '<Envelope><Body><IdSira>SIRA-FALLBACK-888</IdSira></Body></Envelope>',
+    }) as any;
+
+    const res = await POST(makeReq({ documentId: 11 }));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.siraId).toBe('SIRA-FALLBACK-888');
   });
 
   it('devuelve 400 y registra auditoría si la empresa no tiene credenciales SIRA (array o null)', async () => {
@@ -228,5 +283,127 @@ describe('POST /api/residuos/sira/enviar-di', () => {
     const json = await res.json();
     expect(json.error).toBe('SIRA timeout');
     expect(mockSubUpdateEq).toHaveBeenCalledWith('id', 500);
+  });
+
+  it('acepta en Modo Prueba cuando SIRA HTTP 200 solo devuelve error censal JA000027 o JA000002 (XSD válido)', async () => {
+    mockDocSingle.mockResolvedValue({
+      data: {
+        id: 10,
+        company_id: 2,
+        numero_documento: 'DI-2026-001',
+        productor_razon_social: 'Prod S.L.',
+        notas: '',
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        '<SOAP-ENV:Envelope><SOAP-ENV:Body><ns3:sendWasteDCSResponse><return><result><resultWrong><resultErrorList>' +
+        '<resultWrong code="JA000027" description="La NT asociada no se encuentra presentada."/>' +
+        '</resultErrorList></resultWrong></result></return></ns3:sendWasteDCSResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>',
+    }) as any;
+
+    const res = await POST(makeReq({ documentId: 10 }));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.isTestMode).toBe(true);
+    expect(json.siraId).toMatch(/^SIRA-TEST-DI-10-/);
+    expect(mockSubUpdateEq).toHaveBeenCalledWith('id', 500);
+    expect(mockDocUpdateEq).toHaveBeenCalledWith('user_id', 'u-sira-1');
+    expect(mockAuditInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detalles: expect.objectContaining({
+          resultado: 'aceptada_modo_prueba',
+        }),
+      })
+    );
+  });
+
+  it('sigue rechazando HTTP 200 cuando hay error de validación XSD JA000026 junto a error censal', async () => {
+    mockDocSingle.mockResolvedValue({
+      data: {
+        id: 13,
+        company_id: 2,
+        numero_documento: 'DI-2026-004',
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        '<resultErrorList><resultWrong code="JA000026" description="SAXParseException cvc-pattern-valid"/></resultErrorList>',
+    }) as any;
+
+    const res = await POST(makeReq({ documentId: 13 }));
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('SIRA ha rechazado el documento');
+  });
+
+  it('rechaza errores censales en producción si SIRA_ALLOW_TEST_CENSUS no es true (fail-closed)', async () => {
+    const prevAllow = process.env.SIRA_ALLOW_TEST_CENSUS;
+    (process.env as any).NODE_ENV = 'production';
+    delete process.env.SIRA_ALLOW_TEST_CENSUS;
+
+    mockDocSingle.mockResolvedValue({
+      data: {
+        id: 14,
+        company_id: 2,
+        numero_documento: 'DI-2026-005',
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        '<resultErrorList><resultWrong code="JA000027" description="La NT asociada no se encuentra presentada."/></resultErrorList>',
+    }) as any;
+
+    try {
+      const res = await POST(makeReq({ documentId: 14 }));
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error).toBe('SIRA ha rechazado el documento');
+    } finally {
+      if (prevAllow !== undefined) {
+        process.env.SIRA_ALLOW_TEST_CENSUS = prevAllow;
+      } else {
+        delete process.env.SIRA_ALLOW_TEST_CENSUS;
+      }
+    }
+  });
+
+  it('devuelve 400 si el DI no supera la validación estructural E3L previa', async () => {
+    mockDocSingle.mockResolvedValue({
+      data: {
+        id: 15,
+        company_id: 2,
+        numero_documento: 'DI-2026-006',
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+    (siraService.validateDIForE3L as jest.Mock).mockReturnValueOnce({
+      valid: false,
+      errors: ['Falta el CIF/NIF del Productor'],
+      warnings: [],
+    });
+
+    const res = await POST(makeReq({ documentId: 15 }));
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toContain('El Documento de Identificación no cumple las reglas del esquema E3L');
+    expect(json.details).toContain('Falta el CIF/NIF del Productor');
   });
 });

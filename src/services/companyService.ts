@@ -4,6 +4,11 @@
 // =====================================================
 
 import { createClient } from '@/lib/supabase/client';
+import {
+  getActiveCompanyCookie,
+  sanitizeCompanySecrets,
+  setActiveCompanyCookie,
+} from '@/services/tenantContextService';
 import { auditService } from './auditService';
 import type { Company, CompanyFormData } from '@/types/wasteManagement';
 
@@ -15,6 +20,8 @@ export const companyService = {
    * Lee o persiste el ID de empresa activa seleccionada por el usuario multiempresa.
    */
   getActiveCompanyId(): number | null {
+    const fromCookie = getActiveCompanyCookie();
+    if (fromCookie) return fromCookie;
     if (typeof window === 'undefined') return null;
     try {
       const raw = localStorage.getItem(ACTIVE_COMPANY_STORAGE_KEY);
@@ -27,6 +34,7 @@ export const companyService = {
   },
 
   setActiveCompanyId(companyId: number | null): void {
+    setActiveCompanyCookie(companyId);
     if (typeof window === 'undefined') return;
     try {
       if (companyId === null) {
@@ -85,6 +93,18 @@ export const companyService = {
 
       if (!activeErr && activeComp) {
         return activeComp as Company;
+      }
+
+      // Fallback para empresas clientes accesibles por membresía de consultoría (RLS has_company_access)
+      const { data: memberComp, error: memberErr } = await supabase
+        .from('companies')
+        .select('*')
+        .eq('id', activeId)
+        .eq('activo', true)
+        .maybeSingle();
+
+      if (!memberErr && memberComp) {
+        return sanitizeCompanySecrets(memberComp as Company, user.id);
       }
     }
 
@@ -233,7 +253,7 @@ export const companyService = {
    */
   async search(query: string): Promise<Company[]> {
     const { data: { user } } = await supabase.auth.getUser();
-    const cleanQuery = query.trim();
+    const cleanQuery = query.replace(/[%_(),]/g, '').trim();
     if (!cleanQuery) return this.getAllContacts();
 
     let req = supabase

@@ -34,9 +34,22 @@ export default function DetalleOperacionComercialPage() {
   const [loading, setLoading] = useState(true);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [syncingHolded, setSyncingHolded] = useState(false);
+  const [holdedTaxRate, setHoldedTaxRate] = useState<0 | 10 | 21>(21);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isEditingSettlement, setIsEditingSettlement] = useState(false);
+  const [savingSettlement, setSavingSettlement] = useState(false);
+  const [settlementForm, setSettlementForm] = useState({
+    cantidad_real_t: '',
+    coste_transporte: '0',
+    otros_costes: '0',
+    numero_albaran_gestor: '',
+    factura_compra_ref: '',
+    estado_pago_compra: 'pendiente' as 'pendiente' | 'pagado' | 'no_aplica',
+    factura_venta_ref: '',
+    estado_cobro_venta: 'pendiente' as 'pendiente' | 'cobrado' | 'no_aplica',
+  });
 
   useEffect(() => {
     if (opId) {
@@ -44,12 +57,25 @@ export default function DetalleOperacionComercialPage() {
     }
   }, [opId]);
 
+  const syncSettlementForm = (op: CommercialOperation) => {
+    setSettlementForm({
+      cantidad_real_t: op.cantidad_real_t !== null && op.cantidad_real_t !== undefined ? String(op.cantidad_real_t) : '',
+      coste_transporte: String(op.coste_transporte ?? 0),
+      otros_costes: String(op.otros_costes ?? 0),
+      numero_albaran_gestor: op.numero_albaran_gestor || '',
+      factura_compra_ref: op.factura_compra_ref || '',
+      estado_pago_compra: op.estado_pago_compra || 'pendiente',
+      factura_venta_ref: op.factura_venta_ref || '',
+      estado_cobro_venta: op.estado_cobro_venta || 'pendiente',
+    });
+  };
+
   const handleSyncHolded = async () => {
     if (!operation) return;
     try {
       setSyncingHolded(true);
       setError(null);
-      const res = await commercialOperationService.syncOperationToHolded(operation.id);
+      const res = await commercialOperationService.syncOperationToHolded(operation.id, { taxRate: holdedTaxRate });
       setSuccess(res.message);
       toast.success(res.message);
       await loadOperation();
@@ -73,12 +99,65 @@ export default function DetalleOperacionComercialPage() {
         setError('No se encontró la operación comercial solicitada.');
       } else {
         setOperation(data);
+        syncSettlementForm(data);
       }
     } catch (err: any) {
       console.error(err);
       setError('Error al cargar la operación comercial.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveSettlement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!operation) return;
+
+    const cantidadRealNum = settlementForm.cantidad_real_t.trim() === ''
+      ? undefined
+      : Number(settlementForm.cantidad_real_t);
+    const costeTransporteNum = Number(settlementForm.coste_transporte || 0);
+    const otrosCostesNum = Number(settlementForm.otros_costes || 0);
+
+    if (cantidadRealNum !== undefined && (isNaN(cantidadRealNum) || cantidadRealNum < 0)) {
+      const msg = 'El peso real en báscula debe ser un número mayor o igual a 0.';
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+    if (isNaN(costeTransporteNum) || costeTransporteNum < 0 || isNaN(otrosCostesNum) || otrosCostesNum < 0) {
+      const msg = 'Los costes no pueden ser negativos.';
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    try {
+      setSavingSettlement(true);
+      setError(null);
+      await commercialOperationService.update(operation.id, {
+        cantidad_real_t: cantidadRealNum,
+        coste_transporte: costeTransporteNum,
+        otros_costes: otrosCostesNum,
+        numero_albaran_gestor: settlementForm.numero_albaran_gestor.trim() || undefined,
+        factura_compra_ref: settlementForm.factura_compra_ref.trim() || undefined,
+        estado_pago_compra: settlementForm.estado_pago_compra,
+        factura_venta_ref: settlementForm.factura_venta_ref.trim() || undefined,
+        estado_cobro_venta: settlementForm.estado_cobro_venta,
+      });
+      const msg = 'Pesada real, costes y referencias de liquidación actualizados.';
+      setSuccess(msg);
+      toast.success(msg);
+      setIsEditingSettlement(false);
+      await loadOperation();
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (err: any) {
+      console.error(err);
+      const msg = err?.message || 'Error al guardar los datos de pesada y liquidación.';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setSavingSettlement(false);
     }
   };
 
@@ -199,6 +278,19 @@ export default function DetalleOperacionComercialPage() {
             {downloadingPDF ? 'Generando PDF...' : 'Liquidación PDF'}
           </Button>
 
+          <Button
+            variant={isEditingSettlement ? 'primary' : 'outline'}
+            size="sm"
+            onClick={() => {
+              if (!isEditingSettlement && operation) {
+                syncSettlementForm(operation);
+              }
+              setIsEditingSettlement((prev) => !prev);
+            }}
+          >
+            {isEditingSettlement ? 'Cerrar Pesada / Liquidación' : 'Registrar Pesada / Liquidación'}
+          </Button>
+
           {operation.estado === 'abierta' && (
             <Button
               variant="outline"
@@ -242,6 +334,147 @@ export default function DetalleOperacionComercialPage() {
 
       {error && <Alert variant="error" title="Error" message={error} />}
       {success && <Alert variant="success" title="Completado" message={success} />}
+
+      {isEditingSettlement && (
+        <ComponentCard title="Actualizar Pesada Real y Liquidación">
+          <form onSubmit={handleSaveSettlement} className="space-y-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Peso real en báscula (t)
+                </label>
+                <input
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  placeholder="Ej. 12.450"
+                  value={settlementForm.cantidad_real_t}
+                  onChange={(e) => setSettlementForm((prev) => ({ ...prev, cantidad_real_t: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Coste Transporte (€)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={settlementForm.coste_transporte}
+                  onChange={(e) => setSettlementForm((prev) => ({ ...prev, coste_transporte: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Otros Costes (€)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={settlementForm.otros_costes}
+                  onChange={(e) => setSettlementForm((prev) => ({ ...prev, otros_costes: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Nº Albarán del Gestor
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej. ALB-2026-0091"
+                  value={settlementForm.numero_albaran_gestor}
+                  onChange={(e) => setSettlementForm((prev) => ({ ...prev, numero_albaran_gestor: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-800"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Ref. Factura Compra
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej. FC-2026-102"
+                  value={settlementForm.factura_compra_ref}
+                  onChange={(e) => setSettlementForm((prev) => ({ ...prev, factura_compra_ref: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Estado Pago Compra
+                </label>
+                <select
+                  value={settlementForm.estado_pago_compra}
+                  onChange={(e) => setSettlementForm((prev) => ({ ...prev, estado_pago_compra: e.target.value as 'pendiente' | 'pagado' | 'no_aplica' }))}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-800"
+                >
+                  <option value="pendiente">Pendiente</option>
+                  <option value="pagado">Pagado</option>
+                  <option value="no_aplica">No aplica</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Ref. Factura Venta
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej. FV-2026-205"
+                  value={settlementForm.factura_venta_ref}
+                  onChange={(e) => setSettlementForm((prev) => ({ ...prev, factura_venta_ref: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Estado Cobro Venta
+                </label>
+                <select
+                  value={settlementForm.estado_cobro_venta}
+                  onChange={(e) => setSettlementForm((prev) => ({ ...prev, estado_cobro_venta: e.target.value as 'pendiente' | 'cobrado' | 'no_aplica' }))}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-800"
+                >
+                  <option value="pendiente">Pendiente</option>
+                  <option value="cobrado">Cobrado</option>
+                  <option value="no_aplica">No aplica</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditingSettlement(false)}
+                disabled={savingSettlement}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={savingSettlement}
+              >
+                {savingSettlement ? 'Guardando...' : 'Guardar Pesada y Liquidación'}
+              </Button>
+            </div>
+          </form>
+        </ComponentCard>
+      )}
 
       {/* Tarjeta de Rentabilidad y Margen */}
       <div className={`p-6 rounded-2xl shadow-sm border ${
@@ -424,18 +657,32 @@ export default function DetalleOperacionComercialPage() {
                 </span>
                 <span>Estado Cobro: {operation.estado_cobro_venta}</span>
               </div>
-              <div className="pt-2 flex justify-between items-center border-t border-emerald-100 dark:border-emerald-900/30">
-                <span className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
-                  Holded ERP Invoicing
-                </span>
-                <Button
-                  size="sm"
-                  variant={operation.factura_venta_ref ? "outline" : "primary"}
-                  disabled={syncingHolded}
-                  onClick={() => handleSyncHolded()}
-                >
-                  {syncingHolded ? 'Sincronizando...' : operation.factura_venta_ref ? 'Re-sincronizar Holded' : 'Emitir Factura Holded'}
-                </Button>
+              <div className="pt-2 space-y-2 border-t border-emerald-100 dark:border-emerald-900/30">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label htmlFor="holded-tax-rate" className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
+                    Holded ERP Invoicing (Régimen IVA)
+                  </label>
+                  <select
+                    id="holded-tax-rate"
+                    value={holdedTaxRate}
+                    onChange={(e) => setHoldedTaxRate(Number(e.target.value) as 0 | 10 | 21)}
+                    className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-gray-800 px-2.5 py-1 text-[11px] font-medium text-gray-800 dark:text-gray-200"
+                  >
+                    <option value={21}>21% IVA General</option>
+                    <option value={10}>10% IVA Reducido Gestión Residuos</option>
+                    <option value={0}>0% Inversión Sujeto Pasivo (Art. 84.Uno.2º.c LIVA)</option>
+                  </select>
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    variant={operation.factura_venta_ref ? "outline" : "primary"}
+                    disabled={syncingHolded}
+                    onClick={() => handleSyncHolded()}
+                  >
+                    {syncingHolded ? 'Sincronizando...' : operation.factura_venta_ref ? 'Re-sincronizar Holded' : 'Emitir Factura Holded'}
+                  </Button>
+                </div>
               </div>
             </div>
 

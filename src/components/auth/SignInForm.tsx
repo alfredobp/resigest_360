@@ -142,6 +142,16 @@ export default function SignInForm() {
                     {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
                   </Button>
                 </div>
+                {process.env.NEXT_PUBLIC_ENABLE_DEMO_ACCESS === 'true' && (
+                  <div className="pt-3 border-t border-gray-200 dark:border-gray-800 text-center">
+                    <Link
+                      href="/accesos-prueba"
+                      className="inline-flex items-center justify-center gap-2 text-xs font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400"
+                    >
+                      Entrar con cuentas de prueba por perfil (Productor, Gestor, Transportista) →
+                    </Link>
+                  </div>
+                )}
               </div>
             </form>
           </div>

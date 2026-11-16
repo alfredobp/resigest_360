@@ -24,6 +24,8 @@ import {
 import Logo from "@/components/common/Logo";
 import adminPlatformService from "@/services/adminPlatformService";
 import { useSandbox } from "@/context/SandboxContext";
+import { useTenant } from "@/context/TenantContext";
+import { PROFILE_DEFINITIONS } from "@/lib/profiles/moduleCatalog";
 
 type NavItem = {
   name: string;
@@ -49,6 +51,15 @@ const navItems: NavItem[] = [
     icon: <GridIcon />,
     name: "Dashboard",
     path: "/app",
+  },
+  {
+    icon: (
+      <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+      </svg>
+    ),
+    name: "Vista Conductor (Móvil)",
+    path: "/transporte",
   },
   {
     icon: <DocsIcon />,
@@ -83,6 +94,15 @@ const navItems: NavItem[] = [
     ),
     name: "Control DeCA",
     path: "/residuos/deca",
+  },
+  {
+    icon: (
+      <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+    name: "Notificaciones Previas (NT)",
+    path: "/residuos/notificaciones-previas",
   },
   {
     icon: <PaperPlaneIcon />,
@@ -150,15 +170,36 @@ const othersItems: NavItem[] = [
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const { isPathVisible, profile, profileLabel } = useSandbox();
+  const { canAccessRoute, perfilOperativo, activeCompany, isPlatformAdmin, loading: tenantLoading } = useTenant();
   const pathname = usePathname();
+
+  const checkMenuPathVisible = useCallback(
+    (path?: string): boolean => {
+      if (!path) return true;
+      if (path === "/transporte") {
+        if (isPlatformAdmin && profile !== "all") {
+          return profile === "transportista";
+        }
+        return isPlatformAdmin || perfilOperativo === "transportista";
+      }
+      if (isPlatformAdmin && profile !== "all") {
+        return isPathVisible(path);
+      }
+      if (tenantLoading && !activeCompany) {
+        return path === "/app" || path === "/support" || path === "/residuos/mi-empresa";
+      }
+      return canAccessRoute(path);
+    },
+    [isPlatformAdmin, profile, isPathVisible, perfilOperativo, tenantLoading, activeCompany, canAccessRoute]
+  );
 
   const renderMenuItems = (
     navItemsList: NavItem[],
     menuType: "main" | "others"
   ) => {
     const filteredList = navItemsList.filter((nav) => {
-      if (nav.path) return isPathVisible(nav.path);
-      if (nav.subItems) return nav.subItems.some((s) => isPathVisible(s.path));
+      if (nav.path) return checkMenuPathVisible(nav.path);
+      if (nav.subItems) return nav.subItems.some((s) => checkMenuPathVisible(s.path));
       return true;
     });
 
@@ -173,40 +214,12 @@ const AppSidebar: React.FC = () => {
                   ? "menu-item-active"
                   : "menu-item-inactive"
                   } cursor-pointer ${!isExpanded && !isHovered
-                  ? "lg:justify-center"
-                  : "lg:justify-start"
-                }`}
-            >
-              <span
-                className={` ${openSubmenu?.type === menuType && openSubmenu?.index === index
-                  ? "menu-item-icon-active"
-                  : "menu-item-icon-inactive"
-                  }`}
-              >
-                {nav.icon}
-              </span>
-              {(isExpanded || isHovered || isMobileOpen) && (
-                <span className="menu-item-text">{nav.name}</span>
-              )}
-              {(isExpanded || isHovered || isMobileOpen) && (
-                <ChevronDownIcon
-                  className={`ml-auto w-5 h-5 transition-transform duration-200  ${openSubmenu?.type === menuType &&
-                    openSubmenu?.index === index
-                    ? "rotate-180 text-brand-500"
-                    : ""
-                    }`}
-                />
-              )}
-            </button>
-          ) : (
-            nav.path && (
-              <Link
-                href={nav.path}
-                className={`menu-item group ${isActive(nav.path) ? "menu-item-active" : "menu-item-inactive"
+                    ? "lg:justify-center"
+                    : "lg:justify-start"
                   }`}
               >
                 <span
-                  className={`${isActive(nav.path)
+                  className={` ${openSubmenu?.type === menuType && openSubmenu?.index === index
                     ? "menu-item-icon-active"
                     : "menu-item-icon-inactive"
                     }`}
@@ -216,64 +229,92 @@ const AppSidebar: React.FC = () => {
                 {(isExpanded || isHovered || isMobileOpen) && (
                   <span className="menu-item-text">{nav.name}</span>
                 )}
-              </Link>
-            )
-          )}
-          {nav.subItems && (isExpanded || isHovered || isMobileOpen) && (
-            <div
-              ref={(el) => {
-                subMenuRefs.current[`${menuType}-${index}`] = el;
-              }}
-              className="overflow-hidden transition-all duration-300"
-              style={{
-                height:
-                  openSubmenu?.type === menuType && openSubmenu?.index === index
-                    ? `${subMenuHeight[`${menuType}-${index}`]}px`
-                    : "0px",
-              }}
-            >
-              <ul className="mt-2 space-y-1 ml-9">
-                {nav.subItems.map((subItem) => (
-                  <li key={subItem.name}>
-                    <Link
-                      href={subItem.path}
-                      className={`menu-dropdown-item ${isActive(subItem.path)
-                        ? "menu-dropdown-item-active"
-                        : "menu-dropdown-item-inactive"
-                        }`}
-                    >
-                      {subItem.name}
-                      <span className="flex items-center gap-1 ml-auto">
-                        {subItem.new && (
-                          <span
-                            className={`ml-auto ${isActive(subItem.path)
-                              ? "menu-dropdown-badge-active"
-                              : "menu-dropdown-badge-inactive"
-                              } menu-dropdown-badge `}
-                          >
-                            new
-                          </span>
-                        )}
-                        {subItem.pro && (
-                          <span
-                            className={`ml-auto ${isActive(subItem.path)
-                              ? "menu-dropdown-badge-active"
-                              : "menu-dropdown-badge-inactive"
-                              } menu-dropdown-badge `}
-                          >
-                            pro
-                          </span>
-                        )}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </li>
-      ))}
-    </ul>
+                {(isExpanded || isHovered || isMobileOpen) && (
+                  <ChevronDownIcon
+                    className={`ml-auto w-5 h-5 transition-transform duration-200  ${openSubmenu?.type === menuType &&
+                      openSubmenu?.index === index
+                      ? "rotate-180 text-brand-500"
+                      : ""
+                      }`}
+                  />
+                )}
+              </button>
+            ) : (
+              nav.path && (
+                <Link
+                  href={nav.path}
+                  className={`menu-item group ${isActive(nav.path) ? "menu-item-active" : "menu-item-inactive"
+                    }`}
+                >
+                  <span
+                    className={`${isActive(nav.path)
+                      ? "menu-item-icon-active"
+                      : "menu-item-icon-inactive"
+                      }`}
+                  >
+                    {nav.icon}
+                  </span>
+                  {(isExpanded || isHovered || isMobileOpen) && (
+                    <span className="menu-item-text">{nav.name}</span>
+                  )}
+                </Link>
+              )
+            )}
+            {nav.subItems && (isExpanded || isHovered || isMobileOpen) && (
+              <div
+                ref={(el) => {
+                  subMenuRefs.current[`${menuType}-${index}`] = el;
+                }}
+                className="overflow-hidden transition-all duration-300"
+                style={{
+                  height:
+                    openSubmenu?.type === menuType && openSubmenu?.index === index
+                      ? `${subMenuHeight[`${menuType}-${index}`]}px`
+                      : "0px",
+                }}
+              >
+                <ul className="mt-2 space-y-1 ml-9">
+                  {nav.subItems.map((subItem) => (
+                    <li key={subItem.name}>
+                      <Link
+                        href={subItem.path}
+                        className={`menu-dropdown-item ${isActive(subItem.path)
+                          ? "menu-dropdown-item-active"
+                          : "menu-dropdown-item-inactive"
+                          }`}
+                      >
+                        {subItem.name}
+                        <span className="flex items-center gap-1 ml-auto">
+                          {subItem.new && (
+                            <span
+                              className={`ml-auto ${isActive(subItem.path)
+                                ? "menu-dropdown-badge-active"
+                                : "menu-dropdown-badge-inactive"
+                                } menu-dropdown-badge `}
+                            >
+                              new
+                            </span>
+                          )}
+                          {subItem.pro && (
+                            <span
+                              className={`ml-auto ${isActive(subItem.path)
+                                ? "menu-dropdown-badge-active"
+                                : "menu-dropdown-badge-inactive"
+                                } menu-dropdown-badge `}
+                            >
+                              pro
+                            </span>
+                          )}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
     );
   };
 
@@ -410,17 +451,31 @@ const AppSidebar: React.FC = () => {
               </div>
             )}
 
-            {/* Indicador de perfil Sandbox activo (Provisional) */}
-            {profile !== 'all' && (isExpanded || isHovered || isMobileOpen) && (
-              <div className="mt-2 p-3 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs">
-                <div className="flex items-center gap-1.5 font-bold text-blue-700 dark:text-blue-300">
-                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                  <span>Sandbox: {profileLabel}</span>
+            {/* Indicador de perfil real activo o Sandbox admin */}
+            {isPlatformAdmin && profile !== 'all' ? (
+              (isExpanded || isHovered || isMobileOpen) && (
+                <div className="mt-2 p-3 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs">
+                  <div className="flex items-center gap-1.5 font-bold text-blue-700 dark:text-blue-300">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                    <span>Sandbox: {profileLabel}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    Simulación visual en modo administrador.
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  Menú simplificado para este tipo de usuario.
-                </p>
-              </div>
+              )
+            ) : (
+              activeCompany &&
+              (isExpanded || isHovered || isMobileOpen) && (
+                <div className="mt-2 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl text-xs">
+                  <div className="flex items-center justify-between gap-2 font-semibold text-slate-800 dark:text-slate-200">
+                    <span className="truncate">{activeCompany.nombre_comercial || activeCompany.razon_social}</span>
+                  </div>
+                  <p className="text-[11px] text-brand-600 dark:text-brand-400 font-medium mt-0.5">
+                    Perfil: {PROFILE_DEFINITIONS[perfilOperativo].shortLabel}
+                  </p>
+                </div>
+              )
             )}
           </div>
         </nav>

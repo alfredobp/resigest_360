@@ -584,5 +584,45 @@ describe('dashboardService - Dashboard Ejecutivo e Indicadores', () => {
       expect(res.alertas.disSinContratoCount).toBe(0);
       expect(res.alertas.disTratamientoNoAutorizadoCount).toBe(0);
     });
+
+    it('debe soportar filtrado por companyId, omisión comercial y métricas de planta/existencias', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      const eqCalls: Array<[string, any]> = [];
+      mockSupabase.from.mockImplementation((table: string) => {
+        let data: any[] = [];
+        if (table === 'chronological_registry') {
+          data = [
+            { tipo_operacion: 'entrada_recepcion', cantidad_kg: 12000 },
+            { tipo_operacion: 'salida_traslado', cantidad_kg: 4500 },
+          ];
+        } else if (table === 'waste_contracts') {
+          data = [{ id: 1, estado: 'vigente', fecha_fin: '2028-01-01' }];
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn((col: string, val: any) => {
+            eqCalls.push([col, val]);
+            return Promise.resolve({ data, error: null });
+          }),
+        };
+      });
+
+      const res = await dashboardService.getExecutiveOverview({
+        companyId: 77,
+        includeCommercial: false,
+      });
+
+      expect(eqCalls).toContainEqual(['company_id', 77]);
+      expect(res.comercial.totalOperaciones).toBe(0);
+      expect(res.planta).toEqual({
+        entradasToneladas: 12,
+        salidasToneladas: 4.5,
+        existenciasToneladas: 7.5,
+        totalAsientos: 2,
+        totalContratos: 1,
+        contratosVigentes: 1,
+      });
+    });
   });
 });

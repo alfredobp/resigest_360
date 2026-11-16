@@ -725,12 +725,32 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
         estado: 'completado',
       } as any;
       jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue(alreadyClosed);
+      jest.spyOn(identificationDocumentService, 'update').mockResolvedValue(alreadyClosed);
       await expect(
         identificationDocumentService.completeTreatment(61, { operacion_tratamiento: 'R4' })
       ).resolves.toEqual(alreadyClosed);
       await expect(
         identificationDocumentService.completeTreatment(61, { operacion_tratamiento: 'R13' })
       ).rejects.toThrow('no puede sobrescribirse');
+
+      // 2b. Rectificación de notas en DI cerrado (N08)
+      const updateSpy = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({
+        ...alreadyClosed,
+        notas: 'PRUEBA-RECTIFICACION-02',
+        descripcion_tratamiento: 'PRUEBA-RECTIFICACION-02',
+      });
+      const rectResult = await identificationDocumentService.completeTreatment(61, {
+        operacion_tratamiento: 'R4',
+        notas: 'PRUEBA-RECTIFICACION-02',
+      });
+      expect(rectResult.notas).toBe('PRUEBA-RECTIFICACION-02');
+      expect(updateSpy).toHaveBeenCalledWith(
+        61,
+        expect.objectContaining({
+          notas: 'PRUEBA-RECTIFICACION-02',
+          descripcion_tratamiento: 'PRUEBA-RECTIFICACION-02',
+        })
+      );
 
       // 3. Bloqueo D01 cuando DI es sin-notificacion
       jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
@@ -855,6 +875,88 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
       await expect(
         identificationDocumentService.completeTreatment(71, { operacion_tratamiento: 'R04' })
       ).rejects.toThrow('no está amparada por el contrato');
+    });
+
+    it('debe exigir NT en residuos peligrosos (*), LER 20 03 01 y R01 (Art. 3.2 RD 553/2020) y soportar R14/R15/R1201', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+      const { normalizeOperationCode } = await import('../identificationDocumentService');
+      expect(normalizeOperationCode('R4')).toBe('R04');
+      expect(normalizeOperationCode('R14')).toBe('R14');
+      expect(normalizeOperationCode('R1201')).toBe('R1201');
+
+      // Residuo peligroso (*) sin NT en salida
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 80,
+        codigo_ler: '15 01 10*',
+        operacion_tratamiento: 'R13',
+        tipo_notificacion: 'sin-notificacion',
+      } as any);
+      await expect(
+        identificationDocumentService.recordDeparture(80, {
+          fecha_salida: '2026-11-10T12:40',
+          contrato_externo_referencia: 'EXT-1',
+          supuesto_excepcion_contrato: 'Operación exenta',
+        })
+      ).rejects.toThrow('exige Notificación Previa');
+
+      // LER 20 03 01 sin NT en salida
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 81,
+        codigo_ler: '20 03 01',
+        operacion_tratamiento: 'R13',
+        tipo_notificacion: 'sin-notificacion',
+      } as any);
+      await expect(
+        identificationDocumentService.recordDeparture(81, {
+          fecha_salida: '2026-11-10T12:40',
+          contrato_externo_referencia: 'EXT-1',
+          supuesto_excepcion_contrato: 'Operación exenta',
+        })
+      ).rejects.toThrow('exige Notificación Previa');
+
+      // R01 sin NT en salida
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 82,
+        codigo_ler: '15 01 01',
+        operacion_tratamiento: 'R01',
+        tipo_notificacion: 'sin-notificacion',
+      } as any);
+      await expect(
+        identificationDocumentService.recordDeparture(82, {
+          fecha_salida: '2026-11-10T12:40',
+          contrato_externo_referencia: 'EXT-1',
+          supuesto_excepcion_contrato: 'Operación exenta',
+        })
+      ).rejects.toThrow('exige Notificación Previa');
+
+      // Peligroso sin NT en completeTreatment
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 83,
+        codigo_ler: '15 01 10*',
+        peligrosidad: 'peligroso',
+        operacion_tratamiento: 'R13',
+        tipo_notificacion: 'sin-notificacion',
+      } as any);
+      await expect(
+        identificationDocumentService.completeTreatment(83, { operacion_tratamiento: 'R13' })
+      ).rejects.toThrow('requieren Notificación Previa');
+
+      // Soportar R14 y subcódigo R1201 en cierre de tratamiento
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 84,
+        codigo_ler: '15 01 01',
+        operacion_tratamiento: 'R14',
+        tipo_notificacion: 'sin-notificacion',
+      } as any);
+      const spyUpdate = jest.spyOn(identificationDocumentService, 'update').mockImplementation(
+        async (_id, payload) => ({ id: 84, ...payload } as any)
+      );
+      const resR14 = await identificationDocumentService.completeTreatment(84, { operacion_tratamiento: 'R14' });
+      expect(resR14.operacion_tratamiento_ejecutada).toBe('R14');
+
+      const resSub = await identificationDocumentService.completeTreatment(84, { operacion_tratamiento: 'R1201' });
+      expect(resSub.operacion_tratamiento_ejecutada).toBe('R1201');
+      spyUpdate.mockRestore();
     });
   });
 
@@ -1213,6 +1315,110 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
           'data:image/png;base64,iVBORw0KGgo='
         )
       ).rejects.toThrow('Error al registrar firma pública del DI: El Documento de Identificación ya fue firmado por este rol');
+    });
+
+    it('signDocumentByToken debe rechazar si el rol ya firmó el documento previamente', async () => {
+      // Productor ya firmado
+      mockSupabase.rpc.mockResolvedValueOnce({
+        data: { ...mockPublicDI, firmado_productor: true, firma_productor_url: 'https://sig' },
+        error: null,
+      });
+      await expect(
+        identificationDocumentService.signDocumentByToken('uuid-di-token-123', 'productor', 'sig')
+      ).rejects.toThrow('La parte Productor ya ha firmado este documento');
+
+      // Transportista ya firmado
+      mockSupabase.rpc.mockResolvedValueOnce({
+        data: { ...mockPublicDI, firmado_transportista: true, firma_transportista_url: 'https://sig' },
+        error: null,
+      });
+      await expect(
+        identificationDocumentService.signDocumentByToken('uuid-di-token-123', 'transportista', 'sig')
+      ).rejects.toThrow('La parte Transportista ya ha firmado este documento');
+
+      // Gestor ya firmado
+      mockSupabase.rpc.mockResolvedValueOnce({
+        data: { ...mockPublicDI, firmado_gestor: true, firma_gestor_url: 'https://sig' },
+        error: null,
+      });
+      await expect(
+        identificationDocumentService.signDocumentByToken('uuid-di-token-123', 'gestor', 'sig')
+      ).rejects.toThrow('La parte Gestor ya ha firmado este documento');
+    });
+
+    it('signDocumentByToken debe utilizar fallback a Data URI si el upload en Storage falla', async () => {
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: mockPublicDI, error: null })
+        .mockResolvedValueOnce({
+          data: { ...mockPublicDI, firmado_productor: true },
+          error: null,
+        });
+      mockStorageFrom.upload.mockRejectedValueOnce(new Error('Storage RLS row security violation'));
+
+      const res = await identificationDocumentService.signDocumentByToken(
+        'uuid-di-token-123',
+        'productor',
+        'iVBORw0KGgoAAAANSUhEUg=='
+      );
+
+      expect(mockSupabase.rpc).toHaveBeenNthCalledWith(2, 'sign_di_by_signing_token', expect.objectContaining({
+        p_signature_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==',
+      }));
+      expect(res.firmado_productor).toBe(true);
+    });
+
+    it('signDocumentByToken debe ejecutar fallback directo de tabla si la RPC no retorna datos', async () => {
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: mockPublicDI, error: null })
+        .mockResolvedValueOnce({
+          data: null,
+          error: { message: 'function sign_di_by_signing_token does not exist', code: '42883' },
+        });
+
+      const singleMock = jest.fn().mockResolvedValue({
+        data: { ...mockPublicDI, firmado_gestor: true, nombre_gestor: 'Gestor Test' },
+        error: null,
+      });
+      const selectMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqMock = jest.fn().mockReturnValue({ select: selectMock });
+      const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
+      mockSupabase.from.mockReturnValue({ update: updateMock });
+
+      const res = await identificationDocumentService.signDocumentByToken(
+        'uuid-di-token-123',
+        'gestor',
+        'data:image/png;base64,xyz',
+        { nombre: 'Gestor Test', dni: '99887766A' }
+      );
+
+      expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({
+        firmado_gestor: true,
+        nombre_gestor: 'Gestor Test',
+        dni_gestor: '99887766A',
+      }));
+      expect(res.firmado_gestor).toBe(true);
+    });
+
+    it('signDocumentByToken debe lanzar error si el fallback directo de tabla también falla', async () => {
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: mockPublicDI, error: null })
+        .mockResolvedValueOnce({
+          data: null,
+          error: { message: 'function does not exist', code: '42883' },
+        });
+
+      const singleMock = jest.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'Direct update failed' },
+      });
+      const selectMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqMock = jest.fn().mockReturnValue({ select: selectMock });
+      const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
+      mockSupabase.from.mockReturnValue({ update: updateMock });
+
+      await expect(
+        identificationDocumentService.signDocumentByToken('uuid-di-token-123', 'productor', 'sig')
+      ).rejects.toThrow('Error al registrar firma pública del DI: Direct update failed');
     });
   });
 });

@@ -12,17 +12,21 @@ import Input from '@/components/form/input/InputField';
 import Label from '@/components/form/Label';
 import TextArea from '@/components/form/input/TextArea';
 import { toast } from '@/context/ToastContext';
+import { useTenant } from '@/context/TenantContext';
 import identificationDocumentService, { getTrackingStatusMeta } from '@/services/identificationDocumentService';
 import siraService from '@/services/siraService';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import { decaService } from '@/services/decaService';
 import { validateRequired, validateCIF, scrollToFirstError } from '@/lib/validations/formValidation';
-import { Truck, X } from 'lucide-react';
+import { Truck, X, AlertTriangle } from 'lucide-react';
 import type { IdentificationDocument, Company, ProductionCenter } from '@/types/wasteManagement';
+import type { DecaDocument } from '@/types/deca';
 
 export default function DocumentosIdentificacionPage() {
   const router = useRouter();
+  const { canWrite, perfilOperativo, isPlatformAdmin } = useTenant();
+  const canCreateOrDeleteDi = canWrite && (isPlatformAdmin || perfilOperativo !== 'transportista');
   const [loading, setLoading] = useState(true);
   const [documents, setDocuments] = useState<IdentificationDocument[]>([]);
   const [hasCompany, setHasCompany] = useState(false);
@@ -34,6 +38,7 @@ export default function DocumentosIdentificacionPage() {
 
   // Modal DeCA rápido
   const [decaModalDoc, setDecaModalDoc] = useState<IdentificationDocument | null>(null);
+  const [existingDecaAlert, setExistingDecaAlert] = useState<{ doc: IdentificationDocument; existingDecas: DecaDocument[] } | null>(null);
   const [decaSubmitting, setDecaSubmitting] = useState(false);
   const [decaFieldErrors, setDecaFieldErrors] = useState<Record<string, string>>({});
   const [cargadorRazonSocial, setCargadorRazonSocial] = useState('');
@@ -86,7 +91,7 @@ export default function DocumentosIdentificacionPage() {
     }
   };
 
-  const handleOpenDecaModal = (doc: IdentificationDocument) => {
+  const openDecaModalDirectly = (doc: IdentificationDocument) => {
     setDecaModalDoc(doc);
     setDecaFieldErrors({});
     // Por defecto, sugerir como cargador contractual la empresa propia del usuario o el productor
@@ -98,6 +103,19 @@ export default function DocumentosIdentificacionPage() {
     setMatriculaTractora(doc.transportista_matricula || myCompany?.matricula || '');
     setMatriculaRemolque('');
     setObservacionesDeCA(`Generado automáticamente desde DI ${doc.numero_documento}`);
+  };
+
+  const handleOpenDecaModal = async (doc: IdentificationDocument) => {
+    try {
+      const existing = await decaService.getByIdentificationDocument(doc.id);
+      if (existing && existing.length > 0) {
+        setExistingDecaAlert({ doc, existingDecas: existing });
+        return;
+      }
+    } catch (err) {
+      console.warn('Error al verificar DeCA existente para DI:', err);
+    }
+    openDecaModalDirectly(doc);
   };
 
   const handleGenerateDecaSubmit = async (e: React.FormEvent) => {
@@ -258,9 +276,11 @@ export default function DocumentosIdentificacionPage() {
               Control oficial de traslados, pesajes en báscula, incidencias y tratamiento (RD 553/2020)
             </p>
           </div>
-          <Button onClick={() => router.push('/residuos/documentos-identificacion/nuevo')}>
-            + Nuevo Documento
-          </Button>
+          {canCreateOrDeleteDi && (
+            <Button onClick={() => router.push('/residuos/documentos-identificacion/nuevo')}>
+              + Nuevo Documento
+            </Button>
+          )}
         </div>
 
         {/* Filtros por Ciclo de Vida */}
@@ -462,17 +482,19 @@ export default function DocumentosIdentificacionPage() {
                         Ver Detalle y Trazabilidad
                       </Button>
 
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenDecaModal(doc)}
-                        className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 flex items-center justify-center gap-1.5"
-                      >
-                        <Truck className="w-3.5 h-3.5" />
-                        ⚡ Generar DeCA
-                      </Button>
+                      {canWrite && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenDecaModal(doc)}
+                          className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 flex items-center justify-center gap-1.5"
+                        >
+                          <Truck className="w-3.5 h-3.5" />
+                          ⚡ Generar DeCA
+                        </Button>
+                      )}
 
-                      {(!doc.estado_traslado || doc.estado_traslado === 'borrador') && (
+                      {canCreateOrDeleteDi && (!doc.estado_traslado || doc.estado_traslado === 'borrador') && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -484,7 +506,7 @@ export default function DocumentosIdentificacionPage() {
                         </Button>
                       )}
 
-                      {(!doc.estado_traslado || doc.estado_traslado === 'borrador') && (
+                      {canCreateOrDeleteDi && (!doc.estado_traslado || doc.estado_traslado === 'borrador') && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -502,6 +524,69 @@ export default function DocumentosIdentificacionPage() {
           </div>
         )}
       </div>
+
+      {/* MODAL: Advertencia de DeCA ya existente para el DI (N06) */}
+      <Modal
+        isOpen={Boolean(existingDecaAlert)}
+        onClose={() => setExistingDecaAlert(null)}
+        className="max-w-md p-6"
+      >
+        {existingDecaAlert && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold text-base">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <span>DeCA Ya Emitido para este DI</span>
+            </div>
+
+            <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 p-3.5 rounded-xl text-xs text-amber-900 dark:text-amber-200 space-y-2">
+              <p>
+                El Documento de Identificación <strong>{existingDecaAlert.doc.numero_documento}</strong> ya tiene
+                asociado al menos un documento electrónico de control (DeCA):
+              </p>
+              <div className="bg-white/80 dark:bg-black/30 p-2.5 rounded-lg border border-amber-200/50 space-y-1 font-mono text-xs">
+                {existingDecaAlert.existingDecas.map((d) => (
+                  <div key={d.id} className="flex justify-between items-center">
+                    <span className="font-bold">{d.numero_deca} (v{d.version})</span>
+                    <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-semibold ${d.is_vigente ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-gray-100 text-gray-600'}`}>
+                      {d.is_vigente ? 'Vigente' : 'Sustituido'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                Para evitar duplicidades en carretera o inconsistencias en inspección, elija si desea consultar el documento existente o emitir una nueva expedición de transporte independiente.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setExistingDecaAlert(null)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setExistingDecaAlert(null);
+                  router.push('/residuos/deca');
+                }}
+              >
+                <span>Ver DeCA Existente</span>
+              </Button>
+              <Button
+                onClick={() => {
+                  const targetDoc = existingDecaAlert.doc;
+                  setExistingDecaAlert(null);
+                  openDecaModalDirectly(targetDoc);
+                }}
+              >
+                <span>Emitir Nueva Expedición</span>
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* MODAL: Emisión rápida de DeCA desde DI */}
       <Modal

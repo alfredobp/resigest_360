@@ -4,7 +4,7 @@ import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
@@ -17,6 +17,15 @@ export default function SignUpForm() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const router = useRouter();
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -64,7 +73,10 @@ export default function SignUpForm() {
       setSuccess(true);
       
       // Redirigir después de 2 segundos
-      setTimeout(() => {
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+      }
+      redirectTimerRef.current = setTimeout(() => {
         router.push("/signin");
       }, 2000);
     } catch {

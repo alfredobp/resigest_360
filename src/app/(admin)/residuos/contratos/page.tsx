@@ -9,6 +9,7 @@ import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
+import { useTenant } from '@/context/TenantContext';
 import NuevoContratoModal from '@/components/residuos/NuevoContratoModal';
 import wasteContractService, { getContractEffectiveStatus } from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
@@ -25,6 +26,7 @@ const STATUS_COLORS = {
 
 export default function ContratosPage() {
   const router = useRouter();
+  const { canWrite } = useTenant();
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -94,6 +96,8 @@ export default function ContratosPage() {
       toast.success('Contrato de tratamiento eliminado correctamente.');
     } catch (err: any) {
       toast.error(`Error al eliminar: ${err.message}`);
+    } finally {
+      setContractToDelete(null);
     }
   };
 
@@ -121,7 +125,11 @@ export default function ContratosPage() {
     }
 
     try {
-      await wasteContractService.updateStatus(id, newStatus);
+      if (newStatus === 'vigente') {
+        await wasteContractService.activate(id);
+      } else {
+        await wasteContractService.updateStatus(id, newStatus);
+      }
       toast.success(`Estado del contrato actualizado a "${newStatus}" correctamente.`);
       await loadData();
     } catch (err: any) {
@@ -138,6 +146,19 @@ export default function ContratosPage() {
   });
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    const datePart = dateString.split('T')[0];
+    const parts = datePart.split('-');
+    if (parts.length === 3) {
+      const [y, m, d] = parts.map(Number);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        return new Date(y, m - 1, d).toLocaleDateString('es-ES', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+      }
+    }
     return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'long',
@@ -182,9 +203,11 @@ export default function ContratosPage() {
           <h2 className="text-2xl font-bold text-foreground">
             Contratos de Gestión de Residuos
           </h2>
-          <Button variant="outline" onClick={() => setShowNewContractModal(true)}>
-            + Nuevo Contrato
-          </Button>
+          {canWrite && (
+            <Button variant="outline" onClick={() => setShowNewContractModal(true)}>
+              + Nuevo Contrato
+            </Button>
+          )}
         </div>
 
         {error && (
@@ -255,14 +278,18 @@ export default function ContratosPage() {
               </svg>
               <h3 className="mt-4 text-lg font-medium text-foreground">No hay contratos</h3>
               <p className="mt-2 text-sm text-muted">
-                Comienza creando tu primer contrato de tratamiento
+                {canWrite
+                  ? 'Comienza creando tu primer contrato de tratamiento'
+                  : 'No hay contratos registrados para esta empresa'}
               </p>
-              <Button
-                className="mt-4"
-                onClick={() => setShowNewContractModal(true)}
-              >
-                Crear Primer Contrato
-              </Button>
+              {canWrite && (
+                <Button
+                  className="mt-4"
+                  onClick={() => setShowNewContractModal(true)}
+                >
+                  Crear Primer Contrato
+                </Button>
+              )}
             </div>
           </ComponentCard>
         ) : (
@@ -352,7 +379,7 @@ export default function ContratosPage() {
                         {downloadingId === contract.id ? 'Generando PDF...' : 'Descargar PDF'}
                       </Button>
 
-                      {contract.estado === 'borrador' && (
+                      {canWrite && contract.estado === 'borrador' && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -362,7 +389,7 @@ export default function ContratosPage() {
                         </Button>
                       )}
 
-                      {contract.estado === 'vigente' && (
+                      {canWrite && contract.estado === 'vigente' && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -372,14 +399,16 @@ export default function ContratosPage() {
                         </Button>
                       )}
 
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(contract.id)}
-                        className="text-red-600 hover:bg-red-50"
-                      >
-                        Eliminar
-                      </Button>
+                      {canWrite && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(contract.id)}
+                          className="text-red-600 hover:bg-red-50"
+                        >
+                          Eliminar
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </ComponentCard>
@@ -417,7 +446,7 @@ export default function ContratosPage() {
           onClose={() => setContractToDelete(null)}
           onConfirm={confirmDelete}
           title="Eliminar contrato"
-          message="¿Estás seguro de que deseas eliminar este contrato? Esta acción no se puede deshacer."
+          message="¿Estás seguro de que deseas eliminar este contrato? Esta acción solo es posible si el contrato no se ha utilizado para emitir Documentos de Identificación (DI) o Notificaciones Previas (NT)."
         />
       </div>
     </>
