@@ -9,6 +9,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import Input from '@/components/form/input/InputField';
+import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFields';
 import TextArea from '@/components/form/input/TextArea';
 import Select from '@/components/form/Select';
 import identificationDocumentService from '@/services/identificationDocumentService';
@@ -819,25 +820,28 @@ export default function NuevoDocumentoIdentificacionPage() {
                   />
                 </div>
 
-                <div>
-                  <label htmlFor="productor_municipio" className="block text-sm font-medium mb-2">Municipio *</label>
-                  <Input
-                    id="productor_municipio"
-                    value={formData.productor_municipio || ''}
-                    onChange={(e) => setFormData({ ...formData, productor_municipio: e.target.value })}
-                    error={!!validationErrors.productor_municipio}
-                    hint={validationErrors.productor_municipio}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="productor_provincia" className="block text-sm font-medium mb-2">Provincia *</label>
-                  <Input
-                    id="productor_provincia"
-                    value={formData.productor_provincia || ''}
-                    onChange={(e) => setFormData({ ...formData, productor_provincia: e.target.value })}
-                    error={!!validationErrors.productor_provincia}
-                    hint={validationErrors.productor_provincia}
+                <div className="md:col-span-2">
+                  <ProvinceMunicipalityFields
+                    provinciaRequired
+                    municipioRequired
+                    provincia={formData.productor_provincia || ''}
+                    municipio={formData.productor_municipio || ''}
+                    provinciaId="productor_provincia"
+                    municipioId="productor_municipio"
+                    provinciaName="productor_provincia"
+                    municipioName="productor_municipio"
+                    provinciaError={!!validationErrors.productor_provincia}
+                    municipioError={!!validationErrors.productor_municipio}
+                    provinciaHint={validationErrors.productor_provincia}
+                    municipioHint={validationErrors.productor_municipio}
+                    disabled={expeditionRole === 'productor'}
+                    onChange={({ provincia, municipio }) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        productor_provincia: provincia,
+                        productor_municipio: municipio,
+                      }))
+                    }
                   />
                 </div>
 
@@ -956,25 +960,28 @@ export default function NuevoDocumentoIdentificacionPage() {
                   />
                 </div>
 
-                <div>
-                  <label htmlFor="gestor_municipio" className="block text-sm font-medium mb-2">Municipio *</label>
-                  <Input
-                    id="gestor_municipio"
-                    value={formData.gestor_municipio || ''}
-                    onChange={(e) => setFormData({ ...formData, gestor_municipio: e.target.value })}
-                    error={!!validationErrors.gestor_municipio}
-                    hint={validationErrors.gestor_municipio}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="gestor_provincia" className="block text-sm font-medium mb-2">Provincia *</label>
-                  <Input
-                    id="gestor_provincia"
-                    value={formData.gestor_provincia || ''}
-                    onChange={(e) => setFormData({ ...formData, gestor_provincia: e.target.value })}
-                    error={!!validationErrors.gestor_provincia}
-                    hint={validationErrors.gestor_provincia}
+                <div className="md:col-span-2">
+                  <ProvinceMunicipalityFields
+                    provinciaRequired
+                    municipioRequired
+                    provincia={formData.gestor_provincia || ''}
+                    municipio={formData.gestor_municipio || ''}
+                    provinciaId="gestor_provincia"
+                    municipioId="gestor_municipio"
+                    provinciaName="gestor_provincia"
+                    municipioName="gestor_municipio"
+                    provinciaError={!!validationErrors.gestor_provincia}
+                    municipioError={!!validationErrors.gestor_municipio}
+                    provinciaHint={validationErrors.gestor_provincia}
+                    municipioHint={validationErrors.gestor_municipio}
+                    disabled={expeditionRole === 'gestor'}
+                    onChange={({ provincia, municipio }) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        gestor_provincia: provincia,
+                        gestor_municipio: municipio,
+                      }))
+                    }
                   />
                 </div>
 
@@ -1120,23 +1127,21 @@ export default function NuevoDocumentoIdentificacionPage() {
                   />
                 </div>
 
-                <div>
-                  <label htmlFor="transportista_municipio" className="block text-sm font-medium mb-2">Municipio</label>
-                  <Input
-                    id="transportista_municipio"
-                    type="text"
-                    value={formData.transportista_municipio || ''}
-                    onChange={(e) => setFormData({ ...formData, transportista_municipio: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="transportista_provincia" className="block text-sm font-medium mb-2">Provincia</label>
-                  <Input
-                    id="transportista_provincia"
-                    type="text"
-                    value={formData.transportista_provincia || ''}
-                    onChange={(e) => setFormData({ ...formData, transportista_provincia: e.target.value })}
+                <div className="md:col-span-2">
+                  <ProvinceMunicipalityFields
+                    provincia={formData.transportista_provincia || ''}
+                    municipio={formData.transportista_municipio || ''}
+                    provinciaId="transportista_provincia"
+                    municipioId="transportista_municipio"
+                    provinciaName="transportista_provincia"
+                    municipioName="transportista_municipio"
+                    onChange={({ provincia, municipio }) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        transportista_provincia: provincia,
+                        transportista_municipio: municipio,
+                      }))
+                    }
                   />
                 </div>
 

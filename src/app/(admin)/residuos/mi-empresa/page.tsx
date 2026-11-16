@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Input from '@/components/form/input/InputField';
+import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFields';
 import TextArea from '@/components/form/input/TextArea';
 import Button from '@/components/ui/button/Button';
 import ImageUpload from '@/components/common/ImageUpload';
@@ -22,6 +23,7 @@ import {
   getEffectiveModules,
   normalizeOperationalProfile,
 } from '@/lib/profiles/moduleCatalog';
+import { getProvinceByPostalCode } from '@/lib/validations/spainLocations';
 import type {
   AppModule,
   Company,
@@ -811,28 +813,27 @@ export default function MiEmpresaPage() {
                       />
                     </div>
 
-                    <div className="sm:col-span-5">
-                      <label className="block text-sm font-medium mb-2">Municipio</label>
-                      <Input
-                        name="municipio_social"
-                        value={formData.municipio_social}
-                        onChange={handleChange}
-                        placeholder="Ej: Puerto Real"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium">Provincia</label>
-                        {detectedProvSocial && (
-                          <span className="text-xs text-gray-400">CP {cpPrefixSocial}</span>
-                        )}
-                      </div>
-                      <Input
-                        name="provincia_social"
-                        value={formData.provincia_social}
-                        onChange={handleChange}
-                        placeholder="Ej: Cádiz"
+                    <div className="sm:col-span-9">
+                      <ProvinceMunicipalityFields
+                        unstyledWrapper
+                        wrapperClassName="grid grid-cols-1 sm:grid-cols-9 gap-4"
+                        provinciaWrapperClassName="sm:col-span-4"
+                        municipioWrapperClassName="sm:col-span-5"
+                        order="municipio-first"
+                        provincia={formData.provincia_social || ''}
+                        municipio={formData.municipio_social || ''}
+                        provinciaBadge={
+                          detectedProvSocial && (
+                            <span className="text-xs text-gray-400">CP {cpPrefixSocial}</span>
+                          )
+                        }
+                        onChange={({ provincia, municipio }) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            provincia_social: provincia,
+                            municipio_social: municipio,
+                          }))
+                        }
                       />
                     </div>
                   </div>
@@ -866,23 +867,21 @@ export default function MiEmpresaPage() {
                           />
                         </div>
 
-                        <div className="sm:col-span-5">
-                          <label className="block text-sm font-medium mb-2">Municipio</label>
-                          <Input
-                            name="municipio_instalacion"
-                            value={formData.municipio_instalacion}
-                            onChange={handleChange}
-                            placeholder="Ej: Sevilla"
-                          />
-                        </div>
-
-                        <div className="sm:col-span-4">
-                          <label className="block text-sm font-medium mb-2">Provincia</label>
-                          <Input
-                            name="provincia_instalacion"
-                            value={formData.provincia_instalacion}
-                            onChange={handleChange}
-                            placeholder="Ej: Sevilla"
+                        <div className="sm:col-span-9">
+                          <ProvinceMunicipalityFields
+                            unstyledWrapper
+                            provinciaWrapperClassName="sm:col-span-4"
+                            municipioWrapperClassName="sm:col-span-5"
+                            order="municipio-first"
+                            provincia={formData.provincia_instalacion || ''}
+                            municipio={formData.municipio_instalacion || ''}
+                            onChange={({ provincia, municipio }) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                provincia_instalacion: provincia,
+                                municipio_instalacion: municipio,
+                              }))
+                            }
                           />
                         </div>
                       </div>
@@ -1071,36 +1070,33 @@ export default function MiEmpresaPage() {
                         value={centerFormData.codigo_postal}
                         onChange={(e) => {
                           const cp = e.target.value;
-                          const prefix = cp.trim().substring(0, 2);
+                          const detectedProv = getProvinceByPostalCode(cp);
                           setCenterFormData((prev) => ({
                             ...prev,
                             codigo_postal: cp,
-                            provincia: PROVINCIAS_POR_CP[prefix] || prev.provincia,
+                            provincia: detectedProv || prev.provincia,
                           }));
                         }}
                         placeholder="Ej: 41001"
                       />
                     </div>
-                    <div className="sm:col-span-5">
-                      <label className="block text-sm font-medium mb-1">Municipio *</label>
-                      <Input
-                        value={centerFormData.municipio}
-                        onChange={(e) =>
-                          setCenterFormData({ ...centerFormData, municipio: e.target.value })
+                    <div className="sm:col-span-9">
+                      <ProvinceMunicipalityFields
+                        unstyledWrapper
+                        provinciaRequired
+                        municipioRequired
+                        provinciaWrapperClassName="sm:col-span-4"
+                        municipioWrapperClassName="sm:col-span-5"
+                        order="municipio-first"
+                        provincia={centerFormData.provincia || ''}
+                        municipio={centerFormData.municipio || ''}
+                        onChange={({ provincia, municipio }) =>
+                          setCenterFormData((prev) => ({
+                            ...prev,
+                            provincia,
+                            municipio,
+                          }))
                         }
-                        placeholder="Ej: Sevilla"
-                        required
-                      />
-                    </div>
-                    <div className="sm:col-span-4">
-                      <label className="block text-sm font-medium mb-1">Provincia *</label>
-                      <Input
-                        value={centerFormData.provincia}
-                        onChange={(e) =>
-                          setCenterFormData({ ...centerFormData, provincia: e.target.value })
-                        }
-                        placeholder="Ej: Sevilla"
-                        required
                       />
                     </div>
                     <div className="sm:col-span-12">

@@ -7,6 +7,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import Input from '@/components/form/input/InputField';
+import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFields';
 import TextArea from '@/components/form/input/TextArea';
 import { toast } from '@/context/ToastContext';
 import { priorNotificationService } from '@/services/priorNotificationService';
@@ -394,23 +395,23 @@ export default function NuevaNotificacionPreviaPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">Municipio *</label>
-                <Input
-                  type="text"
-                  value={formData.operador_municipio || ''}
-                  onChange={(e) => setFormData({ ...formData, operador_municipio: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Provincia *</label>
-                <Input
-                  type="text"
-                  value={formData.operador_provincia || ''}
-                  onChange={(e) => setFormData({ ...formData, operador_provincia: e.target.value })}
-                  required
+              <div className="md:col-span-2">
+                <ProvinceMunicipalityFields
+                  provinciaRequired
+                  municipioRequired
+                  provinciaId="operador_provincia"
+                  municipioId="operador_municipio"
+                  provinciaName="operador_provincia"
+                  municipioName="operador_municipio"
+                  provincia={formData.operador_provincia || ''}
+                  municipio={formData.operador_municipio || ''}
+                  onChange={({ provincia, municipio }) =>
+                    setFormData({
+                      ...formData,
+                      operador_provincia: provincia,
+                      operador_municipio: municipio,
+                    })
+                  }
                 />
               </div>
             </div>
@@ -484,23 +485,23 @@ export default function NuevaNotificacionPreviaPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">Municipio Origen *</label>
-                <Input
-                  type="text"
-                  value={formData.productor_municipio || ''}
-                  onChange={(e) => setFormData({ ...formData, productor_municipio: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Provincia Origen *</label>
-                <Input
-                  type="text"
-                  value={formData.productor_provincia || ''}
-                  onChange={(e) => setFormData({ ...formData, productor_provincia: e.target.value })}
-                  required
+              <div className="md:col-span-2">
+                <ProvinceMunicipalityFields
+                  provinciaRequired
+                  municipioRequired
+                  provinciaId="productor_provincia"
+                  municipioId="productor_municipio"
+                  provinciaName="productor_provincia"
+                  municipioName="productor_municipio"
+                  provincia={formData.productor_provincia || ''}
+                  municipio={formData.productor_municipio || ''}
+                  onChange={({ provincia, municipio }) =>
+                    setFormData({
+                      ...formData,
+                      productor_provincia: provincia,
+                      productor_municipio: municipio,
+                    })
+                  }
                 />
               </div>
             </div>
@@ -575,23 +576,23 @@ export default function NuevaNotificacionPreviaPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">Municipio Gestor *</label>
-                <Input
-                  type="text"
-                  value={formData.gestor_municipio || ''}
-                  onChange={(e) => setFormData({ ...formData, gestor_municipio: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Provincia Gestor *</label>
-                <Input
-                  type="text"
-                  value={formData.gestor_provincia || ''}
-                  onChange={(e) => setFormData({ ...formData, gestor_provincia: e.target.value })}
-                  required
+              <div className="md:col-span-2">
+                <ProvinceMunicipalityFields
+                  provinciaRequired
+                  municipioRequired
+                  provinciaId="gestor_provincia"
+                  municipioId="gestor_municipio"
+                  provinciaName="gestor_provincia"
+                  municipioName="gestor_municipio"
+                  provincia={formData.gestor_provincia || ''}
+                  municipio={formData.gestor_municipio || ''}
+                  onChange={({ provincia, municipio }) =>
+                    setFormData({
+                      ...formData,
+                      gestor_provincia: provincia,
+                      gestor_municipio: municipio,
+                    })
+                  }
                 />
               </div>
             </div>

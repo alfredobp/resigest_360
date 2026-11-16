@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Trash2 } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import Button from '@/components/ui/button/Button';
 import Input from '@/components/form/input/InputField';
@@ -472,8 +473,9 @@ export default function AutorizacionModal({
                       onClick={() => handleRemoveWasteCode(idx)}
                       className="mt-4 md:mt-5 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition"
                       title="Eliminar este residuo"
+                      aria-label="Eliminar este residuo"
                     >
-                      🗑️
+                      <Trash2 className="w-5 h-5" />
                     </button>
                   )}
                 </div>

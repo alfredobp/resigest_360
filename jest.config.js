@@ -43,6 +43,7 @@ module.exports = {
     'src/services/holdedService.ts',
     'src/services/wasteContractService.ts',
     'src/lib/validations/formValidation.ts',
+    'src/lib/validations/spainLocations.ts',
     'src/lib/validations/publicForms.ts',
     'src/lib/validations/discrepancyJustification.ts',
     'src/lib/rateLimit.ts',
@@ -144,6 +145,12 @@ module.exports = {
       statements: 80
     },
     './src/lib/validations/formValidation.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/lib/validations/spainLocations.ts': {
       branches: 80,
       functions: 80,
       lines: 80,

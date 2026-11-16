@@ -946,8 +946,8 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
   doc.text(
     docData.firmado_productor
       ? docData.firma_productor_url
-        ? '✓ Firmado en salida'
-        : '✓ Identificado (sin firma)'
+        ? 'Firmado en salida'
+        : 'Identificado (sin firma)'
       : 'Pendiente de firma',
     18,
     yPos + 8
@@ -980,8 +980,8 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
   doc.text(
     docData.firmado_transportista
       ? docData.firma_transportista_url
-        ? '✓ Conforme y firmado en carga'
-        : '✓ Conforme en carga (sin trazo)'
+        ? 'Conforme y firmado en carga'
+        : 'Conforme en carga (sin trazo)'
       : 'Pendiente de firma',
     80,
     yPos + 8
@@ -1014,8 +1014,8 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
   doc.text(
     docData.firmado_gestor
       ? docData.firma_gestor_url
-        ? '✓ Recepcionado y firmado'
-        : '✓ Recepcionado (sin trazo)'
+        ? 'Recepcionado y firmado'
+        : 'Recepcionado (sin trazo)'
       : 'Pendiente de recepción',
     142,
     yPos + 8

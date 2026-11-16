@@ -39,6 +39,47 @@ const TIPO_OP_LABELS: Record<TipoOperacionCronologica, { label: string; color: '
   merma_ajuste: { label: 'Ajuste / Merma', color: 'light' },
 };
 
+function formatDateTime(fechaStr?: string | null, createdAtStr?: string | null): string {
+  if (!fechaStr && !createdAtStr) return '-';
+
+  let datePart = '';
+  if (fechaStr && /^\d{4}-\d{2}-\d{2}$/.test(fechaStr.trim())) {
+    const [y, m, d] = fechaStr.trim().split('-').map(Number);
+    datePart = new Date(y, m - 1, d).toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  } else if (fechaStr) {
+    const d = new Date(fechaStr);
+    datePart = isNaN(d.getTime())
+      ? ''
+      : d.toLocaleDateString('es-ES', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        });
+  }
+
+  let timePart = '';
+  const sourceForTime = fechaStr && fechaStr.includes('T') ? fechaStr : createdAtStr;
+  if (sourceForTime) {
+    const d = new Date(sourceForTime);
+    if (!isNaN(d.getTime())) {
+      timePart = d.toLocaleTimeString('es-ES', {
+        timeZone: 'Europe/Madrid',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
+  }
+
+  if (datePart && timePart) {
+    return `${datePart}, ${timePart}`;
+  }
+  return datePart || timePart || '-';
+}
+
 export default function ArchivoCronologicoPage() {
   const [entries, setEntries] = useState<ChronologicalEntry[]>([]);
   const [stats, setStats] = useState<ChronologicalStats | null>(null);
@@ -487,8 +528,8 @@ export default function ArchivoCronologicoPage() {
                         <div className="font-semibold text-gray-900 dark:text-gray-100 font-mono">
                           {entry.numero_asiento}
                         </div>
-                        <div className="text-gray-500 text-[11px]">
-                          {new Date(entry.fecha).toLocaleDateString('es-ES')}
+                        <div className="text-gray-500 text-[11px] whitespace-nowrap">
+                          {formatDateTime(entry.fecha, entry.created_at)}
                         </div>
                       </td>
 

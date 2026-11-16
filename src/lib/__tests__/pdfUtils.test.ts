@@ -1,5 +1,5 @@
-import { generateContractPDF } from '../pdfUtils';
-import type { WasteContract } from '@/types/wasteManagement';
+import { generateContractPDF, generateIdentificationDocumentPDF } from '../pdfUtils';
+import type { WasteContract, IdentificationDocument } from '@/types/wasteManagement';
 
 describe('pdfUtils - generateContractPDF', () => {
   const baseContract: WasteContract = {
@@ -78,6 +78,48 @@ describe('pdfUtils - generateContractPDF', () => {
       notas: undefined,
     };
     const doc = await generateContractPDF(minimalContract);
+    expect(doc).toBeDefined();
+    expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('pdfUtils - generateIdentificationDocumentPDF', () => {
+  const baseDoc: IdentificationDocument = {
+    id: 10,
+    user_id: 'user-1',
+    company_id: 1,
+    numero_documento: 'DI-2026-0001',
+    fecha_documento: '2026-11-16',
+    tipo_notificacion: 'sin-notificacion',
+    productor_razon_social: 'Productor Demo S.L.',
+    productor_cif: 'B12345678',
+    gestor_razon_social: 'Gestor Demo S.A.',
+    gestor_cif: 'A87654321',
+    transportista_razon_social: 'Trans Demo S.L.',
+    transportista_cif: 'B99999999',
+    codigo_ler: '15 01 01',
+    descripcion_residuo: 'Envases de papel y cartón',
+    estado_fisico: 'solido',
+    peligrosidad: 'no-peligroso',
+    cantidad: 1.5,
+    unidad: 'toneladas',
+    operacion_tratamiento: 'R03',
+    estado: 'completado',
+    created_at: '2026-11-16T10:00:00Z',
+    updated_at: '2026-11-16T10:00:00Z',
+    firmado_productor: false,
+    firmado_transportista: true,
+    firmado_gestor: true,
+    nombre_transportista: 'Pepe',
+    dni_transportista: '987423984984-H',
+    fecha_firma_transportista: '2026-11-16T17:02:00Z',
+    nombre_gestor: 'Manolito',
+    dni_gestor: '787398237739',
+    fecha_firma_gestor: '2026-11-16T17:02:00Z',
+  };
+
+  it('genera el PDF de DI correctamente con estados firmados sin fuentes corruptas', async () => {
+    const doc = await generateIdentificationDocumentPDF(baseDoc);
     expect(doc).toBeDefined();
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
   });

@@ -5,9 +5,11 @@ import { Modal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
 import Label from '@/components/form/Label';
+import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFields';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import treatmentManagerService from '@/services/treatmentManagerService';
+import { getProvinceByPostalCode } from '@/lib/validations/spainLocations';
 import {
     validateRequired,
     validateCIF,
@@ -295,32 +297,35 @@ export default function GestorModal({
                                 id="gestor_codigo_postal"
                                 name="codigo_postal"
                                 value={formData.codigo_postal}
-                                onChange={handleChange}
+                                onChange={(e) => {
+                                    const cp = e.target.value;
+                                    const detectedProv = getProvinceByPostalCode(cp);
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        codigo_postal: cp,
+                                        provincia: detectedProv || prev.provincia,
+                                    }));
+                                }}
                                 placeholder="28001"
                             />
                         </div>
 
-                        <div>
-                            <Label htmlFor="gestor_municipio">Municipio</Label>
-                            <Input
-                                id="gestor_municipio"
-                                name="municipio"
-                                value={formData.municipio}
-                                onChange={handleChange}
-                                placeholder="Sevilla"
-                            />
-                        </div>
-
-                        <div>
-                            <Label htmlFor="gestor_provincia">Provincia</Label>
-                            <Input
-                                id="gestor_provincia"
-                                name="provincia"
-                                value={formData.provincia}
-                                onChange={handleChange}
-                                placeholder="Sevilla"
-                            />
-                        </div>
+                        <ProvinceMunicipalityFields
+                            unstyledWrapper
+                            provincia={formData.provincia || ''}
+                            municipio={formData.municipio || ''}
+                            provinciaId="gestor_provincia"
+                            municipioId="gestor_municipio"
+                            provinciaName="provincia"
+                            municipioName="municipio"
+                            onChange={({ provincia, municipio }) =>
+                                setFormData((prev) => ({
+                                    ...prev,
+                                    provincia,
+                                    municipio,
+                                }))
+                            }
+                        />
                     </div>
                 </div>
 

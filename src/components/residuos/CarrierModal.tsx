@@ -5,9 +5,11 @@ import { Modal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
 import Label from '@/components/form/Label';
+import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFields';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import carrierService from '@/services/carrierService';
+import { getProvinceByPostalCode } from '@/lib/validations/spainLocations';
 import {
     validateRequired,
     validateCIF,
@@ -278,30 +280,35 @@ export default function CarrierModal({
                             <Input
                                 name="codigo_postal"
                                 value={formData.codigo_postal}
-                                onChange={handleChange}
+                                onChange={(e) => {
+                                    const cp = e.target.value;
+                                    const detectedProv = getProvinceByPostalCode(cp);
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        codigo_postal: cp,
+                                        provincia: detectedProv || prev.provincia,
+                                    }));
+                                }}
                                 placeholder="28001"
                             />
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium mb-2">Municipio</label>
-                            <Input
-                                name="municipio"
-                                value={formData.municipio}
-                                onChange={handleChange}
-                                placeholder="Madrid"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium mb-2">Provincia</label>
-                            <Input
-                                name="provincia"
-                                value={formData.provincia}
-                                onChange={handleChange}
-                                placeholder="Madrid"
-                            />
-                        </div>
+                        <ProvinceMunicipalityFields
+                            unstyledWrapper
+                            provincia={formData.provincia || ''}
+                            municipio={formData.municipio || ''}
+                            provinciaId="carrier_provincia"
+                            municipioId="carrier_municipio"
+                            provinciaName="provincia"
+                            municipioName="municipio"
+                            onChange={({ provincia, municipio }) =>
+                                setFormData((prev) => ({
+                                    ...prev,
+                                    provincia,
+                                    municipio,
+                                }))
+                            }
+                        />
                     </div>
                 </div>
 
