@@ -41,10 +41,10 @@ function fitText(doc: jsPDF, text: string, maxWidth: number): string {
   if (!text) return '-';
   if (doc.getTextWidth(text) <= maxWidth) return text;
   let truncated = text;
-  while (truncated.length > 0 && doc.getTextWidth(`${truncated  }...`) > maxWidth) {
+  while (truncated.length > 0 && doc.getTextWidth(`${truncated}...`) > maxWidth) {
     truncated = truncated.slice(0, -1);
   }
-  return truncated.length > 0 ? `${truncated  }...` : text;
+  return truncated.length > 0 ? `${truncated}...` : text;
 }
 
 /**
@@ -52,6 +52,7 @@ function fitText(doc: jsPDF, text: string, maxWidth: number): string {
  */
 async function loadImageAsBase64(url: string): Promise<string | null> {
   if (!url) return null;
+  if (url.startsWith('data:image/')) return url;
   try {
     const response = await fetch(url);
     if (!response.ok) return null;
@@ -232,7 +233,7 @@ export async function generateContractPDF(contract: WasteContract) {
 
   // --- VIGENCIA ---
   if (contract.fecha_inicio || contract.fecha_fin) {
-    if (yPos > pageHeight - 50) {
+    if (yPos + 35 > pageHeight - 25) {
       doc.addPage();
       yPos = 30;
     }
@@ -253,7 +254,7 @@ export async function generateContractPDF(contract: WasteContract) {
   }
 
   // --- RESIDUOS OBJETO DEL CONTRATO (MATRIZ LER Y OPERACIONES) ---
-  if (yPos > pageHeight - 50) {
+  if (yPos + 35 > pageHeight - 25) {
     doc.addPage();
     yPos = 30;
   }
@@ -407,7 +408,9 @@ export async function generateContractPDF(contract: WasteContract) {
 
   // Especificaciones técnicas adicionales si existen
   if (wasteCodesList.length > 0 && contract.descripcion_residuos) {
-    if (yPos > pageHeight - 35) {
+    const descLines = doc.splitTextToSize(contract.descripcion_residuos, pageWidth - 50);
+    const espHeight = 5 + (descLines.length * 4) + 6;
+    if (yPos + espHeight > pageHeight - 25) {
       doc.addPage();
       yPos = 30;
     }
@@ -418,13 +421,17 @@ export async function generateContractPDF(contract: WasteContract) {
     yPos += 5;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    const descLines = doc.splitTextToSize(contract.descripcion_residuos, pageWidth - 50);
     doc.text(descLines, 25, yPos);
     yPos += (descLines.length * 4) + 6;
   }
 
   // --- CONDICIONES TÉCNICAS Y ECONÓMICAS ---
-  if (yPos > pageHeight - 50) {
+  const periodicidadText = doc.splitTextToSize(
+    contract.frecuencia_recogida || 'Según necesidades operativas de producción y límites legales de almacenamiento',
+    pageWidth - 110
+  );
+  const condTecnicasHeight = 15 + 6.5 + 6.5 + 6.5 + (periodicidadText.length * 4.5) + 12;
+  if (yPos + condTecnicasHeight > pageHeight - 25) {
     doc.addPage();
     yPos = 30;
   }
@@ -456,18 +463,60 @@ export async function generateContractPDF(contract: WasteContract) {
     ? `${contract.precio_unitario} ${contract.moneda || 'EUR'}`
     : 'Según matriz de residuos o tarifas vigentes en báscula';
   doc.text(precioText, 80, yPos);
-  yPos += 12;
+  yPos += 6.5;
+
+  // Periodicidad Estimada (Art. 5 RD 553/2020)
+  doc.setFont('helvetica', 'bold');
+  doc.text('Periodicidad Estimada de Traslados:', 25, yPos);
+  doc.setFont('helvetica', 'normal');
+  doc.text(periodicidadText, 85, yPos);
+  yPos += (periodicidadText.length * 4.5) + 8;
+
+  // --- CONDICIONES DE ACEPTACIÓN Y RECHAZO (ART. 5 RD 553/2020) ---
+  const aceptacionLines = doc.splitTextToSize(
+    'Conformidad estricta del residuo entregado con el código LER contratado, ausencia de impropios no autorizados, envasado y etiquetado reglamentario vigente y verificación de peso neto en báscula calibrada de destino.',
+    pageWidth - 50
+  );
+  const rechazoLines = doc.splitTextToSize(
+    'En caso de disconformidad en la recepción, el gestor comunicará motivadamente el rechazo al operador del traslado y al productor en un plazo máximo de 30 días naturales desde la recepción del residuo, acordando su devolución a la instalación de origen o el traslado a otra instalación de tratamiento autorizada a costa del operador del traslado.',
+    pageWidth - 50
+  );
+  const condAceptacionHeight = 15 + 5 + (aceptacionLines.length * 4) + 5 + 5 + (rechazoLines.length * 4) + 12;
+  if (yPos + condAceptacionHeight > pageHeight - 25) {
+    doc.addPage();
+    yPos = 30;
+  }
+  yPos = drawSectionHeader('CONDICIONES DE ACEPTACIÓN Y RECHAZO (ART. 5 RD 553/2020)', yPos);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.text('Condiciones de aceptación:', 25, yPos);
+  yPos += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(aceptacionLines, 25, yPos);
+  yPos += (aceptacionLines.length * 4) + 5;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.text('Obligaciones en caso de rechazo (Art. 5.d y Art. 6.4 RD 553/2020):', 25, yPos);
+  yPos += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(rechazoLines, 25, yPos);
+  yPos += (rechazoLines.length * 4) + 10;
 
   // --- NOTAS ADICIONALES ---
   if (contract.notas) {
-    if (yPos > pageHeight - 50) {
+    const noteLines = doc.splitTextToSize(contract.notas, pageWidth - 50);
+    const notasHeight = 15 + (noteLines.length * 5) + 12;
+    if (yPos + Math.min(notasHeight, 40) > pageHeight - 25) {
       doc.addPage();
       yPos = 30;
     }
     yPos = drawSectionHeader('CLÁUSULAS ADICIONALES / NOTAS', yPos);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
-    const noteLines = doc.splitTextToSize(contract.notas, pageWidth - 50);
     doc.text(noteLines, 25, yPos);
     yPos += (noteLines.length * 5) + 10;
   }
@@ -499,11 +548,17 @@ export async function generateContractPDF(contract: WasteContract) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.text('POR EL PRODUCTOR', 25, yPos + 5);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Firmado digitalmente', 25, yPos + 10);
-  if (contract.fecha_firma_productor) {
-    doc.setFontSize(7);
-    doc.text(`Fecha: ${formatSafeDateTime(contract.fecha_firma_productor)}`, 25, yPos + 15);
+  if ((contract.firmado_productor || Boolean(contract.firma_productor_url)) && (contract.firma_productor_url || contract.fecha_firma_productor)) {
+    doc.setFont('helvetica', 'normal');
+    doc.text('Firmado digitalmente', 25, yPos + 10);
+    if (contract.fecha_firma_productor) {
+      doc.setFontSize(7);
+      doc.text(`Fecha: ${formatSafeDateTime(contract.fecha_firma_productor)}`, 25, yPos + 15);
+    }
+  } else {
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+    doc.text('Pendiente de firma', 25, yPos + 10);
   }
 
   // Firma Gestor
@@ -520,12 +575,19 @@ export async function generateContractPDF(contract: WasteContract) {
   doc.line(pageWidth - 85, yPos, pageWidth - 25, yPos);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
+  doc.setTextColor(0, 0, 0);
   doc.text('POR EL GESTOR AUTORIZADO', pageWidth - 85, yPos + 5);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Firmado digitalmente', pageWidth - 85, yPos + 10);
-  if (contract.fecha_firma_gestor) {
-    doc.setFontSize(7);
-    doc.text(`Fecha: ${formatSafeDateTime(contract.fecha_firma_gestor)}`, pageWidth - 85, yPos + 15);
+  if ((contract.firmado_gestor || Boolean(contract.firma_gestor_url)) && (contract.firma_gestor_url || contract.fecha_firma_gestor)) {
+    doc.setFont('helvetica', 'normal');
+    doc.text('Firmado digitalmente', pageWidth - 85, yPos + 10);
+    if (contract.fecha_firma_gestor) {
+      doc.setFontSize(7);
+      doc.text(`Fecha: ${formatSafeDateTime(contract.fecha_firma_gestor)}`, pageWidth - 85, yPos + 15);
+    }
+  } else {
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+    doc.text('Pendiente de firma', pageWidth - 85, yPos + 10);
   }
 
   // --- PIE DE PÁGINA ---
@@ -1114,10 +1176,10 @@ export async function generateMemoriaAnualPDF(memoria: MemoriaAnual) {
       doc.text(item.codigo_ler, 18, yPos + 5.5);
       doc.setFont('helvetica', 'normal');
 
-      const desc = item.descripcion.length > 50 ? `${item.descripcion.substring(0, 48)  }...` : item.descripcion;
+      const desc = item.descripcion.length > 50 ? `${item.descripcion.substring(0, 48)}...` : item.descripcion;
       doc.text(desc, 48, yPos + 5.5);
       doc.text(String(item.numero_movimientos), 145, yPos + 5.5);
-      doc.text(`${(item.cantidad_total || 0).toFixed(3)  } t`, 170, yPos + 5.5);
+      doc.text(`${(item.cantidad_total || 0).toFixed(3)} t`, 170, yPos + 5.5);
 
       yPos += 8;
     });
@@ -1384,7 +1446,7 @@ export async function generateDecaPDF(deca: DecaDocument, inspectionUrl: string)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.text('DOCUMENTO ELECTRÓNICO DE CONTROL ADMINISTRATIVO (DeCA)', 14, yPos);
-  
+
   yPos += 5;
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
