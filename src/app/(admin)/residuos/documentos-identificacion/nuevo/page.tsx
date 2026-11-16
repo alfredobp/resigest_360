@@ -777,6 +777,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                     id="productor_razon_social"
                     value={formData.productor_razon_social || ''}
                     onChange={(e) => setFormData({ ...formData, productor_razon_social: e.target.value })}
+                    disabled={expeditionRole === 'productor'}
                     error={!!validationErrors.productor_razon_social}
                     hint={validationErrors.productor_razon_social}
                     required
@@ -788,6 +789,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                     id="productor_cif"
                     value={formData.productor_cif || ''}
                     onChange={(e) => setFormData({ ...formData, productor_cif: e.target.value })}
+                    disabled={expeditionRole === 'productor'}
                     error={!!validationErrors.productor_cif}
                     hint={validationErrors.productor_cif}
                     required
@@ -800,6 +802,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                     id="productor_nima"
                     value={formData.productor_nima || ''}
                     onChange={(e) => setFormData({ ...formData, productor_nima: e.target.value })}
+                    disabled={expeditionRole === 'productor'}
                     error={!!validationErrors.productor_nima}
                     hint={validationErrors.productor_nima}
                   />
@@ -811,6 +814,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                     id="productor_direccion"
                     value={formData.productor_direccion || ''}
                     onChange={(e) => setFormData({ ...formData, productor_direccion: e.target.value })}
+                    disabled={expeditionRole === 'productor'}
                     placeholder="Calle, número..."
                     error={!!validationErrors.productor_direccion}
                     hint={validationErrors.productor_direccion}
@@ -920,6 +924,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                     type="text"
                     value={formData.gestor_razon_social || ''}
                     onChange={(e) => setFormData({ ...formData, gestor_razon_social: e.target.value })}
+                    disabled={expeditionRole === 'gestor'}
                     required
                   />
                 </div>
@@ -931,6 +936,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                     type="text"
                     value={formData.gestor_cif || ''}
                     onChange={(e) => setFormData({ ...formData, gestor_cif: e.target.value })}
+                    disabled={expeditionRole === 'gestor'}
                     required
                     error={!!validationErrors.gestor_cif}
                     hint={validationErrors.gestor_cif}
@@ -944,6 +950,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                     type="text"
                     value={formData.gestor_nima || ''}
                     onChange={(e) => setFormData({ ...formData, gestor_nima: e.target.value })}
+                    disabled={expeditionRole === 'gestor'}
                   />
                 </div>
 
@@ -954,6 +961,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                     type="text"
                     value={formData.gestor_numero_autorizacion || ''}
                     onChange={(e) => setFormData({ ...formData, gestor_numero_autorizacion: e.target.value })}
+                    disabled={expeditionRole === 'gestor'}
                   />
                 </div>
 
@@ -964,6 +972,7 @@ export default function NuevoDocumentoIdentificacionPage() {
                     id="gestor_direccion"
                     value={formData.gestor_direccion || ''}
                     onChange={(e) => setFormData({ ...formData, gestor_direccion: e.target.value })}
+                    disabled={expeditionRole === 'gestor'}
                     error={!!validationErrors.gestor_direccion}
                     hint={validationErrors.gestor_direccion}
                   />
