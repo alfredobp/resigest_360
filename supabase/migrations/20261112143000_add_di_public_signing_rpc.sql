@@ -150,5 +150,58 @@ $$;
 
 REVOKE ALL ON FUNCTION public.get_di_by_signing_token(UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.sign_di_by_signing_token(UUID, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.get_di_by_signing_token(UUID) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.sign_di_by_signing_token(UUID, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_di_by_signing_token(UUID) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.sign_di_by_signing_token(UUID, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated, service_role;
+
+-- Sobrecargas seguras para TEXT (evita fallos de conversión 22P02 cuando se pasa string desde clientes REST/JS)
+CREATE OR REPLACE FUNCTION public.get_di_by_signing_token(p_token TEXT)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_token_uuid UUID;
+BEGIN
+    IF p_token IS NULL OR length(btrim(p_token)) = 0 THEN
+        RETURN NULL;
+    END IF;
+    BEGIN
+        v_token_uuid := btrim(p_token)::UUID;
+    EXCEPTION WHEN OTHERS THEN
+        RETURN NULL;
+    END;
+    RETURN public.get_di_by_signing_token(v_token_uuid);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.sign_di_by_signing_token(
+    p_token TEXT,
+    p_role TEXT,
+    p_signature_url TEXT,
+    p_signer_name TEXT DEFAULT NULL,
+    p_signer_dni TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_token_uuid UUID;
+BEGIN
+    IF p_token IS NULL OR length(btrim(p_token)) = 0 THEN
+        RAISE EXCEPTION 'Token de firma no proporcionado';
+    END IF;
+    BEGIN
+        v_token_uuid := btrim(p_token)::UUID;
+    EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION 'Token de firma inválido';
+    END;
+    RETURN public.sign_di_by_signing_token(v_token_uuid, p_role, p_signature_url, p_signer_name, p_signer_dni);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_di_by_signing_token(TEXT) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.sign_di_by_signing_token(TEXT, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated, service_role;
+

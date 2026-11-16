@@ -488,6 +488,19 @@ export const identificationDocumentService = {
     const { data, error } = await supabase.rpc('get_di_by_signing_token', { p_token: token });
 
     if (error) {
+      // Fallback a consulta directa si la función RPC aún no está desplegada en base de datos
+      if (error.code === '42883' || error.message?.includes('function')) {
+        const { data: directData, error: directErr } = await supabase
+          .from('identification_documents')
+          .select('*')
+          .eq('signing_token', token)
+          .maybeSingle();
+
+        if (directErr) {
+          throw new Error(`Error al obtener DI por token: ${directErr.message}`);
+        }
+        return (directData as IdentificationDocument | null) ?? null;
+      }
       throw new Error(`Error al obtener DI por token: ${error.message}`);
     }
 
@@ -649,6 +662,13 @@ export const identificationDocumentService = {
         !contract.codigos_ler.some((ler) => ler.trim() === doc.codigo_ler.trim())
       ) {
         throw new Error(`No se puede iniciar el traslado: el LER ${doc.codigo_ler} no está incluido en el contrato ${contract.numero_contrato || contract.id}.`);
+      }
+      // N10: Un contrato sin cantidad anual definida y sin anexo/documento contractual adjunto está incompleto para autorizar salidas
+      const hasContractQty = typeof contract.cantidad_maxima_anual === 'number' && contract.cantidad_maxima_anual > 0;
+      if (!hasContractQty && !hasContractDoc && !extRef && !extEvidence) {
+        throw new Error(
+          `No se puede iniciar el traslado: el contrato ${contract.numero_contrato || contract.id} tiene cantidad contractual no definida y requiere completar la cantidad estimada/máxima o incorporar anexo contractual suficiente para autorizar la salida (art. 5 RD 553/2020).`
+        );
       }
     } else if (!extRef || (!extEvidence && !exceptionReason)) {
       throw new Error(

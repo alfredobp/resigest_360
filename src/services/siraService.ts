@@ -105,12 +105,23 @@ export const formatNima = (rawNima: string | undefined | null, provCode?: string
     return digits;
   }
 
+  // N04 / N07: Si el usuario introdujo más de 10 dígitos (ej: 783989383983), nunca truncar
+  // silenciosamente ni sustituir por provincia inventada durante la exportación.
+  if (digits.length > 10) {
+    return digits;
+  }
+
   // Si tiene 10 dígitos pero el prefijo provincial no es válido (ej: '0000000014')
-  if (digits.length === 10) {
+  if (digits.length === 10 && digits.startsWith('00')) {
     return `${prov}${digits.slice(2)}`;
   }
 
-  // Si tiene otra longitud o viene vacío, asegurar 8 dígitos de correlativo y prefijo provincial
+  // Si tiene 10 dígitos, preservar tal cual
+  if (digits.length === 10) {
+    return digits;
+  }
+
+  // Si tiene hasta 8 dígitos o viene vacío, asegurar 8 dígitos de correlativo y prefijo provincial
   const seq = (digits || '1').padStart(8, '0').slice(-8);
   return `${prov}${seq}`;
 };
@@ -215,15 +226,15 @@ const generateEntityBlock = (
         </centerAddress>`;
 
   const safeCnae = cnae || 'S/D';
-  const safePhone = clean(data.phone).replace(/\D/g, '') || '900000000';
+  const safePhone = clean(data.phone).replace(/\D/g, '');
   const rawEmail = clean(data.email);
-  const safeEmail = rawEmail.includes('@') ? rawEmail : 'contacto@resigest.com';
+  const safeEmail = rawEmail.includes('@') ? rawEmail : '';
 
-  const contactBlock = `
-        <centerContact>
-            <phone>${safePhone}</phone>
-            <mail>${safeEmail}</mail>
-        </centerContact>`;
+  const contactBlock = (safePhone || safeEmail)
+    ? `
+        <centerContact>${safePhone ? `\n            <phone>${safePhone}</phone>` : ''}${safeEmail ? `\n            <mail>${safeEmail}</mail>` : ''}
+        </centerContact>`
+    : '';
 
   const authBlock = `
         <wasteCenterAuthorization>
@@ -347,29 +358,31 @@ const generateTransporterContent = (doc: any): string => {
   const safeNima = formatNima(clean(doc.transportista_nima), provCode);
   const muniName = clean(doc.transportista_municipio) || (provCode === '11' ? 'Puerto Real' : 'Municipio');
   const muniCode = getMunicipalityCodeByProvince(provCode, muniName);
-  const addressText = clean(doc.transportista_direccion) || 'Calle Principal';
-  const cp = clean(doc.transportista_codigo_postal) || `${provCode}001`;
-  const safePhone = clean(doc.transportista_telefono).replace(/\D/g, '') || '900000000';
+  const addressText = clean(doc.transportista_direccion);
+  const cp = clean(doc.transportista_codigo_postal);
+  const safePhone = clean(doc.transportista_telefono).replace(/\D/g, '');
   const rawEmail = clean(doc.transportista_email);
-  const safeEmail = rawEmail.includes('@') ? rawEmail : 'contacto@resigest.com';
+  const safeEmail = rawEmail.includes('@') ? rawEmail : '';
   const safeCnae = 'S/D';
 
-  const addressBlock = `
+  const addressBlock = addressText
+    ? `
                 <centerAddress>
                     <spanishAddress>
                         <vial vialCode="009" vialDescription="Calle"/>
                         <address>${addressText}</address>
-                        <CP>${cp}</CP>
+                        <CP>${cp || `${provCode}001`}</CP>
                         <municipality municipalityCode="${muniCode}" municipalityName="${muniName}"/>
                         <province provinceCode="${provCode}" provinceName="${provName || 'Cádiz'}"/>
                     </spanishAddress>
-                </centerAddress>`;
+                </centerAddress>`
+    : '';
 
-  const contactBlock = `
-                <centerContact>
-                    <phone>${safePhone}</phone>
-                    <mail>${safeEmail}</mail>
-                </centerContact>`;
+  const contactBlock = (safePhone || safeEmail)
+    ? `
+                <centerContact>${safePhone ? `\n                    <phone>${safePhone}</phone>` : ''}${safeEmail ? `\n                    <mail>${safeEmail}</mail>` : ''}
+                </centerContact>`
+    : '';
 
   const transporterAuth = clean(
     doc.transportista_numero_autorizacion ||
@@ -487,10 +500,10 @@ const generateResidueBlock = (doc: any): string => {
     ? 'xsi:type="wassup:dangerousResidueType"'
     : 'xsi:type="wassup:noDangerousResidueType"';
 
-  // En E3L 3.3 (e3l-waste.xsd), DCSNT es un elemento obligatorio dentro de DCSOtherResidueData
-  // El estándar E3L 3.3 establece como valor por defecto las siglas NT seguidas de 23 nueves
+  // N04: DCSNT solo debe incluirse cuando existe notificación previa real (no aplicable en traslados sin notificación)
   const rawNt = clean(doc.numero_notificacion || doc.nt_codigo || doc.notificacion_previa_codigo || '');
-  const dcsNt = /^NT[0-9]{23,24}$/.test(rawNt) ? rawNt : 'NT' + '9'.repeat(23);
+  const hasNt = doc.tipo_notificacion !== 'sin-notificacion' && Boolean(rawNt);
+  const ntBlock = hasNt ? `\n            <DCSNT>${rawNt}</DCSNT>` : '';
 
   const fallbackQty = Number(doc.cantidad || 0);
   const fallbackKg = (doc.unidad === 'toneladas' || doc.unidad === 'm3') ? fallbackQty * 1000 : fallbackQty;
@@ -498,8 +511,7 @@ const generateResidueBlock = (doc: any): string => {
   const formattedWeight = !isNaN(rawWeight) && rawWeight > 0 ? rawWeight.toFixed(3) : '0.001';
 
   const otherData = `
-        <DCSOtherResidueData>
-            <DCSNT>${dcsNt}</DCSNT>
+        <DCSOtherResidueData>${ntBlock}
             <DCSClearWeight>${formattedWeight}</DCSClearWeight>
             <DCSTransportCharacteristics>Sin características especiales</DCSTransportCharacteristics>
         </DCSOtherResidueData>`;

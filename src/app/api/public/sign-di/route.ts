@@ -2,6 +2,55 @@ import { NextResponse } from 'next/server';
 import { rateLimit, clientIp } from '@/lib/rateLimit';
 import identificationDocumentService from '@/services/identificationDocumentService';
 
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const token = searchParams.get('token');
+
+    if (!token || typeof token !== 'string') {
+      return NextResponse.json(
+        { error: 'Token de firma no proporcionado o inválido.' },
+        { status: 400 }
+      );
+    }
+
+    const ip = clientIp(request.headers);
+    if (!rateLimit(`get-sign-di:${ip}`, 30, 60_000)) {
+      return NextResponse.json(
+        { error: 'Demasiadas solicitudes. Por favor, espere un minuto antes de reintentar.' },
+        { status: 429 }
+      );
+    }
+
+    const doc = await identificationDocumentService.getBySigningToken(token.trim());
+    if (!doc) {
+      return NextResponse.json(
+        { error: 'El enlace de firma es inválido, ha expirado o el Documento de Identificación ya no está disponible.' },
+        { status: 404 }
+      );
+    }
+
+    // Verificar si el enlace ha caducado
+    if (doc.signing_token_expires_at && new Date(doc.signing_token_expires_at) < new Date()) {
+      return NextResponse.json(
+        { error: 'El enlace de firma ha caducado. Solicite un nuevo enlace al emisor del traslado.' },
+        { status: 410 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      document: doc,
+    });
+  } catch (error: any) {
+    console.error('[API Public Sign DI] Error al consultar DI por token:', error);
+    return NextResponse.json(
+      { error: error.message || 'Error al obtener el Documento de Identificación.' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const ip = clientIp(request.headers);
@@ -64,4 +113,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

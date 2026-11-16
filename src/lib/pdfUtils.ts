@@ -1470,10 +1470,15 @@ export async function generateDecaPDF(deca: DecaDocument, inspectionUrl: string)
   doc.text(deca.numero_deca || 'DECA-BORRADOR', 56, yPos + 7);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('VERSIÓN VIGENTE:', 18, yPos + 14);
+  doc.text(deca.is_vigente ? 'VERSIÓN VIGENTE:' : 'VERSIÓN HISTÓRICA:', 18, yPos + 14);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(blueAccent[0], blueAccent[1], blueAccent[2]);
-  doc.text(`Versión ${deca.version} ${deca.is_vigente ? '(Vigente)' : '(Histórica)'}`, 56, yPos + 14);
+  if (deca.is_vigente) {
+    doc.setTextColor(blueAccent[0], blueAccent[1], blueAccent[2]);
+    doc.text(`Versión ${deca.version} (Vigente)`, 56, yPos + 14);
+  } else {
+    doc.setTextColor(217, 119, 6);
+    doc.text(`Versión ${deca.version} (Histórica / Sustituida)`, 56, yPos + 14);
+  }
 
   doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   doc.setFont('helvetica', 'bold');

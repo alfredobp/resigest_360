@@ -63,6 +63,8 @@ export interface ExecutiveDashboardData {
     toneladasNoPeligrosas: number;
     totalDIs: number;
     disCompletados: number;
+    totalAsientosArchivo?: number;
+    toneladasArchivoCronologico?: number;
     topLER: Array<{
       codigo_ler: string;
       descripcion: string;
@@ -463,6 +465,10 @@ export const dashboardService = {
         toneladasNoPeligrosas: Number(toneladasNoPeligrosas.toFixed(3)),
         totalDIs: dis.length,
         disCompletados: dis.filter(d => d.estado === 'completado').length,
+        totalAsientosArchivo: chronoEntries.length,
+        toneladasArchivoCronologico: Number(
+          (chronoEntries.reduce((sum: number, e: any) => sum + Number(e.cantidad_kg || 0), 0) / 1000).toFixed(3)
+        ),
         topLER
       },
       comercial: {

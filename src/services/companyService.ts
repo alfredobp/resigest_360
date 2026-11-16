@@ -490,12 +490,12 @@ export const companyService = {
   },
 
   /**
-   * Validar NIMA (10 dígitos o 10-12 caracteres alfanuméricos)
+   * Validar NIMA oficial (10 dígitos numéricos: código provincial 01-52 + 8 dígitos)
    */
   validateNIMA(nima: string): boolean {
     if (!nima) return false;
-    const clean = nima.trim().toUpperCase();
-    const nimaRegex = /^[A-Z0-9]{10,12}$/;
+    const clean = nima.trim();
+    const nimaRegex = /^(0[1-9]|[1-4][0-9]|5[0-2])\d{8}$/;
     return nimaRegex.test(clean);
   },
 };

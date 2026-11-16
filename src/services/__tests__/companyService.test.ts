@@ -478,14 +478,14 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
       }
     );
 
-    it.each(['2800000001', 'A123456789B'])(
+    it.each(['2800000001', '1100000018', '0123456789'])(
       'debe validar formatos válidos de NIMA: %s',
       (nima) => {
         expect(companyService.validateNIMA(nima)).toBe(true);
       }
     );
 
-    it.each(['', '123', 'ESTO_TIENE_DEMASIADOS_CARACTERES_123456'])(
+    it.each(['', '123', 'ABCDEFGHIJ', 'A123456789B', '9900000001', 'ESTO_TIENE_DEMASIADOS_CARACTERES_123456'])(
       'debe rechazar formatos inválidos de NIMA: %s',
       (nima) => {
         expect(companyService.validateNIMA(nima)).toBe(false);

@@ -145,7 +145,7 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       expect(xml).toContain('<nationalId>B99887766</nationalId>');
       expect(xml).toContain('LERCode="150110"');
       expect(xml).toContain('<table5>HP4</table5>');
-      expect(xml).toContain('<DCSNT>NT99999999999999999999999</DCSNT>');
+      expect(xml).not.toContain('<DCSNT>');
       expect(xml).toContain('<DCSClearWeight>1.500</DCSClearWeight>');
     });
 

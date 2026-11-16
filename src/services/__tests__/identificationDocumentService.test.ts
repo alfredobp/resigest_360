@@ -400,6 +400,7 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
         contract: {
           id: 10,
           estado: 'vigente',
+          cantidad_maxima_anual: 1000,
           contract_waste_codes: [{ codigo_ler: '15 01 01', operacion_tratamiento: 'R13' }],
         },
       } as any);
@@ -427,6 +428,7 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
         contract: {
           id: 10,
           estado: 'vigente',
+          cantidad_maxima_anual: 1000,
           contract_waste_codes: [{ codigo_ler: '15 01 01', operacion_tratamiento: 'R13' }],
         },
       } as any);
@@ -681,6 +683,18 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
       await expect(
         identificationDocumentService.recordDeparture(54, { fecha_salida: '2026-11-10T12:40' })
       ).rejects.toThrow('no está incluido en el contrato');
+
+      // N10: Contrato sin cantidad definida rechaza la salida
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 541,
+        codigo_ler: '17 04 05',
+        operacion_tratamiento: 'R13',
+        contract_id: 10,
+        contract: { id: 10, numero_contrato: 'CT-52-SIN-CANTIDAD', estado: 'vigente', codigos_ler: ['17 04 05'], contract_waste_codes: [{ codigo_ler: '17 04 05' }] },
+      } as any);
+      await expect(
+        identificationDocumentService.recordDeparture(541, { fecha_salida: '2026-11-10T12:40' })
+      ).rejects.toThrow('cantidad contractual no definida');
 
       // 4. Con contrato externo acreditado debe permitir salida y preservar fecha_salida ISO
       jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({

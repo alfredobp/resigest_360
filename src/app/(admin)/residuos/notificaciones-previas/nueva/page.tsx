@@ -44,7 +44,7 @@ export default function NuevaNotificacionPreviaPage() {
     fecha_inicio: minStartStr,
     fecha_fin: nextYearStr,
     peligrosidad: 'no-peligroso',
-    caracteristica_peligrosidad: 'HP4',
+    caracteristica_peligrosidad: undefined,
     operacion_tratamiento: 'R13',
     cantidad_estimada_kg: 1000,
     numero_traslados_previstos: 1,
@@ -195,8 +195,11 @@ export default function NuevaNotificacionPreviaPage() {
     if (e) e.preventDefault();
     setError(null);
 
+    const isDangerous = (formData.codigo_ler || '').includes('*') || formData.peligrosidad === 'peligroso';
     const payloadToSave: Partial<PriorNotification> = {
       ...formData,
+      peligrosidad: isDangerous ? 'peligroso' : 'no-peligroso',
+      caracteristica_peligrosidad: isDangerous ? (formData.caracteristica_peligrosidad || 'HP4') : undefined,
       numero_notificacion: priorNotificationService.formatNTCode(
         formData.numero_notificacion || '',
         formData.productor_nima || formData.operador_nima || '1100000001'
@@ -644,7 +647,14 @@ export default function NuevaNotificacionPreviaPage() {
                 <select
                   className="w-full h-11 px-3 py-2 border rounded-lg bg-background text-foreground border-border"
                   value={formData.peligrosidad}
-                  onChange={(e) => setFormData({ ...formData, peligrosidad: e.target.value as any })}
+                  onChange={(e) => {
+                    const newPeligrosidad = e.target.value as any;
+                    setFormData({
+                      ...formData,
+                      peligrosidad: newPeligrosidad,
+                      caracteristica_peligrosidad: newPeligrosidad === 'peligroso' ? (formData.caracteristica_peligrosidad || 'HP4') : undefined,
+                    });
+                  }}
                   required
                 >
                   <option value="no-peligroso">No Peligroso</option>
