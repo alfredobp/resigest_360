@@ -17,6 +17,16 @@ import {
   validateEmail,
   scrollToFirstError,
 } from '@/lib/validations/formValidation';
+import {
+  Recycle,
+  Truck,
+  Factory,
+  Briefcase,
+  Handshake,
+  User,
+  Package,
+  type LucideIcon,
+} from 'lucide-react';
 import type { Company, CompanyFormData, CompanyRole } from '@/types/wasteManagement';
 
 interface EmpresaModalProps {
@@ -27,14 +37,14 @@ interface EmpresaModalProps {
   defaultRole?: CompanyRole;
 }
 
-const AVAILABLE_ROLES: Array<{ id: CompanyRole; label: string; icon: string; description: string }> = [
-  { id: 'gestor', label: 'Gestor Autorizado', icon: '♻️', description: 'Instalación o entidad que recibe y valoriza/elimina residuos' },
-  { id: 'transportista', label: 'Transportista', icon: '🚚', description: 'Empresa o transportista autorizado con vehículos de recogida' },
-  { id: 'productor', label: 'Productor', icon: '🏭', description: 'Centro o entidad que genera residuos en su actividad' },
-  { id: 'negociante', label: 'Negociante', icon: '💼', description: 'Compra y venta de residuos por cuenta propia' },
-  { id: 'agente', label: 'Agente', icon: '🤝', description: 'Organiza traslados o valorización por cuenta de terceros' },
-  { id: 'cliente', label: 'Cliente', icon: '👤', description: 'Cliente comercial para facturación o venta' },
-  { id: 'proveedor', label: 'Proveedor', icon: '📦', description: 'Proveedor comercial de compras o servicios' },
+const AVAILABLE_ROLES: Array<{ id: CompanyRole; label: string; icon: LucideIcon; description: string }> = [
+  { id: 'gestor', label: 'Gestor Autorizado', icon: Recycle, description: 'Instalación o entidad que recibe y valoriza/elimina residuos' },
+  { id: 'transportista', label: 'Transportista', icon: Truck, description: 'Empresa o transportista autorizado con vehículos de recogida' },
+  { id: 'productor', label: 'Productor', icon: Factory, description: 'Centro o entidad que genera residuos en su actividad' },
+  { id: 'negociante', label: 'Negociante', icon: Briefcase, description: 'Compra y venta de residuos por cuenta propia' },
+  { id: 'agente', label: 'Agente', icon: Handshake, description: 'Organiza traslados o valorización por cuenta de terceros' },
+  { id: 'cliente', label: 'Cliente', icon: User, description: 'Cliente comercial para facturación o venta' },
+  { id: 'proveedor', label: 'Proveedor', icon: Package, description: 'Proveedor comercial de compras o servicios' },
 ];
 
 export default function EmpresaModal({
@@ -252,18 +262,25 @@ export default function EmpresaModal({
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {AVAILABLE_ROLES.map((r) => {
                 const active = isRoleActive(r.id);
+                const Icon = r.icon;
                 return (
                   <button
                     key={r.id}
                     type="button"
                     onClick={() => toggleRole(r.id)}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-left transition-all ${
+                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-all ${
                       active
                         ? 'border-brand-500 bg-brand-50/70 text-brand-900 font-medium dark:bg-brand-900/30 dark:border-brand-400 dark:text-brand-200 ring-2 ring-brand-500/20'
                         : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700 dark:bg-gray-900 dark:border-gray-800 dark:text-gray-300'
                     }`}
                   >
-                    <span className="text-base">{r.icon}</span>
+                    <Icon
+                      className={`w-4 h-4 shrink-0 transition-colors ${
+                        active
+                          ? 'text-brand-600 dark:text-brand-400'
+                          : 'text-gray-500 dark:text-gray-400'
+                      }`}
+                    />
                     <span className="text-xs sm:text-sm">{r.label}</span>
                   </button>
                 );

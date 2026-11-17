@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
@@ -19,7 +19,8 @@ import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import { decaService } from '@/services/decaService';
 import { validateRequired, validateCIF, scrollToFirstError } from '@/lib/validations/formValidation';
-import { Truck, X, AlertTriangle } from 'lucide-react';
+import { Truck, X, AlertTriangle, FilePlus, Table as TableIcon, LayoutGrid } from 'lucide-react';
+import { DataTable, type ColumnDef } from '@/components/ui/table';
 import type { IdentificationDocument, Company, ProductionCenter } from '@/types/wasteManagement';
 import type { DecaDocument } from '@/types/deca';
 
@@ -35,6 +36,7 @@ export default function DocumentosIdentificacionPage() {
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterCenter, setFilterCenter] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
   // Modal DeCA rápido
   const [decaModalDoc, setDecaModalDoc] = useState<IdentificationDocument | null>(null);
@@ -229,6 +231,198 @@ export default function DocumentosIdentificacionPage() {
     });
   };
 
+  const diColumns: ColumnDef<IdentificationDocument>[] = useMemo(() => [
+    {
+      id: 'numero_documento',
+      header: 'Nº DI / Estado',
+      sortable: true,
+      accessorFn: (doc) => `${doc.numero_documento || ''} ${doc.estado_traslado || ''}`,
+      className: 'whitespace-nowrap',
+      cell: ({ row }) => {
+        const tracking = getTrackingStatusMeta(row);
+        const hasNoContract = row.estado_traslado && row.estado_traslado !== 'borrador' && !row.contract_id && !row.contrato_externo_referencia;
+
+        return (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-foreground font-mono">
+                DI {row.numero_documento}
+              </span>
+              <Badge color={tracking.badgeColor}>
+                {tracking.label}
+              </Badge>
+            </div>
+            {tracking.hasDiscrepancy && (
+              <div className="text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                ⚠️ Discrepancia: {(row.diferencia_peso_kg || 0) > 0 ? '+' : ''}{row.diferencia_peso_kg} kg
+              </div>
+            )}
+            {hasNoContract && (
+              <div className="text-[10px] font-bold text-red-600 dark:text-red-400">
+                ⚠️ Sin contrato acreditado
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'fecha',
+      header: 'Fecha',
+      sortable: true,
+      accessorKey: 'fecha_documento',
+      className: 'whitespace-nowrap',
+      cell: ({ row }) => (
+        <span className="text-muted text-xs">
+          {formatDate(row.fecha_documento)}
+        </span>
+      ),
+    },
+    {
+      id: 'residuo',
+      header: 'Residuo (LER)',
+      sortable: true,
+      accessorFn: (doc) => `${doc.codigo_ler || ''} ${doc.descripcion_residuo || ''}`,
+      className: 'max-w-[220px]',
+      cell: ({ row }) => {
+        const isPeligroso = row.peligrosidad === 'peligroso';
+        return (
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className={`font-mono font-bold ${isPeligroso ? 'text-amber-700 dark:text-amber-400' : 'text-gray-800 dark:text-gray-200'}`}>
+                {row.codigo_ler}
+              </span>
+              <span className={`text-[10px] px-1 rounded font-semibold ${isPeligroso ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}>
+                {isPeligroso ? 'Peligroso' : 'No Peligroso'}
+              </span>
+            </div>
+            {row.descripcion_residuo && (
+              <div className="text-muted text-[11px] truncate mt-0.5" title={row.descripcion_residuo}>
+                {row.descripcion_residuo}
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'centro',
+      header: 'Centro Origen',
+      sortable: true,
+      accessorFn: (doc) => doc.production_center?.nombre || '',
+      className: 'max-w-[160px]',
+      cell: ({ row }) => (
+        <span className="text-xs text-foreground truncate block" title={row.production_center?.nombre || '-'}>
+          {row.production_center?.nombre || '-'}
+        </span>
+      ),
+    },
+    {
+      id: 'gestor',
+      header: 'Gestor Destino',
+      sortable: true,
+      accessorKey: 'gestor_razon_social',
+      className: 'max-w-[180px]',
+      cell: ({ row }) => (
+        <div className="truncate" title={row.gestor_razon_social}>
+          <span className="text-xs font-medium text-foreground block truncate">
+            {row.gestor_razon_social}
+          </span>
+          {row.gestor_cif && (
+            <span className="text-[10.5px] text-muted font-mono">
+              NIF: {row.gestor_cif}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: 'pesada',
+      header: 'Pesada (Origen / Destino)',
+      sortable: true,
+      accessorFn: (doc) => doc.peso_origen_kg || doc.cantidad || 0,
+      className: 'whitespace-nowrap',
+      cell: ({ row }) => {
+        const pesoOrigen = row.peso_origen_kg || (row.unidad === 'toneladas' ? row.cantidad * 1000 : row.cantidad) || 0;
+        return (
+          <div className="text-xs">
+            <div>
+              <span className="text-muted">Origen: </span>
+              <strong className="font-mono text-foreground">{pesoOrigen.toLocaleString('es-ES')} kg</strong>
+            </div>
+            <div className="text-[11px] mt-0.5">
+              <span className="text-muted">Báscula: </span>
+              {row.peso_destino_kg ? (
+                <strong className="font-mono text-foreground">{row.peso_destino_kg.toLocaleString('es-ES')} kg</strong>
+              ) : (
+                <span className="italic text-muted">Pendiente</span>
+              )}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'acciones',
+      header: 'Acciones',
+      headerClassName: 'text-right',
+      className: 'text-right whitespace-nowrap',
+      cell: ({ row }) => (
+        <div className="inline-flex items-center gap-1.5 justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/residuos/documentos-identificacion/${row.id}`)}
+            className="text-[11px] py-1 px-2.5 h-auto"
+          >
+            Ver
+          </Button>
+
+          {canWrite && (
+            <span title="Generar DeCA">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleOpenDecaModal(row)}
+                className="text-[11px] py-1 px-2.5 h-auto bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-100"
+              >
+                <FilePlus className="w-3 h-3 mr-1" />
+                DeCA
+              </Button>
+            </span>
+          )}
+
+          {canCreateOrDeleteDi && (!row.estado_traslado || row.estado_traslado === 'borrador') && (
+            <span title="Enviar a SIRA">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleSendToSira(row.id)}
+                disabled={!myCompany?.sira_usuario || !myCompany?.sira_password}
+                className={`text-[11px] py-1 px-2 h-auto ${!myCompany?.sira_usuario || !myCompany?.sira_password ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                SIRA
+              </Button>
+            </span>
+          )}
+
+          {canCreateOrDeleteDi && (!row.estado_traslado || row.estado_traslado === 'borrador') && (
+            <span title="Eliminar borrador">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDelete(row.id)}
+                className="text-[11px] py-1 px-2 h-auto text-red-600 hover:text-red-700 border-red-200 dark:border-red-800"
+              >
+                Eliminar
+              </Button>
+            </span>
+          )}
+        </div>
+      ),
+    },
+  ], [canWrite, canCreateOrDeleteDi, myCompany, router]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -362,8 +556,73 @@ export default function DocumentosIdentificacionPage() {
           </div>
         </ComponentCard>
 
-        {/* Lista de Documentos */}
-        {filteredDocuments.length === 0 ? (
+        {/* Cabecera de Lista y Selector de Vista */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
+          <div className="text-sm font-semibold text-foreground">
+            {filteredDocuments.length} documento{filteredDocuments.length === 1 ? '' : 's'} {filterStatus !== 'all' || filterCenter !== 'all' ? 'filtrado' : 'en total'}{filteredDocuments.length === 1 ? '' : 's'}
+          </div>
+
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl border border-gray-200 dark:border-gray-700">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === 'table'
+                  ? 'bg-white dark:bg-gray-700 text-primary shadow-xs'
+                  : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <TableIcon className="w-3.5 h-3.5" />
+              Vista Tabla
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === 'cards'
+                  ? 'bg-white dark:bg-gray-700 text-primary shadow-xs'
+                  : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              Vista Tarjetas
+            </button>
+          </div>
+        </div>
+
+        {/* Visualización según vista seleccionada */}
+        {viewMode === 'table' ? (
+          <DataTable
+            data={filteredDocuments}
+            columns={diColumns}
+            searchPlaceholder="Buscar por DI, LER, centro, gestor..."
+            defaultPageSize={25}
+            pageSizeOptions={[10, 25, 50, 100]}
+            initialSortBy="fecha"
+            initialSortOrder="desc"
+            emptyState={
+              <div className="text-center py-12">
+                <svg
+                  className="mx-auto h-12 w-12 text-muted"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+                <h3 className="mt-4 text-lg font-medium text-foreground">No hay documentos con este filtro</h3>
+                <p className="mt-2 text-sm text-muted">
+                  Cambia el filtro de estado o crea un nuevo traslado
+                </p>
+              </div>
+            }
+          />
+        ) : filteredDocuments.length === 0 ? (
           <ComponentCard title="Documentos de Identificación">
             <div className="text-center py-12">
               <svg
@@ -489,8 +748,8 @@ export default function DocumentosIdentificacionPage() {
                           onClick={() => handleOpenDecaModal(doc)}
                           className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 flex items-center justify-center gap-1.5"
                         >
-                          <Truck className="w-3.5 h-3.5" />
-                          ⚡ Generar DeCA
+                          <FilePlus className="w-3.5 h-3.5" />
+                          Generar DeCA
                         </Button>
                       )}
 

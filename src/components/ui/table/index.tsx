@@ -62,3 +62,5 @@ const TableCell: React.FC<TableCellProps> = ({
 };
 
 export { Table, TableHeader, TableBody, TableRow, TableCell };
+export { DataTable, type ColumnDef, type DataTableProps } from "./DataTable";
+export { Pagination, type PaginationProps } from "./Pagination";
