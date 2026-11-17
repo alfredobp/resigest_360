@@ -1116,12 +1116,13 @@ export function validateContractActivation(
  * Calcula el estado dinámico y vigencia real de un contrato según sus fechas
  */
 export function getContractEffectiveStatus(contract: WasteContract): {
-  status: 'borrador' | 'vigente' | 'caducado' | 'finalizado' | 'cancelado';
+  status: 'borrador' | 'pendiente_firma' | 'vigente' | 'caducado' | 'finalizado' | 'cancelado';
   isExpired: boolean;
   label: string;
 } {
   if (contract.estado === 'cancelado') return { status: 'cancelado', isExpired: false, label: 'Cancelado' };
   if (contract.estado === 'finalizado') return { status: 'finalizado', isExpired: false, label: 'Finalizado' };
+  if (contract.estado === 'pendiente_firma') return { status: 'pendiente_firma', isExpired: false, label: 'Pendiente de firma' };
   if (contract.estado === 'borrador') {
     const isExpired = Boolean(contract.fecha_fin && new Date(contract.fecha_fin) < new Date(new Date().setHours(0, 0, 0, 0)));
     return { status: 'borrador', isExpired, label: isExpired ? 'Borrador (Vencido)' : 'Borrador' };

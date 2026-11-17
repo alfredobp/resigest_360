@@ -1558,7 +1558,7 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
   });
 
   describe('getContractEffectiveStatus helper', () => {
-    it('debe manejar estados cancelado y finalizado directamente', () => {
+    it('debe manejar estados cancelado, finalizado y pendiente_firma directamente', () => {
       expect(getContractEffectiveStatus({ estado: 'cancelado' } as any)).toEqual({
         status: 'cancelado',
         isExpired: false,
@@ -1569,6 +1569,12 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
         status: 'finalizado',
         isExpired: false,
         label: 'Finalizado',
+      });
+
+      expect(getContractEffectiveStatus({ estado: 'pendiente_firma' } as any)).toEqual({
+        status: 'pendiente_firma',
+        isExpired: false,
+        label: 'Pendiente de firma',
       });
     });
 

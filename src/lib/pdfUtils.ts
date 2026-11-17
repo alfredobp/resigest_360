@@ -707,7 +707,8 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
     doc.setFont('helvetica', 'bold');
     doc.text('Centro:', 130, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(docData.production_center.nombre, 150, yPos);
+    const centroLines = doc.splitTextToSize(docData.production_center.nombre || '-', pageWidth - 150 - 15);
+    doc.text(centroLines, 150, yPos);
   }
   yPos += 4.5;
 
@@ -779,7 +780,8 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
   doc.setFont('helvetica', 'bold');
   doc.text('Nº Autorización:', 130, yPos);
   doc.setFont('helvetica', 'normal');
-  doc.text(docData.gestor_numero_autorizacion || '-', 155, yPos);
+  const autLines = doc.splitTextToSize(docData.gestor_numero_autorizacion || '-', pageWidth - 155 - 15);
+  doc.text(autLines, 155, yPos);
   yPos += 4.5;
 
   doc.setFont('helvetica', 'bold');
@@ -868,7 +870,8 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
     doc.setFont('helvetica', 'bold');
     doc.text('Nº Albarán Gestor:', 115, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(docData.numero_albaran_gestor, 155, yPos);
+    const albLines = doc.splitTextToSize(docData.numero_albaran_gestor, pageWidth - 150 - 15);
+    doc.text(albLines, 150, yPos);
   }
   yPos += 4.5;
 
@@ -1032,8 +1035,12 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
   // Pie de página
   doc.setFontSize(7);
   doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+  const isCompletelySigned = Boolean(docData.firmado_productor && docData.firmado_gestor);
+  const legalText = isCompletelySigned
+    ? 'Documento oficial de control y seguimiento de traslados según art. 6 del Real Decreto 553/2020. Validez legal ante autoridades competentes.'
+    : 'Documento en tramitación de traslado (Real Decreto 553/2020). Pendiente de completar firmas requeridas para formalización documental definitiva.';
   doc.text(
-    'Documento oficial de control y seguimiento de traslados según art. 6 del Real Decreto 553/2020. Validez legal ante autoridades competentes.',
+    legalText,
     pageWidth / 2,
     pageHeight - 8,
     { align: 'center' }

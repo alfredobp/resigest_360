@@ -18,6 +18,7 @@ import { generateContractPDF } from '@/lib/pdfUtils';
 
 const STATUS_COLORS = {
   borrador: 'info',
+  pendiente_firma: 'warning',
   vigente: 'success',
   caducado: 'warning',
   finalizado: 'light',

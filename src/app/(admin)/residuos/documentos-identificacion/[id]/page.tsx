@@ -83,6 +83,8 @@ export default function DetalleDocumentoIdentificacionPage() {
   const [justifyForm, setJustifyForm] = useState<{ causa: CausaDiscrepancia | ''; texto: string }>({ causa: '', texto: '' });
   const [submittingAction, setSubmittingAction] = useState(false);
   const [modalActionError, setModalActionError] = useState<string | null>(null);
+
+  const isTransportistaOnly = myCompany?.tipo_empresa === 'transportista' && !(myCompany.roles || []).includes('gestor');
   const [activeContracts, setActiveContracts] = useState<WasteContract[]>([]);
   const [authorizedOpsForLer, setAuthorizedOpsForLer] = useState<string[] | null>(null);
   const [contractForm, setContractForm] = useState<{
@@ -1228,14 +1230,16 @@ export default function DetalleDocumentoIdentificacionPage() {
                   <div className="space-y-2.5">
                     <Badge color="light">Pendiente en báscula</Badge>
                     <div className="space-y-1.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleOpenSignatureModal('gestor')}
-                        className="w-full text-xs"
-                      >
-                        Firmar como Gestor
-                      </Button>
+                      {!isTransportistaOnly && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenSignatureModal('gestor')}
+                          className="w-full text-xs"
+                        >
+                          Firmar como Gestor
+                        </Button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleCopyPublicSignLink('gestor')}
@@ -1263,14 +1267,14 @@ export default function DetalleDocumentoIdentificacionPage() {
               )}
 
               {/* Acción 2: Registrar Recepción y Báscula */}
-              {(document.estado_traslado === 'en_transito' || document.estado_traslado === 'recepcionado') && (
+              {!isTransportistaOnly && (document.estado_traslado === 'en_transito' || document.estado_traslado === 'recepcionado') && (
                 <Button onClick={() => { setModalActionError(null); setIsReceptionModalOpen(true); }}>
                   <span>Registrar Recepción en Báscula</span>
                 </Button>
               )}
 
               {/* Acción 3: Certificar Tratamiento y Cierre */}
-              {(document.estado_traslado === 'aceptado' || document.estado_traslado === 'rechazado_parcial' || document.estado_traslado === 'tratado') && (
+              {!isTransportistaOnly && (document.estado_traslado === 'aceptado' || document.estado_traslado === 'rechazado_parcial' || document.estado_traslado === 'tratado') && (
                 <Button
                   variant={document.estado_traslado === 'tratado' ? 'outline' : 'primary'}
                   onClick={() => { setModalActionError(null); setIsTreatmentModalOpen(true); }}

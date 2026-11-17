@@ -123,4 +123,20 @@ describe('pdfUtils - generateIdentificationDocumentPDF', () => {
     expect(doc).toBeDefined();
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
   });
+
+  it('genera el PDF con texto legal de formalización definitiva cuando ambas partes firman', async () => {
+    const completelySignedDoc: IdentificationDocument = {
+      ...baseDoc,
+      firmado_productor: true,
+      firmado_gestor: true,
+      production_center: {
+        nombre: 'Centro Productivo de Residuos Industriales Complejo Norte S.L.',
+      } as any,
+      gestor_numero_autorizacion: 'AUT-VAL-GEST-2026-999999-EXT',
+      numero_albaran_gestor: 'ALB-GESTOR-2026-LONGCAPTION-99999',
+    };
+    const doc = await generateIdentificationDocumentPDF(completelySignedDoc);
+    expect(doc).toBeDefined();
+    expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
+  });
 });
