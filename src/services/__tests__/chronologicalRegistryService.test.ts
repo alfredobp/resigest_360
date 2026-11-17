@@ -854,6 +854,47 @@ describe('chronologicalRegistryService - Archivo Cronológico (Art. 64 Ley 7/202
         }),
       ]);
     });
+
+    it('debe conservar fecha_salida para salida_traslado y fecha_llegada_destino para entrada_recepcion (A04-09)', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      let selectCall = 0;
+      const chain: any = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockImplementation(() => {
+          selectCall++;
+          if (selectCall === 1) return Promise.resolve({ data: null, error: null });
+          return Promise.resolve({ data: { cif: 'B12345678', tipo_empresa: 'productor' }, error: null });
+        }),
+        insert: jest.fn().mockReturnValue({
+          select: jest.fn().mockReturnValue({
+            single: jest.fn().mockResolvedValue({ data: { id: 141, numero_asiento: 'AS-2026-000004' }, error: null }),
+          }),
+        }),
+      };
+      mockSupabase.from.mockReturnValue(chain);
+
+      await syncEntryFromDI({
+        id: 141,
+        company_id: 1,
+        numero_documento: 'DI-141',
+        cantidad: 980,
+        unidad: 'kg',
+        codigo_ler: '17 04 05',
+        fecha_salida: '2026-11-16T14:19:00Z',
+        fecha_llegada_destino: '2026-11-17T08:08:00Z',
+        productor_cif: 'B12345678',
+        gestor_cif: 'B99999999',
+      } as IdentificationDocument);
+
+      expect(chain.insert).toHaveBeenCalledWith([
+        expect.objectContaining({
+          tipo_operacion: 'salida_traslado',
+          fecha: '2026-11-16T14:19:00Z',
+        }),
+      ]);
+    });
   });
 
   describe('syncEntryFromCommercialOperation', () => {

@@ -310,6 +310,75 @@ export async function deleteMemoria(id: number): Promise<boolean> {
 }
 
 // =====================================================
+// RECALCULAR MEMORIA EN BORRADOR (A04-07)
+// =====================================================
+
+export async function recalculateDraftMemoria(id: number): Promise<MemoriaAnual> {
+  const supabase = createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay usuario autenticado');
+
+  const memoria = await getMemoriaById(id);
+  if (!memoria) throw new Error('Memoria no encontrada');
+
+  if (memoria.estado !== 'borrador') {
+    throw new Error('Solo se pueden recalcular memorias anuales en estado borrador.');
+  }
+
+  // Obtener documentos de identificación actualizados del año y centro
+  const documentos = await getDocumentosIdentificacionByYear(
+    user.id,
+    memoria.company_id,
+    memoria.año,
+    memoria.production_center_id
+  );
+  const documentos_ids = documentos.map(d => d.id);
+
+  // Calcular totales con precisión basada en báscula
+  const total_movimientos = documentos.length;
+  const total_toneladas = Number(documentos.reduce((sum, doc) => sum + getEffectiveWeightTonnes(doc), 0).toFixed(3));
+  const resumen_ler = calculateResumenLER(documentos);
+
+  const updates: Partial<MemoriaAnual> = {
+    total_movimientos,
+    total_toneladas,
+    resumen_ler,
+    documentos_identificacion_ids: documentos_ids,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data: updated, error } = await supabase
+    .from('memorias_anuales')
+    .update(updates)
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select()
+    .single();
+
+  if (error || !updated) {
+    console.error('Error al recalcular memoria anual:', error);
+    throw error || new Error('No se pudo actualizar la memoria anual.');
+  }
+
+  await auditService.logAction({
+    company_id: updated.company_id ?? memoria.company_id ?? null,
+    entidad: 'memoria_anual',
+    entidad_id: id,
+    accion: 'recalcular_borrador',
+    detalles: {
+      numero_memoria: updated.numero_memoria,
+      total_movimientos_anterior: memoria.total_movimientos,
+      total_movimientos_nuevo: total_movimientos,
+      total_toneladas_anterior: memoria.total_toneladas,
+      total_toneladas_nuevo: total_toneladas,
+    },
+  });
+
+  return updated;
+}
+
+// =====================================================
 // GENERAR DATOS PARA EXCEL
 // =====================================================
 

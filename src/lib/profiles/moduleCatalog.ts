@@ -55,7 +55,7 @@ export const PROFILE_DEFINITIONS: Record<OperationalProfile, ProfileDefinition> 
     description: 'Entradas, salidas, báscula de pesajes, existencias, compraventa de materiales, DI y archivo cronológico.',
     defaultCompanyType: 'gestor',
     defaultRoles: ['gestor'],
-    defaultModules: ['empresas', 'di', 'deca', 'archivo_cronologico', 'operaciones_comerciales', 'memorias_anuales'],
+    defaultModules: ['empresas', 'contratos', 'di', 'deca', 'archivo_cronologico', 'operaciones_comerciales', 'memorias_anuales'],
     homePath: '/app',
   },
   gestor_rp: {

@@ -431,6 +431,20 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
       await expect(companyService.getAll()).rejects.toThrow('Error al obtener empresas: Query fail');
       await expect(companyService.getByRole('gestor')).rejects.toThrow('Error al obtener empresas por rol: Query fail');
     });
+
+    it('debe resolver contexto delegado cuando activeCompanyId está fijado para cliente delegado', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'consultor-id' } } });
+      const activeSpy = jest.spyOn(companyService, 'getActiveCompanyId').mockReturnValue(42);
+      const compSpy = jest.spyOn(companyService, 'getUserCompany').mockResolvedValue({ id: 42, user_id: 'client-user-id' } as any);
+
+      const ctx = await companyService.getDelegatedContext('consultor-id');
+      expect(ctx.activeId).toBe(42);
+      expect(ctx.targetUserId).toBe('client-user-id');
+      expect(ctx.activeCompany?.id).toBe(42);
+
+      activeSpy.mockRestore();
+      compSpy.mockRestore();
+    });
   });
 
   describe('uploadLogo y hasCompany', () => {
@@ -589,6 +603,68 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
 
       const result = await companyService.getUserCompany();
       expect(result).toEqual(memberComp);
+    });
+
+    it('getAllContacts debe consultar por el ámbito del tenant delegado (A04-01)', async () => {
+      companyService.setActiveCompanyId(105);
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'consultor-1' } } });
+      const clientComp = { id: 105, user_id: 'productor-client-1', razon_social: 'Metálicas del Sur' };
+      jest.spyOn(companyService, 'getUserCompany').mockResolvedValue(clientComp as any);
+
+      const mockList = [{ id: 105, razon_social: 'Metálicas del Sur', user_id: 'productor-client-1' }];
+      const orderMock = jest.fn().mockResolvedValue({ data: mockList, error: null });
+      const eqActivoMock = jest.fn().mockReturnValue({ order: orderMock });
+      const orMock = jest.fn().mockReturnValue({ eq: eqActivoMock });
+      const selectMock = jest.fn().mockReturnValue({ or: orMock });
+      mockSupabase.from.mockReturnValue({ select: selectMock });
+
+      const result = await companyService.getAllContacts();
+      expect(orMock).toHaveBeenCalledWith('user_id.eq.productor-client-1,id.eq.105');
+      expect(result).toEqual(mockList);
+
+      companyService.setActiveCompanyId(null);
+      (companyService.getUserCompany as any).mockRestore?.();
+    });
+
+    it('create debe asociar la nueva empresa al owner del cliente delegado (A04-01)', async () => {
+      companyService.setActiveCompanyId(105);
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'consultor-1' } } });
+      const clientComp = { id: 105, user_id: 'productor-client-1', razon_social: 'Metálicas del Sur' };
+      jest.spyOn(companyService, 'getUserCompany').mockResolvedValue(clientComp as any);
+
+      const existingSingle = jest.fn().mockResolvedValue({ data: null, error: null });
+      const existingCif = jest.fn().mockReturnValue({ maybeSingle: existingSingle });
+      const existingUser = jest.fn().mockReturnValue({ eq: existingCif });
+      const existingSelect = jest.fn().mockReturnValue({ eq: existingUser });
+
+      const newComp = { id: 112, cif: 'B99998888', razon_social: 'CONTEXTO-CONSULTOR', user_id: 'productor-client-1' };
+      const insertSingle = jest.fn().mockResolvedValue({ data: newComp, error: null });
+      const insertSelect = jest.fn().mockReturnValue({ single: insertSingle });
+      const insertMock = jest.fn().mockReturnValue({ select: insertSelect });
+
+      let call = 0;
+      mockSupabase.from.mockImplementation(() => {
+        call++;
+        if (call === 1) return { select: existingSelect };
+        return { insert: insertMock };
+      });
+
+      const res = await companyService.create({
+        cif: 'B99998888',
+        razon_social: 'CONTEXTO-CONSULTOR',
+        tipo_empresa: 'productor',
+      });
+
+      expect(existingUser).toHaveBeenCalledWith('user_id', 'productor-client-1');
+      expect(insertMock).toHaveBeenCalledWith(expect.objectContaining({
+        user_id: 'productor-client-1',
+        cif: 'B99998888',
+        razon_social: 'CONTEXTO-CONSULTOR',
+      }));
+      expect(res.id).toBe(112);
+
+      companyService.setActiveCompanyId(null);
+      (companyService.getUserCompany as any).mockRestore?.();
     });
   });
 });

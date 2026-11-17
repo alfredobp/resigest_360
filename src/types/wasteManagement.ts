@@ -368,9 +368,10 @@ export interface WasteContract {
   frecuencia_recogida?: string;
   precio_unitario?: number;
   moneda?: string;
+  condiciones_entrega?: string;
 
   // Estado
-  estado: 'borrador' | 'vigente' | 'finalizado' | 'cancelado';
+  estado: 'borrador' | 'pendiente_firma' | 'vigente' | 'finalizado' | 'cancelado';
 
   // Documentación y Firmas
   documento_url?: string;
@@ -419,7 +420,8 @@ export interface WasteContractFormData {
   frecuencia_recogida?: string;
   precio_unitario?: number;
   moneda?: string;
-  estado?: 'borrador' | 'vigente' | 'finalizado' | 'cancelado';
+  condiciones_entrega?: string;
+  estado?: 'borrador' | 'pendiente_firma' | 'vigente' | 'finalizado' | 'cancelado';
   documento_url?: string;
   firma_productor_url?: string;
   fecha_firma_productor?: string;
@@ -438,6 +440,7 @@ export interface IdentificationDocument {
   user_id: string;
   contract_id?: number;
   company_id: number;
+  gestor_company_id?: number;
   production_center_id?: number;
 
   numero_documento: string;
@@ -1327,7 +1330,9 @@ export type AuditLogAction =
   | 'sincronizar_sira'
   | 'sincronizar_holded'
   | 'exportar_archivo'
-  | 'descargar_pdf';
+  | 'descargar_pdf'
+  | 'invalidar_firmas'
+  | 'recalcular_borrador';
 
 export interface AuditLogEntry {
   id: number;

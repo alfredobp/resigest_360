@@ -437,6 +437,76 @@ export const wasteContractService = {
       );
     }
 
+    // A04-02: Si se modifican términos materiales (cantidades, LER, fechas, condiciones o partes),
+    // y no es una acción explícita de firma, invalidar las firmas previas exigiendo nueva conformidad (Art. 5 RD 553/2020)
+    const isExplicitSignatureAction =
+      updatePayload.firmado_productor !== undefined ||
+      updatePayload.firmado_gestor !== undefined ||
+      updatePayload.firma_productor_url !== undefined ||
+      updatePayload.firma_gestor_url !== undefined;
+
+    const hasMaterialChanges =
+      contract_waste_codes !== undefined ||
+      mainData.codigos_ler !== undefined ||
+      mainData.operaciones_tratamiento !== undefined ||
+      Object.keys(mainData).some((k) =>
+        [
+          'cantidad_maxima_anual',
+          'fecha_inicio',
+          'fecha_fin',
+          'condiciones_entrega',
+          'condiciones_pago',
+          'clausulas_adicionales',
+          'company_id',
+          'gestor_company_id',
+          'treatment_manager_id',
+          'production_center_id',
+          'precio_unitario',
+        ].includes(k)
+      );
+
+    let signaturesInvalidated = false;
+
+    if (!isExplicitSignatureAction && hasMaterialChanges) {
+      try {
+        const lookup: any = supabase.from('waste_contracts');
+        if (typeof lookup?.select === 'function') {
+          const sel = lookup.select('id, firmado_productor, firmado_gestor, firma_productor_url, firma_gestor_url, estado, version, company_id');
+          if (typeof sel?.eq === 'function') {
+            const eqRes = sel.eq('id', id);
+            const fetcher = typeof eqRes?.maybeSingle === 'function' ? eqRes.maybeSingle.bind(eqRes) : (typeof eqRes?.single === 'function' ? eqRes.single.bind(eqRes) : null);
+            if (fetcher) {
+              const { data: currentContract } = await fetcher();
+              if (
+                currentContract &&
+                (currentContract.firmado_productor ||
+                  currentContract.firmado_gestor ||
+                  currentContract.firma_productor_url ||
+                  currentContract.firma_gestor_url)
+              ) {
+                signaturesInvalidated = true;
+                updatePayload.firmado_productor = false;
+                updatePayload.firmado_gestor = false;
+                updatePayload.firma_productor_url = null;
+                updatePayload.firma_gestor_url = null;
+                updatePayload.fecha_firma_productor = null;
+                updatePayload.fecha_firma_gestor = null;
+                updatePayload.documento_url = null; // invalidar enlace al PDF anterior firmado
+                if (updatePayload.estado === undefined || updatePayload.estado === 'vigente') {
+                  updatePayload.estado = 'pendiente_firma';
+                }
+                if (typeof currentContract.version === 'number') {
+                  updatePayload.version = currentContract.version + 1;
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Error al verificar estado de firmas para invalidación de contrato:', err);
+      }
+    }
+
     let query = supabase
       .from('waste_contracts')
       .update(updatePayload)
@@ -488,10 +558,12 @@ export const wasteContractService = {
       company_id: (data as WasteContract)?.company_id ?? null,
       entidad: 'contrato',
       entidad_id: id,
-      accion: mainData.estado ? 'cambiar_estado' : 'actualizar',
+      accion: signaturesInvalidated ? 'invalidar_firmas' : (mainData.estado ? 'cambiar_estado' : 'actualizar'),
       detalles: {
         numero_contrato: (data as WasteContract)?.numero_contrato,
         estado: (data as WasteContract)?.estado,
+        firmas_invalidadas: signaturesInvalidated,
+        motivo: signaturesInvalidated ? 'Modificación material de términos del contrato (Art. 5 RD 553/2020)' : undefined,
       },
     });
 

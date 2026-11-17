@@ -316,9 +316,6 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
   const isTonnesOrM3 = !di.unidad || di.unidad === 'toneladas' || di.unidad === 'm3';
   const cantidadEnKg = isTonnesOrM3 ? rawCantidad * 1000 : rawCantidad;
   const cantidadKg = Number(di.peso_destino_kg) || Number(di.peso_origen_kg) || cantidadEnKg;
-  const fechaAsiento = di.fecha_entrega || di.fecha_salida || di.fecha_documento || new Date().toISOString().split('T')[0];
-
-  const year = new Date(fechaAsiento).getFullYear();
 
   // Detectar si la empresa actual actúa como Gestor Receptora o Productor
   let isGestor = false;
@@ -335,6 +332,15 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
         (Boolean(userComp.cif) && Boolean(di.gestor_cif) && userComp.cif.trim().toUpperCase() === di.gestor_cif.trim().toUpperCase());
     }
   }
+
+  // A04-09: Conservar fecha y hora exactas por tipo de evento (salida vs recepción en destino)
+  const fechaSalida = di.fecha_salida || di.fecha_documento;
+  const fechaRecepcion = di.fecha_llegada_destino || di.fecha_entrega || (di as any).fecha_recepcion || di.fecha_documento;
+  const fechaAsiento = isGestor
+    ? (fechaRecepcion || new Date().toISOString())
+    : (fechaSalida || new Date().toISOString());
+
+  const year = new Date(fechaAsiento).getFullYear();
 
   const payload: Partial<ChronologicalEntry> = {
     user_id: user.id,

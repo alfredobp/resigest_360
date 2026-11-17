@@ -37,6 +37,7 @@ import {
   updateMemoria,
   updateEstado,
   deleteMemoria,
+  recalculateDraftMemoria,
   generateExcelData,
   getEffectiveWeightTonnes,
   getStats,
@@ -641,6 +642,169 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
       await expect(getMemoriaById(1)).rejects.toThrow('No hay usuario autenticado');
       await expect(updateMemoria(1, {})).rejects.toThrow('No hay usuario autenticado');
       await expect(deleteMemoria(1)).rejects.toThrow('No hay usuario autenticado');
+    });
+  });
+
+  describe('recalculateDraftMemoria (A04-07)', () => {
+    it('debe fallar si no hay usuario autenticado', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
+      await expect(recalculateDraftMemoria(1)).rejects.toThrow('No hay usuario autenticado');
+    });
+
+    it('debe fallar si la memoria no existe', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      const chain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: null, error: new Error('Not found') }),
+      };
+      mockSupabase.from.mockReturnValue(chain);
+
+      await expect(recalculateDraftMemoria(999)).rejects.toThrow('Memoria no encontrada');
+    });
+
+    it('debe fallar si la memoria no está en estado borrador', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      const mockMemoria = {
+        id: 1,
+        numero_memoria: 'MA-2025-PROD-001',
+        estado: 'completada',
+      };
+      const chain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: mockMemoria, error: null }),
+      };
+      mockSupabase.from.mockReturnValue(chain);
+
+      await expect(recalculateDraftMemoria(1)).rejects.toThrow(
+        'Solo se pueden recalcular memorias anuales en estado borrador.'
+      );
+    });
+
+    it('debe recalcular movimientos, toneladas y LER desde DIs vigentes y actualizar la memoria', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      const mockMemoria = {
+        id: 10,
+        company_id: 1,
+        production_center_id: 2,
+        año: 2026,
+        numero_memoria: 'MA-2026-PROD-001',
+        estado: 'borrador',
+        total_movimientos: 1,
+        total_toneladas: 1.5,
+        documentos_identificacion_ids: [100],
+      };
+
+      const updatedDIs = [
+        {
+          id: 100,
+          codigo_ler: '15 01 01',
+          descripcion_residuo: 'Envases de papel y cartón',
+          peso_destino_kg: 1500,
+          estado_traslado: 'tratado',
+        },
+        {
+          id: 101,
+          codigo_ler: '15 01 02',
+          descripcion_residuo: 'Envases de plástico',
+          peso_destino_kg: 2500,
+          estado_traslado: 'aceptado',
+        },
+      ];
+
+      const diChain: any = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockReturnThis(),
+      };
+      diChain.then = (resolve: any) => Promise.resolve({ data: updatedDIs, error: null }).then(resolve);
+
+      const updateMock = jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({
+          data: {
+            ...mockMemoria,
+            total_movimientos: 2,
+            total_toneladas: 4.0,
+            documentos_identificacion_ids: [100, 101],
+          },
+          error: null,
+        }),
+      });
+
+      const memChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: mockMemoria, error: null }),
+        update: updateMock,
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'identification_documents') return diChain;
+        if (table === 'memorias_anuales') return memChain;
+        return null;
+      });
+
+      const result = await recalculateDraftMemoria(10);
+
+      expect(result.total_movimientos).toBe(2);
+      expect(result.total_toneladas).toBe(4.0);
+      expect(result.documentos_identificacion_ids).toEqual([100, 101]);
+      expect(updateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          total_movimientos: 2,
+          total_toneladas: 4.0,
+          documentos_identificacion_ids: [100, 101],
+          resumen_ler: expect.arrayContaining([
+            expect.objectContaining({ codigo_ler: '15 01 01', cantidad_total: 1.5 }),
+            expect.objectContaining({ codigo_ler: '15 01 02', cantidad_total: 2.5 }),
+          ]),
+        })
+      );
+    });
+
+    it('debe propagar error si la actualización falla', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      const mockMemoria = {
+        id: 10,
+        company_id: 1,
+        production_center_id: 2,
+        año: 2026,
+        numero_memoria: 'MA-2026-PROD-001',
+        estado: 'borrador',
+      };
+
+      const diChain: any = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockReturnThis(),
+      };
+      diChain.then = (resolve: any) => Promise.resolve({ data: [], error: null }).then(resolve);
+
+      const memChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: mockMemoria, error: null }),
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnThis(),
+          select: jest.fn().mockReturnThis(),
+          single: jest.fn().mockResolvedValue({ data: null, error: new Error('DB update error') }),
+        }),
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'identification_documents') return diChain;
+        if (table === 'memorias_anuales') return memChain;
+        return null;
+      });
+
+      await expect(recalculateDraftMemoria(10)).rejects.toThrow('DB update error');
     });
   });
 

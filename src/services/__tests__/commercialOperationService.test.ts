@@ -574,6 +574,50 @@ describe('commercialOperationService - Operaciones Comerciales', () => {
       expect(document.body.appendChild).toHaveBeenCalled();
     });
 
+    it('exportToCSV debe incluir modalidad de precio, precio normalizado y otros costes sin descuadre (A04-04)', () => {
+      const op35: CommercialOperation = {
+        id: 35,
+        numero_operacion: 'OP-2026-0035',
+        fecha: '2026-11-16',
+        estado: 'abierta',
+        codigo_ler: '17 04 05',
+        descripcion_residuo: 'Hierro y acero',
+        cantidad_real_t: 0.5,
+        tipo_precio_compra: 'por_kg',
+        precio_unitario_compra: 0.10,
+        coste_compra_total: 50.00,
+        tipo_precio_venta: 'por_kg',
+        precio_unitario_venta: 0.25,
+        ingreso_venta_total: 125.00,
+        coste_transporte: 15.00,
+        otros_costes: 2.00,
+        descripcion_otros_costes: 'Pesaje báscula externa',
+        margen_bruto_total: 58.00,
+        margen_unitario_tonelada: 116.00,
+        porcentaje_margen: 46.4,
+      } as any;
+
+      let blobData: any = null;
+      const originalBlob = global.Blob;
+      global.Blob = jest.fn().mockImplementation((chunks: any[], options: any) => {
+        blobData = chunks.join('');
+        return new originalBlob(chunks, options);
+      }) as any;
+
+      commercialOperationService.exportToCSV([op35]);
+
+      expect(blobData).toContain('Modalidad Compra');
+      expect(blobData).toContain('Modalidad Venta');
+      expect(blobData).toContain('Otros Costes (€)');
+      expect(blobData).toContain('€/kg');
+      expect(blobData).toContain('100,00'); // normalizado a €/t (0.10 * 1000)
+      expect(blobData).toContain('250,00'); // normalizado a €/t (0.25 * 1000)
+      expect(blobData).toContain('2,00');   // otros costes
+      expect(blobData).toContain('58,00');  // margen bruto
+
+      global.Blob = originalBlob;
+    });
+
     it('exportToExcelXML debe generar y descargar archivo XML', () => {
       expect(() => commercialOperationService.exportToExcelXML(mockOps)).not.toThrow();
       expect(document.createElement).toHaveBeenCalledWith('a');
