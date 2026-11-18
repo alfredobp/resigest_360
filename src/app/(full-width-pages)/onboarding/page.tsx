@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import Logo from '@/components/common/Logo';
+import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFields';
 import {
   MODULE_LABELS,
   PROFILE_DEFINITIONS,
@@ -328,27 +329,16 @@ export default function OnboardingPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                    Municipio
-                  </label>
-                  <input
-                    type="text"
-                    value={municipio}
-                    onChange={(e) => setMunicipio(e.target.value)}
-                    className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                    Provincia
-                  </label>
-                  <input
-                    type="text"
-                    value={provincia}
-                    onChange={(e) => setProvincia(e.target.value)}
-                    className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3.5 py-2.5 text-sm"
+                <div className="sm:col-span-2">
+                  <ProvinceMunicipalityFields
+                    provinciaRequired
+                    municipioRequired
+                    provincia={provincia}
+                    municipio={municipio}
+                    onChange={({ provincia: p, municipio: m }) => {
+                      setProvincia(p);
+                      setMunicipio(m);
+                    }}
                   />
                 </div>
 

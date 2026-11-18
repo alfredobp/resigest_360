@@ -127,7 +127,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 4. Storage Policy para permitir la subida de firmas de DI y contratos
+-- 4. Permisos de ejecución para acceso público sin sesión (N01)
+GRANT EXECUTE ON FUNCTION public.get_di_by_signing_token(uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.sign_di_by_signing_token(uuid, text, text, text, text) TO anon, authenticated, service_role;
+
+-- 5. Storage Policy para permitir la subida de firmas de DI y contratos
 DROP POLICY IF EXISTS "Public can upload signatures" ON storage.objects;
 CREATE POLICY "Public can upload signatures"
 ON storage.objects FOR INSERT

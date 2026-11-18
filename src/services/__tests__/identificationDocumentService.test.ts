@@ -388,6 +388,36 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
 
       spyUpdate.mockRestore();
     });
+
+    it('A04-06: signDocument como gestor debe denegar el permiso si el usuario es exclusivamente transportista', async () => {
+      const { companyService } = await import('@/services/companyService');
+      jest.spyOn(companyService, 'getUserCompany').mockResolvedValueOnce({
+        id: 99,
+        tipo_empresa: 'transportista',
+        roles: ['transportista'],
+      } as any);
+
+      await expect(
+        identificationDocumentService.signDocument(1, 'gestor')
+      ).rejects.toThrow('Permiso denegado: El transportista no puede firmar como Gestor Destinatario.');
+    });
+
+    it('A04-06: recordReception debe denegar el permiso si el usuario es exclusivamente transportista', async () => {
+      const { companyService } = await import('@/services/companyService');
+      jest.spyOn(companyService, 'getUserCompany').mockResolvedValueOnce({
+        id: 99,
+        tipo_empresa: 'transportista',
+        roles: ['transportista'],
+      } as any);
+
+      await expect(
+        identificationDocumentService.recordReception(1, {
+          fecha_llegada_destino: '2026-10-24T12:00:00Z',
+          peso_destino_kg: 1000,
+          resultado_recepcion: 'aceptado',
+        })
+      ).rejects.toThrow('Permiso denegado: El transportista no puede registrar la recepción en báscula del gestor.');
+    });
   });
 
   describe('Ciclo de vida del traslado (departure, reception, incident, treatment)', () => {
@@ -400,6 +430,7 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
         contract: {
           id: 10,
           estado: 'vigente',
+          cantidad_maxima_anual: 1000,
           contract_waste_codes: [{ codigo_ler: '15 01 01', operacion_tratamiento: 'R13' }],
         },
       } as any);
@@ -427,6 +458,7 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
         contract: {
           id: 10,
           estado: 'vigente',
+          cantidad_maxima_anual: 1000,
           contract_waste_codes: [{ codigo_ler: '15 01 01', operacion_tratamiento: 'R13' }],
         },
       } as any);
@@ -681,6 +713,18 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
       await expect(
         identificationDocumentService.recordDeparture(54, { fecha_salida: '2026-11-10T12:40' })
       ).rejects.toThrow('no está incluido en el contrato');
+
+      // N10: Contrato sin cantidad definida rechaza la salida
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 541,
+        codigo_ler: '17 04 05',
+        operacion_tratamiento: 'R13',
+        contract_id: 10,
+        contract: { id: 10, numero_contrato: 'CT-52-SIN-CANTIDAD', estado: 'vigente', codigos_ler: ['17 04 05'], contract_waste_codes: [{ codigo_ler: '17 04 05' }] },
+      } as any);
+      await expect(
+        identificationDocumentService.recordDeparture(541, { fecha_salida: '2026-11-10T12:40' })
+      ).rejects.toThrow('cantidad contractual no definida');
 
       // 4. Con contrato externo acreditado debe permitir salida y preservar fecha_salida ISO
       jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
@@ -1235,6 +1279,27 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
         p_token: 'uuid-di-token-123',
       });
       expect(res).toEqual(mockPublicDI);
+    });
+
+    it('getBySigningToken debe retornar null inmediatamente si el token está vacío', async () => {
+      const res = await identificationDocumentService.getBySigningToken('   ');
+      expect(res).toBeNull();
+    });
+
+    it('getBySigningToken debe realizar fallback a consulta directa si la RPC falla con código 42883', async () => {
+      mockSupabase.rpc.mockResolvedValueOnce({
+        data: null,
+        error: { code: '42883', message: 'function get_di_by_signing_token does not exist' },
+      });
+
+      const maybeSingleMock = jest.fn().mockResolvedValue({ data: mockPublicDI, error: null });
+      const eqMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
+      mockSupabase.from.mockReturnValueOnce({ select: selectMock });
+
+      const res = await identificationDocumentService.getBySigningToken('uuid-fallback-token');
+      expect(res).toEqual(mockPublicDI);
+      expect(eqMock).toHaveBeenCalledWith('signing_token', 'uuid-fallback-token');
     });
 
     it('getBySigningToken debe devolver null cuando la RPC devuelve null', async () => {

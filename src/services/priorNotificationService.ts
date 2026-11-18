@@ -130,6 +130,10 @@ export function validateNTForE3L(nt: Partial<PriorNotification>): E3LNTValidatio
   if (!nt.productor_municipio || !nt.gestor_municipio) {
     warnings.push('Falta municipio oficial en origen o destino.');
   }
+  if (!nt.operador_codigo_postal) warnings.push('Falta código postal del operador del traslado.');
+  if (!nt.productor_codigo_postal) warnings.push('Falta código postal del centro productor.');
+  if (!nt.gestor_codigo_postal) warnings.push('Falta código postal del gestor destinatario.');
+  if (!nt.operador_telefono && !nt.operador_email) warnings.push('Faltan datos de contacto del operador.');
 
   return {
     valid: errors.length === 0,
@@ -308,30 +312,30 @@ export const priorNotificationService = {
 
     const opProvCode = getProvinceCodeByName(nt.operador_provincia || 'Cádiz');
     const opNima = formatNima(nt.operador_nima, opProvCode);
-    const opMuniName = clean(nt.operador_municipio) || (opProvCode === '11' ? 'Puerto Real' : 'Municipio');
-    const opMuniCode = siraService.getMunicipalityCode(opProvCode, opMuniName);
-    const opAddress = clean(nt.operador_direccion) || 'Calle Principal';
-    const opCp = clean(nt.operador_codigo_postal) || `${opProvCode}001`;
-    const opPhone = clean(nt.operador_telefono).replace(/\D/g, '') || '900000000';
-    const opEmail = clean(nt.operador_email).includes('@') ? clean(nt.operador_email) : 'contacto@resigest.com';
+    const opMuniName = clean(nt.operador_municipio) || (opProvCode === '11' ? 'Puerto Real' : '');
+    const opMuniCode = opMuniName ? siraService.getMunicipalityCode(opProvCode, opMuniName) : '';
+    const opAddress = clean(nt.operador_direccion);
+    const opCp = clean(nt.operador_codigo_postal);
+    const opPhone = clean(nt.operador_telefono).replace(/\D/g, '');
+    const opEmail = clean(nt.operador_email);
 
     const prodProvCode = getProvinceCodeByName(nt.productor_provincia || 'Cádiz');
     const prodNima = formatNima(nt.productor_nima, prodProvCode);
-    const prodMuniName = clean(nt.productor_municipio) || (prodProvCode === '11' ? 'Puerto Real' : 'Municipio');
-    const prodMuniCode = siraService.getMunicipalityCode(prodProvCode, prodMuniName);
-    const prodAddress = clean(nt.productor_direccion) || 'Calle Principal';
-    const prodCp = clean(nt.productor_codigo_postal) || `${prodProvCode}001`;
-    const prodPhone = clean(nt.productor_telefono).replace(/\D/g, '') || '900000000';
-    const prodEmail = clean(nt.productor_email).includes('@') ? clean(nt.productor_email) : 'contacto@resigest.com';
+    const prodMuniName = clean(nt.productor_municipio) || (prodProvCode === '11' ? 'Puerto Real' : '');
+    const prodMuniCode = prodMuniName ? siraService.getMunicipalityCode(prodProvCode, prodMuniName) : '';
+    const prodAddress = clean(nt.productor_direccion);
+    const prodCp = clean(nt.productor_codigo_postal);
+    const prodPhone = clean(nt.productor_telefono).replace(/\D/g, '');
+    const prodEmail = clean(nt.productor_email);
 
     const gestProvCode = getProvinceCodeByName(nt.gestor_provincia || 'Cádiz');
     const gestNima = formatNima(nt.gestor_nima, gestProvCode);
-    const gestMuniName = clean(nt.gestor_municipio) || (gestProvCode === '11' ? 'Puerto Real' : 'Municipio');
-    const gestMuniCode = siraService.getMunicipalityCode(gestProvCode, gestMuniName);
-    const gestAddress = clean(nt.gestor_direccion) || 'Calle Principal';
-    const gestCp = clean(nt.gestor_codigo_postal) || `${gestProvCode}001`;
-    const gestPhone = clean(nt.gestor_telefono).replace(/\D/g, '') || '900000000';
-    const gestEmail = clean(nt.gestor_email).includes('@') ? clean(nt.gestor_email) : 'contacto@resigest.com';
+    const gestMuniName = clean(nt.gestor_municipio) || (gestProvCode === '11' ? 'Puerto Real' : '');
+    const gestMuniCode = gestMuniName ? siraService.getMunicipalityCode(gestProvCode, gestMuniName) : '';
+    const gestAddress = clean(nt.gestor_direccion);
+    const gestCp = clean(nt.gestor_codigo_postal);
+    const gestPhone = clean(nt.gestor_telefono).replace(/\D/g, '');
+    const gestEmail = clean(nt.gestor_email);
     const gestAuth = clean(nt.gestor_numero_autorizacion) || gestNima;
 
     const rawWeight = Number(nt.cantidad_estimada_kg || 1000);
@@ -395,11 +399,9 @@ export const priorNotificationService = {
                     <municipality municipalityCode="${opMuniCode}" municipalityName="${opMuniName}"/>
                     <province provinceCode="${opProvCode}" provinceName="${clean(nt.operador_provincia || 'Cádiz')}"/>
                 </spanishAddress>
-            </centerAddress>
-            <centerContact>
-                <phone>${opPhone}</phone>
-                <mail>${opEmail}</mail>
-            </centerContact>
+            </centerAddress>${(opPhone || opEmail) ? `
+            <centerContact>${opPhone ? `\n                <phone>${opPhone}</phone>` : ''}${opEmail ? `\n                <mail>${opEmail}</mail>` : ''}
+            </centerContact>` : ''}
             <wasteCenterAuthorization>
                 <authorizationId>
                     <authorizationIdFree>${opNima}</authorizationIdFree>
@@ -433,11 +435,9 @@ export const priorNotificationService = {
                     <municipality municipalityCode="${prodMuniCode}" municipalityName="${prodMuniName}"/>
                     <province provinceCode="${prodProvCode}" provinceName="${clean(nt.productor_provincia || 'Cádiz')}"/>
                 </spanishAddress>
-            </centerAddress>
-            <centerContact>
-                <phone>${prodPhone}</phone>
-                <mail>${prodEmail}</mail>
-            </centerContact>
+            </centerAddress>${(prodPhone || prodEmail) ? `
+            <centerContact>${prodPhone ? `\n                <phone>${prodPhone}</phone>` : ''}${prodEmail ? `\n                <mail>${prodEmail}</mail>` : ''}
+            </centerContact>` : ''}
             <wasteCenterAuthorization>
                 <authorizationId>
                     <authorizationIdFree>${prodNima}</authorizationIdFree>
@@ -471,11 +471,9 @@ export const priorNotificationService = {
                     <municipality municipalityCode="${gestMuniCode}" municipalityName="${gestMuniName}"/>
                     <province provinceCode="${gestProvCode}" provinceName="${clean(nt.gestor_provincia || 'Cádiz')}"/>
                 </spanishAddress>
-            </centerAddress>
-            <centerContact>
-                <phone>${gestPhone}</phone>
-                <mail>${gestEmail}</mail>
-            </centerContact>
+            </centerAddress>${(gestPhone || gestEmail) ? `
+            <centerContact>${gestPhone ? `\n                <phone>${gestPhone}</phone>` : ''}${gestEmail ? `\n                <mail>${gestEmail}</mail>` : ''}
+            </centerContact>` : ''}
             <wasteCenterAuthorization>
                 <authorizationId>
                     <authorizationIdFree>${gestAuth}</authorizationIdFree>

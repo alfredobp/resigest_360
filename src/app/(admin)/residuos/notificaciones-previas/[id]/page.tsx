@@ -180,9 +180,17 @@ export default function DetalleNotificacionPreviaPage({ params }: PageProps) {
               Régimen: <span className="font-semibold text-foreground capitalize">{notification.tipo_notificacion}</span> | Vigencia: {notification.fecha_inicio} a {notification.fecha_fin}
             </p>
             {notification.sira_id && (
-              <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                Identificador Oficial SIRA: {notification.sira_id}
-              </p>
+              <div className="flex items-center gap-2 mt-1">
+                {notification.sira_id.includes('TEST') || notification.sira_id.includes('SIM') ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                    🔬 Simulación / Ensayo Técnico: {notification.sira_id}
+                  </span>
+                ) : (
+                  <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    Identificador Oficial SIRA: {notification.sira_id}
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
@@ -300,7 +308,7 @@ export default function DetalleNotificacionPreviaPage({ params }: PageProps) {
               <span className="text-xs text-muted block mb-1">Código LER</span>
               <span className="font-mono font-bold text-lg text-foreground">{notification.codigo_ler}</span>
               <span className="block text-xs mt-1 text-muted capitalize">Peligrosidad: {notification.peligrosidad}</span>
-              {notification.caracteristica_peligrosidad && (
+              {notification.peligrosidad === 'peligroso' && notification.caracteristica_peligrosidad && (
                 <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[11px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
                   {notification.caracteristica_peligrosidad}
                 </span>

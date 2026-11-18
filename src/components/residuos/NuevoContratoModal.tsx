@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Trash2 } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
@@ -794,10 +795,11 @@ export default function NuevoContratoModal({
                   <button
                     type="button"
                     onClick={() => setContractWasteCodes((prev) => prev.filter((_, i) => i !== idx))}
-                    className="mt-4 md:mt-5 p-2 text-red-500 hover:text-red-700 rounded-lg transition"
+                    className="mt-4 md:mt-5 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition"
                     title="Eliminar este residuo"
+                    aria-label="Eliminar este residuo"
                   >
-                    🗑️
+                    <Trash2 className="w-5 h-5" />
                   </button>
                 )}
               </div>

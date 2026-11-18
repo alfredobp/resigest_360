@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Input from '@/components/form/input/InputField';
+import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFields';
 import TextArea from '@/components/form/input/TextArea';
 import Button from '@/components/ui/button/Button';
 import ImageUpload from '@/components/common/ImageUpload';
@@ -22,6 +23,7 @@ import {
   getEffectiveModules,
   normalizeOperationalProfile,
 } from '@/lib/profiles/moduleCatalog';
+import { getProvinceByPostalCode } from '@/lib/validations/spainLocations';
 import type {
   AppModule,
   Company,
@@ -36,15 +38,14 @@ type ActiveTab = 'identidad' | 'sedes' | 'integraciones';
 const TIPOS_EMPRESA: Array<{
   value: NonNullable<CompanyFormData['tipo_empresa']>;
   label: string;
-  icon: string;
   description: string;
 }> = [
-    { value: 'productor', label: 'Productor', icon: '🏭', description: 'Genera residuos' },
-    { value: 'gestor', label: 'Gestor', icon: '♻️', description: 'Planta / Valorización' },
-    { value: 'transportista', label: 'Transportista', icon: '🚚', description: 'Recogida y porte' },
-    { value: 'negociante', label: 'Negociante', icon: '💼', description: 'Cuenta propia' },
-    { value: 'agente', label: 'Agente', icon: '🤝', description: 'Cuenta de terceros' },
-  ];
+  { value: 'productor', label: 'Productor', description: 'Genera residuos' },
+  { value: 'gestor', label: 'Gestor', description: 'Planta / Valorización' },
+  { value: 'transportista', label: 'Transportista', description: 'Recogida y porte' },
+  { value: 'negociante', label: 'Negociante', description: 'Cuenta propia' },
+  { value: 'agente', label: 'Agente', description: 'Cuenta de terceros' },
+];
 
 const PROVINCIAS_POR_CP: Record<string, string> = {
   '01': 'Álava', '02': 'Albacete', '03': 'Alicante', '04': 'Almería', '05': 'Ávila',
@@ -383,13 +384,11 @@ export default function MiEmpresaPage() {
     }
   };
 
-  // Cálculos de estado para indicadores visuales
   const cifTrimmed = formData.cif.trim();
   const isCifValid = cifTrimmed !== '' && companyService.validateCIF(cifTrimmed);
   const nimaTrimmed = (formData.nima || '').trim();
   const isNimaValid = nimaTrimmed !== '' && companyService.validateNIMA(nimaTrimmed);
   const nimaProgressPct = Math.min(100, (nimaTrimmed.length / 10) * 100);
-  const isFiscalComplete = Boolean(formData.razon_social.trim() && isCifValid && isNimaValid);
 
   const cpPrefixSocial = (formData.codigo_postal_social || '').trim().substring(0, 2);
   const detectedProvSocial = PROVINCIAS_POR_CP[cpPrefixSocial];
@@ -442,42 +441,32 @@ export default function MiEmpresaPage() {
           </div>
         )}
 
-        {/* Navegación por Pestañas (Opción B) */}
-        <div className="mb-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-1.5 flex flex-wrap gap-1.5 shadow-xs">
+        {/* Navegación por Pestañas sobria */}
+        <div className="mb-6 border-b border-gray-200 dark:border-gray-800 flex flex-wrap gap-6">
           <button
             type="button"
             onClick={() => setActiveTab('identidad')}
-            className={`flex-1 min-w-[180px] flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all ${activeTab === 'identidad'
-                ? 'bg-brand-600 text-white shadow-xs'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800/60'
-              }`}
+            className={`pb-3.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'identidad'
+                ? 'border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400'
+                : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
           >
-            <span className="text-base">🏢</span>
-            <span>1. Identidad Fiscal</span>
-            <span
-              className={`w-2 h-2 rounded-full ${isFiscalComplete ? 'bg-emerald-400' : 'bg-amber-400'
-                }`}
-              title={isFiscalComplete ? 'Ficha fiscal completa' : 'Datos fiscales pendientes'}
-            />
+            Datos Fiscales y Contacto
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('sedes')}
-            className={`flex-1 min-w-[180px] flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all ${activeTab === 'sedes'
-                ? 'bg-brand-600 text-white shadow-xs'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800/60'
-              }`}
+            className={`pb-3.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'sedes'
+                ? 'border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400'
+                : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
           >
-            <span className="text-base">📍</span>
-            <span>2. Domicilios y Sedes</span>
+            <span>Domicilios y Centros</span>
             {productionCenters.length > 0 && (
-              <span
-                className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === 'sedes'
-                    ? 'bg-white/20 text-white'
-                    : 'bg-brand-50 text-brand-700 dark:bg-brand-950/60 dark:text-brand-300'
-                  }`}
-              >
+              <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
                 {productionCenters.length}
               </span>
             )}
@@ -486,20 +475,15 @@ export default function MiEmpresaPage() {
           <button
             type="button"
             onClick={() => setActiveTab('integraciones')}
-            className={`flex-1 min-w-[180px] flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all ${activeTab === 'integraciones'
-                ? 'bg-brand-600 text-white shadow-xs'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800/60'
-              }`}
+            className={`pb-3.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'integraciones'
+                ? 'border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400'
+                : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
           >
-            <span className="text-base">🔌</span>
-            <span>3. SIRA & Holded</span>
+            <span>Integraciones (SIRA y Holded)</span>
             {(formData.sira_activo || Boolean(formData.holded_api_key?.trim())) && (
-              <span
-                className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === 'integraciones'
-                    ? 'bg-white/20 text-white'
-                    : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                  }`}
-              >
+              <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
                 Activo
               </span>
             )}
@@ -508,117 +492,62 @@ export default function MiEmpresaPage() {
 
         <form onSubmit={handleSubmit}>
           {/* =========================================================
-              PESTAÑA 1: IDENTIDAD FISCAL Y CONTACTO
+              PESTAÑA 1: DATOS FISCALES Y CONTACTO
           ========================================================= */}
           {activeTab === 'identidad' && (
             <div className="space-y-6">
-              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xs overflow-hidden">
-                {/* Cabecera de la tarjeta con estado fiscal */}
-                <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-950/50 border border-brand-200/60 dark:border-brand-800/50 flex items-center justify-center text-lg">
-                      🏢
-                    </div>
-                    <div>
-                      <h2 className="text-base font-bold text-gray-900 dark:text-white">
-                        Datos Básicos e Identidad Fiscal
-                      </h2>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Información oficial para contratos de tratamiento y Documentos de Identificación (DI)
-                      </p>
-                    </div>
-                  </div>
-
-                  {isFiscalComplete ? (
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60 self-start sm:self-auto">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      <span>Ficha Fiscal Completa</span>
-                    </div>
-                  ) : (
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60 self-start sm:self-auto">
-                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                      <span>
-                        {!isCifValid
-                          ? 'CIF pendiente o inválido'
-                          : !isNimaValid
-                            ? 'NIMA pendiente de completar'
-                            : 'Completa la Razón Social'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-6 space-y-6">
-                  {/* Bloque Superior: Logo + Razón Social + Nombre Comercial + Nº Inscripción */}
-                  <div className="flex flex-col md:flex-row gap-6 items-start">
-                    <div className="w-full md:w-52 shrink-0">
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
-                        Logo Corporativo
+              <ComponentCard title="Datos Básicos de la Empresa">
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium mb-2">
+                        Razón Social <span className="text-red-500">*</span>
                       </label>
-                      <ImageUpload
-                        value={formData.logo_url}
-                        onChange={handleLogoUpload}
-                        folder="company-logos"
+                      <Input
+                        name="razon_social"
+                        value={formData.razon_social}
+                        onChange={handleChange}
+                        required
+                        placeholder="Ej: EMPRESA GESTORA DE RESIDUOS S.L."
                       />
-                      <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                        Aparecerá en contratos y documentos DI.
-                      </p>
                     </div>
 
-                    <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="sm:col-span-2">
-                        <label className="block text-sm font-medium mb-1.5">
-                          Razón Social <span className="text-red-500">*</span>
-                        </label>
-                        <Input
-                          name="razon_social"
-                          value={formData.razon_social}
-                          onChange={handleChange}
-                          required
-                          placeholder="Ej: EMPRESA GESTORA DE RESIDUOS S.L."
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium mb-1.5">Nombre Comercial</label>
-                        <Input
-                          name="nombre_comercial"
-                          value={formData.nombre_comercial}
-                          onChange={handleChange}
-                          placeholder="Ej: EcoGest"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium mb-1.5">
-                          Número de Inscripción / RPGR
-                        </label>
-                        <Input
-                          name="numero_inscripcion"
-                          value={formData.numero_inscripcion}
-                          onChange={handleChange}
-                          placeholder="Número de inscripción en registro"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Nombre Comercial</label>
+                      <Input
+                        name="nombre_comercial"
+                        value={formData.nombre_comercial}
+                        onChange={handleChange}
+                        placeholder="Ej: EcoGest"
+                      />
                     </div>
-                  </div>
 
-                  {/* Bloque Intermedio: CIF/NIF y NIMA con feedback enriquecido */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-5 border-t border-gray-100 dark:border-gray-800">
-                    {/* Tarjeta CIF / NIF */}
-                    <div className="p-4 rounded-xl bg-gray-50/70 dark:bg-gray-800/40 border border-gray-200/80 dark:border-gray-800 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm font-medium">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Número de Inscripción / RPGR
+                      </label>
+                      <Input
+                        name="numero_inscripcion"
+                        value={formData.numero_inscripcion}
+                        onChange={handleChange}
+                        placeholder="Número de inscripción en registro"
+                      />
+                    </div>
+
+                    {/* CIF / NIF */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium">
                           CIF / NIF <span className="text-red-500">*</span>
                         </label>
                         {cifTrimmed !== '' && (
                           isCifValid ? (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> CIF Válido
+                            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                              CIF válido
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold bg-red-500/15 text-red-600 dark:text-red-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Formato incorrecto (Ej: B12345678)
+                            <span className="text-xs font-medium text-red-500">
+                              Formato incorrecto (Ej: B12345678)
                             </span>
                           )
                         )}
@@ -629,25 +558,22 @@ export default function MiEmpresaPage() {
                         onChange={handleChange}
                         required
                         placeholder="Ej: B12345678"
-                        className="bg-white dark:bg-gray-900 font-mono uppercase tracking-wider"
+                        className="font-mono uppercase"
                       />
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Identificador único para facturación y firma electrónica E3L.
-                      </p>
                     </div>
 
-                    {/* Tarjeta NIMA con barra de progreso */}
-                    <div className="p-4 rounded-xl bg-gray-50/70 dark:bg-gray-800/40 border border-gray-200/80 dark:border-gray-800 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm font-medium">NIMA</label>
+                    {/* NIMA */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium">NIMA</label>
                         {nimaTrimmed !== '' && (
                           isNimaValid ? (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> NIMA Válido ({nimaTrimmed.length} car.)
+                            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                              NIMA válido ({nimaTrimmed.length} car.)
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> NIMA incompleto ({nimaTrimmed.length}/10 car.)
+                            <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                              Incompleto ({nimaTrimmed.length}/10 car.)
                             </span>
                           )
                         )}
@@ -657,36 +583,29 @@ export default function MiEmpresaPage() {
                         value={formData.nima}
                         onChange={handleChange}
                         placeholder="Ej: 4100012345 (10 dígitos)"
-                        className="bg-white dark:bg-gray-900 font-mono tracking-wider"
+                        className="font-mono"
                       />
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 h-1.5 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full transition-all duration-300 ${isNimaValid
-                              ? 'bg-emerald-500'
-                              : nimaTrimmed.length > 0
-                                ? 'bg-amber-500'
-                                : 'bg-transparent'
+{nimaTrimmed !== '' && (
+                        <div className="w-full bg-gray-100 dark:bg-gray-800 h-1.5 rounded-full overflow-hidden mt-2">
+                          <div
+                            className={`h-full transition-all duration-300 ${
+                              isNimaValid ? 'bg-emerald-500' : 'bg-amber-500'
                             }`}
-                          style={{ width: `${nimaProgressPct}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                            style={{ width: `${nimaProgressPct}%` }}
+                          />
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
                         2 dígitos de provincia INE + 8 dígitos correlativos requeridos por SIRA.
                       </p>
                     </div>
                   </div>
 
-                  {/* Selector Visual de Tipo de Empresa */}
-                  <div className="pt-5 border-t border-gray-100 dark:border-gray-800">
-                    <div className="flex items-center justify-between mb-2.5">
-                      <label className="block text-sm font-medium">
-                        Tipo de Empresa / Rol Principal <span className="text-red-500">*</span>
-                      </label>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        Selecciona la actividad principal de tu empresa
-                      </span>
-                    </div>
-
+                  {/* Selector de Tipo de Empresa sin iconos */}
+                  <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+                    <label className="block text-sm font-medium mb-2.5">
+                      Tipo de Empresa <span className="text-red-500">*</span>
+                    </label>
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                       {TIPOS_EMPRESA.map((tipo) => {
                         const isSelected = formData.tipo_empresa === tipo.value;
@@ -695,21 +614,22 @@ export default function MiEmpresaPage() {
                             key={tipo.value}
                             type="button"
                             onClick={() => handleCompanyTypeChange(tipo.value)}
-                            className={`flex flex-col items-start p-3.5 rounded-xl border text-left transition-all ${isSelected
-                                ? 'border-2 border-brand-500 bg-brand-50/70 dark:bg-brand-950/30 dark:border-brand-400 shadow-xs'
-                                : 'border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 hover:border-brand-400/50'
-                              }`}
+                            className={`flex flex-col items-start p-3 rounded-lg border text-left transition-colors ${
+                              isSelected
+                                ? 'border-brand-600 bg-brand-50/50 dark:bg-brand-950/30 dark:border-brand-400'
+                                : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                            }`}
                           >
-                            <span className="text-xl mb-1">{tipo.icon}</span>
                             <span
-                              className={`text-xs sm:text-sm font-bold ${isSelected
+                              className={`text-sm font-semibold ${
+                                isSelected
                                   ? 'text-brand-700 dark:text-brand-300'
                                   : 'text-gray-900 dark:text-white'
-                                }`}
+                              }`}
                             >
                               {tipo.label}
                             </span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 leading-tight mt-0.5">
+                            <span className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                               {tipo.description}
                             </span>
                           </button>
@@ -718,10 +638,10 @@ export default function MiEmpresaPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </ComponentCard>
 
-              {/* Datos de Contacto y Observaciones */}
-              <ComponentCard title="Datos de Contacto y Observaciones">
+              {/* Datos de Contacto */}
+              <ComponentCard title="Datos de Contacto">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
                     <label className="block text-sm font-medium mb-2">Persona de Contacto</label>
@@ -754,14 +674,31 @@ export default function MiEmpresaPage() {
                       placeholder="Ej: contacto@empresa.com"
                     />
                   </div>
+                </div>
+              </ComponentCard>
 
-                  <div className="md:col-span-3">
+              {/* Logo y Observaciones */}
+              <ComponentCard title="Logo y Observaciones">
+                <div className="space-y-6">
+                  <div>
+                    <ImageUpload
+                      label="Logo de la Empresa"
+                      value={formData.logo_url}
+                      onChange={handleLogoUpload}
+                      folder="company-logos"
+                    />
+                    <p className="mt-1.5 text-xs text-muted">
+                      El logo aparecerá en los contratos y documentos generados.
+                    </p>
+                  </div>
+
+                  <div>
                     <label className="block text-sm font-medium mb-2">Notas / Observaciones</label>
                     <TextArea
                       value={formData.notas}
                       onChange={(value) => setFormData((prev) => ({ ...prev, notas: value }))}
-                      rows={3}
-                      placeholder="Información adicional sobre la empresa, horarios de recepción, etc."
+                      rows={4}
+                      placeholder="Información adicional sobre la empresa..."
                     />
                   </div>
                 </div>
@@ -831,46 +768,33 @@ export default function MiEmpresaPage() {
           )}
 
           {/* =========================================================
-              PESTAÑA 2: DOMICILIOS Y SEDES
+              PESTAÑA 2: DOMICILIOS Y CENTROS
           ========================================================= */}
           {activeTab === 'sedes' && (
             <div className="space-y-6">
-              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xs overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200/60 dark:border-blue-800/50 flex items-center justify-center text-lg">
-                      📍
-                    </div>
-                    <div>
-                      <h2 className="text-base font-bold text-gray-900 dark:text-white">
-                        Domicilio Social y Ubicación de Instalación
-                      </h2>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Sede fiscal y dirección operativa principal de la empresa
-                      </p>
-                    </div>
+              <ComponentCard title="Domicilio Social e Instalación">
+                <div className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-4 border-b border-gray-100 dark:border-gray-800">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Dirección fiscal de la empresa y ubicación de la instalación principal.
+                    </p>
+                    <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={sameInstallationAddress}
+                        onChange={(e) => setSameInstallationAddress(e.target.checked)}
+                        className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                      />
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                        La instalación principal coincide con el Domicilio Social
+                      </span>
+                    </label>
                   </div>
 
-                  <label className="inline-flex items-center gap-2.5 cursor-pointer select-none bg-gray-50 dark:bg-gray-800/60 px-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={sameInstallationAddress}
-                      onChange={(e) => setSameInstallationAddress(e.target.checked)}
-                      className="rounded text-brand-600 focus:ring-brand-500"
-                    />
-                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
-                      Instalación en el mismo Domicilio Social
-                    </span>
-                  </label>
-                </div>
-
-                <div className="p-6 space-y-6">
-                  {/* Domicilio Social en Grid de 12 columnas */}
+                  {/* Domicilio Social en 12 columnas */}
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
                     <div className="sm:col-span-12">
-                      <label className="block text-sm font-medium mb-1.5">
-                        Dirección Fiscal (Calle, número, piso, polígono)
-                      </label>
+                      <label className="block text-sm font-medium mb-2">Dirección Fiscal</label>
                       <Input
                         name="domicilio_social"
                         value={formData.domicilio_social}
@@ -880,69 +804,46 @@ export default function MiEmpresaPage() {
                     </div>
 
                     <div className="sm:col-span-3">
-                      <label className="block text-sm font-medium mb-1.5">Código Postal</label>
+                      <label className="block text-sm font-medium mb-2">Código Postal</label>
                       <Input
                         name="codigo_postal_social"
                         value={formData.codigo_postal_social}
                         onChange={handleChange}
                         placeholder="Ej: 11510"
-                        className="font-mono"
                       />
                     </div>
 
-                    <div className="sm:col-span-5">
-                      <label className="block text-sm font-medium mb-1.5">Municipio</label>
-                      <Input
-                        name="municipio_social"
-                        value={formData.municipio_social}
-                        onChange={handleChange}
-                        placeholder="Ej: Puerto Real"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-4">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-sm font-medium">Provincia</label>
-                        {detectedProvSocial && (
-                          <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                            CP {cpPrefixSocial}
-                          </span>
-                        )}
-                      </div>
-                      <Input
-                        name="provincia_social"
-                        value={formData.provincia_social}
-                        onChange={handleChange}
-                        placeholder="Ej: Cádiz"
-                      />
-                    </div>
+                    <ProvinceMunicipalityFields
+                      unstyledWrapper
+                      provinciaWrapperClassName="sm:col-span-4"
+                      municipioWrapperClassName="sm:col-span-5"
+                      order="provincia-first"
+                      provincia={formData.provincia_social || ''}
+                      municipio={formData.municipio_social || ''}
+                      provinciaBadge={
+                        detectedProvSocial && (
+                          <span className="text-xs text-gray-400">CP {cpPrefixSocial}</span>
+                        )
+                      }
+                      onChange={({ provincia, municipio }) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          provincia_social: provincia,
+                          municipio_social: municipio,
+                        }))
+                      }
+                    />
                   </div>
 
-                  {/* Resumen o Campos de Domicilio de Instalación */}
-                  {sameInstallationAddress ? (
-                    <div className="p-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-800/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
-                      <div className="flex items-center gap-2 text-gray-800 dark:text-gray-200">
-                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">✓</span>
-                        <span>
-                          El <strong>Domicilio de Instalación</strong> utilizará automáticamente los mismos datos del Domicilio Social al guardar.
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSameInstallationAddress(false)}
-                        className="text-brand-600 dark:text-brand-400 font-semibold hover:underline self-start sm:self-auto shrink-0"
-                      >
-                        Especificar otra dirección
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="pt-5 border-t border-gray-100 dark:border-gray-800 space-y-4">
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                        Domicilio de la Instalación Principal
-                      </h3>
+                  {/* Domicilio de Instalación */}
+                  {!sameInstallationAddress && (
+                    <div className="pt-6 border-t border-gray-100 dark:border-gray-800 space-y-4">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        Domicilio de la Instalación
+                      </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
                         <div className="sm:col-span-12">
-                          <label className="block text-sm font-medium mb-1.5">
+                          <label className="block text-sm font-medium mb-2">
                             Dirección de Instalación
                           </label>
                           <Input
@@ -954,40 +855,35 @@ export default function MiEmpresaPage() {
                         </div>
 
                         <div className="sm:col-span-3">
-                          <label className="block text-sm font-medium mb-1.5">Código Postal</label>
+                          <label className="block text-sm font-medium mb-2">Código Postal</label>
                           <Input
                             name="codigo_postal_instalacion"
                             value={formData.codigo_postal_instalacion}
                             onChange={handleChange}
                             placeholder="Ej: 41001"
-                            className="font-mono"
                           />
                         </div>
 
-                        <div className="sm:col-span-5">
-                          <label className="block text-sm font-medium mb-1.5">Municipio</label>
-                          <Input
-                            name="municipio_instalacion"
-                            value={formData.municipio_instalacion}
-                            onChange={handleChange}
-                            placeholder="Ej: Sevilla"
-                          />
-                        </div>
-
-                        <div className="sm:col-span-4">
-                          <label className="block text-sm font-medium mb-1.5">Provincia</label>
-                          <Input
-                            name="provincia_instalacion"
-                            value={formData.provincia_instalacion}
-                            onChange={handleChange}
-                            placeholder="Ej: Sevilla"
-                          />
-                        </div>
+                        <ProvinceMunicipalityFields
+                          unstyledWrapper
+                          provinciaWrapperClassName="sm:col-span-4"
+                          municipioWrapperClassName="sm:col-span-5"
+                          order="provincia-first"
+                          provincia={formData.provincia_instalacion || ''}
+                          municipio={formData.municipio_instalacion || ''}
+                          onChange={({ provincia, municipio }) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              provincia_instalacion: provincia,
+                              municipio_instalacion: municipio,
+                            }))
+                          }
+                        />
                       </div>
                     </div>
                   )}
                 </div>
-              </div>
+              </ComponentCard>
             </div>
           )}
 
@@ -997,36 +893,28 @@ export default function MiEmpresaPage() {
           {activeTab === 'integraciones' && (
             <div className="space-y-6">
               {/* Configuración SIRA (Junta de Andalucía) */}
-              <ComponentCard
-                title="Configuración SIRA (Junta de Andalucía)"
-                className="border-emerald-200/80 bg-emerald-50/20 dark:border-emerald-900/40 dark:bg-emerald-950/10"
-              >
+              <ComponentCard title="Configuración SIRA (Junta de Andalucía)">
                 <div className="space-y-4">
-                  <div className="p-4 rounded-xl bg-emerald-100/50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-950 dark:text-emerald-200 text-xs leading-relaxed space-y-2">
-                    <div className="font-semibold text-sm text-emerald-900 dark:text-emerald-100">
-                      ¿Qué es la conexión SIRA y cómo funciona?
+                  <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800 text-xs text-gray-600 dark:text-gray-300 leading-relaxed space-y-1.5">
+                    <div className="font-semibold text-gray-900 dark:text-white">
+                      Conexión con el Sistema de Información de Residuos de Andalucía (SIRA)
                     </div>
                     <p>
-                      <strong>SIRA</strong> (Sistema de Información de Residuos de Andalucía) es la plataforma oficial de la Junta de Andalucía para la tramitación de traslados de residuos.
-                    </p>
-                    <p>
-                      Al activar la integración e introducir tus credenciales del Servicio Web (Usuario WS y Contraseña WS), <strong>Resigest 360</strong> enviará los Documentos de Identificación (DI) firmados directamente a la Consejería mediante protocolo cifrado E3L. Obtendrás el <strong>ID de Registro SIRA</strong> oficial en segundos sin necesidad de subidas manuales.
+                      Al activar la integración e introducir tus credenciales del Servicio Web (Usuario WS y Contraseña WS), ResiGest 360 enviará los Documentos de Identificación (DI) directamente mediante protocolo E3L.
                     </p>
                   </div>
 
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between py-2">
                     <div>
-                      <h4 className="font-semibold text-gray-900 dark:text-white">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
                         Conexión con el Web Service
                       </h4>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Configura las credenciales para el envío directo de DI a la plataforma SIRA.
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Habilita el envío directo de DI a la plataforma SIRA.
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium uppercase tracking-wider text-muted">
-                        Desactivado
-                      </span>
+                      <span className="text-xs text-muted">Desactivado</span>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
                           type="checkbox"
@@ -1038,9 +926,7 @@ export default function MiEmpresaPage() {
                         />
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary" />
                       </label>
-                      <span className="text-xs font-medium uppercase tracking-wider text-primary">
-                        Activado
-                      </span>
+                      <span className="text-xs font-medium text-foreground">Activado</span>
                     </div>
                   </div>
 
@@ -1054,7 +940,6 @@ export default function MiEmpresaPage() {
                         value={formData.sira_usuario}
                         onChange={handleChange}
                         placeholder="Usuario asignado en SIRA"
-                        className="bg-white dark:bg-dark"
                       />
                     </div>
                     <div>
@@ -1065,51 +950,35 @@ export default function MiEmpresaPage() {
                         value={formData.sira_password}
                         onChange={handleChange}
                         placeholder="••••••••"
-                        className="bg-white dark:bg-dark"
                       />
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2 italic">
-                    * Las credenciales se utilizan exclusivamente para la comunicación cifrada con los servidores de la Junta de Andalucía.
-                  </p>
                 </div>
               </ComponentCard>
 
               {/* Configuración Holded */}
-              <ComponentCard
-                title="Integración con Holded"
-                className="border-orange-200 bg-orange-50/30 dark:border-orange-900/30"
-              >
+              <ComponentCard title="Integración con Holded">
                 <div className="space-y-4">
-                  <div>
-                    <h4 className="font-semibold text-orange-800 dark:text-orange-300">
-                      Clave de API de Holded
-                    </h4>
-                    <p className="text-sm text-orange-600/70 dark:text-orange-400/70 mb-4">
-                      Sincroniza tus contactos (gestores y transportistas) y automatiza la creación de facturas.
-                    </p>
-                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Sincroniza tus contactos (gestores y transportistas) y automatiza la creación de facturas.
+                  </p>
 
                   <div>
-                    <label className="block text-sm font-medium mb-2">API Key</label>
+                    <label className="block text-sm font-medium mb-2">API Key de Holded</label>
                     <Input
                       name="holded_api_key"
                       value={formData.holded_api_key}
                       onChange={handleChange}
                       placeholder="Introduce tu API Key de Holded"
-                      className="bg-white dark:bg-dark"
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2 italic">
-                    * Tu API Key se almacena de forma segura y se utiliza solo para las integraciones autorizadas.
-                  </p>
                 </div>
               </ComponentCard>
             </div>
           )}
 
-          {/* Barra de Acciones del Formulario Principal */}
-          <div className="mt-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+{/* Barra de Acciones del Formulario Principal */}
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-xs text-gray-500 dark:text-gray-400">
               {canManageCompany
                 ? 'Los cambios realizados en cualquiera de las 3 pestañas se guardan conjuntamente.'
@@ -1119,7 +988,7 @@ export default function MiEmpresaPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push('/app')}
+                onClick={() => router.push('/residuos/contratos')}
                 disabled={saving}
               >
                 Volver
@@ -1133,7 +1002,7 @@ export default function MiEmpresaPage() {
           </div>
         </form>
 
-        {/* Centros de Producción Adicionales (Visible en la Pestaña 2: Domicilios y Sedes) */}
+        {/* Centros de Producción Adicionales (Visible en la Pestaña 2: Domicilios y Centros) */}
         {activeTab === 'sedes' && company && (
           <div className="mt-8">
             <div className="flex justify-between items-center mb-6">
@@ -1154,10 +1023,7 @@ export default function MiEmpresaPage() {
             </div>
 
             {showCenterForm && (
-              <ComponentCard
-                title="Agregar Nuevo Centro de Producción"
-                className="mb-6 border-brand-500/20 bg-brand-50/10"
-              >
+              <ComponentCard title="Agregar Nuevo Centro de Producción" className="mb-6">
                 <form onSubmit={handleAddCenter} className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
                     <div className="sm:col-span-8">
@@ -1179,7 +1045,6 @@ export default function MiEmpresaPage() {
                           setCenterFormData({ ...centerFormData, nima: e.target.value })
                         }
                         placeholder="10 dígitos"
-                        className="font-mono"
                         required
                       />
                     </div>
@@ -1200,39 +1065,33 @@ export default function MiEmpresaPage() {
                         value={centerFormData.codigo_postal}
                         onChange={(e) => {
                           const cp = e.target.value;
-                          const prefix = cp.trim().substring(0, 2);
+                          const detectedProv = getProvinceByPostalCode(cp);
                           setCenterFormData((prev) => ({
                             ...prev,
                             codigo_postal: cp,
-                            provincia: PROVINCIAS_POR_CP[prefix] || prev.provincia,
+                            provincia: detectedProv || prev.provincia,
                           }));
                         }}
                         placeholder="Ej: 41001"
-                        className="font-mono"
                       />
                     </div>
-                    <div className="sm:col-span-5">
-                      <label className="block text-sm font-medium mb-1">Municipio *</label>
-                      <Input
-                        value={centerFormData.municipio}
-                        onChange={(e) =>
-                          setCenterFormData({ ...centerFormData, municipio: e.target.value })
-                        }
-                        placeholder="Ej: Sevilla"
-                        required
-                      />
-                    </div>
-                    <div className="sm:col-span-4">
-                      <label className="block text-sm font-medium mb-1">Provincia *</label>
-                      <Input
-                        value={centerFormData.provincia}
-                        onChange={(e) =>
-                          setCenterFormData({ ...centerFormData, provincia: e.target.value })
-                        }
-                        placeholder="Ej: Sevilla"
-                        required
-                      />
-                    </div>
+                    <ProvinceMunicipalityFields
+                      unstyledWrapper
+                      provinciaRequired
+                      municipioRequired
+                      provinciaWrapperClassName="sm:col-span-4"
+                      municipioWrapperClassName="sm:col-span-5"
+                      order="provincia-first"
+                      provincia={centerFormData.provincia || ''}
+                      municipio={centerFormData.municipio || ''}
+                      onChange={({ provincia, municipio }) =>
+                        setCenterFormData((prev) => ({
+                          ...prev,
+                          provincia,
+                          municipio,
+                        }))
+                      }
+                    />
                     <div className="sm:col-span-12">
                       <label className="block text-sm font-medium mb-1">Descripción</label>
                       <TextArea
@@ -1259,35 +1118,35 @@ export default function MiEmpresaPage() {
                 {productionCenters.map((center) => (
                   <div
                     key={center.id}
-                    className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-gray-200 dark:border-gray-800 shadow-xs hover:shadow-md transition-shadow"
+                    className="bg-white dark:bg-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-800"
                   >
                     <div className="flex justify-between items-start gap-4">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-bold text-lg text-gray-900 dark:text-white">
+                          <h3 className="font-semibold text-base text-gray-900 dark:text-white">
                             {center.nombre}
                           </h3>
-                          <span className="px-2 py-0.5 text-xs font-mono font-semibold rounded bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-400 border border-brand-200 dark:border-brand-800/60">
+                          <span className="px-2 py-0.5 text-xs font-mono rounded bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
                             NIMA: {center.nima}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1.5">
                           {center.direccion}
                           {(center.municipio || center.provincia) && (
                             <>, {[center.municipio, center.provincia].filter(Boolean).join(', ')}</>
                           )}
                         </p>
                         {center.descripcion && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 italic">
-                            &ldquo;{center.descripcion}&rdquo;
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            {center.descripcion}
                           </p>
                         )}
                       </div>
-                      {canWrite && (
+{canWrite && (
                         <button
                           type="button"
                           onClick={() => handleDeleteCenter(center.id)}
-                          className="text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900/40 transition-colors shrink-0"
+                          className="text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900/40 transition-colors shrink-0"
                           title="Eliminar centro"
                         >
                           Eliminar
@@ -1298,9 +1157,9 @@ export default function MiEmpresaPage() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-10 bg-gray-50 dark:bg-dark-2 rounded-2xl border border-dashed border-stroke dark:border-strokedark">
-                <p className="text-muted">No hay otros centros de producción registrados.</p>
-                <p className="text-sm text-muted mt-1">
+              <div className="text-center py-10 bg-gray-50 dark:bg-dark-2 rounded-xl border border-dashed border-stroke dark:border-strokedark">
+                <p className="text-muted text-sm">No hay otros centros de producción registrados.</p>
+                <p className="text-xs text-muted mt-1">
                   Los centros añadidos aquí podrán seleccionarse en los contratos y documentos.
                 </p>
               </div>

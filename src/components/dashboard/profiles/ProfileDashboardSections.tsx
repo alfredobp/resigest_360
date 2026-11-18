@@ -106,6 +106,14 @@ export function ProfileKpiGrid({ profile, data, canViewCommercial }: ProfileKpis
                 <p className="font-bold text-gray-800 dark:text-gray-200">{residuos.toneladasNoPeligrosas.toFixed(2)} t</p>
               </div>
             </div>
+            {typeof residuos.totalAsientosArchivo === 'number' && residuos.totalAsientosArchivo > 0 && (
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-800 text-[11px] text-gray-500">
+                <span>Archivo Cronológico (Art. 64): </span>
+                <span className="font-semibold text-gray-800 dark:text-gray-200">
+                  {residuos.toneladasArchivoCronologico?.toFixed(2)} t ({residuos.totalAsientosArchivo} asientos)
+                </span>
+              </div>
+            )}
           </div>
         </ComponentCard>
 
@@ -283,6 +291,14 @@ export function ProfileKpiGrid({ profile, data, canViewCommercial }: ProfileKpis
                 <p className="font-bold text-gray-800 dark:text-gray-200">{residuos.toneladasNoPeligrosas.toFixed(2)} t</p>
               </div>
             </div>
+            {typeof residuos.totalAsientosArchivo === 'number' && residuos.totalAsientosArchivo > 0 && (
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-800 text-[11px] text-gray-500">
+                <span>Archivo Cronológico (Art. 64): </span>
+                <span className="font-semibold text-gray-800 dark:text-gray-200">
+                  {residuos.toneladasArchivoCronologico?.toFixed(2)} t ({residuos.totalAsientosArchivo} asientos)
+                </span>
+              </div>
+            )}
           </div>
         </ComponentCard>
 

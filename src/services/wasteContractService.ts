@@ -594,106 +594,86 @@ export const wasteContractService = {
       );
     }
 
-    // P0 A04-02: Comprobar si el contrato existente tenía firmas y si hay cambios materiales
-    const isSignatureOnlyUpdate =
-      (mainData.firma_productor_url !== undefined || mainData.firma_gestor_url !== undefined) &&
-      Object.keys(mainData).every((k) =>
-        [
-          'firma_productor_url',
-          'fecha_firma_productor',
-          'firmado_productor',
-          'firma_gestor_url',
-          'fecha_firma_gestor',
-          'firmado_gestor',
-          'documento_url',
-        ].includes(k)
-      ) &&
-      contract_waste_codes === undefined;
+    // A04-02: Si se modifican términos materiales (cantidades, LER, fechas, condiciones o partes),
+    // y no es una acción explícita de firma, invalidar las firmas previas exigiendo nueva conformidad (Art. 5 RD 553/2020)
+    const isExplicitSignatureAction =
+      updatePayload.firmado_productor !== undefined ||
+      updatePayload.firmado_gestor !== undefined ||
+      updatePayload.firma_productor_url !== undefined ||
+      updatePayload.firma_gestor_url !== undefined;
 
-    let invalidatedConformities = false;
+    const hasMaterialChanges =
+      contract_waste_codes !== undefined ||
+      mainData.codigos_ler !== undefined ||
+      mainData.operaciones_tratamiento !== undefined ||
+      Object.keys(mainData).some((k) =>
+        [
+          'cantidad_maxima_anual',
+          'unidad_cantidad',
+          'frecuencia_recogida',
+          'tipo_contrato',
+          'fecha_inicio',
+          'fecha_fin',
+          'descripcion_residuos',
+          'notas',
+          'condiciones_entrega',
+          'condiciones_pago',
+          'clausulas_adicionales',
+          'company_id',
+          'gestor_company_id',
+          'treatment_manager_id',
+          'production_center_id',
+          'producer_center_id',
+          'gestor_center_id',
+          'precio_unitario',
+        ].includes(k)
+      );
+
+    let signaturesInvalidated = false;
     let changedFieldsList: string[] = [];
 
-    if (!isSignatureOnlyUpdate) {
+    if (!isExplicitSignatureAction && hasMaterialChanges) {
       try {
-        const currentBuilder: any = supabase.from('waste_contracts');
-        if (currentBuilder && typeof currentBuilder.select === 'function') {
-          let currentQuery: any = currentBuilder
-            .select('*, contract_waste_codes(*)')
-            .eq('id', id);
-
-          if (companyIds.length > 0 && typeof currentQuery.or === 'function') {
-            currentQuery = currentQuery.or(
-              `user_id.eq.${userId},company_id.in.(${companyIds.join(',')}),gestor_company_id.in.(${companyIds.join(',')})`
-            );
-          } else if (typeof currentQuery.eq === 'function') {
-            currentQuery = currentQuery.eq('user_id', userId);
-          }
-
-          const currentRes =
-            typeof currentQuery.maybeSingle === 'function'
-              ? await currentQuery.maybeSingle()
-              : null;
-          const existingContract = currentRes?.data as WasteContract | null;
-
-          const hadConformities = Boolean(
-            existingContract &&
-              (existingContract.firmado_productor ||
-                existingContract.firma_productor_url ||
-                existingContract.firmado_gestor ||
-                existingContract.firma_gestor_url)
-          );
-
-          if (existingContract && hadConformities) {
-            const { hasMaterialChange, changedFields } = detectContractMaterialChanges(existingContract, {
-              ...updatePayload,
-              contract_waste_codes,
-            });
-
-            if (hasMaterialChange) {
-              invalidatedConformities = true;
-              changedFieldsList = changedFields;
-              const prevVersion = Number(existingContract.version) || 1;
-              const prevHistory: WasteContractRevision[] = Array.isArray(existingContract.revision_history)
-                ? existingContract.revision_history
-                : [];
-
-              const snapshot: WasteContractRevision = {
-                version: prevVersion,
-                archived_at: new Date().toISOString(),
-                changed_fields: changedFields,
-                cantidad_maxima_anual: existingContract.cantidad_maxima_anual,
-                unidad_cantidad: existingContract.unidad_cantidad,
-                frecuencia_recogida: existingContract.frecuencia_recogida,
-                precio_unitario: existingContract.precio_unitario,
-                moneda: existingContract.moneda,
-                fecha_inicio: existingContract.fecha_inicio,
-                fecha_fin: existingContract.fecha_fin,
-                codigos_ler: existingContract.codigos_ler,
-                operaciones_tratamiento: existingContract.operaciones_tratamiento,
-                contract_waste_codes: existingContract.contract_waste_codes,
-                firmado_productor: Boolean(existingContract.firmado_productor || existingContract.firma_productor_url),
-                firma_productor_url: existingContract.firma_productor_url,
-                fecha_firma_productor: existingContract.fecha_firma_productor,
-                firmado_gestor: Boolean(existingContract.firmado_gestor || existingContract.firma_gestor_url),
-                firma_gestor_url: existingContract.firma_gestor_url,
-                fecha_firma_gestor: existingContract.fecha_firma_gestor,
-                documento_url: existingContract.documento_url,
-              };
-
-              updatePayload.version = prevVersion + 1;
-              updatePayload.revision_history = [...prevHistory, snapshot];
-              updatePayload.firmado_productor = false;
-              updatePayload.firma_productor_url = null;
-              updatePayload.fecha_firma_productor = null;
-              updatePayload.firmado_gestor = false;
-              updatePayload.firma_gestor_url = null;
-              updatePayload.fecha_firma_gestor = null;
-              updatePayload.estado = 'borrador';
+        const lookup: any = supabase.from('waste_contracts');
+        if (typeof lookup?.select === 'function') {
+          const sel = lookup.select('id, firmado_productor, firmado_gestor, firma_productor_url, firma_gestor_url, estado, version, company_id, revision_history');
+          if (typeof sel?.eq === 'function') {
+            const eqRes = sel.eq('id', id);
+            const fetcher = typeof eqRes?.maybeSingle === 'function' ? eqRes.maybeSingle.bind(eqRes) : (typeof eqRes?.single === 'function' ? eqRes.single.bind(eqRes) : null);
+            if (fetcher) {
+              const { data: currentContract } = await fetcher();
+              if (
+                currentContract &&
+                (currentContract.firmado_productor ||
+                  currentContract.firmado_gestor ||
+                  currentContract.firma_productor_url ||
+                  currentContract.firma_gestor_url)
+              ) {
+                const diff = detectContractMaterialChanges(currentContract, {
+                  ...updatePayload,
+                  contract_waste_codes,
+                });
+                changedFieldsList = diff.changedFields;
+                signaturesInvalidated = true;
+                updatePayload.firmado_productor = false;
+                updatePayload.firmado_gestor = false;
+                updatePayload.firma_productor_url = null;
+                updatePayload.firma_gestor_url = null;
+                updatePayload.fecha_firma_productor = null;
+                updatePayload.fecha_firma_gestor = null;
+                updatePayload.documento_url = null; // invalidar enlace al PDF anterior firmado
+                if (updatePayload.estado === undefined || updatePayload.estado === 'vigente') {
+                  updatePayload.estado = 'pendiente_firma';
+                }
+                if (typeof currentContract.version === 'number') {
+                  updatePayload.version = currentContract.version + 1;
+                }
+              }
             }
           }
         }
-      } catch {
-        // En mocks de pruebas unitarias que solo configuran update(), continuar sin bloquear
+      } catch (err) {
+        console.warn('Error al verificar estado de firmas para invalidación de contrato:', err);
       }
     }
 
@@ -748,16 +728,14 @@ export const wasteContractService = {
       company_id: (data as WasteContract)?.company_id ?? null,
       entidad: 'contrato',
       entidad_id: id,
-      accion: mainData.estado ? 'cambiar_estado' : 'actualizar',
+      accion: signaturesInvalidated ? 'invalidar_firmas' : (mainData.estado ? 'cambiar_estado' : 'actualizar'),
       detalles: {
         numero_contrato: (data as WasteContract)?.numero_contrato,
         estado: (data as WasteContract)?.estado,
-        ...(invalidatedConformities
-          ? {
-              version_nueva: updatePayload.version,
-              conformidades_invalidadas: true,
-              campos_modificados: changedFieldsList,
-            }
+        firmas_invalidadas: signaturesInvalidated,
+        motivo: signaturesInvalidated ? 'Modificación material de términos del contrato (Art. 5 RD 553/2020)' : undefined,
+        ...(signaturesInvalidated && changedFieldsList.length > 0
+          ? { campos_modificados: changedFieldsList }
           : {}),
       },
     });
@@ -1311,12 +1289,13 @@ export function validateContractActivation(
  * Calcula el estado dinámico y vigencia real de un contrato según sus fechas
  */
 export function getContractEffectiveStatus(contract: WasteContract): {
-  status: 'borrador' | 'vigente' | 'caducado' | 'finalizado' | 'cancelado';
+  status: 'borrador' | 'pendiente_firma' | 'vigente' | 'caducado' | 'finalizado' | 'cancelado';
   isExpired: boolean;
   label: string;
 } {
   if (contract.estado === 'cancelado') return { status: 'cancelado', isExpired: false, label: 'Cancelado' };
   if (contract.estado === 'finalizado') return { status: 'finalizado', isExpired: false, label: 'Finalizado' };
+  if (contract.estado === 'pendiente_firma') return { status: 'pendiente_firma', isExpired: false, label: 'Pendiente de firma' };
   if (contract.estado === 'borrador') {
     const isExpired = Boolean(contract.fecha_fin && new Date(contract.fecha_fin) < new Date(new Date().setHours(0, 0, 0, 0)));
     return { status: 'borrador', isExpired, label: isExpired ? 'Borrador (Vencido)' : 'Borrador' };

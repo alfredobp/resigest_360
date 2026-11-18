@@ -5,9 +5,11 @@ import { Modal } from "../ui/modal";
 import Button from "../ui/button/Button";
 import Input from "../form/input/InputField";
 import Label from "../form/Label";
+import ProvinceMunicipalityFields from "../form/ProvinceMunicipalityFields";
 import { useTenant } from "@/context/TenantContext";
 import companyService from "@/services/companyService";
 import { toast } from "@/context/ToastContext";
+import { getProvinceByPostalCode } from "@/lib/validations/spainLocations";
 
 export default function UserAddressCard() {
   const { isOpen, openModal, closeModal } = useModal();
@@ -156,32 +158,35 @@ export default function UserAddressCard() {
                   />
                 </div>
 
-                <div>
-                  <Label>Municipio</Label>
-                  <Input
-                    type="text"
-                    value={formData.municipio_social}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, municipio_social: e.target.value }))}
-                    placeholder="Ej. Sevilla"
-                  />
-                </div>
+                <ProvinceMunicipalityFields
+                  unstyledWrapper
+                  provincia={formData.provincia_social}
+                  municipio={formData.municipio_social}
+                  provinciaId="address_provincia"
+                  municipioId="address_municipio"
+                  onChange={({ provincia, municipio }) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      provincia_social: provincia,
+                      municipio_social: municipio,
+                    }))
+                  }
+                />
 
-                <div>
-                  <Label>Provincia</Label>
-                  <Input
-                    type="text"
-                    value={formData.provincia_social}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, provincia_social: e.target.value }))}
-                    placeholder="Ej. Sevilla"
-                  />
-                </div>
-
-                <div>
+                <div className="col-span-1 lg:col-span-2">
                   <Label>Código Postal</Label>
                   <Input
                     type="text"
                     value={formData.codigo_postal_social}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, codigo_postal_social: e.target.value }))}
+                    onChange={(e) => {
+                      const cp = e.target.value;
+                      const detectedProv = getProvinceByPostalCode(cp);
+                      setFormData((prev) => ({
+                        ...prev,
+                        codigo_postal_social: cp,
+                        provincia_social: detectedProv || prev.provincia_social,
+                      }));
+                    }}
                     placeholder="Ej. 41001"
                   />
                 </div>

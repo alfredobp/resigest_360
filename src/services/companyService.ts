@@ -48,6 +48,23 @@ export const companyService = {
   },
 
   /**
+   * Resuelve el contexto delegado (empresa activa, usuario target y datos de empresa activa)
+   */
+  async getDelegatedContext(userId: string): Promise<{
+    activeId: number | null;
+    targetUserId: string;
+    activeCompany: Company | null;
+  }> {
+    const activeId = this.getActiveCompanyId();
+    if (!activeId) {
+      return { activeId: null, targetUserId: userId, activeCompany: null };
+    }
+    const activeCompany = await this.getUserCompany();
+    const targetUserId = activeCompany?.user_id || userId;
+    return { activeId, targetUserId, activeCompany };
+  },
+
+  /**
    * Lista todas las empresas marcadas como propias del tenant actual.
    */
   async getMyCompanies(): Promise<Company[]> {
@@ -172,34 +189,19 @@ export const companyService = {
     activeCompanyId: number | null;
     isDelegated: boolean;
   }> {
-    const activeId = this.getActiveCompanyId();
+    const { activeId, targetUserId } = await this.getDelegatedContext(currentUserId);
     if (!activeId) {
       return { ownerUserId: currentUserId, activeCompanyId: null, isDelegated: false };
     }
-
-    try {
-      const compBuilder: any = supabase.from('companies');
-      if (compBuilder && typeof compBuilder.select === 'function') {
-        const q1 = compBuilder.select('id, user_id').eq('id', activeId);
-        const q2 = typeof q1?.eq === 'function' ? q1.eq('activo', true) : q1;
-        const res = typeof q2?.maybeSingle === 'function' ? await q2.maybeSingle() : null;
-        if (res?.data?.user_id) {
-          return {
-            ownerUserId: res.data.user_id,
-            activeCompanyId: activeId,
-            isDelegated: res.data.user_id !== currentUserId,
-          };
-        }
-      }
-    } catch {
-      // Fallback seguro al usuario actual en mocks simples
-    }
-
-    return { ownerUserId: currentUserId, activeCompanyId: activeId, isDelegated: false };
+    return {
+      ownerUserId: targetUserId,
+      activeCompanyId: activeId,
+      isDelegated: targetUserId !== currentUserId,
+    };
   },
 
   /**
-   * Obtener todos los contactos y empresas colaboradoras del usuario (o de la empresa activa delegada)
+   * Obtener todos los contactos y empresas colaboradoras del usuario o de la empresa activa
    */
   async getAllContacts(): Promise<Company[]> {
     const { data: { user } } = await supabase.auth.getUser();
@@ -208,14 +210,23 @@ export const companyService = {
       throw new Error('Usuario no autenticado');
     }
 
-    const { ownerUserId } = await this.resolveEffectiveOwnerContext(user.id);
+    const { activeId, targetUserId } = await this.getDelegatedContext(user.id);
 
-    const { data, error } = await supabase
+    let query: any = supabase
       .from('companies')
-      .select('*, production_centers(*)')
-      .eq('user_id', ownerUserId)
+      .select('*, production_centers(*)');
+
+    if (activeId && targetUserId !== user.id) {
+      query = query.or(`user_id.eq.${targetUserId},id.eq.${activeId}`);
+    } else {
+      query = query.eq('user_id', user.id);
+    }
+
+    query = query
       .eq('activo', true)
       .order('razon_social', { ascending: true });
+
+    const { data, error } = await query;
 
     if (error) {
       throw new Error(`Error al obtener empresas: ${error.message}`);
@@ -234,11 +245,21 @@ export const companyService = {
       throw new Error('Usuario no autenticado');
     }
 
-    const { data, error } = await supabase
+    const { activeId, targetUserId } = await this.getDelegatedContext(user.id);
+
+    let query: any = supabase
       .from('companies')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+      .select('*');
+
+    if (activeId && targetUserId !== user.id) {
+      query = query.or(`user_id.eq.${targetUserId},id.eq.${activeId}`);
+    } else {
+      query = query.eq('user_id', user.id);
+    }
+
+    query = query.order('created_at', { ascending: false });
+
+    const { data, error } = await query;
 
     if (error) {
       throw new Error(`Error al obtener empresas: ${error.message}`);
@@ -256,13 +277,23 @@ export const companyService = {
       throw new Error('Usuario no autenticado');
     }
 
-    // Intentar consulta con soporte de array roles o tipo_empresa legado
-    const { data, error } = await supabase
+    const { activeId, targetUserId } = await this.getDelegatedContext(user.id);
+
+    let query: any = supabase
       .from('companies')
-      .select('*, production_centers(*)')
-      .eq('user_id', user.id)
+      .select('*, production_centers(*)');
+
+    if (activeId && targetUserId !== user.id) {
+      query = query.or(`user_id.eq.${targetUserId},id.eq.${activeId}`);
+    } else {
+      query = query.eq('user_id', user.id);
+    }
+
+    query = query
       .eq('activo', true)
       .order('razon_social', { ascending: true });
+
+    const { data, error } = await query;
 
     if (error) {
       throw new Error(`Error al obtener empresas por rol: ${error.message}`);
@@ -271,12 +302,11 @@ export const companyService = {
     if (!data) return [];
 
     // Filtrar aquellas que desempeñan el rol (bien en roles array o en tipo_empresa legado)
-    const { ownerUserId } = await this.resolveEffectiveOwnerContext(user.id);
     return (data as Company[]).filter((c) => {
       const hasInRoles = Array.isArray(c.roles) && c.roles.includes(role as any);
       const isTipo = c.tipo_empresa === role;
-      const isOwner = c.user_id === ownerUserId || c.user_id === user.id;
-      return (hasInRoles || isTipo) && isOwner;
+      const isTenant = c.user_id === targetUserId || c.user_id === user.id || (activeId ? c.id === activeId : false);
+      return (hasInRoles || isTipo) && isTenant;
     });
   },
 
@@ -295,6 +325,8 @@ export const companyService = {
     const cleanQuery = query.replace(/[%_(),]/g, '').trim();
     if (!cleanQuery) return this.getAllContacts();
 
+    const { activeId, targetUserId } = await this.getDelegatedContext(user?.id || '');
+
     let req = supabase
       .from('companies')
       .select('*, production_centers(*)')
@@ -303,8 +335,12 @@ export const companyService = {
       .order('razon_social', { ascending: true })
       .limit(30);
 
-    if (user) {
-      req = req.eq('user_id', user.id);
+    if (user && targetUserId) {
+      if (activeId && targetUserId !== user.id) {
+        req = req.or(`user_id.eq.${targetUserId},id.eq.${activeId}`);
+      } else {
+        req = req.eq('user_id', user.id);
+      }
     }
 
     const { data, error } = await req;
@@ -325,22 +361,20 @@ export const companyService = {
       throw new Error('Usuario no autenticado');
     }
 
+    const { targetUserId, activeCompany } = await this.getDelegatedContext(userData.user.id);
+
     // Normalizar roles
     const roles = companyData.roles && companyData.roles.length > 0
       ? companyData.roles
       : (companyData.tipo_empresa ? [companyData.tipo_empresa] : ['productor']);
 
     const primaryType = roles[0] || companyData.tipo_empresa || 'productor';
-    const isCreatingContact = !(companyData.is_my_company ?? false);
-    const { ownerUserId, activeCompanyId, isDelegated } = isCreatingContact
-      ? await this.resolveEffectiveOwnerContext(userData.user.id)
-      : { ownerUserId: userData.user.id, activeCompanyId: null, isDelegated: false };
 
-    // Comprobar si ya existe una empresa con ese CIF para este propietario (o empresa activa delegada)
+    // Comprobar si ya existe una empresa con ese CIF para este usuario/ámbito tenant
     const { data: existing } = await supabase
       .from('companies')
       .select('id, roles')
-      .eq('user_id', ownerUserId)
+      .eq('user_id', targetUserId)
       .eq('cif', companyData.cif.trim())
       .maybeSingle();
 
@@ -358,7 +392,7 @@ export const companyService = {
       .from('companies')
       .insert({
         ...companyData,
-        user_id: ownerUserId,
+        user_id: targetUserId,
         tipo_empresa: primaryType,
         roles,
         is_my_company: companyData.is_my_company ?? false,
@@ -374,7 +408,7 @@ export const companyService = {
     const created = data as Company;
 
     await auditService.logAction({
-      company_id: activeCompanyId || created.id,
+      company_id: activeCompany?.id || created.id,
       entidad: 'empresa',
       entidad_id: created.id,
       accion: 'crear',
@@ -382,7 +416,9 @@ export const companyService = {
         razon_social: created.razon_social,
         cif: created.cif,
         roles: created.roles,
-        ...(isDelegated ? { actor_user_id: userData.user.id, owner_user_id: ownerUserId, organizacion_activa_id: activeCompanyId } : {}),
+        actor_id: userData.user.id,
+        target_user_id: targetUserId,
+        organization_id: activeCompany?.id || created.id,
       },
     });
 
@@ -398,13 +434,20 @@ export const companyService = {
       throw new Error('Usuario no autenticado');
     }
 
-    const { ownerUserId, activeCompanyId, isDelegated } = await this.resolveEffectiveOwnerContext(user.id);
+    const { activeId, targetUserId, activeCompany } = await this.getDelegatedContext(user.id);
 
-    const { data, error } = await supabase
+    let updateQuery = supabase
       .from('companies')
       .update(companyData)
-      .eq('id', id)
-      .eq('user_id', ownerUserId)
+      .eq('id', id);
+
+    if (activeId && targetUserId !== user.id) {
+      updateQuery = updateQuery.or(`user_id.eq.${user.id},user_id.eq.${targetUserId}`);
+    } else {
+      updateQuery = updateQuery.eq('user_id', user.id);
+    }
+
+    const { data, error } = await updateQuery
       .select()
       .single();
 
@@ -415,14 +458,16 @@ export const companyService = {
     const updated = data as Company;
 
     await auditService.logAction({
-      company_id: activeCompanyId || updated.id,
+      company_id: activeCompany?.id || updated.id,
       entidad: 'empresa',
       entidad_id: updated.id,
       accion: 'actualizar',
       detalles: {
         razon_social: updated.razon_social,
         cif: updated.cif,
-        ...(isDelegated ? { actor_user_id: user.id, owner_user_id: ownerUserId } : {}),
+        actor_id: user.id,
+        target_user_id: targetUserId,
+        organization_id: activeCompany?.id || updated.id,
       },
     });
 
@@ -438,22 +483,36 @@ export const companyService = {
       throw new Error('Usuario no autenticado');
     }
 
-    const { error } = await supabase
+    const { activeId, targetUserId, activeCompany } = await this.getDelegatedContext(user.id);
+
+    let delQuery = supabase
       .from('companies')
       .update({ activo: false })
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id);
+
+    if (activeId && targetUserId !== user.id) {
+      delQuery = delQuery.or(`user_id.eq.${user.id},user_id.eq.${targetUserId}`);
+    } else {
+      delQuery = delQuery.eq('user_id', user.id);
+    }
+
+    const { error } = await delQuery;
 
     if (error) {
       throw new Error(`Error al desactivar empresa: ${error.message}`);
     }
 
     await auditService.logAction({
-      company_id: id,
+      company_id: activeCompany?.id || id,
       entidad: 'empresa',
       entidad_id: id,
       accion: 'eliminar',
-      detalles: { soft_delete: true },
+      detalles: {
+        soft_delete: true,
+        actor_id: user.id,
+        target_user_id: targetUserId,
+        organization_id: activeCompany?.id || id,
+      },
     });
   },
 
@@ -466,22 +525,36 @@ export const companyService = {
       throw new Error('Usuario no autenticado');
     }
 
-    const { error } = await supabase
+    const { activeId, targetUserId, activeCompany } = await this.getDelegatedContext(user.id);
+
+    let delQuery = supabase
       .from('companies')
       .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id);
+
+    if (activeId && targetUserId !== user.id) {
+      delQuery = delQuery.or(`user_id.eq.${user.id},user_id.eq.${targetUserId}`);
+    } else {
+      delQuery = delQuery.eq('user_id', user.id);
+    }
+
+    const { error } = await delQuery;
 
     if (error) {
       throw new Error(`Error al eliminar empresa: ${error.message}`);
     }
 
     await auditService.logAction({
-      company_id: id,
+      company_id: activeCompany?.id || id,
       entidad: 'empresa',
       entidad_id: id,
       accion: 'eliminar',
-      detalles: { soft_delete: false },
+      detalles: {
+        soft_delete: false,
+        actor_id: user.id,
+        target_user_id: targetUserId,
+        organization_id: activeCompany?.id || id,
+      },
     });
   },
 
@@ -537,12 +610,12 @@ export const companyService = {
   },
 
   /**
-   * Validar NIMA (10 dígitos o 10-12 caracteres alfanuméricos)
+   * Validar NIMA oficial (10 dígitos numéricos: código provincial 01-52 + 8 dígitos)
    */
   validateNIMA(nima: string): boolean {
     if (!nima) return false;
-    const clean = nima.trim().toUpperCase();
-    const nimaRegex = /^[A-Z0-9]{10,12}$/;
+    const clean = nima.trim();
+    const nimaRegex = /^(0[1-9]|[1-4][0-9]|5[0-2])\d{8}$/;
     return nimaRegex.test(clean);
   },
 };

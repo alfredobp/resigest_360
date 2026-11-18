@@ -27,6 +27,7 @@ import { toast } from '@/context/ToastContext';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import { Modal, ConfirmModal } from '@/components/ui/modal';
+import { DataTable, type ColumnDef } from '@/components/ui/table';
 import LerSelector from '@/components/residuos/LerSelector';
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -38,6 +39,47 @@ const TIPO_OP_LABELS: Record<TipoOperacionCronologica, { label: string; color: '
   tratamiento_interno: { label: 'Tratamiento R/D', color: 'warning' },
   merma_ajuste: { label: 'Ajuste / Merma', color: 'light' },
 };
+
+function formatDateTime(fechaStr?: string | null, createdAtStr?: string | null): string {
+  if (!fechaStr && !createdAtStr) return '-';
+
+  let datePart = '';
+  if (fechaStr && /^\d{4}-\d{2}-\d{2}$/.test(fechaStr.trim())) {
+    const [y, m, d] = fechaStr.trim().split('-').map(Number);
+    datePart = new Date(y, m - 1, d).toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  } else if (fechaStr) {
+    const d = new Date(fechaStr);
+    datePart = isNaN(d.getTime())
+      ? ''
+      : d.toLocaleDateString('es-ES', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        });
+  }
+
+  let timePart = '';
+  const sourceForTime = fechaStr && fechaStr.includes('T') ? fechaStr : createdAtStr;
+  if (sourceForTime) {
+    const d = new Date(sourceForTime);
+    if (!isNaN(d.getTime())) {
+      timePart = d.toLocaleTimeString('es-ES', {
+        timeZone: 'Europe/Madrid',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
+  }
+
+  if (datePart && timePart) {
+    return `${datePart}, ${timePart}`;
+  }
+  return datePart || timePart || '-';
+}
 
 export default function ArchivoCronologicoPage() {
   const [entries, setEntries] = useState<ChronologicalEntry[]>([]);
@@ -53,7 +95,6 @@ export default function ArchivoCronologicoPage() {
   const [selectedCenter, setSelectedCenter] = useState<string>('todos');
   const [selectedTipo, setSelectedTipo] = useState<string>('todas');
   const [selectedPeligrosidad, setSelectedPeligrosidad] = useState<string>('todas');
-  const [searchTerm, setSearchTerm] = useState<string>('');
 
   // Modal Nuevo Asiento
   const [modalOpen, setModalOpen] = useState(false);
@@ -100,8 +141,7 @@ export default function ArchivoCronologicoPage() {
         año: selectedYear,
         production_center_id: selectedCenter !== 'todos' ? Number(selectedCenter) : 'todos',
         tipo_operacion: selectedTipo !== 'todas' ? (selectedTipo as TipoOperacionCronologica) : 'todas',
-        peligrosidad: selectedPeligrosidad !== 'todas' ? (selectedPeligrosidad as any) : 'todas',
-        search: searchTerm
+        peligrosidad: selectedPeligrosidad !== 'todas' ? (selectedPeligrosidad as any) : 'todas'
       };
 
       const [entriesData, statsData] = await Promise.all([
@@ -126,16 +166,6 @@ export default function ArchivoCronologicoPage() {
   useEffect(() => {
     loadData();
   }, [selectedYear, selectedCenter, selectedTipo, selectedPeligrosidad]);
-
-  // Manejar búsqueda con debounce manual
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-  };
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    loadData();
-  };
 
   // Sincronizar con DIs
   const handleSyncDIs = async () => {
@@ -228,6 +258,167 @@ export default function ArchivoCronologicoPage() {
       peligrosidad: isPeligroso ? 'peligroso' : 'no-peligroso'
     }));
   };
+
+  // Columnas configuradas para DataTable
+  const columns: ColumnDef<ChronologicalEntry>[] = React.useMemo(() => [
+    {
+      id: 'asiento',
+      header: 'Asiento / Fecha',
+      sortable: true,
+      accessorFn: (row) => `${row.fecha || ''} ${row.numero_asiento || ''}`,
+      className: 'whitespace-nowrap',
+      cell: ({ row }) => (
+        <div>
+          <div className="font-semibold text-gray-900 dark:text-gray-100 font-mono">
+            {row.numero_asiento}
+          </div>
+          <div className="text-gray-500 text-[11px] whitespace-nowrap">
+            {formatDateTime(row.fecha, row.created_at)}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'operacion',
+      header: 'Operación',
+      sortable: true,
+      accessorKey: 'tipo_operacion',
+      cell: ({ row }) => {
+        const opConfig = TIPO_OP_LABELS[row.tipo_operacion] || { label: row.tipo_operacion, color: 'light' as const };
+        return (
+          <Badge variant="light" color={opConfig.color} className="text-[10.5px]">
+            {opConfig.label}
+          </Badge>
+        );
+      },
+    },
+    {
+      id: 'residuo',
+      header: 'Residuo (LER)',
+      sortable: true,
+      accessorFn: (row) => `${row.codigo_ler} ${row.descripcion_residuo}`,
+      className: 'max-w-[220px]',
+      cell: ({ row }) => {
+        const isPeligroso = row.peligrosidad === 'peligroso';
+        return (
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className={`font-mono font-bold ${isPeligroso ? 'text-amber-700 dark:text-amber-400' : 'text-gray-800 dark:text-gray-200'}`}>
+                {row.codigo_ler}
+              </span>
+              {isPeligroso && (
+                <span className="text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-1 rounded font-semibold">
+                  HP
+                </span>
+              )}
+            </div>
+            <div className="text-gray-500 text-[11px] truncate" title={row.descripcion_residuo}>
+              {row.descripcion_residuo}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'cantidad',
+      header: 'Cantidad',
+      sortable: true,
+      accessorKey: 'cantidad_kg',
+      headerClassName: 'text-right',
+      className: 'text-right whitespace-nowrap',
+      cell: ({ row }) => (
+        <div>
+          <div className="font-bold text-gray-900 dark:text-gray-100">
+            {row.cantidad_kg.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 2 })} kg
+          </div>
+          <div className="text-gray-500 text-[11px]">
+            {((row.cantidad_kg || 0) / 1000).toFixed(3)} t
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'origen',
+      header: 'Origen / Productor',
+      sortable: true,
+      accessorKey: 'origen_razon_social',
+      className: 'max-w-[160px]',
+      cell: ({ row }) => (
+        <div>
+          <div className="font-medium text-gray-800 dark:text-gray-200 truncate" title={row.origen_razon_social || '-'}>
+            {row.origen_razon_social || '-'}
+          </div>
+          <div className="text-gray-400 text-[10.5px] truncate">
+            NIF: {row.origen_nif || '-'} {row.origen_nima ? `| NIMA: ${row.origen_nima}` : ''}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'destino',
+      header: 'Destino / Gestor',
+      sortable: true,
+      accessorKey: 'destino_razon_social',
+      className: 'max-w-[160px]',
+      cell: ({ row }) => (
+        <div>
+          <div className="font-medium text-gray-800 dark:text-gray-200 truncate" title={row.destino_razon_social || '-'}>
+            {row.destino_razon_social || '-'}
+          </div>
+          <div className="text-gray-400 text-[10.5px] truncate">
+            {row.destino_autorizacion ? `Aut: ${row.destino_autorizacion}` : `NIF: ${row.destino_nif || '-'}`}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'tratamiento',
+      header: 'Trat. (R/D)',
+      sortable: true,
+      accessorKey: 'operacion_rd',
+      cell: ({ row }) => (
+        <span className="font-mono font-medium text-primary">
+          {row.operacion_rd || '-'}
+        </span>
+      ),
+    },
+    {
+      id: 'referencia',
+      header: 'Ref. Documental',
+      accessorKey: 'numero_documento_referencia',
+      cell: ({ row }) => row.identification_document_id ? (
+        <Link
+          href={`/residuos/documentos-identificacion/${row.identification_document_id}`}
+          className="inline-flex items-center gap-1 text-primary hover:underline font-mono text-[11px]"
+        >
+          {row.numero_documento_referencia || `DI #${row.identification_document_id}`} →
+        </Link>
+      ) : (
+        <span className="text-gray-600 dark:text-gray-400 font-mono text-[11px]">
+          {row.numero_documento_referencia || 'Asiento Directo'}
+        </span>
+      ),
+    },
+    {
+      id: 'acciones',
+      header: 'Acciones',
+      headerClassName: 'text-center',
+      className: 'text-center whitespace-nowrap',
+      cell: ({ row }) => !row.identification_document_id ? (
+        <button
+          onClick={() => handleDeleteEntry(row.id)}
+          title="Eliminar asiento manual"
+          className="text-xs text-red-600 hover:underline font-medium"
+        >
+          Eliminar
+        </button>
+      ) : (
+        <span className="text-[10px] text-gray-400" title="Asiento protegido vinculado a DI oficial">
+          Sincronizado
+        </span>
+      ),
+    },
+  ], []);
 
   return (
     <div className="space-y-6">
@@ -353,9 +544,9 @@ export default function ArchivoCronologicoPage() {
         </div>
       )}
 
-      {/* Barra de Filtros */}
+      {/* Barra de Filtros Principales */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/80">
-        <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           {/* Año */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Ejercicio</label>
@@ -418,179 +609,44 @@ export default function ArchivoCronologicoPage() {
               <option value="no-peligroso">No Peligrosos</option>
             </select>
           </div>
-
-          {/* Búsqueda */}
-          <div className="lg:col-span-2">
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Búsqueda rápida</label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Nº Asiento, LER, DI, Razón Social..."
-                value={searchTerm}
-                onChange={handleSearchChange}
-                className="w-full text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 px-3 py-2 text-gray-900 dark:text-white placeholder:text-gray-400 focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
-              />
-            </div>
-          </div>
-        </form>
+        </div>
       </div>
 
-      {/* Tabla de Registros */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-        {loading ? (
-          <div className="p-12 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3" />
-            <p className="text-sm text-gray-500">Cargando libro cronológico oficial...</p>
-          </div>
-        ) : entries.length === 0 ? (
-          <div className="p-12 text-center space-y-3">
-            <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">
-              No hay asientos cronológicos para los filtros seleccionados
-            </h3>
-            <p className="text-xs text-gray-500 max-w-md mx-auto">
-              Puede sincronizar automáticamente las operaciones desde sus Documentos de Identificación cerrados o registrar un asiento manual.
-            </p>
-            <div className="flex justify-center gap-2 pt-2">
-              <Button size="sm" variant="outline" onClick={handleSyncDIs}>
-                Sincronizar DIs
-              </Button>
-              <Button size="sm" onClick={() => setModalOpen(true)}>
-                Nuevo Asiento
-              </Button>
+      {/* Tabla de Registros con DataTable y Paginación */}
+      {loading ? (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/80 p-12 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3" />
+          <p className="text-sm text-gray-500">Cargando libro cronológico oficial...</p>
+        </div>
+      ) : (
+        <DataTable
+          data={entries}
+          columns={columns}
+          searchPlaceholder="Buscar por asiento, LER, empresa, documento..."
+          defaultPageSize={25}
+          pageSizeOptions={[10, 25, 50, 100]}
+          initialSortBy="asiento"
+          initialSortOrder="desc"
+          emptyState={
+            <div className="p-8 text-center space-y-3">
+              <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">
+                No hay asientos cronológicos para los filtros seleccionados
+              </h3>
+              <p className="text-xs text-gray-500 max-w-md mx-auto">
+                Puede sincronizar automáticamente las operaciones desde sus Documentos de Identificación cerrados o registrar un asiento manual.
+              </p>
+              <div className="flex justify-center gap-2 pt-2">
+                <Button size="sm" variant="outline" onClick={handleSyncDIs}>
+                  Sincronizar DIs
+                </Button>
+                <Button size="sm" onClick={() => setModalOpen(true)}>
+                  Nuevo Asiento
+                </Button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-100 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-semibold">
-                  <th className="py-3 px-3">Asiento / Fecha</th>
-                  <th className="py-3 px-3">Operación</th>
-                  <th className="py-3 px-3">Residuo (LER)</th>
-                  <th className="py-3 px-3 text-right">Cantidad</th>
-                  <th className="py-3 px-3">Origen / Productor</th>
-                  <th className="py-3 px-3">Destino / Gestor</th>
-                  <th className="py-3 px-3">Trat. (R/D)</th>
-                  <th className="py-3 px-3">Ref. Documental</th>
-                  <th className="py-3 px-3 text-center">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {entries.map((entry) => {
-                  const opConfig = TIPO_OP_LABELS[entry.tipo_operacion] || { label: entry.tipo_operacion, color: 'light' };
-                  const isPeligroso = entry.peligrosidad === 'peligroso';
-
-                  return (
-                    <tr key={entry.id} className="hover:bg-gray-50/75 dark:hover:bg-gray-700/30 transition-colors">
-                      {/* Asiento y Fecha */}
-                      <td className="py-2.5 px-3">
-                        <div className="font-semibold text-gray-900 dark:text-gray-100 font-mono">
-                          {entry.numero_asiento}
-                        </div>
-                        <div className="text-gray-500 text-[11px]">
-                          {new Date(entry.fecha).toLocaleDateString('es-ES')}
-                        </div>
-                      </td>
-
-                      {/* Tipo de Operación */}
-                      <td className="py-2.5 px-3">
-                        <Badge variant="light" color={opConfig.color} className="text-[10.5px]">
-                          {opConfig.label}
-                        </Badge>
-                      </td>
-
-                      {/* Residuo y LER */}
-                      <td className="py-2.5 px-3 max-w-[220px]">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`font-mono font-bold ${isPeligroso ? 'text-amber-700 dark:text-amber-400' : 'text-gray-800 dark:text-gray-200'}`}>
-                            {entry.codigo_ler}
-                          </span>
-                          {isPeligroso && (
-                            <span className="text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-1 rounded font-semibold">
-                              HP
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-gray-500 text-[11px] truncate" title={entry.descripcion_residuo}>
-                          {entry.descripcion_residuo}
-                        </div>
-                      </td>
-
-                      {/* Cantidad */}
-                      <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                        <div className="font-bold text-gray-900 dark:text-gray-100">
-                          {entry.cantidad_kg.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 2 })} kg
-                        </div>
-                        <div className="text-gray-500 text-[11px]">
-                          {((entry.cantidad_kg || 0) / 1000).toFixed(3)} t
-                        </div>
-                      </td>
-
-                      {/* Origen */}
-                      <td className="py-2.5 px-3 max-w-[160px]">
-                        <div className="font-medium text-gray-800 dark:text-gray-200 truncate" title={entry.origen_razon_social || '-'}>
-                          {entry.origen_razon_social || '-'}
-                        </div>
-                        <div className="text-gray-400 text-[10.5px] truncate">
-                          NIF: {entry.origen_nif || '-'} {entry.origen_nima ? `| NIMA: ${entry.origen_nima}` : ''}
-                        </div>
-                      </td>
-
-                      {/* Destino */}
-                      <td className="py-2.5 px-3 max-w-[160px]">
-                        <div className="font-medium text-gray-800 dark:text-gray-200 truncate" title={entry.destino_razon_social || '-'}>
-                          {entry.destino_razon_social || '-'}
-                        </div>
-                        <div className="text-gray-400 text-[10.5px] truncate">
-                          {entry.destino_autorizacion ? `Aut: ${entry.destino_autorizacion}` : `NIF: ${entry.destino_nif || '-'}`}
-                        </div>
-                      </td>
-
-                      {/* Operación R/D */}
-                      <td className="py-2.5 px-3 font-mono font-medium text-primary">
-                        {entry.operacion_rd || '-'}
-                      </td>
-
-                      {/* Referencia Documental */}
-                      <td className="py-2.5 px-3">
-                        {entry.identification_document_id ? (
-                          <Link
-                            href={`/residuos/documentos-identificacion/${entry.identification_document_id}`}
-                            className="inline-flex items-center gap-1 text-primary hover:underline font-mono text-[11px]"
-                          >
-                            {entry.numero_documento_referencia || `DI #${entry.identification_document_id}`} →
-                          </Link>
-                        ) : (
-                          <span className="text-gray-600 dark:text-gray-400 font-mono text-[11px]">
-                            {entry.numero_documento_referencia || 'Asiento Directo'}
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Acciones */}
-                      <td className="py-2.5 px-3 text-center">
-                        {!entry.identification_document_id ? (
-                          <button
-                            onClick={() => handleDeleteEntry(entry.id)}
-                            title="Eliminar asiento manual"
-                            className="text-xs text-red-600 hover:underline font-medium"
-                          >
-                            Eliminar
-                          </button>
-                        ) : (
-                          <span className="text-[10px] text-gray-400" title="Asiento protegido vinculado a DI oficial">
-                            Sincronizado
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+          }
+        />
+      )}
 
       {/* Modal para Nuevo Asiento Manual */}
       <Modal

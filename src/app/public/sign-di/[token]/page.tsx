@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import identificationDocumentService from '@/services/identificationDocumentService';
 import type { IdentificationDocument } from '@/types/wasteManagement';
 import SignaturePad from '@/components/ui/signature/SignaturePad';
 import Alert from '@/components/ui/alert/Alert';
@@ -14,22 +13,19 @@ type SigningRole = 'productor' | 'transportista' | 'gestor';
 
 const ROLE_META: Record<
   SigningRole,
-  { label: string; subtitle: string; icon: string }
+  { label: string; subtitle: string }
 > = {
   productor: {
     label: '1. Productor / Remitente',
     subtitle: 'Conformidad de entrega en origen',
-    icon: '🏭',
   },
   transportista: {
     label: '2. Transportista (En Carga)',
     subtitle: 'Conformidad de recogida y porte',
-    icon: '🚚',
   },
   gestor: {
     label: '3. Gestor Destinatario',
     subtitle: 'Conformidad de recepción en planta',
-    icon: '♻️',
   },
 };
 
@@ -83,14 +79,26 @@ function PublicDISignatureContent() {
     try {
       setLoading(true);
       setError(null);
-      const data = await identificationDocumentService.getBySigningToken(token);
-      if (!data) {
-        setError('El enlace de firma es inválido, ha expirado o el Documento de Identificación ya no está disponible.');
+      const res = await fetch(`/api/public/sign-di?token=${encodeURIComponent(token)}`);
+      const result = await res.json().catch(() => null);
+
+      if (!res.ok || !result?.success || !result?.document) {
+        if (res.status === 410) {
+          setError('El enlace de firma ha caducado. Solicite un nuevo enlace al emisor del traslado.');
+        } else if (res.status === 429) {
+          setError('Demasiadas solicitudes. Por favor, espere un momento antes de reintentar.');
+        } else {
+          setError(
+            result?.error ||
+            'El enlace de firma es inválido, ha expirado o el Documento de Identificación ya no está disponible.'
+          );
+        }
         return;
       }
-      setDi(data);
+
+      setDi(result.document);
     } catch {
-      setError('El enlace de firma es inválido o el Documento de Identificación ya no está disponible.');
+      setError('Error de conexión al cargar el Documento de Identificación.');
     } finally {
       setLoading(false);
     }
@@ -113,16 +121,25 @@ function PublicDISignatureContent() {
     try {
       setSaving(true);
       setError(null);
-      const updated = await identificationDocumentService.signDocumentByToken(
-        token,
-        selectedRole,
-        signatureBase64,
-        {
-          nombre: signerName.trim(),
-          dni: signerDni.trim(),
-        }
-      );
-      setDi(updated);
+      const res = await fetch('/api/public/sign-di', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          role: selectedRole,
+          signatureBase64,
+          signerName: signerName.trim(),
+          signerDni: signerDni.trim(),
+        }),
+      });
+
+      const result = await res.json().catch(() => null);
+
+      if (!res.ok || !result?.success) {
+        throw new Error(result?.error || 'Error al registrar la firma en el documento.');
+      }
+
+      setDi(result.document);
       setSuccess(true);
     } catch (err: any) {
       setError(err.message || 'Error al registrar la firma en el documento.');
@@ -280,18 +297,17 @@ function PublicDISignatureContent() {
                   }`}
                 >
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-lg">{meta.icon}</span>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-bold text-gray-900 dark:text-white">
+                        {meta.label}
+                      </span>
                       {signed ? (
-                        <Badge color="success" size="sm">✓ Firmado</Badge>
+                        <Badge color="success" size="sm">Firmado</Badge>
                       ) : (
                         <Badge color="light" size="sm">Pendiente</Badge>
                       )}
                     </div>
-                    <div className="text-xs font-bold text-gray-900 dark:text-white">
-                      {meta.label}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
                       {meta.subtitle}
                     </div>
                   </div>

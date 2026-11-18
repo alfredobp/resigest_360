@@ -147,6 +147,19 @@ export const decaService = {
     if (!currentDoc) return null;
     if (currentDoc.is_vigente) return currentDoc;
 
+    // N05: Si el conductor consulta sin sesión autenticada, invocar la RPC SECURITY DEFINER
+    if (currentDoc.token && typeof (supabase as any).rpc === 'function') {
+      try {
+        const rpcRes = await (supabase as any).rpc('get_active_deca_by_token', { p_token: currentDoc.token });
+        if (rpcRes && !rpcRes.error && rpcRes.data) {
+          const doc = Array.isArray(rpcRes.data) ? rpcRes.data[0] : rpcRes.data;
+          if (doc) return doc as DecaDocument;
+        }
+      } catch (rpcErr) {
+        console.warn('[DeCA Service] RPC get_active_deca_by_token no disponible, intentando query directa:', rpcErr);
+      }
+    }
+
     const baseNumero = (currentDoc.numero_deca || '').replace(/-v\d+$/, '');
 
     let query = supabase

@@ -485,12 +485,18 @@ export const commercialOperationService = {
       'Gestor Destino',
       'Transportista',
       'Proveedor Compra',
+      'Modalidad Compra',
+      'Precio Unitario Compra',
       'Precio Compra (€/t)',
       'Coste Compra (€)',
       'Cliente Venta',
+      'Modalidad Venta',
+      'Precio Unitario Venta',
       'Precio Venta (€/t)',
       'Ingreso Venta (€)',
       'Porte Transporte (€)',
+      'Otros Costes (€)',
+      'Descripción Otros Costes',
       'Margen Bruto (€)',
       'Margen (€/t)',
       'Ref DI'
@@ -498,6 +504,15 @@ export const commercialOperationService = {
 
     const rows = ops.map(op => {
       const ton = (op.cantidad_real_t && op.cantidad_real_t > 0 ? op.cantidad_real_t : op.cantidad_estimada_t) || 0;
+      const modCompra = op.tipo_precio_compra === 'por_kg' ? '€/kg' : (op.tipo_precio_compra === 'lote_fijo' ? 'Lote Fijo' : '€/t');
+      const modVenta = op.tipo_precio_venta === 'por_kg' ? '€/kg' : (op.tipo_precio_venta === 'lote_fijo' ? 'Lote Fijo' : '€/t');
+      const normCompra = op.tipo_precio_compra === 'por_kg'
+        ? (op.precio_unitario_compra || 0) * 1000
+        : (op.tipo_precio_compra === 'lote_fijo' ? (ton > 0 ? (op.coste_compra_total || 0) / ton : 0) : (op.precio_unitario_compra || 0));
+      const normVenta = op.tipo_precio_venta === 'por_kg'
+        ? (op.precio_unitario_venta || 0) * 1000
+        : (op.tipo_precio_venta === 'lote_fijo' ? (ton > 0 ? (op.ingreso_venta_total || 0) / ton : 0) : (op.precio_unitario_venta || 0));
+
       return [
         op.numero_operacion,
         op.fecha,
@@ -509,12 +524,18 @@ export const commercialOperationService = {
         `"${(op.destino_nombre_personalizado || op.destino_gestor?.razon_social || '').replace(/"/g, '""')}"`,
         `"${(op.transportista_nombre_personalizado || op.transportista?.razon_social || '').replace(/"/g, '""')}"`,
         `"${(op.proveedor_razon_social || op.proveedor_comercial?.razon_social || '').replace(/"/g, '""')}"`,
-        (op.precio_unitario_compra || 0).toFixed(2).replace('.', ','),
+        modCompra,
+        (op.precio_unitario_compra || 0).toFixed(4).replace('.', ','),
+        normCompra.toFixed(2).replace('.', ','),
         (op.coste_compra_total || 0).toFixed(2).replace('.', ','),
         `"${(op.cliente_razon_social || op.cliente_comercial?.razon_social || '').replace(/"/g, '""')}"`,
-        (op.precio_unitario_venta || 0).toFixed(2).replace('.', ','),
+        modVenta,
+        (op.precio_unitario_venta || 0).toFixed(4).replace('.', ','),
+        normVenta.toFixed(2).replace('.', ','),
         (op.ingreso_venta_total || 0).toFixed(2).replace('.', ','),
         (op.coste_transporte || 0).toFixed(2).replace('.', ','),
+        (op.otros_costes || 0).toFixed(2).replace('.', ','),
+        `"${(op.descripcion_otros_costes || '').replace(/"/g, '""')}"`,
         (op.margen_bruto_total || 0).toFixed(2).replace('.', ','),
         (op.margen_unitario_tonelada || 0).toFixed(2).replace('.', ','),
         op.identification_document_id ? `DI #${op.identification_document_id}` : ''
@@ -541,6 +562,8 @@ export const commercialOperationService = {
   exportToExcelXML(ops: CommercialOperation[]): void {
     const xmlRows = ops.map(op => {
       const ton = (op.cantidad_real_t && op.cantidad_real_t > 0 ? op.cantidad_real_t : op.cantidad_estimada_t) || 0;
+      const modCompra = op.tipo_precio_compra === 'por_kg' ? '€/kg' : (op.tipo_precio_compra === 'lote_fijo' ? 'Lote Fijo' : '€/t');
+      const modVenta = op.tipo_precio_venta === 'por_kg' ? '€/kg' : (op.tipo_precio_venta === 'lote_fijo' ? 'Lote Fijo' : '€/t');
       return `
         <Row>
           <Cell><Data ss:Type="String">${op.numero_operacion}</Data></Cell>
@@ -550,10 +573,15 @@ export const commercialOperationService = {
           <Cell><Data ss:Type="String">${(op.descripcion_residuo || '').replace(/[<>&]/g, '')}</Data></Cell>
           <Cell><Data ss:Type="Number">${ton}</Data></Cell>
           <Cell><Data ss:Type="String">${(op.proveedor_razon_social || op.proveedor_comercial?.razon_social || '').replace(/[<>&]/g, '')}</Data></Cell>
+          <Cell><Data ss:Type="String">${modCompra}</Data></Cell>
+          <Cell><Data ss:Type="Number">${op.precio_unitario_compra || 0}</Data></Cell>
           <Cell><Data ss:Type="Number">${op.coste_compra_total}</Data></Cell>
           <Cell><Data ss:Type="String">${(op.cliente_razon_social || op.cliente_comercial?.razon_social || '').replace(/[<>&]/g, '')}</Data></Cell>
+          <Cell><Data ss:Type="String">${modVenta}</Data></Cell>
+          <Cell><Data ss:Type="Number">${op.precio_unitario_venta || 0}</Data></Cell>
           <Cell><Data ss:Type="Number">${op.ingreso_venta_total}</Data></Cell>
           <Cell><Data ss:Type="Number">${op.coste_transporte}</Data></Cell>
+          <Cell><Data ss:Type="Number">${op.otros_costes || 0}</Data></Cell>
           <Cell><Data ss:Type="Number">${op.margen_bruto_total}</Data></Cell>
           <Cell><Data ss:Type="Number">${op.margen_unitario_tonelada}</Data></Cell>
         </Row>

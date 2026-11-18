@@ -233,7 +233,7 @@ export async function generateContractPDF(contract: WasteContract) {
 
   // --- VIGENCIA ---
   if (contract.fecha_inicio || contract.fecha_fin) {
-    if (yPos > pageHeight - 50) {
+    if (yPos + 35 > pageHeight - 25) {
       doc.addPage();
       yPos = 30;
     }
@@ -254,7 +254,7 @@ export async function generateContractPDF(contract: WasteContract) {
   }
 
   // --- RESIDUOS OBJETO DEL CONTRATO (MATRIZ LER Y OPERACIONES) ---
-  if (yPos > pageHeight - 50) {
+  if (yPos + 35 > pageHeight - 25) {
     doc.addPage();
     yPos = 30;
   }
@@ -408,7 +408,9 @@ export async function generateContractPDF(contract: WasteContract) {
 
   // Especificaciones técnicas adicionales si existen
   if (wasteCodesList.length > 0 && contract.descripcion_residuos) {
-    if (yPos > pageHeight - 35) {
+    const descLines = doc.splitTextToSize(contract.descripcion_residuos, pageWidth - 50);
+    const espHeight = 5 + (descLines.length * 4) + 6;
+    if (yPos + espHeight > pageHeight - 25) {
       doc.addPage();
       yPos = 30;
     }
@@ -419,13 +421,17 @@ export async function generateContractPDF(contract: WasteContract) {
     yPos += 5;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    const descLines = doc.splitTextToSize(contract.descripcion_residuos, pageWidth - 50);
     doc.text(descLines, 25, yPos);
     yPos += (descLines.length * 4) + 6;
   }
 
   // --- CONDICIONES TÉCNICAS Y ECONÓMICAS ---
-  if (yPos > pageHeight - 50) {
+  const periodicidadText = doc.splitTextToSize(
+    contract.frecuencia_recogida || 'Según necesidades operativas de producción y límites legales de almacenamiento',
+    pageWidth - 110
+  );
+  const condTecnicasHeight = 15 + 6.5 + 6.5 + 6.5 + (periodicidadText.length * 4.5) + 12;
+  if (yPos + condTecnicasHeight > pageHeight - 25) {
     doc.addPage();
     yPos = 30;
   }
@@ -463,15 +469,20 @@ export async function generateContractPDF(contract: WasteContract) {
   doc.setFont('helvetica', 'bold');
   doc.text('Periodicidad Estimada de Traslados:', 25, yPos);
   doc.setFont('helvetica', 'normal');
-  const periodicidadText = doc.splitTextToSize(
-    contract.frecuencia_recogida || 'Según necesidades operativas de producción y límites legales de almacenamiento',
-    pageWidth - 110
-  );
   doc.text(periodicidadText, 85, yPos);
   yPos += (periodicidadText.length * 4.5) + 8;
 
   // --- CONDICIONES DE ACEPTACIÓN Y RECHAZO (ART. 5 RD 553/2020) ---
-  if (yPos > pageHeight - 60) {
+  const aceptacionLines = doc.splitTextToSize(
+    'Conformidad estricta del residuo entregado con el código LER contratado, ausencia de impropios no autorizados, envasado y etiquetado reglamentario vigente y verificación de peso neto en báscula calibrada de destino.',
+    pageWidth - 50
+  );
+  const rechazoLines = doc.splitTextToSize(
+    'En caso de disconformidad en la recepción, el gestor comunicará motivadamente el rechazo al operador del traslado y al productor en un plazo máximo de 30 días naturales desde la recepción del residuo, acordando su devolución a la instalación de origen o el traslado a otra instalación de tratamiento autorizada a costa del operador del traslado.',
+    pageWidth - 50
+  );
+  const condAceptacionHeight = 15 + 5 + (aceptacionLines.length * 4) + 5 + 5 + (rechazoLines.length * 4) + 12;
+  if (yPos + condAceptacionHeight > pageHeight - 25) {
     doc.addPage();
     yPos = 30;
   }
@@ -483,10 +494,6 @@ export async function generateContractPDF(contract: WasteContract) {
   yPos += 5;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  const aceptacionLines = doc.splitTextToSize(
-    'Conformidad estricta del residuo entregado con el código LER contratado, ausencia de impropios no autorizados, envasado y etiquetado reglamentario vigente y verificación de peso neto en báscula calibrada de destino.',
-    pageWidth - 50
-  );
   doc.text(aceptacionLines, 25, yPos);
   yPos += (aceptacionLines.length * 4) + 5;
 
@@ -496,23 +503,20 @@ export async function generateContractPDF(contract: WasteContract) {
   yPos += 5;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  const rechazoLines = doc.splitTextToSize(
-    'En caso de disconformidad en la recepción, el gestor comunicará motivadamente el rechazo al operador del traslado y al productor en un plazo máximo de 30 días naturales desde la recepción del residuo, acordando su devolución a la instalación de origen o el traslado a otra instalación de tratamiento autorizada a costa del operador del traslado.',
-    pageWidth - 50
-  );
   doc.text(rechazoLines, 25, yPos);
   yPos += (rechazoLines.length * 4) + 10;
 
   // --- NOTAS ADICIONALES ---
   if (contract.notas) {
-    if (yPos > pageHeight - 50) {
+    const noteLines = doc.splitTextToSize(contract.notas, pageWidth - 50);
+    const notasHeight = 15 + (noteLines.length * 5) + 12;
+    if (yPos + Math.min(notasHeight, 40) > pageHeight - 25) {
       doc.addPage();
       yPos = 30;
     }
     yPos = drawSectionHeader('CLÁUSULAS ADICIONALES / NOTAS', yPos);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
-    const noteLines = doc.splitTextToSize(contract.notas, pageWidth - 50);
     doc.text(noteLines, 25, yPos);
     yPos += (noteLines.length * 5) + 10;
   }
@@ -703,7 +707,8 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
     doc.setFont('helvetica', 'bold');
     doc.text('Centro:', 130, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(docData.production_center.nombre, 150, yPos);
+    const centroLines = doc.splitTextToSize(docData.production_center.nombre || '-', pageWidth - 150 - 15);
+    doc.text(centroLines, 150, yPos);
   }
   yPos += 4.5;
 
@@ -775,7 +780,8 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
   doc.setFont('helvetica', 'bold');
   doc.text('Nº Autorización:', 130, yPos);
   doc.setFont('helvetica', 'normal');
-  doc.text(docData.gestor_numero_autorizacion || '-', 155, yPos);
+  const autLines = doc.splitTextToSize(docData.gestor_numero_autorizacion || '-', pageWidth - 155 - 15);
+  doc.text(autLines, 155, yPos);
   yPos += 4.5;
 
   doc.setFont('helvetica', 'bold');
@@ -864,7 +870,8 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
     doc.setFont('helvetica', 'bold');
     doc.text('Nº Albarán Gestor:', 115, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(docData.numero_albaran_gestor, 155, yPos);
+    const albLines = doc.splitTextToSize(docData.numero_albaran_gestor, pageWidth - 150 - 15);
+    doc.text(albLines, 150, yPos);
   }
   yPos += 4.5;
 
@@ -942,8 +949,8 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
   doc.text(
     docData.firmado_productor
       ? docData.firma_productor_url
-        ? '✓ Firmado en salida'
-        : '✓ Identificado (sin firma)'
+        ? 'Firmado en salida'
+        : 'Identificado (sin firma)'
       : 'Pendiente de firma',
     18,
     yPos + 8
@@ -976,8 +983,8 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
   doc.text(
     docData.firmado_transportista
       ? docData.firma_transportista_url
-        ? '✓ Conforme y firmado en carga'
-        : '✓ Conforme en carga (sin trazo)'
+        ? 'Conforme y firmado en carga'
+        : 'Conforme en carga (sin trazo)'
       : 'Pendiente de firma',
     80,
     yPos + 8
@@ -1010,8 +1017,8 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
   doc.text(
     docData.firmado_gestor
       ? docData.firma_gestor_url
-        ? '✓ Recepcionado y firmado'
-        : '✓ Recepcionado (sin trazo)'
+        ? 'Recepcionado y firmado'
+        : 'Recepcionado (sin trazo)'
       : 'Pendiente de recepción',
     142,
     yPos + 8
@@ -1028,8 +1035,12 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
   // Pie de página
   doc.setFontSize(7);
   doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+  const isCompletelySigned = Boolean(docData.firmado_productor && docData.firmado_gestor);
+  const legalText = isCompletelySigned
+    ? 'Documento oficial de control y seguimiento de traslados según art. 6 del Real Decreto 553/2020. Validez legal ante autoridades competentes.'
+    : 'Documento en tramitación de traslado (Real Decreto 553/2020). Pendiente de completar firmas requeridas para formalización documental definitiva.';
   doc.text(
-    'Documento oficial de control y seguimiento de traslados según art. 6 del Real Decreto 553/2020. Validez legal ante autoridades competentes.',
+    legalText,
     pageWidth / 2,
     pageHeight - 8,
     { align: 'center' }
@@ -1466,10 +1477,15 @@ export async function generateDecaPDF(deca: DecaDocument, inspectionUrl: string)
   doc.text(deca.numero_deca || 'DECA-BORRADOR', 56, yPos + 7);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('VERSIÓN VIGENTE:', 18, yPos + 14);
+  doc.text(deca.is_vigente ? 'VERSIÓN VIGENTE:' : 'VERSIÓN HISTÓRICA:', 18, yPos + 14);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(blueAccent[0], blueAccent[1], blueAccent[2]);
-  doc.text(`Versión ${deca.version} ${deca.is_vigente ? '(Vigente)' : '(Histórica)'}`, 56, yPos + 14);
+  if (deca.is_vigente) {
+    doc.setTextColor(blueAccent[0], blueAccent[1], blueAccent[2]);
+    doc.text(`Versión ${deca.version} (Vigente)`, 56, yPos + 14);
+  } else {
+    doc.setTextColor(217, 119, 6);
+    doc.text(`Versión ${deca.version} (Histórica / Sustituida)`, 56, yPos + 14);
+  }
 
   doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   doc.setFont('helvetica', 'bold');

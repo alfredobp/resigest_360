@@ -234,8 +234,13 @@ export default function NotificacionesPreviasPage() {
                         <td className="px-4 py-3 font-mono font-medium text-foreground">
                           {nt.numero_notificacion || `NT-ID-${nt.id}`}
                           {nt.sira_id && (
-                            <span className="block text-[11px] font-sans text-green-600 font-semibold">
-                              SIRA: {nt.sira_id}
+                            <span className={`block text-[11px] font-sans font-semibold ${
+                              nt.sira_id.includes('TEST') || nt.sira_id.includes('SIM')
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : 'text-green-600 dark:text-green-400'
+                            }`}>
+                              {nt.sira_id.includes('TEST') || nt.sira_id.includes('SIM') ? '🔬 Simulación: ' : 'SIRA: '}
+                              {nt.sira_id}
                             </span>
                           )}
                         </td>

@@ -3,6 +3,7 @@ const mockSupabase = {
     getUser: jest.fn(),
   },
   from: jest.fn(),
+  rpc: jest.fn(),
 };
 
 jest.mock('@/lib/supabase/client', () => ({
@@ -733,6 +734,49 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       expect(eqMock).toHaveBeenCalledWith('is_vigente', true);
       expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-deca-1');
       expect(result).toEqual(activeDoc);
+    });
+
+    it('debe utilizar la RPC get_active_deca_by_token si el documento dispone de token', async () => {
+      const activeDoc = { id: 2, numero_deca: 'DECA-2026-00001-v2', is_vigente: true, version: 2 };
+      (mockSupabase as any).rpc = jest.fn()
+        .mockResolvedValueOnce({ data: activeDoc, error: null })
+        .mockResolvedValueOnce({ data: [activeDoc], error: null });
+
+      try {
+        const historicalDoc = { id: 1, token: 'tok-hist-1', numero_deca: 'DECA-2026-00001', is_vigente: false, version: 1 } as any;
+        const res1 = await decaService.getLatestActiveVersion(historicalDoc);
+        expect(res1).toEqual(activeDoc);
+
+        const res2 = await decaService.getLatestActiveVersion(historicalDoc);
+        expect(res2).toEqual(activeDoc);
+      } finally {
+        delete (mockSupabase as any).rpc;
+      }
+    });
+
+    it('debe hacer fallback a consulta directa si la RPC get_active_deca_by_token falla', async () => {
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const historicalDoc = { id: 1, user_id: 'user-deca-1', token: 'tok-hist-err', numero_deca: 'DECA-2026-00001', is_vigente: false, version: 1 } as any;
+      const activeDoc = { id: 2, numero_deca: 'DECA-2026-00001-v2', is_vigente: true, version: 2 };
+
+      (mockSupabase as any).rpc = jest.fn().mockRejectedValue(new Error('RPC missing'));
+
+      const maybeSingleMock = jest.fn().mockResolvedValue({ data: activeDoc, error: null });
+      const limitMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const orderMock = jest.fn().mockReturnValue({ limit: limitMock });
+      const eqUserMock = jest.fn().mockReturnValue({ order: orderMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock, order: orderMock });
+      const ilikeMock = jest.fn().mockReturnValue({ eq: eqMock });
+      const selectMock = jest.fn().mockReturnValue({ ilike: ilikeMock });
+      mockSupabase.from.mockReturnValue({ select: selectMock });
+
+      try {
+        const res = await decaService.getLatestActiveVersion(historicalDoc);
+        expect(res).toEqual(activeDoc);
+      } finally {
+        delete (mockSupabase as any).rpc;
+        consoleWarnSpy.mockRestore();
+      }
     });
   });
 

@@ -8,6 +8,7 @@ import { syncEntryFromDI } from '@/services/chronologicalRegistryService';
 import { auditService } from '@/services/auditService';
 import { authorizationService } from '@/services/authorizationService';
 import { applyTenantScope } from '@/services/tenantContextService';
+import { companyService } from '@/services/companyService';
 import type {
   IdentificationDocument,
   EstadoTraslado,
@@ -21,6 +22,17 @@ import type {
 import { isWeightDiscrepancy, parseDiscrepancyJustification } from '@/lib/validations/discrepancyJustification';
 
 const supabase = createClient();
+
+/**
+ * Comprueba si la empresa del usuario actúa exclusivamente como transportista sin capacidad de gestor.
+ */
+function isCallerTransportistaOnly(userCompany: any): boolean {
+  if (!userCompany) return false;
+  return (
+    userCompany.tipo_empresa === 'transportista' &&
+    (!userCompany.roles || (!userCompany.roles.includes('gestor') && !userCompany.roles.includes('productor')))
+  );
+}
 
 /**
  * Normaliza códigos de operación R/D para comparaciones consistentes (ej: 'R4' -> 'R04', 'D1' -> 'D01', 'R1201' -> 'R1201').
@@ -444,6 +456,14 @@ export const identificationDocumentService = {
     const now = new Date().toISOString();
     let signatureUrl: string | undefined;
 
+    // A04-06: Verificación de actor en el servidor
+    if (role === 'gestor') {
+      const userCompany = await companyService.getUserCompany().catch(() => null);
+      if (isCallerTransportistaOnly(userCompany)) {
+        throw new Error('Permiso denegado: El transportista no puede firmar como Gestor Destinatario.');
+      }
+    }
+
     if (signatureBase64) {
       signatureUrl = await this.uploadSignatureImage(id, role, signatureBase64);
     }
@@ -485,9 +505,32 @@ export const identificationDocumentService = {
    * Obtener Documento de Identificación por token de firma pública (RPC SECURITY DEFINER)
    */
   async getBySigningToken(token: string): Promise<IdentificationDocument | null> {
-    const { data, error } = await supabase.rpc('get_di_by_signing_token', { p_token: token });
+    if (!token || typeof token !== 'string' || !token.trim()) {
+      return null;
+    }
+    const cleanToken = token.trim();
+
+    const { data, error } = await supabase.rpc('get_di_by_signing_token', { p_token: cleanToken });
 
     if (error) {
+      // Fallback a consulta directa si la función RPC aún no está desplegada en base de datos o hay problemas de permisos
+      if (error.code === '42883' || error.message?.includes('function') || error.code === '42501') {
+        try {
+          const lookup: any = supabase.from('identification_documents');
+          if (typeof lookup?.select === 'function') {
+            const { data: directData, error: directErr } = await lookup
+              .select('*')
+              .eq('signing_token', cleanToken)
+              .maybeSingle();
+
+            if (!directErr && directData) {
+              return (directData as IdentificationDocument) ?? null;
+            }
+          }
+        } catch {
+          // Continuar para reportar el error original de la RPC
+        }
+      }
       throw new Error(`Error al obtener DI por token: ${error.message}`);
     }
 
@@ -650,6 +693,13 @@ export const identificationDocumentService = {
       ) {
         throw new Error(`No se puede iniciar el traslado: el LER ${doc.codigo_ler} no está incluido en el contrato ${contract.numero_contrato || contract.id}.`);
       }
+      // N10: Un contrato sin cantidad anual definida y sin anexo/documento contractual adjunto está incompleto para autorizar salidas
+      const hasContractQty = typeof contract.cantidad_maxima_anual === 'number' && contract.cantidad_maxima_anual > 0;
+      if (!hasContractQty && !hasContractDoc && !extRef && !extEvidence) {
+        throw new Error(
+          `No se puede iniciar el traslado: el contrato ${contract.numero_contrato || contract.id} tiene cantidad contractual no definida y requiere completar la cantidad estimada/máxima o incorporar anexo contractual suficiente para autorizar la salida (art. 5 RD 553/2020).`
+        );
+      }
     } else if (!extRef || (!extEvidence && !exceptionReason)) {
       throw new Error(
         'No se puede iniciar el traslado: debe vincular un contrato de tratamiento vigente o acreditar un contrato externo (referencia y justificante/supuesto legal según art. 5 RD 553/2020).'
@@ -718,6 +768,12 @@ export const identificationDocumentService = {
    * 2. Registrar Recepción y Pesada en Báscula de Destino (Gestor)
    */
   async recordReception(id: number, payload: RecordReceptionPayload): Promise<IdentificationDocument> {
+    // A04-06: Verificación de actor en el servidor
+    const userCompany = await companyService.getUserCompany().catch(() => null);
+    if (isCallerTransportistaOnly(userCompany)) {
+      throw new Error('Permiso denegado: El transportista no puede registrar la recepción en báscula del gestor.');
+    }
+
     const doc = await this.getById(id);
     const { signatureBase64, causa_discrepancia, justificacion_discrepancia, ...rest } = payload;
     let firma_gestor_url = payload.firma_gestor_url;

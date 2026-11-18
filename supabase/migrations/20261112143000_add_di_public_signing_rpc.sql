@@ -6,28 +6,40 @@
 --   (productor, transportista o gestor) una única vez por rol, sin abrir RLS UPDATE anónimo.
 -- ==============================================================================
 
+-- 1. Eliminar versiones anteriores para evitar conflictos de sobrecarga (UUID vs TEXT)
+DROP FUNCTION IF EXISTS public.get_di_by_signing_token(TEXT);
+DROP FUNCTION IF EXISTS public.get_di_by_signing_token(UUID);
+DROP FUNCTION IF EXISTS public.sign_di_by_signing_token(TEXT, TEXT, TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.sign_di_by_signing_token(UUID, TEXT, TEXT, TEXT, TEXT);
+
+-- 2. Columnas en identification_documents
 ALTER TABLE public.identification_documents
   ADD COLUMN IF NOT EXISTS signing_token UUID DEFAULT gen_random_uuid();
 
+ALTER TABLE public.identification_documents
+  ADD COLUMN IF NOT EXISTS signing_token_expires_at TIMESTAMPTZ;
+
+-- Asegurar que todos los DIs existentes tengan token asignado
 UPDATE public.identification_documents
    SET signing_token = gen_random_uuid()
  WHERE signing_token IS NULL;
 
+-- Asegurar que los tokens activos tengan fecha de expiración válida (30 días)
+UPDATE public.identification_documents
+   SET signing_token_expires_at = (now() + interval '30 days')
+ WHERE signing_token_expires_at IS NULL OR signing_token_expires_at < now();
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_identification_documents_signing_token
   ON public.identification_documents (signing_token);
 
--- Sin DEFAULT inicial para que los DIs existentes conserven su enlace activo (NULL)
-ALTER TABLE public.identification_documents
-  ADD COLUMN IF NOT EXISTS signing_token_expires_at TIMESTAMPTZ;
-
--- Los nuevos DIs caducan su enlace público a los 30 días por defecto
 ALTER TABLE public.identification_documents
   ALTER COLUMN signing_token_expires_at SET DEFAULT (now() + interval '30 days');
 
 COMMENT ON COLUMN public.identification_documents.signing_token IS
   'Token único para permitir la firma pública del Documento de Identificación por rol (productor, transportista, gestor)';
 
-CREATE OR REPLACE FUNCTION public.get_di_by_signing_token(p_token UUID)
+-- 3. Función unificada para obtener el DI por token (acepta TEXT para máxima compatibilidad con JS y UUIDs)
+CREATE OR REPLACE FUNCTION public.get_di_by_signing_token(p_token TEXT)
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -36,6 +48,10 @@ AS $$
 DECLARE
     v_result JSONB;
 BEGIN
+    IF p_token IS NULL OR length(btrim(p_token)) = 0 THEN
+        RETURN NULL;
+    END IF;
+
     SELECT to_jsonb(t) INTO v_result
     FROM (
         SELECT
@@ -47,7 +63,7 @@ BEGIN
         LEFT JOIN public.companies c ON di.company_id = c.id
         LEFT JOIN public.production_centers pc ON di.production_center_id = pc.id
         LEFT JOIN public.waste_types wt ON di.waste_type_id = wt.id
-        WHERE di.signing_token = p_token
+        WHERE di.signing_token::TEXT = btrim(p_token)
           AND (di.signing_token_expires_at IS NULL OR di.signing_token_expires_at > now())
         LIMIT 1
     ) t;
@@ -56,8 +72,9 @@ BEGIN
 END;
 $$;
 
+-- 4. Función unificada para firmar el DI por token
 CREATE OR REPLACE FUNCTION public.sign_di_by_signing_token(
-    p_token UUID,
+    p_token TEXT,
     p_role TEXT,
     p_signature_url TEXT,
     p_signer_name TEXT DEFAULT NULL,
@@ -74,13 +91,17 @@ DECLARE
     v_firmado_trans BOOLEAN;
     v_firmado_gest BOOLEAN;
 BEGIN
+    IF p_token IS NULL OR length(btrim(p_token)) = 0 THEN
+        RAISE EXCEPTION 'Token de firma no proporcionado';
+    END IF;
+
     IF p_role NOT IN ('productor', 'transportista', 'gestor') THEN
         RAISE EXCEPTION 'Rol de firma inválido';
     END IF;
 
     SELECT id INTO v_id
       FROM public.identification_documents
-     WHERE signing_token = p_token
+     WHERE signing_token::TEXT = btrim(p_token)
        AND (signing_token_expires_at IS NULL OR signing_token_expires_at > now())
      LIMIT 1;
 
@@ -148,7 +169,11 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.get_di_by_signing_token(UUID) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.sign_di_by_signing_token(UUID, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.get_di_by_signing_token(UUID) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.sign_di_by_signing_token(UUID, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
+-- 5. Concesión de permisos para anon y authenticated
+REVOKE ALL ON FUNCTION public.get_di_by_signing_token(TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.sign_di_by_signing_token(TEXT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_di_by_signing_token(TEXT) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.sign_di_by_signing_token(TEXT, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated, service_role;
+
+-- 6. Recargar caché de PostgREST
+NOTIFY pgrst, 'reload schema';

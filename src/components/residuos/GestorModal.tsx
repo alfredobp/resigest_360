@@ -5,9 +5,11 @@ import { Modal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
 import Label from '@/components/form/Label';
+import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFields';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import treatmentManagerService from '@/services/treatmentManagerService';
+import { getProvinceByPostalCode } from '@/lib/validations/spainLocations';
 import {
     validateRequired,
     validateCIF,
@@ -277,8 +279,8 @@ export default function GestorModal({
                 {/* Ubicación */}
                 <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-foreground">Ubicación</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="md:col-span-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                        <div className="sm:col-span-12">
                             <Label htmlFor="gestor_direccion">Dirección</Label>
                             <Input
                                 id="gestor_direccion"
@@ -289,38 +291,44 @@ export default function GestorModal({
                             />
                         </div>
 
-                        <div>
+                        <div className="sm:col-span-3">
                             <Label htmlFor="gestor_codigo_postal">Código Postal</Label>
                             <Input
                                 id="gestor_codigo_postal"
                                 name="codigo_postal"
                                 value={formData.codigo_postal}
-                                onChange={handleChange}
+                                onChange={(e) => {
+                                    const cp = e.target.value;
+                                    const detectedProv = getProvinceByPostalCode(cp);
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        codigo_postal: cp,
+                                        provincia: detectedProv || prev.provincia,
+                                    }));
+                                }}
                                 placeholder="28001"
                             />
                         </div>
 
-                        <div>
-                            <Label htmlFor="gestor_municipio">Municipio</Label>
-                            <Input
-                                id="gestor_municipio"
-                                name="municipio"
-                                value={formData.municipio}
-                                onChange={handleChange}
-                                placeholder="Sevilla"
-                            />
-                        </div>
-
-                        <div>
-                            <Label htmlFor="gestor_provincia">Provincia</Label>
-                            <Input
-                                id="gestor_provincia"
-                                name="provincia"
-                                value={formData.provincia}
-                                onChange={handleChange}
-                                placeholder="Sevilla"
-                            />
-                        </div>
+                        <ProvinceMunicipalityFields
+                            unstyledWrapper
+                            provinciaWrapperClassName="sm:col-span-4"
+                            municipioWrapperClassName="sm:col-span-5"
+                            order="provincia-first"
+                            provincia={formData.provincia || ''}
+                            municipio={formData.municipio || ''}
+                            provinciaId="gestor_provincia"
+                            municipioId="gestor_municipio"
+                            provinciaName="provincia"
+                            municipioName="municipio"
+                            onChange={({ provincia, municipio }) =>
+                                setFormData((prev) => ({
+                                    ...prev,
+                                    provincia,
+                                    municipio,
+                                }))
+                            }
+                        />
                     </div>
                 </div>
 

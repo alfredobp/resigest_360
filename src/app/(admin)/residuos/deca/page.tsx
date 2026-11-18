@@ -13,6 +13,7 @@ import { toast } from '@/context/ToastContext';
 import { Modal, ConfirmModal } from '@/components/ui/modal';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
+import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFields';
 import TextArea from '@/components/form/input/TextArea';
 import {
   validateRequired,
@@ -872,37 +873,31 @@ export default function DecaManagementPage() {
                       hint={createErrors.origen_direccion}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label htmlFor="deca_create_origen_municipio" required>Municipio</Label>
-                      <Input
-                        id="deca_create_origen_municipio"
-                        type="text"
-                        placeholder="Municipio"
-                        value={formData.origen_municipio || ''}
-                        onChange={(e) => {
-                          setFormData({ ...formData, origen_municipio: e.target.value });
-                          clearCreateError('origen_municipio');
-                        }}
-                        error={Boolean(createErrors.origen_municipio)}
-                        hint={createErrors.origen_municipio}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="deca_create_origen_provincia" required>Provincia</Label>
-                      <Input
-                        id="deca_create_origen_provincia"
-                        type="text"
-                        placeholder="Provincia"
-                        value={formData.origen_provincia || ''}
-                        onChange={(e) => {
-                          setFormData({ ...formData, origen_provincia: e.target.value });
-                          clearCreateError('origen_provincia');
-                        }}
-                        error={Boolean(createErrors.origen_provincia)}
-                        hint={createErrors.origen_provincia}
-                      />
-                    </div>
+                  <div className="pt-1">
+                    <ProvinceMunicipalityFields
+                      provinciaRequired
+                      municipioRequired
+                      provinciaId="deca_create_origen_provincia"
+                      municipioId="deca_create_origen_municipio"
+                      provinciaName="origen_provincia"
+                      municipioName="origen_municipio"
+                      provinciaError={Boolean(createErrors.origen_provincia)}
+                      municipioError={Boolean(createErrors.origen_municipio)}
+                      provinciaHint={createErrors.origen_provincia}
+                      municipioHint={createErrors.origen_municipio}
+                      provincia={formData.origen_provincia || ''}
+                      municipio={formData.origen_municipio || ''}
+                      wrapperClassName="grid grid-cols-2 gap-2"
+                      onChange={({ provincia, municipio }) => {
+                        setFormData({
+                          ...formData,
+                          origen_provincia: provincia,
+                          origen_municipio: municipio,
+                        });
+                        clearCreateError('origen_provincia');
+                        clearCreateError('origen_municipio');
+                      }}
+                    />
                   </div>
                 </div>
 
@@ -923,37 +918,31 @@ export default function DecaManagementPage() {
                       hint={createErrors.destino_direccion}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label htmlFor="deca_create_destino_municipio" required>Municipio</Label>
-                      <Input
-                        id="deca_create_destino_municipio"
-                        type="text"
-                        placeholder="Municipio"
-                        value={formData.destino_municipio || ''}
-                        onChange={(e) => {
-                          setFormData({ ...formData, destino_municipio: e.target.value });
-                          clearCreateError('destino_municipio');
-                        }}
-                        error={Boolean(createErrors.destino_municipio)}
-                        hint={createErrors.destino_municipio}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="deca_create_destino_provincia" required>Provincia</Label>
-                      <Input
-                        id="deca_create_destino_provincia"
-                        type="text"
-                        placeholder="Provincia"
-                        value={formData.destino_provincia || ''}
-                        onChange={(e) => {
-                          setFormData({ ...formData, destino_provincia: e.target.value });
-                          clearCreateError('destino_provincia');
-                        }}
-                        error={Boolean(createErrors.destino_provincia)}
-                        hint={createErrors.destino_provincia}
-                      />
-                    </div>
+                  <div className="pt-1">
+                    <ProvinceMunicipalityFields
+                      provinciaRequired
+                      municipioRequired
+                      provinciaId="deca_create_destino_provincia"
+                      municipioId="deca_create_destino_municipio"
+                      provinciaName="destino_provincia"
+                      municipioName="destino_municipio"
+                      provinciaError={Boolean(createErrors.destino_provincia)}
+                      municipioError={Boolean(createErrors.destino_municipio)}
+                      provinciaHint={createErrors.destino_provincia}
+                      municipioHint={createErrors.destino_municipio}
+                      provincia={formData.destino_provincia || ''}
+                      municipio={formData.destino_municipio || ''}
+                      wrapperClassName="grid grid-cols-2 gap-2"
+                      onChange={({ provincia, municipio }) => {
+                        setFormData({
+                          ...formData,
+                          destino_provincia: provincia,
+                          destino_municipio: municipio,
+                        });
+                        clearCreateError('destino_provincia');
+                        clearCreateError('destino_municipio');
+                      }}
+                    />
                   </div>
                 </div>
               </div>

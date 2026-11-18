@@ -188,7 +188,7 @@ export default function SupportPage() {
       badge: 'Declaración Anual',
       summary: 'Consolidación de balances anuales de residuos para su presentación oficial ante las Consejerías de Medio Ambiente.',
       content: [
-        'Con carácter general, antes del 1 de marzo del año posterior respecto al cual se hayan recogido los datos, las personas físicas o jurídicas obligadas conforme al Artículo 65.1 de la Ley 7/2022 (gestores de residuos, productores de residuos peligrosos, productores de no peligrosos > 10 t/año, entidades/empresas de recogida y transportistas/negociantes/agentes según proceda) deben presentar la memoria resumen anual del archivo cronológico, sin perjuicio de plazos o tramitaciones específicas fijadas por cada Comunidad Autónoma.',
+        'Conforme al Artículo 65.1 de la Ley 7/2022, antes del 1 de marzo del año posterior respecto al cual se hayan recogido los datos, las personas físicas o jurídicas que realicen operaciones de tratamiento de residuos, las que recojan residuos con carácter profesional o los transporten, los negociantes y agentes, y los productores de residuos peligrosos, enviarán a la comunidad autónoma competente una memoria resumen de la información del archivo cronológico. (Nota: los productores de residuos no peligrosos están obligados al Archivo Cronológico del Art. 64, pero la Memoria Anual estatal general no les resulta exigible salvo disposición o requerimiento específico de su Comunidad Autónoma).',
         'Resigest 360 procesa los movimientos del ejercicio seleccionado y genera el resumen agregado por centro de producción, código LER y tipo de operación (R/D), calculando automáticamente las cantidades totales en toneladas.',
         'La memoria exportada sirve como soporte estructurado para su revisión previa y presentación ante el Ministerio o las consejerías autonómicas competentes.'
       ],
@@ -391,7 +391,7 @@ export default function SupportPage() {
                 </button>
               </div>
               <span className="mt-3 inline-block text-[11px] text-gray-500 dark:text-gray-400">
-                L - V: 08:00 - 19:00 h CET
+                L - V: 09:00 - 18:00 h CET
               </span>
             </div>
 
@@ -757,7 +757,7 @@ export default function SupportPage() {
           >
             <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
               <p>
-                <strong>2.1. Responsable del Tratamiento:</strong> La entidad titular del servicio identificada en el acuerdo comercial o contrato de encargado del tratamiento vigente con el cliente (datos registrales completos pendientes de actualización en este texto informativo). Correo de contacto en materia de privacidad: <code className="rounded-sm bg-gray-100 px-1.5 py-0.5 font-mono text-xs dark:bg-gray-800">{dpoEmail}</code>.
+                <strong>2.1. Responsable del Tratamiento:</strong> Plataforma operada por RESIGEST 360 TECNOLOGÍA AMBIENTAL S.L. (en fase previa a formalización mercantil y despliegue comercial). Domicilio y contacto corporativo: <code className="rounded-sm bg-gray-100 px-1.5 py-0.5 font-mono text-xs dark:bg-gray-800">legal@resigest.com</code>. Las condiciones de encargado del tratamiento se articulan en el contrato particular suscrito con cada cliente titular. Correo de contacto en materia de privacidad: <code className="rounded-sm bg-gray-100 px-1.5 py-0.5 font-mono text-xs dark:bg-gray-800">{dpoEmail}</code>.
               </p>
               <p>
                 <strong>2.2. Finalidad y Legitimación:</strong> Los datos se tratan con la finalidad exclusiva de prestar los servicios contratados, posibilitar la firma electrónica de traslados, generar los libros de archivo cronológico y dar cumplimiento a las obligaciones legales impuestas por la Ley 7/2022 de Residuos. La base legitimadora es la ejecución del contrato (art. 6.1.b RGPD) y el cumplimiento de obligaciones legales de carácter medioambiental y tributario (art. 6.1.c RGPD).
@@ -796,7 +796,7 @@ export default function SupportPage() {
           >
             <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
               <p>
-                <strong>4.1. Cifrado en Tránsito y Reposo:</strong> Todas las comunicaciones se realizan mediante protocolos seguros HTTPS / TLS 1.3 con cifrado de 256 bits. Los ficheros y bases de datos se almacenan cifrados mediante el estándar AES-256.
+                <strong>4.1. Cifrado en Tránsito y Reposo:</strong> Todas las comunicaciones se realizan mediante protocolos seguros HTTPS / TLS 1.3 con cifrado de 256 bits gestionados de extremo a extremo a nivel de infraestructura. Los datos y copias de seguridad se almacenan cifrados mediante el estándar AES-256 en reposo sobre el almacenamiento cloud subyacente sin requerir configuración manual por el usuario.
               </p>
               <p>
                 <strong>4.2. Seguridad y Alojamiento:</strong> Los datos de la aplicación se almacenan y procesan sobre infraestructura gestionada de base de datos y almacenamiento con control de acceso multiempresa por usuario/tenant (RLS) y comunicaciones cifradas HTTPS/TLS.
