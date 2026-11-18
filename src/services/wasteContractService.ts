@@ -9,7 +9,6 @@ import { getActiveCompanyCookie } from './tenantContextService';
 import type {
   WasteContract,
   WasteContractFormData,
-  WasteContractRevision,
   ContractWasteCode,
   ContractWasteCodeFormData,
 } from '@/types/wasteManagement';

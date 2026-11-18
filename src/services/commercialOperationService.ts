@@ -15,6 +15,10 @@ import { tenantContextService } from './tenantContextService';
 import { syncEntryFromCommercialOperation } from './chronologicalRegistryService';
 
 async function syncClosedOperationToChronologicalRegistry(op: CommercialOperation): Promise<void> {
+  // QA5-I02: Si es intermediación pura sin posesión física en planta propia, no generar salida de stock físico
+  if (op.modalidad_posesion === 'intermediacion_sin_posesion') {
+    return;
+  }
   if (
     (op.estado === 'completada' || op.estado === 'liquidada') &&
     op.numero_operacion &&
@@ -716,8 +720,8 @@ export const commercialOperationService = {
         : (op.precio_unitario_venta && op.precio_unitario_venta > 0)
           ? Number(op.precio_unitario_venta)
           : (units > 0
-              ? Number(((op.ingreso_venta_total || 0) / units).toFixed(2))
-              : Number(op.ingreso_venta_total || 0));
+            ? Number(((op.ingreso_venta_total || 0) / units).toFixed(2))
+            : Number(op.ingreso_venta_total || 0));
 
       const ispMention = taxRate === 0
         ? ' — Inversión del Sujeto Pasivo (Art. 84.Uno.2º.c Ley 37/1992 del IVA)'

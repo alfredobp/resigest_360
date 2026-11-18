@@ -451,3 +451,4 @@ ALTER TABLE public.prior_notifications
   ADD COLUMN IF NOT EXISTS destino_posterior_operacion_rd TEXT;
 
 COMMIT;
+

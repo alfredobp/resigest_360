@@ -100,6 +100,7 @@ export default function ArchivoCronologicoPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [savingEntry, setSavingEntry] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<number | null>(null);
+  const [myCompany, setMyCompany] = useState<{ id: number; razon_social?: string; nombre_comercial?: string; cif?: string } | null>(null);
   const [formData, setFormData] = useState<ChronologicalEntryFormData>({
     fecha: new Date().toISOString().split('T')[0],
     tipo_operacion: 'produccion_interna',
@@ -110,7 +111,9 @@ export default function ArchivoCronologicoPage() {
     estado_fisico: 'solido',
     envase_tipo: 'GRG / Contenedor',
     envase_unidades: 1,
+    origen_tipo: 'propio',
     origen_razon_social: '',
+    destino_tipo: 'tercero_gestor',
     destino_razon_social: '',
     operacion_rd: '',
     numero_documento_referencia: '',
@@ -125,12 +128,14 @@ export default function ArchivoCronologicoPage() {
       // Cargar centros de producción del usuario
       const userCompany = await companyService.getUserCompany();
       if (userCompany) {
+        setMyCompany(userCompany);
         const centersData = await productionCenterService.getByCompanyId(userCompany.id);
         setCenters(centersData);
-        if (!formData.origen_razon_social) {
+        if (!formData.origen_razon_social && formData.tipo_operacion !== 'entrada_recepcion') {
           setFormData(prev => ({
             ...prev,
             company_id: userCompany.id,
+            origen_tipo: 'propio',
             origen_razon_social: userCompany.razon_social || userCompany.nombre_comercial || '',
             origen_nif: userCompany.cif || ''
           }));
@@ -689,7 +694,35 @@ export default function ArchivoCronologicoPage() {
                 </label>
                 <select
                   value={formData.tipo_operacion}
-                  onChange={(e) => setFormData(prev => ({ ...prev, tipo_operacion: e.target.value as any }))}
+                  onChange={(e) => {
+                    const nextTipo = e.target.value as TipoOperacionCronologica;
+                    const ownName = myCompany?.razon_social || myCompany?.nombre_comercial || '';
+                    const ownCif = myCompany?.cif || '';
+                    setFormData(prev => {
+                      if (nextTipo === 'entrada_recepcion') {
+                        return {
+                          ...prev,
+                          tipo_operacion: nextTipo,
+                          origen_tipo: 'tercero_productor',
+                          origen_razon_social: prev.origen_razon_social === ownName ? (prev.destino_razon_social || '') : prev.origen_razon_social,
+                          origen_nif: prev.origen_nif === ownCif ? (prev.destino_nif || '') : prev.origen_nif,
+                          destino_tipo: 'propio',
+                          destino_razon_social: ownName,
+                          destino_nif: ownCif,
+                        };
+                      }
+                      return {
+                        ...prev,
+                        tipo_operacion: nextTipo,
+                        origen_tipo: 'propio',
+                        origen_razon_social: ownName,
+                        origen_nif: ownCif,
+                        destino_tipo: 'tercero_gestor',
+                        destino_razon_social: prev.destino_razon_social === ownName ? (prev.origen_razon_social || '') : prev.destino_razon_social,
+                        destino_nif: prev.destino_nif === ownCif ? (prev.origen_nif || '') : prev.destino_nif,
+                      };
+                    });
+                  }}
                   className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                 >
                   <option value="produccion_interna">Producción Interna (Generación en Planta)</option>
@@ -809,13 +842,46 @@ export default function ArchivoCronologicoPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
-                  Gestor Destinatario / Origen
+                  {formData.tipo_operacion === 'entrada_recepcion'
+                    ? 'Productor / Origen Externo *'
+                    : 'Gestor Destinatario (Tercero)'}
                 </label>
                 <input
                   type="text"
-                  placeholder="Razón Social del tercero"
-                  value={formData.destino_razon_social || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, destino_razon_social: e.target.value }))}
+                  placeholder={
+                    formData.tipo_operacion === 'entrada_recepcion'
+                      ? 'Razón Social del productor remitente'
+                      : 'Razón Social del gestor destinatario'
+                  }
+                  value={
+                    formData.tipo_operacion === 'entrada_recepcion'
+                      ? (formData.origen_razon_social || '')
+                      : (formData.destino_razon_social || '')
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const ownName = myCompany?.razon_social || myCompany?.nombre_comercial || '';
+                    const ownCif = myCompany?.cif || '';
+                    setFormData(prev =>
+                      prev.tipo_operacion === 'entrada_recepcion'
+                        ? {
+                            ...prev,
+                            origen_tipo: 'tercero_productor',
+                            origen_razon_social: val,
+                            destino_tipo: 'propio',
+                            destino_razon_social: prev.destino_razon_social || ownName,
+                            destino_nif: prev.destino_nif || ownCif,
+                          }
+                        : {
+                            ...prev,
+                            origen_tipo: 'propio',
+                            origen_razon_social: prev.origen_razon_social || ownName,
+                            origen_nif: prev.origen_nif || ownCif,
+                            destino_tipo: 'tercero_gestor',
+                            destino_razon_social: val,
+                          }
+                    );
+                  }}
                   className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                 />
               </div>

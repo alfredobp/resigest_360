@@ -225,6 +225,16 @@ describe('priorNotificationService', () => {
         }).valid
       ).toBe(true);
       expect(validateNTForE3L({ ...validNt, operacion_tratamiento: 'R1201' }).valid).toBe(true);
+
+      // NIMA inválido en productor o gestor en validateNTForE3L (RD 764/2026)
+      const invalidNimaNt = validateNTForE3L({
+        ...validNt,
+        productor_nima: '783989383983',
+        gestor_nima: '9912345678',
+      });
+      expect(invalidNimaNt.valid).toBe(false);
+      expect(invalidNimaNt.errors.some((e) => e.includes('NIMA del centro productor inválido'))).toBe(true);
+      expect(invalidNimaNt.errors.some((e) => e.includes('NIMA de la instalación de destino inválido'))).toBe(true);
     });
   });
 
@@ -245,6 +255,7 @@ describe('priorNotificationService', () => {
         gestor_cif: 'B87654321',
         gestor_razon_social: 'Gestor Test S.L.',
         gestor_nima: '1100000003',
+        gestor_numero_autorizacion: 'AN-0452',
         gestor_provincia: 'Cádiz',
         codigo_ler: '150110*',
         peligrosidad: 'peligroso',

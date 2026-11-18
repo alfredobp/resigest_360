@@ -26,6 +26,7 @@ import {
   wasteContractService,
   validateContractActivation,
   getContractEffectiveStatus,
+  detectContractMaterialChanges,
 } from '../wasteContractService';
 import type { WasteContract, WasteContractFormData } from '@/types/wasteManagement';
 
@@ -1610,6 +1611,139 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
         isExpired: true,
         label: 'Caducado',
       });
+    });
+  });
+
+  describe('detectContractMaterialChanges y resolveGestorReferences', () => {
+    it('detectContractMaterialChanges debe detectar cambios en todos los campos materiales', () => {
+      expect(detectContractMaterialChanges(null, { cantidad_maxima_anual: 10 })).toEqual({
+        hasMaterialChange: false,
+        changedFields: [],
+      });
+
+      const existing: any = {
+        cantidad_maxima_anual: 10,
+        unidad_cantidad: 'toneladas',
+        precio_unitario: 50,
+        frecuencia_recogida: 'semanal',
+        tipo_contrato: 'tratamiento',
+        fecha_inicio: '2026-01-01',
+        fecha_fin: '2026-12-31',
+        descripcion_residuos: 'Residuo A',
+        notas: 'Nota 1',
+        company_id: 1,
+        gestor_company_id: 2,
+        treatment_manager_id: 3,
+        producer_center_id: 4,
+        gestor_center_id: 5,
+        codigos_ler: ['15 01 01'],
+        operaciones_tratamiento: ['R03'],
+        contract_waste_codes: [
+          { codigo_ler: '15 01 01', operacion_tratamiento: 'R03', cantidad_estimada_anual: 10, tarifa_gestion: 50 },
+        ],
+      };
+
+      const res = detectContractMaterialChanges(existing, {
+        cantidad_maxima_anual: 20,
+        unidad_cantidad: 'kg',
+        precio_unitario: 60,
+        frecuencia_recogida: 'mensual',
+        tipo_contrato: 'recogida' as any,
+        fecha_inicio: '2026-02-01',
+        fecha_fin: '2027-01-31',
+        descripcion_residuos: 'Residuo B',
+        notas: 'Nota 2',
+        company_id: 10,
+        gestor_company_id: 20,
+        treatment_manager_id: 30,
+        producer_center_id: 40,
+        gestor_center_id: 50,
+        codigos_ler: ['15 01 02'],
+        operaciones_tratamiento: ['R12'],
+        contract_waste_codes: [
+          { codigo_ler: '15 01 02', operacion_tratamiento: 'R12', cantidad_estimada_anual: 20, tarifa_gestion: 60 },
+        ],
+      });
+
+      expect(res.hasMaterialChange).toBe(true);
+      expect(res.changedFields).toEqual(
+        expect.arrayContaining([
+          'cantidad_maxima_anual',
+          'unidad_cantidad',
+          'precio_unitario',
+          'frecuencia_recogida',
+          'tipo_contrato',
+          'fecha_inicio',
+          'fecha_fin',
+          'descripcion_residuos',
+          'notas',
+          'company_id',
+          'gestor_company_id',
+          'treatment_manager_id',
+          'producer_center_id',
+          'gestor_center_id',
+          'codigos_ler',
+          'operaciones_tratamiento',
+          'contract_waste_codes',
+        ])
+      );
+    });
+
+    it('create y update deben resolver treatment_manager_id contra companies cuando no existe en treatment_managers', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'u1' } } });
+      const insertMock = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          single: jest.fn().mockResolvedValue({ data: { id: 1, gestor_company_id: 88 }, error: null }),
+        }),
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'treatment_managers') {
+          return {
+            select: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnValue({
+                eq: jest.fn().mockReturnValue({
+                  maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnValue({
+                eq: jest.fn().mockReturnValue({
+                  maybeSingle: jest.fn().mockResolvedValue({ data: { id: 88 }, error: null }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === 'waste_contracts') {
+          return { insert: insertMock };
+        }
+        return null;
+      });
+
+      await wasteContractService.create({
+        company_id: 1,
+        treatment_manager_id: 88,
+        tipo_contrato: 'tratamiento',
+        numero_contrato: 'CT-88',
+        fecha_contrato: '2026-01-01',
+        fecha_inicio: '2026-01-01',
+        fecha_fin: '2026-12-31',
+        estado: 'borrador',
+        descripcion_residuos: 'Test',
+      });
+
+      expect(insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          treatment_manager_id: null,
+          gestor_company_id: 88,
+        })
+      );
     });
   });
 });

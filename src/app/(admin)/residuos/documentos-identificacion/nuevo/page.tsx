@@ -25,6 +25,7 @@ import type { IdentificationDocument, Company, WasteContract, ProductionCenter, 
 import DatePicker from '@/components/form/date-picker';
 import LerSelector from '@/components/residuos/LerSelector';
 import { getProvinceByPostalCode } from '@/lib/validations/spainLocations';
+import { PHYSICAL_CONTAINER_CATALOG } from '@/lib/validations/normativeCompliance';
 
 export default function NuevoDocumentoIdentificacionPage() {
   const router = useRouter();
@@ -1367,14 +1368,45 @@ export default function NuevoDocumentoIdentificacionPage() {
               </div>
 
               <div>
-                <label htmlFor="tipo_envases" className="block text-sm font-medium mb-2">Tipo de Envases</label>
-                <Input
-                  id="tipo_envases"
-                  type="text"
-                  value={formData.tipo_envases || ''}
-                  onChange={(e) => setFormData({ ...formData, tipo_envases: e.target.value })}
-                  placeholder="Ej: Contenedor 1000L, Big Bag, Bidón"
+                <label htmlFor="tipo_envases" className="block text-sm font-medium mb-2">Tipo de Envase / Contenedor</label>
+                <Select
+                  options={PHYSICAL_CONTAINER_CATALOG.map((item) => ({
+                    value: item.label,
+                    label: item.label,
+                  }))}
+                  value={
+                    PHYSICAL_CONTAINER_CATALOG.some((c) => c.label === formData.tipo_envases)
+                      ? (formData.tipo_envases || '')
+                      : formData.tipo_envases
+                        ? 'Otro (especificar)'
+                        : ''
+                  }
+                  onChange={(value) => {
+                    if (value === 'Otro (especificar)') {
+                      setFormData({ ...formData, tipo_envases: 'Otro: ' });
+                    } else {
+                      setFormData({ ...formData, tipo_envases: value });
+                    }
+                  }}
+                  placeholder="Selecciona tipo físico de contenedor..."
                 />
+                {formData.tipo_envases?.startsWith('Otro') && (
+                  <div className="mt-2">
+                    <Input
+                      id="tipo_envases_otro"
+                      type="text"
+                      value={formData.tipo_envases.replace(/^Otro:\s*/i, '')}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          tipo_envases: `Otro: ${e.target.value}`,
+                        })
+                      }
+                      placeholder="Especifique el tipo de contenedor o envase (obligatorio) *"
+                      required
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </ComponentCard>

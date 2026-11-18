@@ -180,27 +180,6 @@ export const companyService = {
   },
 
   /**
-   * Resuelve el user_id efectivo del propietario del directorio activo.
-   * Si el usuario es un consultor operando con una empresa delegada activa (`activeCompanyId`),
-   * devuelve el `user_id` propietario de dicha empresa cliente y su `activeCompanyId` (P1 A04-01).
-   */
-  async resolveEffectiveOwnerContext(currentUserId: string): Promise<{
-    ownerUserId: string;
-    activeCompanyId: number | null;
-    isDelegated: boolean;
-  }> {
-    const { activeId, targetUserId } = await this.getDelegatedContext(currentUserId);
-    if (!activeId) {
-      return { ownerUserId: currentUserId, activeCompanyId: null, isDelegated: false };
-    }
-    return {
-      ownerUserId: targetUserId,
-      activeCompanyId: activeId,
-      isDelegated: targetUserId !== currentUserId,
-    };
-  },
-
-  /**
    * Obtener todos los contactos y empresas colaboradoras del usuario o de la empresa activa
    */
   async getAllContacts(): Promise<Company[]> {

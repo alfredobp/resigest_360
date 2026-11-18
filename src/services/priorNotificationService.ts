@@ -125,8 +125,24 @@ export function validateNTForE3L(nt: Partial<PriorNotification>): E3LNTValidatio
 
   errors.push(...validateNTDateRules(nt));
 
-  if (!nt.productor_nima) warnings.push('Falta NIMA del centro productor.');
-  if (!nt.gestor_nima) warnings.push('Falta NIMA de la instalación de destino.');
+  const nimaPattern = /^(0[1-9]|[1-4][0-9]|5[0-2])\d{8}$/;
+  if (!nt.productor_nima) {
+    warnings.push('Falta NIMA del centro productor.');
+  } else if (!nimaPattern.test(String(nt.productor_nima).trim())) {
+    errors.push(`NIMA del centro productor inválido (${nt.productor_nima}): debe tener 10 dígitos con prefijo provincial INE 01–52 (RD 764/2026).`);
+  }
+  if (!nt.gestor_nima) {
+    warnings.push('Falta NIMA de la instalación de destino.');
+  } else if (!nimaPattern.test(String(nt.gestor_nima).trim())) {
+    errors.push(`NIMA de la instalación de destino inválido (${nt.gestor_nima}): debe tener 10 dígitos con prefijo provincial INE 01–52 (RD 764/2026).`);
+  }
+
+  // RD 553/2020: En operaciones intermedias (R12, R13, D13, D14, D15), advertir si falta instalación de tratamiento posterior
+  const opBase = op.slice(0, 3);
+  if (['R12', 'R13', 'D13', 'D14', 'D15'].includes(opBase) && !nt.destino_posterior_razon_social && !nt.destino_posterior_nima) {
+    warnings.push(`La operación ${op} es intermedia (almacenamiento/agrupación): debe consignar la instalación de destino posterior prevista (RD 553/2020).`);
+  }
+
   if (!nt.productor_municipio || !nt.gestor_municipio) {
     warnings.push('Falta municipio oficial en origen o destino.');
   }
@@ -213,9 +229,9 @@ export const priorNotificationService = {
       notificationData.numero_notificacion && String(notificationData.numero_notificacion).trim().length > 0
         ? String(notificationData.numero_notificacion).trim()
         : formatNTCode(
-            undefined,
-            notificationData.productor_nima || notificationData.operador_nima || ''
-          );
+          undefined,
+          notificationData.productor_nima || notificationData.operador_nima || ''
+        );
 
     const { data, error } = await supabase
       .from('prior_notifications')
@@ -336,7 +352,8 @@ export const priorNotificationService = {
     const gestCp = clean(nt.gestor_codigo_postal);
     const gestPhone = clean(nt.gestor_telefono).replace(/\D/g, '');
     const gestEmail = clean(nt.gestor_email);
-    const gestAuth = clean(nt.gestor_numero_autorizacion) || gestNima;
+    const rawGestAuth = clean(nt.gestor_numero_autorizacion);
+    const gestAuth = rawGestAuth && rawGestAuth !== gestNima ? rawGestAuth : '';
 
     const rawWeight = Number(nt.cantidad_estimada_kg || 1000);
     const cleanQuantity = (!isNaN(rawWeight) && rawWeight > 0 ? rawWeight : 1000).toFixed(3);
@@ -403,13 +420,10 @@ export const priorNotificationService = {
             <centerContact>${opPhone ? `\n                <phone>${opPhone}</phone>` : ''}${opEmail ? `\n                <mail>${opEmail}</mail>` : ''}
             </centerContact>` : ''}
             <wasteCenterAuthorization>
-                <authorizationId>
-                    <authorizationIdFree>${opNima}</authorizationIdFree>
-                </authorizationId>
                 <authorizationCode>${isDanger ? 'P01' : 'P03'}</authorizationCode>
             </wasteCenterAuthorization>
         </entityCenter>
-        <wasteTransferOperatorType operatorTypeCode="P01"/>
+        <wasteTransferOperatorType operatorTypeCode="${isDanger ? 'P01' : 'P03'}"/>
     </NTTransferOperatorData>
 
     <!-- 2. Productor -->
@@ -439,9 +453,6 @@ export const priorNotificationService = {
             <centerContact>${prodPhone ? `\n                <phone>${prodPhone}</phone>` : ''}${prodEmail ? `\n                <mail>${prodEmail}</mail>` : ''}
             </centerContact>` : ''}
             <wasteCenterAuthorization>
-                <authorizationId>
-                    <authorizationIdFree>${prodNima}</authorizationIdFree>
-                </authorizationId>
                 <authorizationCode>${isDanger ? 'P01' : 'P03'}</authorizationCode>
             </wasteCenterAuthorization>
         </entityCenter>
@@ -474,10 +485,10 @@ export const priorNotificationService = {
             </centerAddress>${(gestPhone || gestEmail) ? `
             <centerContact>${gestPhone ? `\n                <phone>${gestPhone}</phone>` : ''}${gestEmail ? `\n                <mail>${gestEmail}</mail>` : ''}
             </centerContact>` : ''}
-            <wasteCenterAuthorization>
+            <wasteCenterAuthorization>${gestAuth ? `
                 <authorizationId>
                     <authorizationIdFree>${gestAuth}</authorizationIdFree>
-                </authorizationId>
+                </authorizationId>` : ''}
                 <authorizationCode>${isDanger ? 'G01' : 'G04'}</authorizationCode>
             </wasteCenterAuthorization>
         </entityCenter>

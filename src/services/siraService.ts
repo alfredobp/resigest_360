@@ -211,7 +211,9 @@ const generateEntityBlock = (
   const addressText = clean(data.address) || 'Calle Principal';
   const cp = clean(data.cp) || `${provCode}001`;
   const cnae = clean(data.cnae);
-  const authNumber = clean(data.authorizationNumber) || safeNima;
+  const rawAuthNumber = clean(data.authorizationNumber);
+  // N04 / RD 764/2026: No reutilizar el NIMA como número de autorización/inscripción
+  const authNumber = rawAuthNumber && rawAuthNumber !== safeNima ? rawAuthNumber : '';
   const authCode = clean(data.authorizationCode) || defaultAuthCode;
 
   const addressBlock = `
@@ -236,11 +238,12 @@ const generateEntityBlock = (
         </centerContact>`
     : '';
 
+  const authIdNode = authNumber
+    ? `\n            <authorizationId>\n                <authorizationIdFree>${authNumber}</authorizationIdFree>\n            </authorizationId>`
+    : '';
+
   const authBlock = `
-        <wasteCenterAuthorization>
-            <authorizationId>
-                <authorizationIdFree>${authNumber}</authorizationIdFree>
-            </authorizationId>
+        <wasteCenterAuthorization>${authIdNode}
             <authorizationCode>${authCode}</authorizationCode>
         </wasteCenterAuthorization>`;
 
@@ -274,23 +277,43 @@ const generateOperatorBlock = (doc: any): string => {
   const compData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
   const isDanger = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
 
+  // N04: Garantizar coherencia estricta del centro del Operador del Traslado.
+  // Si no se especifican campos explícitos de operador_*, usar de forma íntegra el centro productor del DI
+  // en lugar de mezclar el NIMA de la sede principal (compData.nima) con la dirección del centro productor.
+  const hasExplicitOperator = Boolean(doc.operador_nima || doc.operador_direccion || doc.operador_cif);
+
   return generateEntityBlock(
     'DCSTransferOperatorData',
     {
-      cif: doc.operador_cif || compData?.cif || doc.productor_cif,
-      name: doc.operador_razon_social || compData?.razon_social || doc.productor_razon_social,
-      nima: doc.operador_nima || compData?.nima || doc.productor_nima,
-      address: doc.operador_direccion || compData?.domicilio_instalacion || doc.productor_direccion,
-      cp: doc.operador_codigo_postal || compData?.codigo_postal_instalacion || doc.productor_codigo_postal,
-      municipality: doc.operador_municipio || compData?.municipio_instalacion || doc.productor_municipio,
-      province: doc.operador_provincia || compData?.provincia_instalacion || doc.productor_provincia,
-      phone: doc.operador_telefono || compData?.telefono || doc.productor_telefono,
-      email: doc.operador_email || compData?.email,
+      cif: doc.operador_cif || doc.productor_cif || compData?.cif,
+      name: doc.operador_razon_social || doc.productor_razon_social || compData?.razon_social,
+      nima: hasExplicitOperator
+        ? (doc.operador_nima || doc.productor_nima || compData?.nima)
+        : (doc.productor_nima || compData?.nima),
+      authorizationNumber:
+        doc.operador_numero_autorizacion ||
+        doc.productor_numero_autorizacion ||
+        doc.production_center?.numero_inscripcion ||
+        compData?.numero_inscripcion,
+      address: hasExplicitOperator
+        ? (doc.operador_direccion || doc.productor_direccion || compData?.domicilio_instalacion)
+        : (doc.productor_direccion || compData?.domicilio_instalacion),
+      cp: hasExplicitOperator
+        ? (doc.operador_codigo_postal || doc.productor_codigo_postal || compData?.codigo_postal_instalacion)
+        : (doc.productor_codigo_postal || compData?.codigo_postal_instalacion),
+      municipality: hasExplicitOperator
+        ? (doc.operador_municipio || doc.productor_municipio || compData?.municipio_instalacion)
+        : (doc.productor_municipio || compData?.municipio_instalacion),
+      province: hasExplicitOperator
+        ? (doc.operador_provincia || doc.productor_provincia || compData?.provincia_instalacion)
+        : (doc.productor_provincia || compData?.provincia_instalacion),
+      phone: doc.operador_telefono || doc.productor_telefono || compData?.telefono,
+      email: doc.operador_email || doc.productor_email || compData?.email,
       cnae: compData?.cnae,
     },
     'wasteTransferOperatorType',
     'operatorTypeCode',
-    'P01',
+    isDanger ? 'P01' : 'P03',
     isDanger ? 'P01' : 'P03'
   );
 };
@@ -303,6 +326,7 @@ const generateProducerBlock = (doc: any): string => {
       cif: doc.productor_cif,
       name: doc.productor_razon_social,
       nima: doc.productor_nima,
+      authorizationNumber: doc.productor_numero_autorizacion || doc.production_center?.numero_inscripcion,
       address: doc.productor_direccion,
       cp: doc.productor_codigo_postal,
       municipality: doc.productor_municipio,
@@ -689,9 +713,24 @@ export function validateDIForE3L(doc: any): E3LValidationResult {
     errors.push('El traslado requiere Notificación Previa (NT), pero falta un código NT oficial válido (^NT[0-9]{23,24}$).');
   }
 
-  if (!doc?.productor_nima) warnings.push('Falta NIMA del centro productor.');
-  if (!doc?.gestor_nima) warnings.push('Falta NIMA de la instalación de destino.');
-  if (!doc?.transportista_nima) warnings.push('Falta NIMA del transportista.');
+  const nimaPattern = /^(0[1-9]|[1-4][0-9]|5[0-2])\d{8}$/;
+  if (!doc?.productor_nima) {
+    warnings.push('Falta NIMA del centro productor.');
+  } else if (!nimaPattern.test(String(doc.productor_nima).trim())) {
+    errors.push(`NIMA del productor inválido (${doc.productor_nima}): debe tener exactamente 10 dígitos numéricos con prefijo provincial INE 01–52 (RD 764/2026).`);
+  }
+
+  if (!doc?.gestor_nima) {
+    warnings.push('Falta NIMA de la instalación de destino.');
+  } else if (!nimaPattern.test(String(doc.gestor_nima).trim())) {
+    errors.push(`NIMA del gestor destino inválido (${doc.gestor_nima}): debe tener exactamente 10 dígitos numéricos con prefijo provincial INE 01–52 (RD 764/2026).`);
+  }
+
+  if (!doc?.transportista_nima) {
+    warnings.push('Falta NIMA del transportista.');
+  } else if (!nimaPattern.test(String(doc.transportista_nima).trim())) {
+    errors.push(`NIMA del transportista inválido (${doc.transportista_nima}): debe tener exactamente 10 dígitos numéricos con prefijo provincial INE 01–52 (RD 764/2026).`);
+  }
   if (!doc?.productor_municipio || !doc?.gestor_municipio) {
     warnings.push('Falta municipio oficial en origen o destino.');
   }

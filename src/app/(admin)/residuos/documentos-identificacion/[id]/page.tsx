@@ -11,7 +11,7 @@ import { toast } from '@/context/ToastContext';
 import { Modal, ConfirmModal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
-import identificationDocumentService, { getTrackingStatusMeta, normalizeOperationCode } from '@/services/identificationDocumentService';
+import identificationDocumentService, { getTrackingStatusMeta, normalizeOperationCode, isCallerTransportistaOnly } from '@/services/identificationDocumentService';
 import wasteContractService from '@/services/wasteContractService';
 import authorizationService from '@/services/authorizationService';
 import siraService from '@/services/siraService';
@@ -84,7 +84,7 @@ export default function DetalleDocumentoIdentificacionPage() {
   const [submittingAction, setSubmittingAction] = useState(false);
   const [modalActionError, setModalActionError] = useState<string | null>(null);
 
-  const isTransportistaOnly = myCompany?.tipo_empresa === 'transportista' && !(myCompany.roles || []).includes('gestor');
+  const isTransportistaOnly = isCallerTransportistaOnly(myCompany);
   const [activeContracts, setActiveContracts] = useState<WasteContract[]>([]);
   const [authorizedOpsForLer, setAuthorizedOpsForLer] = useState<string[] | null>(null);
   const [contractForm, setContractForm] = useState<{
@@ -1070,14 +1070,16 @@ export default function DetalleDocumentoIdentificacionPage() {
                     <p className="text-[10px] text-muted mt-1">{formatDateTime(document.fecha_firma_productor)}</p>
                     {!document.firma_productor_url && (
                       <div className="pt-2 space-y-1.5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleOpenSignatureModal('productor')}
-                          className="w-full text-xs"
-                        >
-                          Añadir firma gráfica
-                        </Button>
+                        {!isTransportistaOnly && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenSignatureModal('productor')}
+                            className="w-full text-xs"
+                          >
+                            Añadir firma gráfica
+                          </Button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleCopyPublicSignLink('productor')}
@@ -1092,14 +1094,16 @@ export default function DetalleDocumentoIdentificacionPage() {
                   <div className="space-y-2.5">
                     <Badge color="light">Pendiente de firma</Badge>
                     <div className="space-y-1.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleOpenSignatureModal('productor')}
-                        className="w-full text-xs"
-                      >
-                        Firmar como Productor
-                      </Button>
+                      {!isTransportistaOnly && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenSignatureModal('productor')}
+                          className="w-full text-xs"
+                        >
+                          Firmar como Productor
+                        </Button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleCopyPublicSignLink('productor')}
@@ -1208,14 +1212,16 @@ export default function DetalleDocumentoIdentificacionPage() {
                     <p className="text-[10px] text-muted mt-1">{formatDateTime(document.fecha_firma_gestor)}</p>
                     {!document.firma_gestor_url && (
                       <div className="pt-2 space-y-1.5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleOpenSignatureModal('gestor')}
-                          className="w-full text-xs"
-                        >
-                          Añadir firma gráfica
-                        </Button>
+                        {!isTransportistaOnly && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenSignatureModal('gestor')}
+                            className="w-full text-xs"
+                          >
+                            Añadir firma gráfica
+                          </Button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleCopyPublicSignLink('gestor')}

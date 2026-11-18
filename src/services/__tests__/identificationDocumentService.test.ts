@@ -1485,5 +1485,39 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
         identificationDocumentService.signDocumentByToken('uuid-di-token-123', 'productor', 'sig')
       ).rejects.toThrow('Error al registrar firma pública del DI: Direct update failed');
     });
+
+    it('resolveOriginWeightKg, assertActorAllowedForDIAction y getTrackingStatusMeta cubren unidades m3/litros, guardas de rol y pendiente-firma', async () => {
+      const { resolveOriginWeightKg, assertActorAllowedForDIAction } = await import('../identificationDocumentService');
+
+      expect(resolveOriginWeightKg({ cantidad: 2, unidad: 'm3', densidad_justificada_kg_m3: 500 } as any)).toBe(1000);
+      expect(resolveOriginWeightKg({ cantidad: 2, unidad: 'm3' } as any)).toBe(0);
+      expect(resolveOriginWeightKg({ cantidad: 100, unidad: 'litros', densidad_justificada_kg_m3: 800 } as any)).toBe(80);
+      expect(resolveOriginWeightKg({ cantidad: 100, unidad: 'litros' } as any)).toBe(0);
+
+      await expect(
+        assertActorAllowedForDIAction(
+          { id: 1, transportista_company_id: 50, gestor_company_id: 60, company_id: 70 },
+          'reception',
+          { id: 50, tipo_empresa: 'transportista', perfil_operativo: 'transportista' }
+        )
+      ).rejects.toThrow('Acceso denegado (RD 553/2020)');
+
+      await expect(
+        assertActorAllowedForDIAction(
+          { id: 1, transportista_cif: 'B111', gestor_cif: 'B222', productor_cif: 'B333' },
+          'sign_gestor',
+          { id: 50, cif: 'B111', roles: [] }
+        )
+      ).rejects.toThrow('solo está autorizado para firmar en calidad de Transportista');
+
+      const metaPending = getTrackingStatusMeta({
+        estado_traslado: 'tratado',
+        firmado_productor: false,
+        cantidad: 100,
+        peso_destino_kg: 100,
+      } as any);
+      expect(metaPending.label).toBe('Tratado (Pendiente Firma Productor)');
+      expect(metaPending.badgeColor).toBe('warning');
+    });
   });
 });

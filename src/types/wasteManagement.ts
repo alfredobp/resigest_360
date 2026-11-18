@@ -490,7 +490,6 @@ export interface IdentificationDocument {
   user_id: string;
   contract_id?: number;
   company_id: number;
-  gestor_company_id?: number;
   production_center_id?: number;
   transportista_company_id?: number | null;
   gestor_company_id?: number | null;
@@ -1589,7 +1588,12 @@ export interface PriorNotification {
 // ORIENTACIONES NORMATIVAS (RD 764/2026, LEY 7/2022, CONTENEDORES)
 // =====================================================
 
-export type NimaVerificationStatus = 'pendiente_verificar' | 'verificado' | 'incidencia';
+export type NimaVerificationStatus =
+  | 'pendiente_verificar'
+  | 'formato_valido'
+  | 'verificado'
+  | 'incidencia'
+  | 'invalido';
 
 export type OfficialRegistrationCode =
   | 'P01'
@@ -1610,11 +1614,12 @@ export type OfficialRegistrationCode =
 
 export interface CenterRegistration {
   id?: string;
-  tipo_inscripcion: OfficialRegistrationCode;
+  tipo_inscripcion?: OfficialRegistrationCode;
+  codigo_inscripcion?: OfficialRegistrationCode;
   numero_inscripcion: string;
   organismo?: string;
   fecha_inscripcion?: string;
-  estado: 'vigente' | 'en_tramite' | 'suspendida' | 'baja';
+  estado?: 'vigente' | 'en_tramite' | 'suspendida' | 'baja';
   ler_autorizados?: string[];
   operaciones_R_D?: string[];
   documento_acreditativo?: string;
@@ -1622,12 +1627,18 @@ export interface CenterRegistration {
 }
 
 export interface OwnershipTransferRecord {
-  fecha_transmision: string;
-  nif_anterior: string;
-  razon_social_anterior: string;
-  nif_nuevo: string;
-  razon_social_nueva: string;
-  mantiene_nima: boolean;
+  fecha_transmision?: string;
+  fecha_cambio_titularidad?: string;
+  nif_anterior?: string;
+  previous_owner_nif?: string;
+  razon_social_anterior?: string;
+  previous_owner_razon_social?: string;
+  nif_nuevo?: string;
+  new_owner_nif?: string;
+  razon_social_nueva?: string;
+  new_owner_razon_social?: string;
+  mantiene_nima?: boolean;
+  preserved_nima?: string;
   expediente_administrativo?: string;
   observaciones?: string;
 }
@@ -1635,35 +1646,64 @@ export interface OwnershipTransferRecord {
 export type PhysicalContainerTypeId =
   | 'contenedor_metalico_abierto'
   | 'contenedor_metalico_cerrado'
+  | 'contenedor_metalico_obra'
   | 'contenedor_gancho_cuba'
   | 'banera_basculante'
   | 'autocompactador'
+  | 'contenedor_autocompactador'
   | 'contenedor_ruedas_eurocontenedor'
+  | 'contenedor_movil_2_4_ruedas'
+  | 'contenedor_isotermo_refrigerado'
+  | 'contenedor_especifico_biosanitario'
   | 'iglu_recogida_selectiva'
   | 'jaula_metalica_raee'
+  | 'jaula_contenedor_malla'
   | 'big_bag_saco_flexible'
+  | 'big_bag'
+  | 'saco_bolsa'
   | 'bidon_tambor'
   | 'garrafa_recipiente_pequeno'
+  | 'garrafa_jerrican'
   | 'grg_ibc'
   | 'cisterna_deposito'
+  | 'cisterna_tanque_movil'
   | 'pale_palot_caja_pale'
+  | 'pallet_paletizado_retractilado'
+  | 'fardo_bala_prensada'
+  | 'cubeto_recipiente_retencion'
   | 'caja_contenedor_plastico'
+  | 'caja_cajon'
   | 'granel_acopio_sin_contenedor'
+  | 'granel_sin_envase'
+  | 'otro';
+
+export type ContainerMaterial =
+  | 'PEAD_plastico'
+  | 'acero_metal'
+  | 'carton'
+  | 'madera'
+  | 'rafia_textil'
+  | 'compuesto'
+  | 'sin_envase'
   | 'otro';
 
 export interface ContainerSpecification {
-  tipo: PhysicalContainerTypeId;
+  tipo?: PhysicalContainerTypeId;
+  tipo_contenedor?: PhysicalContainerTypeId;
   descripcion_personalizada?: string;
   proponer_nuevo_tipo?: boolean;
-  material?: string;
+  material?: ContainerMaterial | string;
   capacidad_valor?: number;
-  capacidad_unidad?: 'L' | 'm3';
+  capacidad_unidad?: 'L' | 'm3' | 'kg';
   numero_unidades: number;
   peso_estimado_kg?: number;
   densidad_kg_m3?: number;
   ubicacion?: string;
   codigo_ler?: string;
   fecha_inicio_deposito?: string;
+  compatibilidad_quimica?: boolean;
+  estanqueidad_retencion?: boolean;
+  etiquetado_reglamentario?: boolean;
   verificaciones_rp?: {
     compatibilidad_quimica: boolean;
     estanqueidad_retencion: boolean;
@@ -1679,12 +1719,15 @@ export type LegalObligationStatus =
 
 export interface LegalObligationItem {
   id: string;
-  perfil: CompanyRole | 'consultor';
+  perfil?: CompanyRole | 'consultor';
   titulo: string;
+  normativa_referencia?: string;
+  fuente_legal?: string;
   estado: LegalObligationStatus;
+  exigible?: boolean;
+  bloqueante?: boolean;
   justificacion: string;
-  fuente_legal: string;
-  bloqueante: boolean;
+  fecha_limite?: string;
   accion_recomendada?: string;
 }
 

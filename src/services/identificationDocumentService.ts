@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { syncEntryFromDI } from '@/services/chronologicalRegistryService';
 import { auditService } from '@/services/auditService';
 import { authorizationService } from '@/services/authorizationService';
-import { applyTenantScope } from '@/services/tenantContextService';
+import { applyDITenantScope, getActiveCompanyCookie } from '@/services/tenantContextService';
 import { companyService } from '@/services/companyService';
 import type {
   IdentificationDocument,
@@ -24,14 +24,25 @@ import { isWeightDiscrepancy, parseDiscrepancyJustification } from '@/lib/valida
 const supabase = createClient();
 
 /**
- * Comprueba si la empresa del usuario actúa exclusivamente como transportista sin capacidad de gestor.
+ * Comprueba si la empresa del usuario actúa exclusivamente como transportista sin capacidad de gestor ni consultora.
  */
-function isCallerTransportistaOnly(userCompany: any): boolean {
+export function isCallerTransportistaOnly(userCompany: any): boolean {
   if (!userCompany) return false;
-  return (
-    userCompany.tipo_empresa === 'transportista' &&
-    (!userCompany.roles || (!userCompany.roles.includes('gestor') && !userCompany.roles.includes('productor')))
-  );
+  const isCarrierType =
+    userCompany.tipo_empresa === 'transportista' ||
+    userCompany.perfil_operativo === 'transportista';
+  const hasManagerOrProducerRole =
+    Array.isArray(userCompany.roles) &&
+    (userCompany.roles.includes('gestor') ||
+      userCompany.roles.includes('productor') ||
+      userCompany.roles.includes('consultor'));
+  const hasManagerOrProducerProfile =
+    userCompany.perfil_operativo === 'gestor' ||
+    userCompany.perfil_operativo === 'instalacion_tratamiento' ||
+    userCompany.perfil_operativo === 'chatarreria' ||
+    userCompany.perfil_operativo === 'productor' ||
+    userCompany.perfil_operativo === 'consultora';
+  return isCarrierType && !hasManagerOrProducerRole && !hasManagerOrProducerProfile;
 }
 
 /**
@@ -181,6 +192,117 @@ async function resolveDestinationValidationContext(
 }
 
 /**
+ * Calcula el peso en origen en kg sin convertir automáticamente volumen (m3 / litros) a masa
+ * salvo que exista una densidad técnica justificada (densidad_justificada_kg_m3 > 0).
+ */
+export function resolveOriginWeightKg(doc: Partial<IdentificationDocument>): number {
+  if (typeof doc.peso_origen_kg === 'number' && doc.peso_origen_kg > 0) {
+    return doc.peso_origen_kg;
+  }
+  const qty = Number(doc.cantidad || 0);
+  if (qty <= 0) return 0;
+
+  if (doc.unidad === 'toneladas') {
+    return qty * 1000;
+  }
+  if (doc.unidad === 'm3') {
+    const containerDetails = doc.contenedor_detalles as any;
+    const density = Number(doc.densidad_justificada_kg_m3 || containerDetails?.densidad_kg_m3 || 0);
+    return density > 0 ? parseFloat((qty * density).toFixed(3)) : 0;
+  }
+  if (doc.unidad === 'litros') {
+    const containerDetails = doc.contenedor_detalles as any;
+    const density = Number(doc.densidad_justificada_kg_m3 || containerDetails?.densidad_kg_m3 || 0);
+    return density > 0 ? parseFloat((qty * (density / 1000)).toFixed(3)) : 0;
+  }
+  return qty;
+}
+
+/**
+ * Resuelve la empresa activa del usuario para aplicar alcance multi-actor en DI (QA5-I01)
+ * y guardas de rol operativo (A04-06). Solo consulta companies cuando existe active_company_id.
+ */
+async function resolveActiveCompanyForDI(): Promise<{
+  id: number;
+  cif?: string;
+  tipo_empresa?: string;
+  perfil_operativo?: string;
+  roles?: string[];
+} | null> {
+  const activeCompanyId = getActiveCompanyCookie();
+  if (!activeCompanyId) return null;
+  try {
+    const compBuilder = supabase.from('companies');
+    if (compBuilder && typeof compBuilder.select === 'function') {
+      const selectChain = compBuilder.select('id, cif, tipo_empresa, perfil_operativo, roles');
+      if (selectChain && typeof selectChain.eq === 'function') {
+        const eqChain = selectChain.eq('id', activeCompanyId);
+        if (eqChain && typeof eqChain.maybeSingle === 'function') {
+          const { data } = await eqChain.maybeSingle();
+          if (data) return data;
+        }
+      }
+    }
+  } catch {
+    // Fallback silencioso en tests con mocks simples
+  }
+  return { id: activeCompanyId };
+}
+
+/**
+ * Guarda de rol en servidor (A04-06):
+ * Impide que un actor con perfil exclusivo Transportista ejecute acciones reservadas al Gestor
+ * (recepción en báscula, registro de incidencias de destino, cierre de tratamiento o firma como gestor/productor).
+ */
+export async function assertActorAllowedForDIAction(
+  doc: Partial<IdentificationDocument> | null,
+  action: 'reception' | 'incident' | 'treatment' | 'sign_gestor' | 'sign_productor',
+  explicitCompany?: {
+    id?: number;
+    cif?: string;
+    tipo_empresa?: string;
+    perfil_operativo?: string;
+    roles?: string[];
+  } | null
+): Promise<void> {
+  const activeComp = explicitCompany !== undefined ? explicitCompany : await resolveActiveCompanyForDI();
+  if (!activeComp) return;
+
+  const isGestorOrConsultorProfile =
+    activeComp.perfil_operativo === 'gestor' ||
+    activeComp.perfil_operativo === 'instalacion_tratamiento' ||
+    activeComp.perfil_operativo === 'chatarreria' ||
+    activeComp.perfil_operativo === 'consultora' ||
+    (Array.isArray(activeComp.roles) && activeComp.roles.includes('gestor'));
+
+  const isCarrierProfile =
+    (activeComp.perfil_operativo === 'transportista' || activeComp.tipo_empresa === 'transportista') &&
+    !isGestorOrConsultorProfile;
+
+  const normCompCif = activeComp.cif?.trim().toUpperCase();
+  const normTransCif = doc?.transportista_cif?.trim().toUpperCase();
+  const normGestorCif = doc?.gestor_cif?.trim().toUpperCase();
+  const normProdCif = doc?.productor_cif?.trim().toUpperCase();
+
+  const isMatchedCarrierOnlyOnDoc =
+    Boolean(doc) &&
+    !isGestorOrConsultorProfile &&
+    ((activeComp.id && doc?.transportista_company_id === activeComp.id && doc?.gestor_company_id !== activeComp.id && doc?.company_id !== activeComp.id) ||
+      (normCompCif && normTransCif === normCompCif && normGestorCif !== normCompCif && normProdCif !== normCompCif));
+
+  if (isCarrierProfile || isMatchedCarrierOnlyOnDoc) {
+    if (action === 'sign_gestor' || action === 'sign_productor') {
+      throw new Error(
+        'Acceso denegado (RD 553/2020): el perfil Transportista solo está autorizado para firmar en calidad de Transportista.'
+      );
+    }
+    throw new Error(
+      'Acceso denegado (RD 553/2020): el perfil Transportista no está autorizado para recepcionar en báscula, registrar incidencias de destino ni cerrar tratamientos de gestor.'
+    );
+  }
+}
+
+/**
  * Valida la justificación de discrepancia y construye los campos a persistir (con autoría y fecha).
  */
 async function buildJustificationFields(input: JustifyDiscrepancyPayload): Promise<Partial<IdentificationDocument>> {
@@ -211,7 +333,7 @@ export const identificationDocumentService = {
   },
 
   /**
-   * Obtener todos los documentos del usuario
+   * Obtener todos los documentos del usuario o empresa participante (Productor, Transportista, Gestor o Consultora)
    */
   async getAll(): Promise<IdentificationDocument[]> {
     const { data: { user } } = await supabase.auth.getUser();
@@ -219,6 +341,8 @@ export const identificationDocumentService = {
     if (!user) {
       throw new Error('Usuario no autenticado');
     }
+
+    const activeComp = await resolveActiveCompanyForDI();
 
     const baseQuery = supabase
       .from('identification_documents')
@@ -230,7 +354,7 @@ export const identificationDocumentService = {
         waste_type:waste_types(*)
       `);
 
-    const { data, error } = await applyTenantScope(baseQuery, user.id)
+    const { data, error } = await applyDITenantScope(baseQuery, user.id, activeComp?.id, activeComp?.cif)
       .order('fecha_documento', { ascending: false });
 
     if (error) {
@@ -241,13 +365,15 @@ export const identificationDocumentService = {
   },
 
   /**
-   * Obtener documento por ID
+   * Obtener documento por ID (accesible para cualquiera de las partes intervinientes del DI)
    */
   async getById(id: number): Promise<IdentificationDocument> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       throw new Error('Usuario no autenticado');
     }
+
+    const activeComp = await resolveActiveCompanyForDI();
 
     const baseQuery = supabase
       .from('identification_documents')
@@ -260,7 +386,7 @@ export const identificationDocumentService = {
       `)
       .eq('id', id);
 
-    const { data, error } = await applyTenantScope(baseQuery, user.id)
+    const { data, error } = await applyDITenantScope(baseQuery, user.id, activeComp?.id, activeComp?.cif)
       .single();
 
     if (error) {
@@ -345,7 +471,7 @@ export const identificationDocumentService = {
   },
 
   /**
-   * Actualizar documento
+   * Actualizar documento (accesible para productor, transportista, gestor o consultora delegada)
    */
   async update(id: number, documentData: Partial<IdentificationDocument>): Promise<IdentificationDocument> {
     const { data: { user } } = await supabase.auth.getUser();
@@ -353,11 +479,14 @@ export const identificationDocumentService = {
       throw new Error('Usuario no autenticado');
     }
 
-    const { data, error } = await supabase
+    const activeComp = await resolveActiveCompanyForDI();
+
+    const baseQuery = supabase
       .from('identification_documents')
       .update(documentData)
-      .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('id', id);
+
+    const { data, error } = await applyDITenantScope(baseQuery, user.id, activeComp?.id, activeComp?.cif)
       .select(`
         *,
         company:companies!identification_documents_company_id_fkey(*),
@@ -456,12 +585,17 @@ export const identificationDocumentService = {
     const now = new Date().toISOString();
     let signatureUrl: string | undefined;
 
-    // A04-06: Verificación de actor en el servidor
-    if (role === 'gestor') {
+    // A04-06: Verificación de actor en el servidor (Transportista solo puede firmar como transportista)
+    if (role === 'gestor' || role === 'productor') {
       const userCompany = await companyService.getUserCompany().catch(() => null);
       if (isCallerTransportistaOnly(userCompany)) {
-        throw new Error('Permiso denegado: El transportista no puede firmar como Gestor Destinatario.');
+        throw new Error(
+          role === 'gestor'
+            ? 'Permiso denegado: El transportista no puede firmar como Gestor Destinatario.'
+            : 'Permiso denegado: El transportista no puede firmar como Productor Remitente.'
+        );
       }
+      await assertActorAllowedForDIAction(null, role === 'gestor' ? 'sign_gestor' : 'sign_productor', userCompany);
     }
 
     if (signatureBase64) {
@@ -775,6 +909,8 @@ export const identificationDocumentService = {
     }
 
     const doc = await this.getById(id);
+    await assertActorAllowedForDIAction(doc, 'reception', userCompany);
+
     const { signatureBase64, causa_discrepancia, justificacion_discrepancia, ...rest } = payload;
     let firma_gestor_url = payload.firma_gestor_url;
 
@@ -782,10 +918,7 @@ export const identificationDocumentService = {
       firma_gestor_url = await this.uploadSignatureImage(id, 'gestor', signatureBase64);
     }
 
-    const pesoOrigen =
-      doc.peso_origen_kg ||
-      ((doc.unidad === 'toneladas' || doc.unidad === 'm3') ? doc.cantidad * 1000 : doc.cantidad) ||
-      0;
+    const pesoOrigen = resolveOriginWeightKg(doc);
     const pesoDestino = payload.peso_destino_kg;
     const diferencia = pesoDestino - pesoOrigen;
     const porcentaje = pesoOrigen > 0 ? (diferencia / pesoOrigen) * 100 : 0;
@@ -850,9 +983,16 @@ export const identificationDocumentService = {
   },
 
   /**
-   * 3. Registrar Incidencia o Rechazo
+   * 3. Registrar Incidencia o Rechazo (exclusivo Gestor)
    */
   async recordIncident(id: number, payload: RecordIncidentPayload): Promise<IdentificationDocument> {
+    // A04-06: Verificación de actor en el servidor
+    const userCompany = await companyService.getUserCompany().catch(() => null);
+    if (isCallerTransportistaOnly(userCompany)) {
+      throw new Error('Permiso denegado: El transportista no puede registrar incidencias o rechazos de recepción en destino.');
+    }
+    await assertActorAllowedForDIAction(null, 'incident', userCompany);
+
     const updated = await this.update(id, {
       tipo_incidencia: payload.tipo_incidencia,
       motivo_incidencia: payload.motivo_incidencia,
@@ -878,16 +1018,24 @@ export const identificationDocumentService = {
    * y conserva por separado operación prevista y ejecutada.
    */
   async completeTreatment(id: number, payload: CompleteTreatmentPayload): Promise<IdentificationDocument> {
+    // A04-06: Verificación de actor en el servidor
+    const userCompany = await companyService.getUserCompany().catch(() => null);
+    if (isCallerTransportistaOnly(userCompany)) {
+      throw new Error('Permiso denegado: El transportista no puede certificar tratamientos ni cerrar el DI del gestor.');
+    }
+
     const { data: { user } } = await supabase.auth.getUser();
     const doc = await this.getById(id);
+    await assertActorAllowedForDIAction(doc, 'treatment', userCompany);
+
     const executedOp = normalizeOperationCode(payload.operacion_tratamiento);
 
     if (!executedOp || !/^(R(0[1-9]|1[0-5])|D(0[1-9]|1[0-5]))(\d{2})?$/.test(executedOp)) {
       throw new Error(`Operación de tratamiento inválida: '${payload.operacion_tratamiento}'. Debe indicar un código R01–R15, D01–D15 o subcódigo desagregado (ej. R1201).`);
     }
 
-    // Idempotencia y rectificación: si ya está cerrado con la misma operación, permitir rectificar notas/descripción/fecha
-    if (doc.estado_traslado === 'tratado' && doc.estado === 'completado') {
+    // Idempotencia y rectificación: si ya está tratado con la misma operación, permitir rectificar notas/descripción/fecha
+    if (doc.estado_traslado === 'tratado' && (doc.estado === 'completado' || doc.estado === 'pendiente-firma')) {
       const currentExec = normalizeOperationCode(doc.operacion_tratamiento_ejecutada || doc.operacion_tratamiento);
       if (currentExec !== executedOp) {
         throw new Error(`El DI ya fue cerrado anteriormente con la operación ${currentExec} y no puede sobrescribirse.`);
@@ -973,6 +1121,11 @@ export const identificationDocumentService = {
 
     const fechaTratamientoIso = normalizeLocalDateTimeToIso(payload.fecha_tratamiento);
 
+    // A04-08: Distinguir cierre técnico del gestor (estado_traslado = 'tratado') de la formalización documental completa.
+    // Si firmado_productor es explícitamente false, el expediente queda en 'pendiente-firma' hasta su firma.
+    const nextDocumentStatus: IdentificationDocument['estado'] =
+      doc.firmado_productor === false ? 'pendiente-firma' : 'completado';
+
     // Conservar operacion_tratamiento (prevista) intacta; guardar ejecutada por separado
     const updated = await this.update(id, {
       operacion_tratamiento: doc.operacion_tratamiento || executedOp,
@@ -980,7 +1133,7 @@ export const identificationDocumentService = {
       descripcion_tratamiento: payload.descripcion_tratamiento ?? payload.notas,
       fecha_tratamiento: fechaTratamientoIso,
       estado_traslado: 'tratado',
-      estado: 'completado',
+      estado: nextDocumentStatus,
       notas: payload.notas ?? payload.descripcion_tratamiento,
     });
 
@@ -1082,7 +1235,7 @@ export function getTrackingStatusMeta(doc: IdentificationDocument): {
 } {
   const estado: EstadoTraslado = doc.estado_traslado || 'borrador';
 
-  const pesoOrigen = doc.peso_origen_kg || (doc.unidad === 'toneladas' ? doc.cantidad * 1000 : doc.cantidad) || 0;
+  const pesoOrigen = resolveOriginWeightKg(doc);
   const hasDiscrepancy = isWeightDiscrepancy(pesoOrigen, doc.peso_destino_kg);
   const discrepancyMessage = hasDiscrepancy
     ? `Discrepancia de peso: ${(doc.diferencia_peso_kg || 0) > 0 ? '+' : ''}${doc.diferencia_peso_kg || 0} kg (${doc.porcentaje_discrepancia || 0}%)`
@@ -1102,6 +1255,9 @@ export function getTrackingStatusMeta(doc: IdentificationDocument): {
     case 'rechazado_total':
       return { key: estado, label: 'Rechazo Total en Destino', badgeColor: 'error', step: 4, ...common };
     case 'tratado':
+      if (doc.firmado_productor === false || doc.estado === 'pendiente-firma') {
+        return { key: estado, label: 'Tratado (Pendiente Firma Productor)', badgeColor: 'warning', step: 5, ...common };
+      }
       return { key: estado, label: 'Tratado y Cerrado', badgeColor: 'success', step: 5, ...common };
     case 'borrador':
     default:
