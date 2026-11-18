@@ -119,6 +119,41 @@ export function applyTenantScope<T>(
   return (query as any).eq('user_id', userId) as T;
 }
 
+/**
+ * Aplica alcance multi-actor para Documentos de Identificación (DI):
+ * permite consultar el DI si el usuario es propietario, consultor de la empresa activa
+ * o si la empresa activa interviene como productor (`company_id`), transportista (`transportista_company_id` / `transportista_cif`)
+ * o gestor destinatario (`gestor_company_id` / `gestor_cif`) (P1 QA5-I01).
+ */
+export function applyDITenantScope<T>(
+  query: T,
+  userId: string,
+  activeCompanyId?: number | null,
+  activeCompanyCif?: string | null
+): T {
+  const companyId = activeCompanyId !== undefined ? activeCompanyId : getActiveCompanyCookie();
+  const cleanCif = activeCompanyCif ? activeCompanyCif.replace(/[,()'"%\s]/g, '').toUpperCase() : '';
+  if (
+    (companyId && Number.isInteger(companyId) && companyId > 0) ||
+    cleanCif
+  ) {
+    if (typeof (query as any)?.or === 'function') {
+      const clauses = [`user_id.eq.${userId}`];
+      if (companyId && Number.isInteger(companyId) && companyId > 0) {
+        clauses.push(`company_id.eq.${companyId}`);
+        clauses.push(`transportista_company_id.eq.${companyId}`);
+        clauses.push(`gestor_company_id.eq.${companyId}`);
+      }
+      if (cleanCif) {
+        clauses.push(`transportista_cif.ilike.${cleanCif}`);
+        clauses.push(`gestor_cif.ilike.${cleanCif}`);
+      }
+      return (query as any).or(clauses.join(',')) as T;
+    }
+  }
+  return (query as any).eq('user_id', userId) as T;
+}
+
 export async function resolveTenantContext(
   supabaseClient: any,
   preferredCompanyId?: number | null

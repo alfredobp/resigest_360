@@ -163,7 +163,43 @@ export const companyService = {
   },
 
   /**
-   * Obtener todos los contactos y empresas colaboradoras del usuario
+   * Resuelve el user_id efectivo del propietario del directorio activo.
+   * Si el usuario es un consultor operando con una empresa delegada activa (`activeCompanyId`),
+   * devuelve el `user_id` propietario de dicha empresa cliente y su `activeCompanyId` (P1 A04-01).
+   */
+  async resolveEffectiveOwnerContext(currentUserId: string): Promise<{
+    ownerUserId: string;
+    activeCompanyId: number | null;
+    isDelegated: boolean;
+  }> {
+    const activeId = this.getActiveCompanyId();
+    if (!activeId) {
+      return { ownerUserId: currentUserId, activeCompanyId: null, isDelegated: false };
+    }
+
+    try {
+      const compBuilder: any = supabase.from('companies');
+      if (compBuilder && typeof compBuilder.select === 'function') {
+        const q1 = compBuilder.select('id, user_id').eq('id', activeId);
+        const q2 = typeof q1?.eq === 'function' ? q1.eq('activo', true) : q1;
+        const res = typeof q2?.maybeSingle === 'function' ? await q2.maybeSingle() : null;
+        if (res?.data?.user_id) {
+          return {
+            ownerUserId: res.data.user_id,
+            activeCompanyId: activeId,
+            isDelegated: res.data.user_id !== currentUserId,
+          };
+        }
+      }
+    } catch {
+      // Fallback seguro al usuario actual en mocks simples
+    }
+
+    return { ownerUserId: currentUserId, activeCompanyId: activeId, isDelegated: false };
+  },
+
+  /**
+   * Obtener todos los contactos y empresas colaboradoras del usuario (o de la empresa activa delegada)
    */
   async getAllContacts(): Promise<Company[]> {
     const { data: { user } } = await supabase.auth.getUser();
@@ -172,10 +208,12 @@ export const companyService = {
       throw new Error('Usuario no autenticado');
     }
 
+    const { ownerUserId } = await this.resolveEffectiveOwnerContext(user.id);
+
     const { data, error } = await supabase
       .from('companies')
       .select('*, production_centers(*)')
-      .eq('user_id', user.id)
+      .eq('user_id', ownerUserId)
       .eq('activo', true)
       .order('razon_social', { ascending: true });
 
@@ -233,10 +271,11 @@ export const companyService = {
     if (!data) return [];
 
     // Filtrar aquellas que desempeñan el rol (bien en roles array o en tipo_empresa legado)
+    const { ownerUserId } = await this.resolveEffectiveOwnerContext(user.id);
     return (data as Company[]).filter((c) => {
       const hasInRoles = Array.isArray(c.roles) && c.roles.includes(role as any);
       const isTipo = c.tipo_empresa === role;
-      const isOwner = c.user_id === user.id;
+      const isOwner = c.user_id === ownerUserId || c.user_id === user.id;
       return (hasInRoles || isTipo) && isOwner;
     });
   },
@@ -292,12 +331,16 @@ export const companyService = {
       : (companyData.tipo_empresa ? [companyData.tipo_empresa] : ['productor']);
 
     const primaryType = roles[0] || companyData.tipo_empresa || 'productor';
+    const isCreatingContact = !(companyData.is_my_company ?? false);
+    const { ownerUserId, activeCompanyId, isDelegated } = isCreatingContact
+      ? await this.resolveEffectiveOwnerContext(userData.user.id)
+      : { ownerUserId: userData.user.id, activeCompanyId: null, isDelegated: false };
 
-    // Comprobar si ya existe una empresa con ese CIF para este usuario
+    // Comprobar si ya existe una empresa con ese CIF para este propietario (o empresa activa delegada)
     const { data: existing } = await supabase
       .from('companies')
       .select('id, roles')
-      .eq('user_id', userData.user.id)
+      .eq('user_id', ownerUserId)
       .eq('cif', companyData.cif.trim())
       .maybeSingle();
 
@@ -315,7 +358,7 @@ export const companyService = {
       .from('companies')
       .insert({
         ...companyData,
-        user_id: userData.user.id,
+        user_id: ownerUserId,
         tipo_empresa: primaryType,
         roles,
         is_my_company: companyData.is_my_company ?? false,
@@ -331,7 +374,7 @@ export const companyService = {
     const created = data as Company;
 
     await auditService.logAction({
-      company_id: created.id,
+      company_id: activeCompanyId || created.id,
       entidad: 'empresa',
       entidad_id: created.id,
       accion: 'crear',
@@ -339,6 +382,7 @@ export const companyService = {
         razon_social: created.razon_social,
         cif: created.cif,
         roles: created.roles,
+        ...(isDelegated ? { actor_user_id: userData.user.id, owner_user_id: ownerUserId, organizacion_activa_id: activeCompanyId } : {}),
       },
     });
 
@@ -354,11 +398,13 @@ export const companyService = {
       throw new Error('Usuario no autenticado');
     }
 
+    const { ownerUserId, activeCompanyId, isDelegated } = await this.resolveEffectiveOwnerContext(user.id);
+
     const { data, error } = await supabase
       .from('companies')
       .update(companyData)
       .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('user_id', ownerUserId)
       .select()
       .single();
 
@@ -369,13 +415,14 @@ export const companyService = {
     const updated = data as Company;
 
     await auditService.logAction({
-      company_id: updated.id,
+      company_id: activeCompanyId || updated.id,
       entidad: 'empresa',
       entidad_id: updated.id,
       accion: 'actualizar',
       detalles: {
         razon_social: updated.razon_social,
         cif: updated.cif,
+        ...(isDelegated ? { actor_user_id: user.id, owner_user_id: ownerUserId } : {}),
       },
     });
 

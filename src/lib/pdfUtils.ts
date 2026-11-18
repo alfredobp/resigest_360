@@ -119,7 +119,7 @@ export async function generateContractPDF(contract: WasteContract) {
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text(contract.numero_contrato || `#${contract.id}`, 25, yPos + 15);
+  doc.text(`${contract.numero_contrato || `#${contract.id}`} (v${contract.version || 1})`, 25, yPos + 15);
   doc.text(formatSafeDate(contract.fecha_contrato), pageWidth / 2, yPos + 15);
 
   const estado = (contract.estado || 'borrador').toUpperCase();

@@ -24,75 +24,32 @@ DROP FUNCTION IF EXISTS public.get_di_by_signing_token(uuid);
 DROP FUNCTION IF EXISTS public.get_di_by_signing_token;
 
 CREATE OR REPLACE FUNCTION public.get_di_by_signing_token(p_token uuid)
-RETURNS JSONB AS $$
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
     v_result JSONB;
 BEGIN
     SELECT to_jsonb(t) INTO v_result
     FROM (
         SELECT 
-            id,
-            numero_documento,
-            tipo_documento,
-            fecha_documento,
-            fecha_salida,
-            fecha_recogida,
-            fecha_entrega,
-            fecha_recepcion,
-            fecha_tratamiento,
-            estado_traslado,
-            estado,
-            codigo_ler,
-            descripcion_residuo,
-            peligrosidad,
-            cantidad,
-            unidad,
-            peso_origen_kg,
-            peso_destino_kg,
-            operacion_tratamiento,
-            operacion_tratamiento_ejecutada,
-            productor_razon_social,
-            productor_cif,
-            productor_nima,
-            productor_direccion,
-            productor_municipio,
-            productor_provincia,
-            transportista_razon_social,
-            transportista_cif,
-            transportista_nima,
-            transportista_matricula,
-            gestor_razon_social,
-            gestor_cif,
-            gestor_nima,
-            gestor_numero_autorizacion,
-            gestor_direccion,
-            gestor_municipio,
-            gestor_provincia,
-            firmado_productor,
-            firma_productor_url,
-            fecha_firma_productor,
-            nombre_productor,
-            dni_productor,
-            firmado_transportista,
-            firma_transportista_url,
-            fecha_firma_transportista,
-            nombre_transportista,
-            dni_transportista,
-            firmado_gestor,
-            firma_gestor_url,
-            fecha_firma_gestor,
-            nombre_gestor,
-            dni_gestor,
-            signing_token,
-            company_id,
-            user_id
-        FROM public.identification_documents
-        WHERE signing_token = p_token
+            di.*,
+            to_jsonb(c) - 'holded_api_key' - 'sira_usuario' - 'sira_password' - 'user_id' AS company,
+            to_jsonb(pc) AS production_center,
+            to_jsonb(wt) AS waste_type
+        FROM public.identification_documents di
+        LEFT JOIN public.companies c ON di.company_id = c.id
+        LEFT JOIN public.production_centers pc ON di.production_center_id = pc.id
+        LEFT JOIN public.waste_types wt ON di.waste_type_id = wt.id
+        WHERE di.signing_token = p_token
+          AND (di.signing_token_expires_at IS NULL OR di.signing_token_expires_at > now())
         LIMIT 1
     ) t;
     RETURN v_result;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- 3. Función RPC para registrar la firma pública con verificación estricta de parte
 DROP FUNCTION IF EXISTS public.sign_di_by_signing_token(uuid, text, text, text, text);
