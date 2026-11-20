@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { syncEntryFromDI } from '@/services/chronologicalRegistryService';
 import { auditService } from '@/services/auditService';
 import { authorizationService } from '@/services/authorizationService';
-import { applyTenantScope } from '@/services/tenantContextService';
+import { applyTenantScope, tenantContextService } from '@/services/tenantContextService';
 import { companyService } from '@/services/companyService';
 import type {
   IdentificationDocument,
@@ -211,7 +211,7 @@ export const identificationDocumentService = {
   },
 
   /**
-   * Obtener todos los documentos del usuario
+   * Obtener todos los documentos del usuario/tenant o donde participe como gestor/transportista (RES6-I03)
    */
   async getAll(): Promise<IdentificationDocument[]> {
     const { data: { user } } = await supabase.auth.getUser();
@@ -230,20 +230,45 @@ export const identificationDocumentService = {
         waste_type:waste_types(*)
       `);
 
-    const { data, error } = await applyTenantScope(baseQuery, user.id)
-      .order('fecha_documento', { ascending: false });
+    let finalQuery: any = baseQuery;
+    try {
+      const ctx = await tenantContextService.getTenantContext();
+      const companyIds = ctx.companyIds || [];
+      const activeCif = ctx.activeCompany?.cif?.trim().toUpperCase();
+
+      const orConditions: string[] = [`user_id.eq.${user.id}`];
+      if (companyIds.length > 0) {
+        orConditions.push(`company_id.in.(${companyIds.join(',')})`);
+        orConditions.push(`gestor_company_id.in.(${companyIds.join(',')})`);
+      }
+      if (activeCif) {
+        orConditions.push(`productor_cif.eq.${activeCif}`);
+        orConditions.push(`gestor_cif.eq.${activeCif}`);
+        orConditions.push(`transportista_cif.eq.${activeCif}`);
+      }
+      finalQuery = baseQuery.or(orConditions.join(','));
+    } catch {
+      finalQuery = applyTenantScope(baseQuery, user.id);
+    }
+
+    const { data, error } = await finalQuery.order('fecha_documento', { ascending: false });
 
     if (error) {
       throw new Error(`Error al obtener documentos: ${error.message}`);
     }
 
-    return data as IdentificationDocument[];
+    return (data || []) as IdentificationDocument[];
   },
 
   /**
    * Obtener documento por ID
+   * RES6-I03 & RES6-I14: Sanitizar ID, permitir participantes (transportista/gestor) y evitar errores crudos
    */
   async getById(id: number): Promise<IdentificationDocument> {
+    if (!id || isNaN(id) || id <= 0) {
+      throw new Error('Identificador de documento de identificación no válido.');
+    }
+
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       throw new Error('Usuario no autenticado');
@@ -260,11 +285,39 @@ export const identificationDocumentService = {
       `)
       .eq('id', id);
 
-    const { data, error } = await applyTenantScope(baseQuery, user.id)
-      .single();
+    let finalQuery: any = baseQuery;
+    try {
+      const ctx = await tenantContextService.getTenantContext();
+      const companyIds = ctx.companyIds || [];
+      const activeCif = ctx.activeCompany?.cif?.trim().toUpperCase();
+
+      const orConditions: string[] = [`user_id.eq.${user.id}`];
+      if (companyIds.length > 0) {
+        orConditions.push(`company_id.in.(${companyIds.join(',')})`);
+        orConditions.push(`gestor_company_id.in.(${companyIds.join(',')})`);
+      }
+      if (activeCif) {
+        orConditions.push(`productor_cif.eq.${activeCif}`);
+        orConditions.push(`gestor_cif.eq.${activeCif}`);
+        orConditions.push(`transportista_cif.eq.${activeCif}`);
+      }
+      finalQuery = baseQuery.or(orConditions.join(','));
+    } catch {
+      finalQuery = applyTenantScope(baseQuery, user.id);
+    }
+
+    const fetcher = typeof finalQuery?.maybeSingle === 'function'
+      ? finalQuery.maybeSingle.bind(finalQuery)
+      : (typeof finalQuery?.single === 'function' ? finalQuery.single.bind(finalQuery) : null);
+
+    const { data, error } = fetcher ? await fetcher() : await finalQuery;
 
     if (error) {
       throw new Error(`Error al obtener documento: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('Documento de identificación no encontrado o sin permisos de acceso para tu organización.');
     }
 
     return data as IdentificationDocument;

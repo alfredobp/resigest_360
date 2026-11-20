@@ -136,6 +136,31 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
         'Error al obtener documento: Doc not found'
       );
     });
+
+    it('debe rechazar ID inválido o NaN con error amigable sin coerción técnica (RES6-I14)', async () => {
+      await expect(identificationDocumentService.getById(0)).rejects.toThrow(
+        'Identificador de documento de identificación no válido.'
+      );
+      await expect(identificationDocumentService.getById(NaN)).rejects.toThrow(
+        'Identificador de documento de identificación no válido.'
+      );
+    });
+
+    it('debe lanzar mensaje de negocio comprensible si el DI no existe o no tiene permisos (RES6-I14)', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-uuid-1' } } });
+      const maybeSingleMock = jest.fn().mockResolvedValue({
+        data: null,
+        error: null,
+      });
+      const eqUserMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock, single: maybeSingleMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock, maybeSingle: maybeSingleMock, single: maybeSingleMock });
+      const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
+      mockSupabase.from.mockReturnValue({ select: selectMock });
+
+      await expect(identificationDocumentService.getById(999)).rejects.toThrow(
+        'Documento de identificación no encontrado o sin permisos de acceso para tu organización.'
+      );
+    });
   });
 
   describe('getByContract', () => {

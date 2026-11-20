@@ -492,6 +492,7 @@ export const wasteContractService = {
                 updatePayload.fecha_firma_productor = null;
                 updatePayload.fecha_firma_gestor = null;
                 updatePayload.documento_url = null; // invalidar enlace al PDF anterior firmado
+                updatePayload.metadata_snapshot = null; // RES6-I02: Invalidar snapshot previo al mutar términos materiales
                 if (updatePayload.estado === undefined || updatePayload.estado === 'vigente') {
                   updatePayload.estado = 'pendiente_firma';
                 }
@@ -915,6 +916,54 @@ export const wasteContractService = {
       updateData.firma_gestor_url = publicUrl;
       updateData.fecha_firma_gestor = now;
       updateData.firmado_gestor = true;
+    }
+
+    // RES6-I02: Congelar snapshot de las partes intervinientes al firmar para garantizar inmutabilidad
+    try {
+      const current = await this.getById(id);
+      if (current) {
+        const prod = current.company;
+        const gest = current.gestor_company || current.treatment_manager;
+        const snapshot: any = {
+          version: current.version || 1,
+          snapshot_date: now,
+        };
+        if (prod) {
+          snapshot.company = {
+            razon_social: prod.razon_social,
+            cif: prod.cif,
+            nima: prod.nima,
+            domicilio_social: prod.domicilio_social,
+            municipio_social: prod.municipio_social,
+            numero_autorizacion: prod.numero_autorizacion,
+          };
+        }
+        if (gest) {
+          snapshot.gestor_company = {
+            razon_social: gest.razon_social,
+            cif: gest.cif,
+            nima: gest.nima,
+            domicilio_social: (gest as any).domicilio_social || (gest as any).direccion || '',
+            municipio_social: (gest as any).municipio_social || (gest as any).municipio || '',
+            numero_autorizacion: (gest as any).numero_autorizacion || '',
+          };
+        }
+        if (current.producer_center) {
+          snapshot.producer_center = {
+            nombre: current.producer_center.nombre,
+            nima: current.producer_center.nima,
+          };
+        }
+        if (current.gestor_center) {
+          snapshot.gestor_center = {
+            nombre: current.gestor_center.nombre,
+            nima: current.gestor_center.nima,
+          };
+        }
+        updateData.metadata_snapshot = snapshot;
+      }
+    } catch (snapErr) {
+      console.warn('Nota al crear snapshot de contrato firmado:', snapErr);
     }
 
     return this.update(id, updateData);

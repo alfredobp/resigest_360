@@ -291,12 +291,12 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
       await expect(companyService.create(validFormData)).rejects.toThrow('Usuario no autenticado');
     });
 
-    it('create debe actualizar y unificar roles si ya existe una empresa con ese CIF', async () => {
+    it('create debe rechazar la creación y proteger datos maestros si ya existe una empresa con ese CIF (RES6-I01)', async () => {
       mockSupabase.auth.getUser.mockResolvedValue({
         data: { user: { id: 'user-1' } },
       });
 
-      const existingComp = { id: 8, roles: ['productor'] };
+      const existingComp = { id: 8, roles: ['productor'], razon_social: 'Gestor Existente S.L.', cif: 'B12345678' };
 
       const maybeSingleMock = jest.fn().mockResolvedValue({ data: existingComp, error: null });
       const eqCifMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
@@ -305,17 +305,14 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
 
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
-      const spyUpdate = jest.spyOn(companyService, 'update').mockResolvedValue({
-        id: 8,
-        roles: ['productor', 'gestor'],
-      } as any);
+      const spyUpdate = jest.spyOn(companyService, 'update');
 
-      const result = await companyService.create({ ...validFormData, roles: ['gestor'] });
+      await expect(
+        companyService.create({ ...validFormData, cif: 'B12345678', roles: ['gestor'] })
+      ).rejects.toThrow('Ya existe una empresa o contacto registrado con el CIF B12345678');
 
-      expect(spyUpdate).toHaveBeenCalledWith(8, expect.objectContaining({
-        roles: ['productor', 'gestor'],
-      }));
-      expect(result.id).toBe(8);
+      // Garantizar que NO se mutó ni sobrescribió la ficha existente
+      expect(spyUpdate).not.toHaveBeenCalled();
       spyUpdate.mockRestore();
     });
 

@@ -128,40 +128,47 @@ export async function generateContractPDF(contract: WasteContract) {
   yPos += 35;
 
   // --- PARTES INTERVINIENTES ---
+  // RES6-I02: Si el contrato dispone de un snapshot congelado de la revisión (metadata_snapshot),
+  // se prioriza frente a los datos maestros vivos de la tabla companies para garantizar inmutabilidad.
+  const producerData = contract.metadata_snapshot?.company || contract.company;
+  const producerCenterData = contract.metadata_snapshot?.producer_center || contract.producer_center;
+  const gestorData = contract.metadata_snapshot?.gestor_company || contract.treatment_manager || contract.gestor_company;
+  const gestorCenterData = contract.metadata_snapshot?.gestor_center || contract.gestor_center;
+
   // Columna Izquierda: Productor
   yPos = drawSectionHeader('DATOS DEL PRODUCTOR (CLIENTE)', yPos - 5);
   doc.setFontSize(10);
-  if (contract.company) {
+  if (producerData) {
     doc.setFont('helvetica', 'bold');
     doc.text('Razón Social:', 25, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(contract.company.razon_social || '-', 60, yPos);
+    doc.text(producerData.razon_social || '-', 60, yPos);
     yPos += 7;
 
     doc.setFont('helvetica', 'bold');
     doc.text('CIF / NIF:', 25, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(contract.company.cif || '-', 60, yPos);
+    doc.text(producerData.cif || '-', 60, yPos);
     yPos += 7;
 
     doc.setFont('helvetica', 'bold');
     doc.text('NIMA:', 25, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(contract.company.nima || '-', 60, yPos);
+    doc.text(producerData.nima || '-', 60, yPos);
     yPos += 7;
 
     doc.setFont('helvetica', 'bold');
     doc.text('Domicilio:', 25, yPos);
     doc.setFont('helvetica', 'normal');
-    const dirProductor = doc.splitTextToSize(`${contract.company.domicilio_social || '-'}, ${contract.company.municipio_social || ''}`, 120);
+    const dirProductor = doc.splitTextToSize(`${producerData.domicilio_social || '-'}, ${producerData.municipio_social || ''}`, 120);
     doc.text(dirProductor, 60, yPos);
     yPos += (dirProductor.length * 5) + 5;
 
-    if (contract.producer_center) {
+    if (producerCenterData) {
       doc.setFont('helvetica', 'bold');
       doc.text('Centro de Origen:', 25, yPos);
       doc.setFont('helvetica', 'normal');
-      doc.text(`${contract.producer_center.nombre} (NIMA: ${contract.producer_center.nima || '-'})`, 60, yPos);
+      doc.text(`${producerCenterData.nombre} (NIMA: ${producerCenterData.nima || '-'})`, 60, yPos);
       yPos += 7;
     }
   } else {
@@ -171,7 +178,6 @@ export async function generateContractPDF(contract: WasteContract) {
   }
 
   // Columna Derecha / Siguiente: Gestor
-  const gestorData = contract.treatment_manager || contract.gestor_company;
   yPos = drawSectionHeader('DATOS DEL GESTOR (DESTINATARIO)', yPos);
   doc.setFontSize(10);
   if (gestorData) {
@@ -218,11 +224,11 @@ export async function generateContractPDF(contract: WasteContract) {
     doc.text(dirGestor, 60, yPos);
     yPos += (dirGestor.length * 5) + 5;
 
-    if (contract.gestor_center) {
+    if (gestorCenterData) {
       doc.setFont('helvetica', 'bold');
       doc.text('Instalación Destino:', 25, yPos);
       doc.setFont('helvetica', 'normal');
-      doc.text(`${contract.gestor_center.nombre} (NIMA: ${contract.gestor_center.nima || '-'})`, 60, yPos);
+      doc.text(`${gestorCenterData.nombre} (NIMA: ${gestorCenterData.nima || '-'})`, 60, yPos);
       yPos += 7;
     }
   } else {
@@ -499,7 +505,8 @@ export async function generateContractPDF(contract: WasteContract) {
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text('Obligaciones en caso de rechazo (Art. 5.d y Art. 6.4 RD 553/2020):', 25, yPos);
+  // RES6-I07: Corrección de referencias al régimen de rechazo del traslado (Art. 5.h y Arts. 6 y 7 RD 553/2020)
+  doc.text('Obligaciones en caso de rechazo (Art. 5.h y Arts. 6 y 7 RD 553/2020):', 25, yPos);
   yPos += 5;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
@@ -591,12 +598,22 @@ export async function generateContractPDF(contract: WasteContract) {
   }
 
   // --- PIE DE PÁGINA ---
+  // RES6-I07: El pie de página no debe proclamar validez vinculante si el contrato es un borrador o está pendiente de firma
+  const isFirmado =
+    ((contract.firmado_productor || Boolean(contract.firma_productor_url)) &&
+     (contract.firmado_gestor || Boolean(contract.firma_gestor_url))) ||
+    contract.estado === 'vigente';
+
+  const footerText = isFirmado
+    ? 'Este documento tiene validez contractual según el RD 553/2020 de traslado de residuos.'
+    : 'Documento provisional / en tramitación sin validez contractual vinculante hasta su formalización por ambas partes.';
+
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-    doc.text(`Este documento tiene validez contractual según el RD 553/2020 de traslado de residuos.`, pageWidth / 2, pageHeight - 15, { align: 'center' });
+    doc.text(footerText, pageWidth / 2, pageHeight - 15, { align: 'center' });
     doc.text(`Página ${i} de ${totalPages}`, pageWidth - 25, pageHeight - 15, { align: 'right' });
 
     // Línea decorativa inferior

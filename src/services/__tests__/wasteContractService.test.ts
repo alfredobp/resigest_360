@@ -696,6 +696,34 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       expect(wasteInsertMock).toHaveBeenCalled();
     });
 
+    it('debe resolver y actualizar treatment_manager_id y gestor_company_id en update', async () => {
+      setupTenantContext('user-1', []);
+      const updatedMock = { id: 10, treatment_manager_id: 5, gestor_company_id: 10 };
+      const singleMock = jest.fn().mockResolvedValue({ data: updatedMock, error: null });
+      const selectMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqUserMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock, select: selectMock });
+      const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'waste_contracts') {
+          return { update: updateMock };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockReturnThis(),
+          maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+        };
+      });
+
+      const result = await wasteContractService.update(10, {
+        treatment_manager_id: 5,
+        gestor_company_id: 10,
+      });
+
+      expect(result).toEqual(updatedMock);
+    });
+
     it('debe soportar contractWasteCodes en camelCase sin enviarlo como columna a waste_contracts', async () => {
       setupTenantContext('user-1', []);
       const updatedMock = { id: 10, estado: 'vigente' };
@@ -1386,6 +1414,68 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
         firmado_gestor: true,
       }));
 
+      updateSpy.mockRestore();
+    });
+
+    it('debe congelar y persistir metadata_snapshot completo al firmar el contrato (RES6-I02)', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'u-signer' } },
+      });
+
+      mockStorageFrom.upload.mockResolvedValue({ error: null });
+      mockStorageFrom.getPublicUrl.mockReturnValue({
+        data: { publicUrl: 'https://storage/signature-prod.png' },
+      });
+
+      const mockContractWithAllRelations: any = {
+        id: 1,
+        version: 2,
+        company: {
+          razon_social: 'Productor Test S.L.',
+          cif: 'B12345678',
+          nima: '1234567890',
+          domicilio_social: 'Calle Test 1',
+          municipio_social: 'Madrid',
+          numero_autorizacion: 'AUT-01',
+        },
+        gestor_company: {
+          razon_social: 'Gestor Test S.A.',
+          cif: 'A87654321',
+          nima: '0987654321',
+          domicilio_social: 'Polígono Gestor',
+          municipio_social: 'Sevilla',
+          numero_autorizacion: 'AUT-02',
+        },
+        producer_center: {
+          nombre: 'Centro Madrid',
+          nima: '1234567890',
+        },
+        gestor_center: {
+          nombre: 'Planta Sevilla',
+          nima: '0987654321',
+        },
+      };
+
+      const getByIdSpy = jest.spyOn(wasteContractService, 'getById').mockResolvedValue(mockContractWithAllRelations);
+      const updateSpy = jest.spyOn(wasteContractService, 'update').mockResolvedValue({
+        id: 1,
+        firmado_productor: true,
+      } as any);
+
+      await wasteContractService.signContract(1, dummySignature, 'productor');
+
+      expect(updateSpy).toHaveBeenCalledWith(1, expect.objectContaining({
+        firmado_productor: true,
+        metadata_snapshot: expect.objectContaining({
+          version: 2,
+          company: expect.objectContaining({ razon_social: 'Productor Test S.L.' }),
+          gestor_company: expect.objectContaining({ razon_social: 'Gestor Test S.A.' }),
+          producer_center: expect.objectContaining({ nombre: 'Centro Madrid' }),
+          gestor_center: expect.objectContaining({ nombre: 'Planta Sevilla' }),
+        }),
+      }));
+
+      getByIdSpy.mockRestore();
       updateSpy.mockRestore();
     });
 

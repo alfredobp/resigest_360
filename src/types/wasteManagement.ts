@@ -383,7 +383,9 @@ export interface WasteContract {
   fecha_firma_gestor?: string;
 
   // Metadata
+  version?: number;
   signing_token?: string;
+  metadata_snapshot?: ContractMetadataSnapshot | null;
   notas?: string;
   created_at: string;
   updated_at: string;
@@ -397,6 +399,17 @@ export interface WasteContract {
   environmental_authorization?: EnvironmentalAuthorization;
   waste_types?: WasteType[];
   contract_waste_codes?: ContractWasteCode[];
+}
+
+export interface ContractMetadataSnapshot {
+  version?: number;
+  snapshot_date?: string;
+  pdf_hash?: string;
+  company?: Partial<Company>;
+  gestor_company?: Partial<Company>;
+  producer_center?: Partial<ProductionCenter>;
+  gestor_center?: Partial<ProductionCenter>;
+  environmental_authorization?: Partial<EnvironmentalAuthorization>;
 }
 
 export interface WasteContractFormData {
@@ -428,6 +441,8 @@ export interface WasteContractFormData {
   firma_gestor_url?: string;
   fecha_firma_gestor?: string;
   notas?: string;
+  version?: number;
+  metadata_snapshot?: ContractMetadataSnapshot | null;
   contract_waste_codes?: ContractWasteCodeFormData[];
 }
 

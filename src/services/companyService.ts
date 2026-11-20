@@ -375,22 +375,19 @@ export const companyService = {
     const primaryType = roles[0] || companyData.tipo_empresa || 'productor';
 
     // Comprobar si ya existe una empresa con ese CIF para este usuario/ámbito tenant
+    // RES6-I01 (D01): Separar creación, edición y fusión. Una creación con CIF existente NO debe sobrescribir
+    // ni vaciar la ficha previa silenciosamente. Debe ser rechazada para salvaguardar la integridad de datos maestros.
     const { data: existing } = await supabase
       .from('companies')
-      .select('id, roles')
+      .select('id, roles, razon_social')
       .eq('user_id', targetUserId)
       .eq('cif', normCif)
       .maybeSingle();
 
     if (existing?.id) {
-      // Unificar roles si ya existía la empresa
-      const existingRoles = Array.isArray(existing.roles) ? existing.roles : [];
-      const mergedRoles = Array.from(new Set([...existingRoles, ...roles]));
-      return this.update(existing.id, {
-        ...companyData,
-        cif: normCif,
-        roles: mergedRoles as any,
-      });
+      throw new Error(
+        `Ya existe una empresa o contacto registrado con el CIF ${normCif} ("${existing.razon_social || 'Ficha existente'}"). No se permite duplicar el CIF ni sobrescribir sus datos. Si deseas actualizar sus datos o añadirle nuevos roles operativos, edita la ficha existente.`
+      );
     }
 
     const { data, error } = await supabase

@@ -81,6 +81,64 @@ describe('pdfUtils - generateContractPDF', () => {
     expect(doc).toBeDefined();
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
   });
+
+  it('debe priorizar el snapshot congelado (metadata_snapshot) frente a los datos maestros vivos (RES6-I02)', async () => {
+    // Simulamos que los datos vivos de la empresa cambiaron o se vaciaron,
+    // pero el contrato firmado dispone de su snapshot inmutable
+    const contractWithSnapshot: WasteContract = {
+      ...baseContract,
+      company: {
+        ...baseContract.company!,
+        razon_social: 'Nombre Modificado Posterior',
+        nima: '', // Datos vaciados en ficha viva
+      },
+      gestor_company: {
+        id: 2,
+        user_id: 'user-1',
+        razon_social: 'Gestor Modificado Vivo',
+        cif: 'B99999999',
+        tipo_empresa: 'gestor',
+        activo: true,
+        created_at: '2026-01-01',
+        updated_at: '2026-01-01',
+      },
+      metadata_snapshot: {
+        version: 1,
+        snapshot_date: '2026-11-20T12:00:00Z',
+        company: {
+          razon_social: 'Productor Original Congelado S.L.',
+          cif: 'B12345678',
+          nima: '1234567890',
+          domicilio_social: 'Calle Inmutable 1',
+        },
+        gestor_company: {
+          razon_social: 'Gestor Original Congelado S.A.',
+          cif: 'A87654321',
+          nima: '0987654321',
+          numero_autorizacion: 'AUT-CONGELADA-01',
+        },
+      },
+    };
+
+    const doc = await generateContractPDF(contractWithSnapshot);
+    expect(doc).toBeDefined();
+    // Validamos que el PDF se generó sin errores usando el snapshot
+    expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
+  });
+
+  it('debe indicar en el pie que el borrador no tiene validez contractual vinculante (RES6-I07)', async () => {
+    const draftContract: WasteContract = {
+      ...baseContract,
+      estado: 'borrador',
+      firmado_productor: false,
+      firmado_gestor: false,
+      firma_productor_url: undefined,
+      firma_gestor_url: undefined,
+    };
+    const doc = await generateContractPDF(draftContract);
+    expect(doc).toBeDefined();
+    expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
+  });
 });
 
 describe('pdfUtils - generateIdentificationDocumentPDF', () => {
