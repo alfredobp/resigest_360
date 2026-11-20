@@ -236,3 +236,4 @@ npm run typecheck   # --> PASS (0 errores TypeScript)
 npm run lint        # --> PASS (0 errores / advertencias ESLint)
 npm run test:ci     # --> PASS (46 Test Suites, 933 tests pasados limpios, cobertura global > 96% statements y > 84% branches)
 ```
+
