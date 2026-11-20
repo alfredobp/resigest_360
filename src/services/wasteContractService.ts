@@ -781,155 +781,174 @@ export const wasteContractService = {
       }
     }
 
-    let query = supabase
-      .from('waste_contracts')
-      .update(updatePayload)
-      .eq('id', id);
-
-    if (companyIds.length > 0) {
-      query = query.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')}),gestor_company_id.in.(${companyIds.join(',')})`);
-    } else {
-      query = query.eq('user_id', userId);
-    }
-
-    const { data, error } = await query
-      .select(`
-        *,
-        company:companies!waste_contracts_company_id_fkey(*),
-        gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
-        treatment_manager:treatment_managers(*)
-      `)
-      .single();
-
-    if (error) {
-      throw new Error(`Error al actualizar contrato: ${error.message}`);
-    }
-
-    // Actualizar contract_waste_codes si se enviaron
-    if (contract_waste_codes !== undefined) {
-      try {
-        await supabase.from('contract_waste_codes').delete().eq('contract_id', id);
-
-        if (contract_waste_codes.length > 0) {
-          const wasteRecords = contract_waste_codes.map((wc) => ({
-            contract_id: id,
-            codigo_ler: wc.codigo_ler.trim(),
-            descripcion_ler: wc.descripcion_ler || '',
-            operacion_tratamiento: wc.operacion_tratamiento.trim().toUpperCase(),
-            tarifa_gestion: wc.tarifa_gestion || null,
-            tipo_precio: wc.tipo_precio || 'por_tonelada',
-            cantidad_estimada_anual: wc.cantidad_estimada_anual || null,
-          }));
-
-          await supabase.from('contract_waste_codes').insert(wasteRecords);
-        }
-      } catch (wcErr) {
-        console.warn('Nota: actualizando contract_waste_codes:', wcErr);
-      }
-    }
-
-    await auditService.logAction({
-      company_id: (data as WasteContract)?.company_id ?? null,
-      entidad: 'contrato',
-      entidad_id: id,
-      accion: signaturesInvalidated ? 'invalidar_firmas' : (mainData.estado ? 'cambiar_estado' : 'actualizar'),
-      detalles: {
-        numero_contrato: (data as WasteContract)?.numero_contrato,
-        estado: (data as WasteContract)?.estado,
-        firmas_invalidadas: signaturesInvalidated,
-        motivo: signaturesInvalidated ? 'Modificación material de términos del contrato (Art. 5 RD 553/2020)' : undefined,
-        ...(signaturesInvalidated && changedFieldsList.length > 0
-          ? { campos_modificados: changedFieldsList }
-          : {}),
-      },
-    });
-
-    return data as WasteContract;
-  },
-
-  /**
-   * Activar contrato previo chequeo estricto de requisitos legales
-   */
-  async activate(id: number): Promise<WasteContract> {
-    const contract = await this.getById(id);
-    if (!contract) {
-      throw new Error('Contrato no encontrado');
-    }
-
-    const validation = validateContractActivation(contract);
-    if (!validation.canActivate) {
-      throw new Error(`No se puede activar el contrato: ${validation.errors.join(' ')}`);
-    }
-
-    return this.update(id, { estado: 'vigente' });
-  },
-
-  /**
-   * Comprueba si un contrato puede ser eliminado de forma segura
-   * o si tiene traslados (DI / NT) asociados que impiden su eliminación legal.
-   */
-  async canDelete(id: number): Promise<{ canDelete: boolean; reason?: string; diCount: number; ntCount?: number }> {
-    const { userId, companyIds } = await getTenantContext();
-
-    // 1. Comprobar estado del contrato si está disponible
-    const contractBuilder = supabase.from('waste_contracts');
-    if (contractBuilder) {
-      try {
-        let contractQuery: any = contractBuilder
-          .select('id, estado')
-          .eq('id', id);
+    const executeUpdate = async (payloadToPersist: Record<string, unknown>) => {
+      let query = supabase
+        .from('waste_contracts')
+        .update(payloadToPersist)
+        .eq('id', id);
 
         if (companyIds.length > 0) {
-          contractQuery = contractQuery.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')}),gestor_company_id.in.(${companyIds.join(',')})`);
+          query = query.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')}),gestor_company_id.in.(${companyIds.join(',')})`);
         } else {
-          contractQuery = contractQuery.eq('user_id', userId);
+          query = query.eq('user_id', userId);
         }
 
-        const res = typeof contractQuery.maybeSingle === 'function'
-          ? await contractQuery.maybeSingle()
-          : await contractQuery;
+        return query
+          .select(`
+          *,
+          company:companies!waste_contracts_company_id_fkey(*),
+          gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
+          treatment_manager:treatment_managers(*)
+        `)
+          .single();
+      };
 
-        if (res?.data?.estado === 'finalizado') {
-          return {
-            canDelete: false,
-            reason:
-              'No es posible eliminar un contrato que ya está finalizado. Debe permanecer en el archivo histórico por trazabilidad legal (RD 553/2020).',
-            diCount: 0,
-          };
+      let { data, error } = await executeUpdate(updatePayload);
+
+      // Fallback defensivo si la columna opcional metadata_snapshot / revision_history aún no existe en el schema cache de Supabase
+      if (error && /metadata_snapshot|revision_history/i.test(String(error.message || ''))) {
+        const retryPayload = { ...updatePayload };
+        if (/metadata_snapshot/i.test(String(error.message || ''))) {
+          delete retryPayload.metadata_snapshot;
         }
-      } catch {
-        // En mocks parciales o si falla la lectura de estado, continuar con la verificación de traslados
+        if (/revision_history/i.test(String(error.message || ''))) {
+          delete retryPayload.revision_history;
+        }
+        console.warn('Reintentando actualización de contrato sin columna pendiente de migración:', error.message);
+        const retryRes = await executeUpdate(retryPayload);
+        data = retryRes.data;
+        error = retryRes.error;
       }
-    }
+
+      if (error) {
+        throw new Error(`Error al actualizar contrato: ${error.message}`);
+      }
+
+      // Actualizar contract_waste_codes si se enviaron
+      if (contract_waste_codes !== undefined) {
+        try {
+          await supabase.from('contract_waste_codes').delete().eq('contract_id', id);
+
+          if (contract_waste_codes.length > 0) {
+            const wasteRecords = contract_waste_codes.map((wc) => ({
+              contract_id: id,
+              codigo_ler: wc.codigo_ler.trim(),
+              descripcion_ler: wc.descripcion_ler || '',
+              operacion_tratamiento: wc.operacion_tratamiento.trim().toUpperCase(),
+              tarifa_gestion: wc.tarifa_gestion || null,
+              tipo_precio: wc.tipo_precio || 'por_tonelada',
+              cantidad_estimada_anual: wc.cantidad_estimada_anual || null,
+            }));
+
+            await supabase.from('contract_waste_codes').insert(wasteRecords);
+          }
+        } catch (wcErr) {
+          console.warn('Nota: actualizando contract_waste_codes:', wcErr);
+        }
+      }
+
+      await auditService.logAction({
+        company_id: (data as WasteContract)?.company_id ?? null,
+        entidad: 'contrato',
+        entidad_id: id,
+        accion: signaturesInvalidated ? 'invalidar_firmas' : (mainData.estado ? 'cambiar_estado' : 'actualizar'),
+        detalles: {
+          numero_contrato: (data as WasteContract)?.numero_contrato,
+          estado: (data as WasteContract)?.estado,
+          firmas_invalidadas: signaturesInvalidated,
+          motivo: signaturesInvalidated ? 'Modificación material de términos del contrato (Art. 5 RD 553/2020)' : undefined,
+          ...(signaturesInvalidated && changedFieldsList.length > 0
+            ? { campos_modificados: changedFieldsList }
+            : {}),
+        },
+      });
+
+      return data as WasteContract;
+    },
+
+      /**
+       * Activar contrato previo chequeo estricto de requisitos legales
+       */
+      async activate(id: number): Promise<WasteContract> {
+        const contract = await this.getById(id);
+        if (!contract) {
+          throw new Error('Contrato no encontrado');
+        }
+
+        const validation = validateContractActivation(contract);
+        if (!validation.canActivate) {
+          throw new Error(`No se puede activar el contrato: ${validation.errors.join(' ')}`);
+        }
+
+        return this.update(id, { estado: 'vigente' });
+      },
+
+        /**
+         * Comprueba si un contrato puede ser eliminado de forma segura
+         * o si tiene traslados (DI / NT) asociados que impiden su eliminación legal.
+         */
+        async canDelete(id: number): Promise < { canDelete: boolean; reason?: string; diCount: number; ntCount?: number } > {
+          const { userId, companyIds } = await getTenantContext();
+
+          // 1. Comprobar estado del contrato si está disponible
+          const contractBuilder = supabase.from('waste_contracts');
+          if(contractBuilder) {
+            try {
+              let contractQuery: any = contractBuilder
+                .select('id, estado')
+                .eq('id', id);
+
+              if (companyIds.length > 0) {
+                contractQuery = contractQuery.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')}),gestor_company_id.in.(${companyIds.join(',')})`);
+              } else {
+                contractQuery = contractQuery.eq('user_id', userId);
+              }
+
+              const res = typeof contractQuery.maybeSingle === 'function'
+                ? await contractQuery.maybeSingle()
+                : await contractQuery;
+
+              if (res?.data?.estado === 'finalizado') {
+                return {
+                  canDelete: false,
+                  reason:
+                    'No es posible eliminar un contrato que ya está finalizado. Debe permanecer en el archivo histórico por trazabilidad legal (RD 553/2020).',
+                  diCount: 0,
+                };
+              }
+            } catch {
+              // En mocks parciales o si falla la lectura de estado, continuar con la verificación de traslados
+            }
+          }
 
     // 2. Comprobar si existen Documentos de Identificación (DI) asociados
     const diBuilder = supabase.from('identification_documents');
-    let diCount = 0;
-    let hasLinkedNT = false;
+          let diCount = 0;
+          let hasLinkedNT = false;
 
-    if (diBuilder) {
-      let diQuery = diBuilder
-        .select('id, numero_documento, prior_notification_id, numero_notificacion', { count: 'exact' })
-        .eq('contract_id', id);
+          if(diBuilder) {
+            let diQuery = diBuilder
+              .select('id, numero_documento, prior_notification_id, numero_notificacion', { count: 'exact' })
+              .eq('contract_id', id);
 
-      if (companyIds.length > 0) {
-        diQuery = diQuery.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')})`);
-      } else {
-        diQuery = diQuery.eq('user_id', userId);
-      }
+            if (companyIds.length > 0) {
+              diQuery = diQuery.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')})`);
+            } else {
+              diQuery = diQuery.eq('user_id', userId);
+            }
 
-      const { count, data, error } = await diQuery;
-      if (error) {
-        throw new Error(`Error al verificar documentos asociados al contrato: ${error.message}`);
-      }
+            const { count, data, error } = await diQuery;
+            if (error) {
+              throw new Error(`Error al verificar documentos asociados al contrato: ${error.message}`);
+            }
 
-      diCount = typeof count === 'number' ? count : (data?.length || 0);
-      if (data && Array.isArray(data)) {
-        hasLinkedNT = data.some((doc: any) => Boolean(doc.prior_notification_id || doc.numero_notificacion));
-      }
-    }
+            diCount = typeof count === 'number' ? count : (data?.length || 0);
+            if (data && Array.isArray(data)) {
+              hasLinkedNT = data.some((doc: any) => Boolean(doc.prior_notification_id || doc.numero_notificacion));
+            }
+          }
 
-    if (diCount > 0) {
+    if(diCount > 0) {
       const docLabel = hasLinkedNT
         ? 'Documento(s) de Identificación (DI) con Notificación Previa (NT)'
         : 'Documento(s) de Identificación (DI)';

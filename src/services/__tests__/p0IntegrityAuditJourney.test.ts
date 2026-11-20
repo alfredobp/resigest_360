@@ -370,6 +370,53 @@ describe('Auditoría P0 (Fase 5): Integridad de Maestros por CIF y Contratos Fir
       expect(built.archived_at).toBe('2026-06-01T00:00:00Z');
       expect(built.changed_fields).toEqual(['cantidad_maxima_anual']);
     });
+
+    it('reintenta update limpiamente si metadata_snapshot o revision_history no existe aún en el schema cache', async () => {
+      const payloadsSent: any[] = [];
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [{ id: 10 }], error: null }),
+          };
+        }
+        if (table === 'waste_contracts') {
+          return {
+            update: jest.fn().mockImplementation((payload: any) => {
+              payloadsSent.push(payload);
+              const isFirstAttempt = payloadsSent.length === 1;
+              return {
+                eq: jest.fn().mockReturnThis(),
+                or: jest.fn().mockReturnThis(),
+                select: jest.fn().mockReturnThis(),
+                single: jest.fn().mockResolvedValue(
+                  isFirstAttempt
+                    ? {
+                        data: null,
+                        error: {
+                          message:
+                            "Could not find the 'metadata_snapshot' column of 'waste_contracts' in the schema cache (revision_history)",
+                        },
+                      }
+                    : { data: { ...signedContractV1, firmado_productor: true }, error: null }
+                ),
+              };
+            }),
+          };
+        }
+        return null;
+      });
+
+      const res = await wasteContractService.update(58, {
+        firma_productor_url: 'https://storage.test/sig.png',
+        metadata_snapshot: signedContractV1.metadata_snapshot,
+      });
+
+      expect(res.firmado_productor).toBe(true);
+      expect(payloadsSent).toHaveLength(2);
+      expect(payloadsSent[0]).toHaveProperty('metadata_snapshot');
+      expect(payloadsSent[1]).not.toHaveProperty('metadata_snapshot');
+    });
   });
 });
 
