@@ -209,7 +209,9 @@ const generateEntityBlock = (
   const muniName = clean(data.municipality) || (provCode === '11' ? 'Puerto Real' : 'Municipio');
   const muniCode = clean(data.municipalityCode) || getMunicipalityCodeByProvince(provCode, muniName);
   const addressText = clean(data.address) || 'Calle Principal';
-  const cp = clean(data.cp) || `${provCode}001`;
+  const rawCp = clean(data.cp);
+  const cp = /^\d{5}$/.test(rawCp) ? rawCp : '';
+  const cpTag = cp ? `\n                <CP>${cp}</CP>` : '';
   const cnae = clean(data.cnae);
   const authNumber = clean(data.authorizationNumber) || safeNima;
   const authCode = clean(data.authorizationCode) || defaultAuthCode;
@@ -218,8 +220,7 @@ const generateEntityBlock = (
         <centerAddress>
             <spanishAddress>
                 <vial vialCode="009" vialDescription="Calle"/>
-                <address>${addressText}</address>
-                <CP>${cp}</CP>
+                <address>${addressText}</address>${cpTag}
                 <municipality municipalityCode="${muniCode}" municipalityName="${muniName}"/>
                 <province provinceCode="${provCode}" provinceName="${provName || 'Cádiz'}"/>
             </spanishAddress>
@@ -359,7 +360,9 @@ const generateTransporterContent = (doc: any): string => {
   const muniName = clean(doc.transportista_municipio) || (provCode === '11' ? 'Puerto Real' : 'Municipio');
   const muniCode = getMunicipalityCodeByProvince(provCode, muniName);
   const addressText = clean(doc.transportista_direccion);
-  const cp = clean(doc.transportista_codigo_postal);
+  const rawCp = clean(doc.transportista_codigo_postal);
+  const cp = /^\d{5}$/.test(rawCp) ? rawCp : '';
+  const cpTag = cp ? `\n                        <CP>${cp}</CP>` : '';
   const safePhone = clean(doc.transportista_telefono).replace(/\D/g, '');
   const rawEmail = clean(doc.transportista_email);
   const safeEmail = rawEmail.includes('@') ? rawEmail : '';
@@ -370,8 +373,7 @@ const generateTransporterContent = (doc: any): string => {
                 <centerAddress>
                     <spanishAddress>
                         <vial vialCode="009" vialDescription="Calle"/>
-                        <address>${addressText}</address>
-                        <CP>${cp || `${provCode}001`}</CP>
+                        <address>${addressText}</address>${cpTag}
                         <municipality municipalityCode="${muniCode}" municipalityName="${muniName}"/>
                         <province provinceCode="${provCode}" provinceName="${provName || 'Cádiz'}"/>
                     </spanishAddress>

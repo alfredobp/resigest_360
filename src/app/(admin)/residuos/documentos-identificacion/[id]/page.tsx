@@ -17,6 +17,7 @@ import authorizationService from '@/services/authorizationService';
 import siraService from '@/services/siraService';
 import companyService from '@/services/companyService';
 import { generateIdentificationDocumentPDF } from '@/lib/pdfUtils';
+import { getBusinessErrorMessage } from '@/lib/authErrors';
 import {
   CAUSAS_DISCREPANCIA,
   CAUSA_DISCREPANCIA_LABELS,
@@ -85,6 +86,7 @@ export default function DetalleDocumentoIdentificacionPage() {
   const [modalActionError, setModalActionError] = useState<string | null>(null);
 
   const isTransportistaOnly = myCompany?.tipo_empresa === 'transportista' && !(myCompany.roles || []).includes('gestor');
+  const isProductorOnly = myCompany?.tipo_empresa === 'productor' && !(myCompany.roles || []).includes('gestor');
   const [activeContracts, setActiveContracts] = useState<WasteContract[]>([]);
   const [authorizedOpsForLer, setAuthorizedOpsForLer] = useState<string[] | null>(null);
   const [contractForm, setContractForm] = useState<{
@@ -227,7 +229,7 @@ export default function DetalleDocumentoIdentificacionPage() {
         console.warn('Nota: cargando contratos y alcance autorizado:', valErr);
       }
     } catch (err: any) {
-      setError(err.message);
+      setError(getBusinessErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -244,7 +246,7 @@ export default function DetalleDocumentoIdentificacionPage() {
       toast.success('PDF oficial generado y descargado correctamente.');
       setTimeout(() => setSuccess(null), 4000);
     } catch (err: any) {
-      const msg = `Error al generar PDF: ${err.message || 'Error desconocido'}`;
+      const msg = `Error al generar PDF: ${getBusinessErrorMessage(err)}`;
       setError(msg);
       toast.error(msg);
     } finally {
@@ -266,7 +268,7 @@ export default function DetalleDocumentoIdentificacionPage() {
       toast.success('Salida registrada. El traslado se encuentra En Tránsito.');
       await loadData();
     } catch (err: any) {
-      const msg = err.message || 'Error al registrar salida';
+      const msg = getBusinessErrorMessage(err);
       setModalActionError(msg);
       toast.error(msg);
     } finally {
@@ -287,16 +289,32 @@ export default function DetalleDocumentoIdentificacionPage() {
       setSubmittingAction(true);
       setModalActionError(null);
       setError(null);
-      const receptionPayload: RecordReceptionPayload = receptionForm.causa_discrepancia
-        ? receptionForm
-        : { ...receptionForm, causa_discrepancia: undefined, justificacion_discrepancia: undefined };
-      await identificationDocumentService.recordReception(document.id, receptionPayload);
-      setIsReceptionModalOpen(false);
-      setSuccess('Recepción y pesaje en báscula registrados correctamente. Asiento sincronizado en el Archivo Cronológico.');
-      toast.success('Recepción y pesaje en báscula registrados correctamente. Asiento sincronizado en el Archivo Cronológico.');
+      if (isProductorOnly) {
+        await identificationDocumentService.recordExternalReceptionProof(document.id, {
+          peso_destino_kg: Number(receptionForm.peso_destino_kg),
+          fecha_llegada_destino: receptionForm.fecha_llegada_destino,
+          numero_albaran_gestor: receptionForm.numero_albaran_gestor,
+          ticket_pesada_url: receptionForm.ticket_pesada_url,
+          justificante_recepcion_url: receptionForm.ticket_pesada_url,
+          observaciones: receptionForm.motivo_incidencia,
+          causa_discrepancia: receptionForm.causa_discrepancia,
+          justificacion_discrepancia: receptionForm.justificacion_discrepancia,
+        });
+        setIsReceptionModalOpen(false);
+        setSuccess('Justificante de recepción del gestor externo registrado correctamente con peso final confirmado.');
+        toast.success('Justificante de recepción del gestor externo registrado correctamente.');
+      } else {
+        const receptionPayload: RecordReceptionPayload = receptionForm.causa_discrepancia
+          ? receptionForm
+          : { ...receptionForm, causa_discrepancia: undefined, justificacion_discrepancia: undefined };
+        await identificationDocumentService.recordReception(document.id, receptionPayload);
+        setIsReceptionModalOpen(false);
+        setSuccess('Recepción y pesaje en báscula registrados correctamente. Asiento sincronizado en el Archivo Cronológico.');
+        toast.success('Recepción y pesaje en báscula registrados correctamente. Asiento sincronizado en el Archivo Cronológico.');
+      }
       await loadData();
     } catch (err: any) {
-      const msg = `Error al registrar recepción: ${err.message}`;
+      const msg = `Error al registrar recepción: ${getBusinessErrorMessage(err)}`;
       setModalActionError(msg);
       toast.error(msg);
     } finally {
@@ -333,7 +351,7 @@ export default function DetalleDocumentoIdentificacionPage() {
       toast.success('Discrepancia de báscula justificada correctamente.');
       await loadData();
     } catch (err: any) {
-      const msg = err.message || 'Error al justificar la discrepancia';
+      const msg = getBusinessErrorMessage(err);
       setModalActionError(msg);
       toast.error(msg);
     } finally {
@@ -355,7 +373,7 @@ export default function DetalleDocumentoIdentificacionPage() {
       toast.success('Operación de tratamiento certificada. Traslado cerrado exitosamente y archivado.');
       await loadData();
     } catch (err: any) {
-      const msg = err.message || 'Error al certificar tratamiento';
+      const msg = getBusinessErrorMessage(err);
       setModalActionError(msg);
       toast.error(msg);
     } finally {
@@ -389,7 +407,7 @@ export default function DetalleDocumentoIdentificacionPage() {
       toast.success(msg);
       await loadData();
     } catch (err: any) {
-      const msg = err.message || 'Error al actualizar cobertura contractual';
+      const msg = getBusinessErrorMessage(err);
       setModalActionError(msg);
       toast.error(msg);
     } finally {
@@ -410,7 +428,7 @@ export default function DetalleDocumentoIdentificacionPage() {
       toast.success('Documento eliminado correctamente.');
       router.push('/residuos/documentos-identificacion');
     } catch (err: any) {
-      const msg = `Error al eliminar: ${err.message}`;
+      const msg = `Error al eliminar: ${getBusinessErrorMessage(err)}`;
       setError(msg);
       toast.error(msg);
     }
@@ -447,7 +465,7 @@ export default function DetalleDocumentoIdentificacionPage() {
       toast.success(`Firma de ${signingRole} registrada con éxito en el documento.`);
       await loadData();
     } catch (err: any) {
-      toast.error(`Error al registrar firma: ${err.message}`);
+      toast.error(`Error al registrar firma: ${getBusinessErrorMessage(err)}`);
     } finally {
       setLoading(false);
     }
@@ -572,8 +590,8 @@ export default function DetalleDocumentoIdentificacionPage() {
         {/* Header con Estados y Botón Volver */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-foreground">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-xl sm:text-2xl font-bold text-foreground break-all">
                 DI {document.numero_documento}
               </h2>
               <Badge color={tracking.badgeColor} size="md">
@@ -583,7 +601,7 @@ export default function DetalleDocumentoIdentificacionPage() {
             <p className="text-xs text-muted flex flex-wrap items-center gap-2">
               <span>Régimen de traslados RD 553/2020 — {document.tipo_notificacion === 'con-notificacion-previa' ? 'Con Notificación Previa' : 'Sin Notificación'}</span>
               {document.numero_notificacion && (
-                <span className="font-mono font-semibold text-foreground bg-muted px-2 py-0.5 rounded">
+                <span className="font-mono font-semibold text-foreground bg-muted px-2 py-0.5 rounded break-all">
                   NT: {document.numero_notificacion}
                 </span>
               )}
@@ -598,7 +616,7 @@ export default function DetalleDocumentoIdentificacionPage() {
               )}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               onClick={handleDownloadPDF}
@@ -642,7 +660,7 @@ export default function DetalleDocumentoIdentificacionPage() {
         {/* PIPELINE / STEPPER VISUAL RD 553/2020 */}
         <ComponentCard title="Ciclo de Vida del Traslado (RD 553/2020)">
           <div className="py-2">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
               {/* Paso 1: Registrado / Salida */}
               <div className={`p-3 rounded-xl border flex flex-col justify-between ${tracking.step >= 1 ? 'bg-primary/5 border-primary/30' : 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-800 opacity-60'}`}>
                 <div>
@@ -764,7 +782,7 @@ export default function DetalleDocumentoIdentificacionPage() {
                       </span>
                     </div>
                     <p className="text-[11px] mt-1">
-                      {tracking.hasDiscrepancy ? '⚠️ Desviación superior al margen habitual (5%)' : '✓ Dentro de márgenes de tolerancia'}
+                      {tracking.hasDiscrepancy ? '⚠️ Desviación superior al margen de control interno (5% o 200 kg)' : '✓ Dentro de márgenes de control interno'}
                     </p>
                   </div>
                 ) : (
@@ -777,9 +795,9 @@ export default function DetalleDocumentoIdentificacionPage() {
             {tracking.hasDiscrepancy && !tracking.isDiscrepancyJustified && (
               <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="flex-1">
-                  <p className="font-semibold">Atención: Discrepancia de báscula detectada ({tracking.discrepancyMessage})</p>
+                  <p className="font-semibold">Atención: Desviación detectada por control de calidad ({tracking.discrepancyMessage})</p>
                   <p className="opacity-90 mt-0.5">
-                    Según el RD 553/2020, las discrepancias relevantes entre el peso declarado por el remitente y el pesado por el gestor deben quedar justificadas documentalmente en el DI.
+                    ResiGest 360 aplica un umbral interno del 5% o 200 kg para detectar anomalías operativas. Conforme al Art. 6 del RD 553/2020, las divergencias entre el peso estimado en origen y el verificado en destino deben quedar justificadas documentalmente en el DI para la inspección ambiental.
                   </p>
                 </div>
                 <button
@@ -1266,15 +1284,15 @@ export default function DetalleDocumentoIdentificacionPage() {
                 </Button>
               )}
 
-              {/* Acción 2: Registrar Recepción y Báscula */}
+              {/* Acción 2: Registrar Recepción o Justificante Externo */}
               {!isTransportistaOnly && (document.estado_traslado === 'en_transito' || document.estado_traslado === 'recepcionado') && (
                 <Button onClick={() => { setModalActionError(null); setIsReceptionModalOpen(true); }}>
-                  <span>Registrar Recepción en Báscula</span>
+                  <span>{isProductorOnly ? 'Registrar Justificante de Recepción (Gestor Externo)' : 'Registrar Recepción en Báscula'}</span>
                 </Button>
               )}
 
-              {/* Acción 3: Certificar Tratamiento y Cierre */}
-              {!isTransportistaOnly && (document.estado_traslado === 'aceptado' || document.estado_traslado === 'rechazado_parcial' || document.estado_traslado === 'tratado') && (
+              {/* Acción 3: Certificar Tratamiento y Cierre (Exclusivo para Gestores autorizados Art. 6 RD 553/2020) */}
+              {!isTransportistaOnly && !isProductorOnly && (document.estado_traslado === 'aceptado' || document.estado_traslado === 'rechazado_parcial' || document.estado_traslado === 'tratado') && (
                 <Button
                   variant={document.estado_traslado === 'tratado' ? 'outline' : 'primary'}
                   onClick={() => { setModalActionError(null); setIsTreatmentModalOpen(true); }}
@@ -1577,7 +1595,7 @@ export default function DetalleDocumentoIdentificacionPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-muted uppercase mb-1">Empresa Transportista</label>
                 <Input
@@ -1599,7 +1617,7 @@ export default function DetalleDocumentoIdentificacionPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-muted uppercase mb-1">Nombre Conductor</label>
                 <Input
@@ -1632,22 +1650,28 @@ export default function DetalleDocumentoIdentificacionPage() {
         </form>
       </Modal>
 
-      {/* MODAL 2: RECEPCIÓN EN BÁSCULA Y DICTAMEN GESTOR */}
+      {/* MODAL 2: RECEPCIÓN EN BÁSCULA Y DICTAMEN GESTOR / JUSTIFICANTE EXTERNO */}
       <Modal isOpen={isReceptionModalOpen} onClose={() => setIsReceptionModalOpen(false)} className="max-w-xl p-6">
         <form onSubmit={handleRecordReception} className="space-y-4">
           <div className="border-b pb-3 border-gray-200 dark:border-gray-800">
-            <h3 className="text-lg font-bold text-foreground">Recepción en Báscula y Dictamen de Destino</h3>
+            <h3 className="text-lg font-bold text-foreground">
+              {isProductorOnly ? 'Justificante de Recepción de Gestor Externo' : 'Recepción en Báscula y Dictamen de Destino'}
+            </h3>
           </div>
           <p className="text-xs text-muted">
-            Introduzca los datos de pesaje neto y veredicto de conformidad según el pesaje de entrada en planta.
+            {isProductorOnly
+              ? 'Registre los datos del albarán o justificante emitido por el gestor destinatario externo con el peso definitivo recepcionado.'
+              : 'Introduzca los datos de pesaje neto y veredicto de conformidad según el pesaje de entrada en planta.'}
           </p>
 
           {modalActionError && <Alert variant="error" title="Error en recepción" message={modalActionError} />}
 
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-muted uppercase mb-1">Peso Neto Báscula (kg) *</label>
+                <label className="block text-xs font-semibold text-muted uppercase mb-1">
+                  {isProductorOnly ? 'Peso Recibido Destino (kg) *' : 'Peso Neto Báscula (kg) *'}
+                </label>
                 <Input
                   type="number"
                   step="any"
@@ -1658,7 +1682,9 @@ export default function DetalleDocumentoIdentificacionPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-muted uppercase mb-1">Nº Albarán / Ticket Gestor</label>
+                <label className="block text-xs font-semibold text-muted uppercase mb-1">
+                  {isProductorOnly ? 'Nº Albarán / Justificante Externo' : 'Nº Albarán / Ticket Gestor'}
+                </label>
                 <Input
                   type="text"
                   value={receptionForm.numero_albaran_gestor || ''}
@@ -1668,7 +1694,7 @@ export default function DetalleDocumentoIdentificacionPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-muted uppercase mb-1">Fecha y Hora Recepción *</label>
                 <Input
@@ -1692,14 +1718,27 @@ export default function DetalleDocumentoIdentificacionPage() {
               </div>
             </div>
 
+            {/* URL o Justificante adjunto */}
+            <div>
+              <label className="block text-xs font-semibold text-muted uppercase mb-1">
+                {isProductorOnly ? 'Enlace / URL de Albarán o Justificante Adjunto' : 'Ticket de Báscula / Justificante (URL)'}
+              </label>
+              <Input
+                type="text"
+                value={receptionForm.ticket_pesada_url || ''}
+                onChange={(e) => setReceptionForm({ ...receptionForm, ticket_pesada_url: e.target.value })}
+                placeholder="https://... o ruta del justificante"
+              />
+            </div>
+
             {/* Justificación de discrepancia de báscula (opcional en recepción) */}
             {receptionDiscrepancy && (
               <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 space-y-3">
                 <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
-                  Discrepancia de báscula superior al margen de tolerancia (5% o 200 kg)
+                  Desviación de pesaje detectada por control de calidad ({tracking.discrepancyMessage || 'margen 5% o 200 kg'})
                 </p>
                 <p className="text-xs text-amber-800/90 dark:text-amber-300/90">
-                  Puede justificarla ahora o más tarde desde el detalle del DI (RD 553/2020).
+                  ResiGest 360 monitoriza divergencias de pesaje para la trazabilidad exigida por el Art. 6 del RD 553/2020. Puede justificar la causa ahora o más tarde desde la ficha del DI.
                 </p>
                 <div>
                   <label className="block text-xs text-muted mb-1">Causa de la discrepancia</label>
@@ -1732,7 +1771,7 @@ export default function DetalleDocumentoIdentificacionPage() {
             {receptionForm.resultado_recepcion !== 'aceptado' && (
               <div className="p-3 rounded-lg border border-red-500/30 bg-red-500/10 space-y-3">
                 <p className="text-xs font-bold text-red-700 dark:text-red-300">Detalles del Rechazo / Incidencia</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs text-muted mb-1">Tipo de Incidencia</label>
                     <select
@@ -1771,26 +1810,38 @@ export default function DetalleDocumentoIdentificacionPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
+            {!isProductorOnly ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-muted uppercase mb-1">Nombre Receptor Gestor</label>
+                  <Input
+                    type="text"
+                    value={receptionForm.nombre_gestor || ''}
+                    onChange={(e) => setReceptionForm({ ...receptionForm, nombre_gestor: e.target.value })}
+                    placeholder="Operador báscula"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted uppercase mb-1">DNI/NIF Receptor</label>
+                  <Input
+                    type="text"
+                    value={receptionForm.dni_gestor || ''}
+                    onChange={(e) => setReceptionForm({ ...receptionForm, dni_gestor: e.target.value })}
+                    placeholder="87654321Z"
+                  />
+                </div>
+              </div>
+            ) : (
               <div>
-                <label className="block text-xs font-semibold text-muted uppercase mb-1">Nombre Receptor Gestor</label>
+                <label className="block text-xs font-semibold text-muted uppercase mb-1">Observaciones / Notas del Justificante</label>
                 <Input
                   type="text"
-                  value={receptionForm.nombre_gestor || ''}
-                  onChange={(e) => setReceptionForm({ ...receptionForm, nombre_gestor: e.target.value })}
-                  placeholder="Operador báscula"
+                  value={receptionForm.motivo_incidencia || ''}
+                  onChange={(e) => setReceptionForm({ ...receptionForm, motivo_incidencia: e.target.value })}
+                  placeholder="Ej: Confirmada recepción de 8 kg por Gestor Norte según albarán GN-104."
                 />
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-muted uppercase mb-1">DNI/NIF Receptor</label>
-                <Input
-                  type="text"
-                  value={receptionForm.dni_gestor || ''}
-                  onChange={(e) => setReceptionForm({ ...receptionForm, dni_gestor: e.target.value })}
-                  placeholder="87654321Z"
-                />
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-3 border-t border-gray-200 dark:border-gray-800">
@@ -1811,7 +1862,7 @@ export default function DetalleDocumentoIdentificacionPage() {
             <h3 className="text-lg font-bold text-foreground">Justificar Discrepancia de Báscula</h3>
           </div>
           <p className="text-xs text-muted">
-            {tracking.discrepancyMessage}. Documente la causa de la diferencia entre el peso declarado en origen y el neto verificado en destino (RD 553/2020).
+            {tracking.discrepancyMessage}. Registre la causa de la diferencia entre el peso declarado en origen y el verificado en destino (control de calidad ResiGest 360 y Art. 6 RD 553/2020).
             {document.estado_traslado === 'tratado' && ' El DI está cerrado: una vez guardada, la justificación no podrá modificarse.'}
           </p>
 

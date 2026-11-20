@@ -136,3 +136,51 @@ export function getAuthErrorMessage(error: AuthErrorInput): string {
   // Mensaje por defecto cuando no coincide ningún patrón
   return 'No ha sido posible completar la operación. Verifica los datos e inténtalo de nuevo.';
 }
+
+/**
+ * Traduce errores técnicos de base de datos, PostgREST y API a mensajes de negocio comprensibles (RES6-I14).
+ */
+export function getBusinessErrorMessage(error: AuthErrorInput): string {
+  const rawMsg = extractErrorMessage(error).trim();
+  if (!rawMsg) {
+    return 'Ha ocurrido un error inesperado. Por favor, inténtalo de nuevo.';
+  }
+
+  const normalized = rawMsg.toLowerCase();
+
+  // Coerción de tipos PostgREST (ej. ID alfanumérico en columna entera)
+  if (normalized.includes('cannot coerce') || normalized.includes('invalid input syntax for type integer')) {
+    return 'El identificador o parámetro proporcionado no tiene un formato válido.';
+  }
+
+  // Restricciones de seguridad RLS / permisos
+  if (
+    normalized.includes('violates row-level security policy') ||
+    normalized.includes('permission denied') ||
+    normalized.includes('permiso denegado')
+  ) {
+    return 'No dispones de permisos suficientes para acceder o modificar este registro.';
+  }
+
+  // Restricciones de clave foránea / registros huérfanos
+  if (normalized.includes('violates foreign key constraint') || normalized.includes('foreign key')) {
+    return 'La entidad vinculada (empresa, centro o contrato) no existe o no está disponible.';
+  }
+
+  // Restricciones de unicidad / duplicidad
+  if (normalized.includes('duplicate key') || normalized.includes('unique constraint') || normalized.includes('23505')) {
+    return 'Ya existe un registro con estos datos únicos identificativos.';
+  }
+
+  // Conectividad / Red
+  if (normalized.includes('failed to fetch') || normalized.includes('networkerror') || normalized.includes('timeout')) {
+    return 'Error de conexión con el servidor. Comprueba tu conexión a internet o inténtalo de nuevo.';
+  }
+
+  // Errores de token / sesión
+  if (normalized.includes('jwt expired') || normalized.includes('session expired') || normalized.includes('invalid token')) {
+    return 'Tu sesión ha caducado. Inicia sesión de nuevo.';
+  }
+
+  return rawMsg;
+}

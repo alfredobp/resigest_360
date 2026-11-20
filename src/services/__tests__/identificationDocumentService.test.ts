@@ -27,10 +27,18 @@ jest.mock('@/services/chronologicalRegistryService', () => ({
   syncEntryFromDI: (...args: any[]) => mockSyncEntryFromDI(...args),
 }));
 
+jest.mock('@/services/companyService', () => ({
+  companyService: {
+    getUserCompany: jest.fn().mockResolvedValue({ tipo_empresa: 'gestor', roles: ['gestor'] }),
+    getAllContacts: jest.fn().mockResolvedValue([]),
+  },
+}));
+
 import {
   identificationDocumentService,
   getTrackingStatusMeta,
 } from '../identificationDocumentService';
+import { companyService } from '@/services/companyService';
 import type { IdentificationDocument } from '@/types/wasteManagement';
 
 describe('identificationDocumentService - Entidad Documentos de Identificación (DI)', () => {
@@ -644,6 +652,12 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
     });
 
     it('completeTreatment debe certificar tratamiento y cerrar documento con sync', async () => {
+      // Mock de empresa como gestor para autorizar la certificación
+      (companyService.getUserCompany as jest.Mock).mockResolvedValueOnce({
+        tipo_empresa: 'gestor',
+        roles: ['gestor'],
+      });
+
       jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
         id: 1,
         codigo_ler: '15 01 01',
@@ -668,6 +682,92 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
         estado: 'completado',
       }));
       expect(mockSyncEntryFromDI).toHaveBeenCalledWith(updatedDoc);
+    });
+
+    it('RES6-I05: completeTreatment debe denegar el permiso a un productor exclusivo', async () => {
+      (companyService.getUserCompany as jest.Mock).mockResolvedValueOnce({
+        tipo_empresa: 'productor',
+        roles: ['productor'],
+      });
+
+      await expect(
+        identificationDocumentService.completeTreatment(1, {
+          operacion_tratamiento: 'R03',
+        })
+      ).rejects.toThrow('Permiso denegado: Un productor no puede certificar operaciones de tratamiento como gestor');
+    });
+
+    it('RES6-I05: recordExternalReceptionProof debe permitir al productor registrar peso final y justificante externo', async () => {
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 99,
+        company_id: 1,
+        codigo_ler: '15 01 01',
+        cantidad: 10,
+        unidad: 'kg',
+        peso_origen_kg: 10,
+        estado_traslado: 'en_transito',
+      } as any);
+
+      const updatedDoc = {
+        id: 99,
+        company_id: 1,
+        peso_destino_kg: 8,
+        diferencia_peso_kg: -2,
+        porcentaje_discrepancia: -20,
+        resultado_recepcion: 'aceptado',
+        estado_traslado: 'aceptado',
+        ticket_pesada_url: 'https://storage/justificante.pdf',
+      } as any;
+
+      const spyUpdate = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue(updatedDoc);
+
+      const result = await identificationDocumentService.recordExternalReceptionProof(99, {
+        peso_destino_kg: 8,
+        fecha_llegada_destino: '2026-11-20T11:00:00Z',
+        numero_albaran_gestor: 'ALB-EXT-998',
+        ticket_pesada_url: 'https://storage/justificante.pdf',
+        observaciones: 'Entrega en punto de gestión',
+      });
+
+      expect(spyUpdate).toHaveBeenCalledWith(
+        99,
+        expect.objectContaining({
+          peso_destino_kg: 8,
+          diferencia_peso_kg: -2,
+          resultado_recepcion: 'aceptado',
+          estado_traslado: 'aceptado',
+          numero_albaran_gestor: 'ALB-EXT-998',
+          ticket_pesada_url: 'https://storage/justificante.pdf',
+        })
+      );
+      expect(result.estado_traslado).toBe('aceptado');
+
+      // Prueba con discrepancia justificada y notas previas
+      jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+        id: 100,
+        company_id: 1,
+        codigo_ler: '15 01 01',
+        peso_origen_kg: 5000,
+        notas: 'Nota previa existente',
+        estado_traslado: 'en_transito',
+      } as any);
+
+      await identificationDocumentService.recordExternalReceptionProof(100, {
+        peso_destino_kg: 4200,
+        causa_discrepancia: 'merma_humedad',
+        justificacion_discrepancia: 'Pérdida por secado en acopio temporal',
+      });
+
+      expect(spyUpdate).toHaveBeenCalledWith(
+        100,
+        expect.objectContaining({
+          peso_destino_kg: 4200,
+          causa_discrepancia: 'merma_humedad',
+          notas: expect.stringContaining('Nota previa existente'),
+        })
+      );
+
+      spyUpdate.mockRestore();
     });
 
     it('recordDeparture debe bloquear la salida sin contrato vinculado ni acreditación externa y validar contratos/autorizaciones', async () => {

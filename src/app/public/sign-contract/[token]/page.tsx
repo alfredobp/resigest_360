@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import wasteContractService from '@/services/wasteContractService';
 import type { WasteContract } from '@/types/wasteManagement';
 import SignaturePad from '@/components/ui/signature/SignaturePad';
 import Alert from '@/components/ui/alert/Alert';
 import ComponentCard from '@/components/common/ComponentCard';
+import Badge from '@/components/ui/badge/Badge';
 
 function PublicSignatureContent() {
     const params = useParams();
@@ -18,13 +19,8 @@ function PublicSignatureContent() {
     const [contract, setContract] = useState<WasteContract | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
-    const [selectedRole, setSelectedRole] = useState<'productor' | 'gestor'>(roleParam || 'productor');
-
-    useEffect(() => {
-        if (roleParam === 'productor' || roleParam === 'gestor') {
-            setSelectedRole(roleParam);
-        }
-    }, [roleParam]);
+    const [selectedRole, setSelectedRole] = useState<'productor' | 'gestor'>('productor');
+    const [termsAccepted, setTermsAccepted] = useState(false);
 
     useEffect(() => {
         if (token) {
@@ -37,6 +33,17 @@ function PublicSignatureContent() {
             setLoading(true);
             const data = await wasteContractService.getBySigningToken(token);
             setContract(data);
+
+            // RES6-I06: Determinar el rol disponible según estado de firmas del contrato
+            if (data) {
+                if (data.firmado_productor && !data.firmado_gestor) {
+                    setSelectedRole('gestor');
+                } else if (data.firmado_gestor && !data.firmado_productor) {
+                    setSelectedRole('productor');
+                } else if (roleParam === 'productor' || roleParam === 'gestor') {
+                    setSelectedRole(roleParam);
+                }
+            }
         } catch {
             setError('El enlace de firma es inválido o el contrato ya no está disponible.');
         } finally {
@@ -44,8 +51,21 @@ function PublicSignatureContent() {
         }
     };
 
+    // Evaluar si ambas partes ya formalizaron el contrato
+    const isFullySigned = useMemo(() => {
+        return Boolean(contract?.firmado_productor && contract?.firmado_gestor);
+    }, [contract]);
+
+    // Evaluar si el rol predeterminado ya firmó
+    const isRoleAlreadySigned = useMemo(() => {
+        if (!contract) return false;
+        if (selectedRole === 'productor' && contract.firmado_productor) return true;
+        if (selectedRole === 'gestor' && contract.firmado_gestor) return true;
+        return false;
+    }, [contract, selectedRole]);
+
     const handleSaveSignature = async (signatureBase64: string) => {
-        if (!token) return;
+        if (!token || !termsAccepted) return;
         try {
             setLoading(true);
             await wasteContractService.signContractByToken(token, signatureBase64, selectedRole);
@@ -87,13 +107,13 @@ function PublicSignatureContent() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                         </svg>
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">¡Firma Completada!</h2>
-                    <p className="text-gray-500 dark:text-gray-400 mb-8">
-                        Su firma ha sido registrada correctamente en el documento contractual. Puede cerrar esta ventana.
+                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">¡Firma Formalizada!</h2>
+                    <p className="text-gray-500 dark:text-gray-400 mb-8 text-sm">
+                        Su firma electrónica ha sido vinculada legalmente al contrato #{contract?.numero_contrato || contract?.id}.
                     </p>
                     <div className="border-t border-gray-100 dark:border-gray-700 pt-6">
                         <p className="text-xs text-gray-400 italic">
-                            RESIGEST 360 - Sistema de Gestión Medioambiental
+                            RESIGEST 360 - Plataforma de Trazabilidad y Gestión Ambiental RD 553/2020
                         </p>
                     </div>
                 </div>
@@ -103,124 +123,308 @@ function PublicSignatureContent() {
 
     if (!contract) return null;
 
+    const snapshot = contract.metadata_snapshot;
+    const productorData = snapshot?.company || contract.company;
+    const gestorData = snapshot?.gestor_company || contract.treatment_manager || contract.gestor_company;
+    const wasteList = contract.contract_waste_codes || [];
+    const simpleLers = contract.codigos_ler || [];
+
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-3xl mx-auto">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-10 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-4xl mx-auto space-y-6">
                 {/* Header Logo/Title */}
-                <div className="text-center mb-8">
+                <div className="text-center space-y-2">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold uppercase tracking-wider">
+                        Contrato Oficial de Tratamiento de Residuos (Art. 5 RD 553/2020)
+                    </div>
                     <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">
-                        Firma de Contrato Digital
+                        Formalización y Firma Digital
                     </h1>
-                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        Por favor, revise los detalles del contrato y proceda con la firma electrónica.
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Revise exhaustivamente los términos, matriz de residuos y condiciones legales antes de rubricar el documento.
                     </p>
                 </div>
 
-                <div className="space-y-6">
-                    {/* Contract Info Card */}
-                    <ComponentCard title="Información del Contrato">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <p className="text-gray-500 mb-1">Número de Contrato</p>
-                                <p className="font-semibold text-gray-900 dark:text-white">
-                                    {contract.numero_contrato || `#${contract.id}`}
-                                </p>
-                            </div>
-                            <div>
-                                <p className="text-gray-500 mb-1">Tipo de Servicio</p>
-                                <p className="font-semibold text-gray-900 dark:text-white capitalize">
-                                    {contract.tipo_contrato}
-                                </p>
-                            </div>
-                            <div>
-                                <p className="text-gray-500 mb-1">Productor (Cliente)</p>
-                                <p className="font-semibold text-gray-900 dark:text-white">
-                                    {contract.company?.razon_social}
-                                </p>
-                            </div>
-                            <div>
-                                <p className="text-gray-500 mb-1">Gestor (Destinatario)</p>
-                                <p className="font-semibold text-gray-900 dark:text-white">
-                                    {contract.treatment_manager?.razon_social || contract.gestor_company?.razon_social}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700">
-                            <p className="text-gray-500 text-xs mb-2 italic">Resumen de Residuos:</p>
-                            <p className="text-sm text-gray-700 dark:text-gray-300">
-                                {contract.descripcion_residuos || 'Según anexo o DIs asociados.'}
-                            </p>
-                        </div>
-                    </ComponentCard>
-
-                    {/* Role Selection (If not pre-selected) */}
-                    {!roleParam && (
-                        <ComponentCard title="Identificación del Firmante">
-                            <div className="flex flex-col gap-4">
-                                <p className="text-sm text-gray-600 dark:text-gray-400">
-                                    ¿En calidad de qué parte está firmando?
-                                </p>
-                                <div className="flex gap-4">
-                                    <button
-                                        onClick={() => setSelectedRole('productor')}
-                                        className={`flex-1 p-4 rounded-xl border-2 transition-all ${selectedRole === 'productor'
-                                                ? 'border-primary bg-primary/5 text-primary'
-                                                : 'border-gray-200 dark:border-gray-700 text-gray-500'
-                                            }`}
-                                    >
-                                        <div className="font-bold">Productor</div>
-                                        <div className="text-[10px] mt-1 opacity-70">El cliente o generador del residuo</div>
-                                    </button>
-                                    <button
-                                        onClick={() => setSelectedRole('gestor')}
-                                        className={`flex-1 p-4 rounded-xl border-2 transition-all ${selectedRole === 'gestor'
-                                                ? 'border-primary bg-primary/5 text-primary'
-                                                : 'border-gray-200 dark:border-gray-700 text-gray-500'
-                                            }`}
-                                    >
-                                        <div className="font-bold">Gestor</div>
-                                        <div className="text-[10px] mt-1 opacity-70">La planta de tratamiento</div>
-                                    </button>
-                                </div>
-                            </div>
-                        </ComponentCard>
-                    )}
-
-                    {/* Signature Pad Card */}
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-700">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                                Garabatee su firma abajo
-                            </h3>
-                            <div className="flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${loading ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`} />
-                                <span className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">
-                                    {loading ? 'Guardando...' : 'Sistema Seguro'}
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="p-2 border-2 border-gray-100 dark:border-gray-700 rounded-2xl bg-gray-50/50 dark:bg-gray-900/50">
-                            <SignaturePad
-                                onSave={handleSaveSignature}
-                                height={250}
-                            />
-                        </div>
-
-                        <div className="mt-8 text-center px-4">
-                            <p className="text-[10px] text-gray-400 leading-relaxed uppercase tracking-tighter">
-                                Al firmar este documento, usted acepta las condiciones técnicas y económicas establecidas en el contrato #{contract.numero_contrato || contract.id}. Esta firma tiene validez legal según la ley 6/2020 de servicios electrónicos de confianza.
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Footer Legal */}
-                    <div className="text-center py-4">
-                        <p className="text-[10px] text-gray-300 dark:text-gray-600 font-medium">
-                            RESIGEST 360 © {new Date().getFullYear()} - CUMPLIMIENTO RD 553/2020
+                {/* Si ya está completamente firmado por ambas partes */}
+                {isFullySigned ? (
+                    <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-500/30 p-6 rounded-2xl text-center space-y-3">
+                        <Badge color="success" size="md">✓ Contrato Formalizado y Vigente</Badge>
+                        <h3 className="text-lg font-bold text-emerald-900 dark:text-emerald-200">
+                            Este contrato ya ha sido firmado formalmente por ambas partes
+                        </h3>
+                        <p className="text-xs text-emerald-800 dark:text-emerald-300 max-w-xl mx-auto">
+                            Tanto el Productor como el Gestor Destinatario han suscrito electrónicamente el presente contrato.
+                            El documento goza de plena validez jurídica según la Ley 6/2020 y el RD 553/2020.
                         </p>
                     </div>
+                ) : null}
+
+                {/* Resumen General y Partes Intervinientes */}
+                <ComponentCard title="1. Partes Intervinientes">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                        {/* Productor */}
+                        <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/40 space-y-2">
+                            <div className="flex justify-between items-center">
+                                <span className="font-bold uppercase tracking-wider text-muted">Productor / Remitente</span>
+                                {contract.firmado_productor ? (
+                                    <Badge color="success">✓ Firmado</Badge>
+                                ) : (
+                                    <Badge color="light">Pendiente de firma</Badge>
+                                )}
+                            </div>
+                            <p className="text-sm font-bold text-foreground">{productorData?.razon_social || 'No especificado'}</p>
+                            <p><span className="text-muted font-semibold">NIF/CIF:</span> <span className="font-mono">{productorData?.cif || '-'}</span></p>
+                            {snapshot?.producer_center?.nima && (
+                                <p><span className="text-muted font-semibold">NIMA Productor:</span> <span className="font-mono">{snapshot.producer_center.nima}</span></p>
+                            )}
+                            <p className="text-muted pt-1 border-t border-gray-100 dark:border-gray-800">
+                                {snapshot?.producer_center?.direccion || (productorData as any)?.direccion || (productorData as any)?.domicilio_social || '-'}
+                            </p>
+                        </div>
+
+                        {/* Gestor */}
+                        <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/40 space-y-2">
+                            <div className="flex justify-between items-center">
+                                <span className="font-bold uppercase tracking-wider text-muted">Gestor Destinatario</span>
+                                {contract.firmado_gestor ? (
+                                    <Badge color="success">✓ Firmado</Badge>
+                                ) : (
+                                    <Badge color="light">Pendiente de firma</Badge>
+                                )}
+                            </div>
+                            <p className="text-sm font-bold text-foreground">{gestorData?.razon_social || 'No especificado'}</p>
+                            <p><span className="text-muted font-semibold">NIF/CIF:</span> <span className="font-mono">{gestorData?.cif || '-'}</span></p>
+                            {(gestorData as any)?.numero_autorizacion && (
+                                <p><span className="text-muted font-semibold">Autorización Ambiental:</span> <span className="font-mono">{(gestorData as any).numero_autorizacion}</span></p>
+                            )}
+                            {snapshot?.gestor_center?.nima && (
+                                <p><span className="text-muted font-semibold">NIMA Instalación:</span> <span className="font-mono">{snapshot.gestor_center.nima}</span></p>
+                            )}
+                            <p className="text-muted pt-1 border-t border-gray-100 dark:border-gray-800">
+                                {snapshot?.gestor_center?.direccion || (gestorData as any)?.direccion || (gestorData as any)?.domicilio_social || '-'}
+                            </p>
+                        </div>
+                    </div>
+                </ComponentCard>
+
+                {/* 2. Vigencia y Matriz de Residuos */}
+                <ComponentCard title="2. Vigencia y Residuos Objeto del Contrato">
+                    <div className="space-y-4 text-xs">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-3 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-200 dark:border-gray-700">
+                            <div>
+                                <span className="text-muted font-semibold block">Número Contrato:</span>
+                                <span className="font-mono font-bold text-sm text-foreground">{contract.numero_contrato || `#${contract.id}`}</span>
+                            </div>
+                            <div>
+                                <span className="text-muted font-semibold block">Tipo Servicio:</span>
+                                <span className="font-medium text-foreground capitalize">{contract.tipo_contrato}</span>
+                            </div>
+                            <div>
+                                <span className="text-muted font-semibold block">Fecha Inicio:</span>
+                                <span className="font-medium text-foreground">{contract.fecha_inicio ? new Date(contract.fecha_inicio).toLocaleDateString('es-ES') : 'Inmediata'}</span>
+                            </div>
+                            <div>
+                                <span className="text-muted font-semibold block">Fecha Finalización:</span>
+                                <span className="font-medium text-foreground">{contract.fecha_fin ? new Date(contract.fecha_fin).toLocaleDateString('es-ES') : 'Indefinida'}</span>
+                            </div>
+                        </div>
+
+                        {/* Matriz de LER */}
+                        {wasteList.length > 0 ? (
+                            <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-xl">
+                                <table className="w-full text-left">
+                                    <thead className="bg-gray-100 dark:bg-gray-800 text-[11px] font-bold text-muted uppercase">
+                                        <tr>
+                                            <th className="px-3 py-2">Código LER</th>
+                                            <th className="px-3 py-2">Descripción</th>
+                                            <th className="px-3 py-2">Operación R/D</th>
+                                            <th className="px-3 py-2">Cantidad Estimada</th>
+                                            <th className="px-3 py-2">Tarifa</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                        {wasteList.map((item, idx) => (
+                                            <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20">
+                                                <td className="px-3 py-2 font-mono font-bold text-foreground">{item.codigo_ler}</td>
+                                                <td className="px-3 py-2 text-muted">{item.descripcion_ler || '-'}</td>
+                                                <td className="px-3 py-2 font-mono font-bold text-primary">{item.operacion_tratamiento || 'R/D'}</td>
+                                                <td className="px-3 py-2 text-foreground">{item.cantidad_estimada_anual ? `${item.cantidad_estimada_anual} t/año` : '-'}</td>
+                                                <td className="px-3 py-2 text-foreground">{item.tarifa_gestion ? `${item.tarifa_gestion} €/t` : '-'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : simpleLers.length > 0 ? (
+                            <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-xl space-y-1">
+                                <span className="font-semibold text-muted block mb-1">Códigos LER contratados:</span>
+                                <div className="flex flex-wrap gap-2">
+                                    {simpleLers.map((ler, i) => (
+                                        <span key={i} className="px-2 py-1 rounded bg-gray-100 dark:bg-gray-800 font-mono font-bold text-xs border border-gray-300 dark:border-gray-700">
+                                            {ler}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-muted italic">{contract.descripcion_residuos || 'Residuos según autorizaciones vigentes de las partes.'}</p>
+                        )}
+                    </div>
+                </ComponentCard>
+
+                {/* 3. Cláusulas y Condiciones Legales RD 553/2020 */}
+                <ComponentCard title="3. Cláusulas Contractuales y Régimen de Aceptación/Rechazo (RD 553/2020)">
+                    <div className="space-y-4 text-xs text-gray-700 dark:text-gray-300 leading-relaxed bg-gray-50 dark:bg-gray-800/30 p-4 rounded-xl border border-gray-200 dark:border-gray-700 max-h-80 overflow-y-auto">
+                        <div>
+                            <h4 className="font-bold text-foreground uppercase tracking-wide mb-1">
+                                Cláusula 1ª. Objeto y Alcance del Tratamiento
+                            </h4>
+                            <p>
+                                El presente contrato regula las condiciones bajo las cuales el Productor/Poseedor entrega y el Gestor asume la gestión y tratamiento de los residuos especificados en la Cláusula 2ª, conforme al régimen legal establecido en la Ley 7/2022 de residuos y suelos contaminados para una economía circular y el Real Decreto 553/2020.
+                            </p>
+                        </div>
+
+                        <div>
+                            <h4 className="font-bold text-foreground uppercase tracking-wide mb-1">
+                                Cláusula 2ª. Condiciones de Entrega, Pesaje y Aceptación
+                            </h4>
+                            <p>
+                                Todo traslado de residuos al amparo de este contrato deberá ir acompañado del correspondiente Documento de Identificación (DI). El Gestor verificará a la entrada en báscula la adecuación cuantitativa y cualitativa del residuo, su codificación LER y la ausencia de impropios no autorizados.
+                            </p>
+                        </div>
+
+                        <div>
+                            <h4 className="font-bold text-foreground uppercase tracking-wide mb-1">
+                                Cláusula 3ª. Régimen y Obligaciones en caso de Rechazo (Art. 5.h y Arts. 6 y 7 RD 553/2020)
+                            </h4>
+                            <p>
+                                En caso de no conformidad o discrepancia sustancial que impida la recepción, el Gestor notificará motivadamente el rechazo (total o parcial) en un plazo máximo de 30 días naturales desde la llegada a sus instalaciones. En caso de rechazo, el residuo será devuelto a la instalación de origen o reenviado a otra instalación debidamente autorizada a costa del operador del traslado, formalizando la trazabilidad documental correspondiente.
+                            </p>
+                        </div>
+
+                        <div>
+                            <h4 className="font-bold text-foreground uppercase tracking-wide mb-1">
+                                Cláusula 4ª. Trazabilidad Telemática y Validez Jurídica
+                            </h4>
+                            <p>
+                                Ambas partes consienten expresamente la formalización electrónica del contrato y el intercambio telemático de los documentos de traslado (e3l/SIRA u homólogos autonómicos), reconociendo plenos efectos jurídicos al presente documento suscrito mediante firma electrónica de conformidad con la Ley 6/2020.
+                            </p>
+                        </div>
+
+                        {contract.notas && (
+                            <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                                <h4 className="font-bold text-foreground uppercase tracking-wide mb-1">
+                                    Estipulaciones Específicas / Notas
+                                </h4>
+                                <p className="italic">{contract.notas}</p>
+                            </div>
+                        )}
+                    </div>
+                </ComponentCard>
+
+                {/* 4. Selección/Confirmación de Rol y Firma */}
+                {!isFullySigned && (
+                    <ComponentCard title="4. Confirmación de Identidad y Firma Electrónica">
+                        <div className="space-y-6">
+                            {/* Verificación del rol del firmante */}
+                            {contract.firmado_productor && !contract.firmado_gestor ? (
+                                <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-500/30 rounded-xl text-xs text-blue-900 dark:text-blue-200">
+                                    <p className="font-bold">Firmando como: GESTOR DESTINATARIO</p>
+                                    <p className="opacity-80">El Productor ya formalizó su firma el {contract.fecha_firma_productor ? new Date(contract.fecha_firma_productor).toLocaleDateString('es-ES') : ''}. Su firma cerrará y dejará vigente el contrato.</p>
+                                </div>
+                            ) : contract.firmado_gestor && !contract.firmado_productor ? (
+                                <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-500/30 rounded-xl text-xs text-blue-900 dark:text-blue-200">
+                                    <p className="font-bold">Firmando como: PRODUCTOR / REMITENTE</p>
+                                    <p className="opacity-80">El Gestor ya formalizó su firma el {contract.fecha_firma_gestor ? new Date(contract.fecha_firma_gestor).toLocaleDateString('es-ES') : ''}. Su firma cerrará y dejará vigente el contrato.</p>
+                                </div>
+                            ) : roleParam ? (
+                                <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-500/30 rounded-xl text-xs text-blue-900 dark:text-blue-200">
+                                    <p className="font-bold">Firmando como: {selectedRole === 'productor' ? 'PRODUCTOR / CLIENTE' : 'GESTOR DESTINATARIO'}</p>
+                                    <p className="opacity-80">Enlace asignado específicamente para la parte {selectedRole}.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <p className="text-xs font-semibold text-muted uppercase tracking-wider">
+                                        Seleccione en calidad de qué parte suscribe este contrato:
+                                    </p>
+                                    <div className="flex gap-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedRole('productor')}
+                                            disabled={Boolean(contract.firmado_productor)}
+                                            className={`flex-1 p-4 rounded-xl border-2 transition-all text-left ${selectedRole === 'productor'
+                                                ? 'border-primary bg-primary/5 text-primary'
+                                                : 'border-gray-200 dark:border-gray-700 text-gray-500 hover:border-gray-300'
+                                                }`}
+                                        >
+                                            <div className="font-bold text-sm">Productor / Remitente</div>
+                                            <div className="text-[11px] mt-0.5 opacity-80">{productorData?.razon_social}</div>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedRole('gestor')}
+                                            disabled={Boolean(contract.firmado_gestor)}
+                                            className={`flex-1 p-4 rounded-xl border-2 transition-all text-left ${selectedRole === 'gestor'
+                                                ? 'border-primary bg-primary/5 text-primary'
+                                                : 'border-gray-200 dark:border-gray-700 text-gray-500 hover:border-gray-300'
+                                                }`}
+                                        >
+                                            <div className="font-bold text-sm">Gestor Destinatario</div>
+                                            <div className="text-[11px] mt-0.5 opacity-80">{gestorData?.razon_social}</div>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {isRoleAlreadySigned ? (
+                                <Alert
+                                    variant="warning"
+                                    title="Firma Ya Registrada"
+                                    message={`La parte ${selectedRole === 'productor' ? 'Productor' : 'Gestor'} ya ha formalizado su firma en este contrato y no puede sobrescribirse.`}
+                                />
+                            ) : (
+                                <>
+                                    {/* Checkbox obligatorio de aceptación previa de cláusulas */}
+                                    <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 flex items-start gap-3">
+                                        <input
+                                            type="checkbox"
+                                            id="accept-terms-checkbox"
+                                            checked={termsAccepted}
+                                            onChange={(e) => setTermsAccepted(e.target.checked)}
+                                            className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                        />
+                                        <label htmlFor="accept-terms-checkbox" className="text-xs text-foreground cursor-pointer font-medium leading-relaxed">
+                                            He leído, comprendido y acepto íntegramente las cláusulas contractuales, las especificaciones de los residuos con sus códigos LER y las condiciones de aceptación y rechazo del traslado establecidas en este contrato de conformidad con el RD 553/2020.
+                                        </label>
+                                    </div>
+
+                                    {/* Signature Pad */}
+                                    <div className={`transition-opacity ${termsAccepted ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h4 className="text-sm font-bold text-foreground">
+                                                Dibuje su firma manuscrita en el recuadro inferior:
+                                            </h4>
+                                            <span className="text-[10px] text-muted uppercase tracking-wider font-semibold">
+                                                Firma electrónica Ley 6/2020
+                                            </span>
+                                        </div>
+
+                                        <div className="p-2 border-2 border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-900">
+                                            <SignaturePad
+                                                onSave={handleSaveSignature}
+                                                height={240}
+                                            />
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </ComponentCard>
+                )}
+
+                {/* Footer Legal */}
+                <div className="text-center py-4 text-[10px] text-gray-400 dark:text-gray-600 font-medium">
+                    RESIGEST 360 © {new Date().getFullYear()} - Sistema de Gestión y Trazabilidad de Residuos (RD 553/2020)
                 </div>
             </div>
         </div>

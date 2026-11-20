@@ -185,6 +185,9 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       expect(xml).not.toContain('<phone>999999999</phone>');
       expect(xml).not.toContain('pendiente@email.com');
       expect(xml).not.toContain('NIMA-PENDIENTE');
+      // RES6-I12: No forzar código postal inventado 41001 ni 11001 si no viene provisto
+      expect(xml).not.toContain('<CP>11001</CP>');
+      expect(xml).not.toContain('<CP>41001</CP>');
     });
 
     it('debe soportar subcódigos de 4 dígitos y marcar DCSRegional="N" en traslados interautonómicos', () => {

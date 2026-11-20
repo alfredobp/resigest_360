@@ -14,6 +14,7 @@ import type {
   EstadoTraslado,
   RecordDeparturePayload,
   RecordReceptionPayload,
+  RecordExternalReceptionPayload,
   RecordIncidentPayload,
   CompleteTreatmentPayload,
   JustifyDiscrepancyPayload,
@@ -32,6 +33,15 @@ function isCallerTransportistaOnly(userCompany: any): boolean {
     userCompany.tipo_empresa === 'transportista' &&
     (!userCompany.roles || (!userCompany.roles.includes('gestor') && !userCompany.roles.includes('productor')))
   );
+}
+
+/**
+ * Comprueba si la empresa del usuario actúa exclusivamente como productor sin capacidad de gestor.
+ */
+function isCallerProductorOnly(userCompany: any): boolean {
+  if (!userCompany) return false;
+  const roles = userCompany.roles || [];
+  return userCompany.tipo_empresa === 'productor' && !roles.includes('gestor') && !roles.includes('gestor_final');
 }
 
 /**
@@ -903,6 +913,76 @@ export const identificationDocumentService = {
   },
 
   /**
+   * 2b. Registrar Justificante de Recepción de Gestor Externo (Flujo Productor Simplificado - RES6-I05)
+   * Permite al productor registrar el peso recibido en destino y adjuntar el albarán/justificante externo,
+   * sin arrogarse la autocertificación de tratamiento como gestor.
+   */
+  async recordExternalReceptionProof(
+    id: number,
+    payload: RecordExternalReceptionPayload
+  ): Promise<IdentificationDocument> {
+    const doc = await this.getById(id);
+    const pesoOrigen = doc.peso_origen_kg || doc.cantidad || 0;
+    const pesoDestino = payload.peso_destino_kg;
+    const diferencia = pesoDestino - pesoOrigen;
+    const porcentaje = pesoOrigen > 0 ? (diferencia / pesoOrigen) * 100 : 0;
+    const fechaLlegadaIso = normalizeLocalDateTimeToIso(payload.fecha_llegada_destino);
+    const docEvidenciaUrl = payload.justificante_recepcion_url || payload.ticket_pesada_url || '';
+
+    let justificationFields: Partial<IdentificationDocument> = {};
+    if (isWeightDiscrepancy(pesoOrigen, pesoDestino) && (payload.causa_discrepancia || payload.justificacion_discrepancia?.trim())) {
+      justificationFields = await buildJustificationFields({
+        causa: payload.causa_discrepancia as JustifyDiscrepancyPayload['causa'],
+        texto: payload.justificacion_discrepancia || '',
+      });
+    }
+
+    const notaJustificante = payload.observaciones
+      ? `[Justificante de Recepción Externo]: ${payload.observaciones}`
+      : '[Justificante de Recepción Externo registrado por Productor]';
+
+    const updated = await this.update(id, {
+      peso_origen_kg: pesoOrigen,
+      peso_destino_kg: pesoDestino,
+      diferencia_peso_kg: parseFloat(diferencia.toFixed(3)),
+      porcentaje_discrepancia: parseFloat(porcentaje.toFixed(2)),
+      fecha_llegada_destino: fechaLlegadaIso,
+      numero_albaran_gestor: payload.numero_albaran_gestor || doc.numero_albaran_gestor,
+      ticket_pesada_url: docEvidenciaUrl || doc.ticket_pesada_url,
+      justificante_recepcion_url: docEvidenciaUrl || doc.justificante_recepcion_url,
+      resultado_recepcion: 'aceptado',
+      estado_traslado: 'aceptado',
+      notas: doc.notas ? `${doc.notas}\n${notaJustificante}` : notaJustificante,
+      ...justificationFields,
+    });
+
+    try {
+      await syncEntryFromDI(updated);
+    } catch {
+      // Ignorar fallo de sincronización en recepción externa
+    }
+
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'recepcionar_pesada',
+      detalles: {
+        tipo: 'justificante_recepcion_externo',
+        registrado_por: 'productor',
+        peso_origen_kg: pesoOrigen,
+        peso_destino_kg: pesoDestino,
+        diferencia_peso_kg: updated.diferencia_peso_kg,
+        numero_albaran_gestor: payload.numero_albaran_gestor,
+        evidencia_url: docEvidenciaUrl,
+        fecha_llegada_destino: fechaLlegadaIso,
+      },
+    });
+
+    return updated;
+  },
+
+  /**
    * 3. Registrar Incidencia o Rechazo
    */
   async recordIncident(id: number, payload: RecordIncidentPayload): Promise<IdentificationDocument> {
@@ -931,6 +1011,13 @@ export const identificationDocumentService = {
    * y conserva por separado operación prevista y ejecutada.
    */
   async completeTreatment(id: number, payload: CompleteTreatmentPayload): Promise<IdentificationDocument> {
+    const userCompany = await companyService.getUserCompany().catch(() => null);
+    if (isCallerProductorOnly(userCompany)) {
+      throw new Error(
+        'Permiso denegado: Un productor no puede certificar operaciones de tratamiento como gestor (Art. 6 RD 553/2020). Debe registrar el justificante de recepción del gestor externo.'
+      );
+    }
+
     const { data: { user } } = await supabase.auth.getUser();
     const doc = await this.getById(id);
     const executedOp = normalizeOperationCode(payload.operacion_tratamiento);

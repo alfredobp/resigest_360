@@ -531,6 +531,7 @@ export interface IdentificationDocument {
   porcentaje_discrepancia?: number;
   numero_albaran_gestor?: string;
   ticket_pesada_url?: string;
+  justificante_recepcion_url?: string;
   fecha_salida?: string;
   fecha_llegada_destino?: string;
   fecha_tratamiento?: string;
@@ -634,6 +635,17 @@ export interface RecordReceptionPayload {
   dni_gestor?: string;
   firma_gestor_url?: string;
   signatureBase64?: string;
+}
+
+export interface RecordExternalReceptionPayload {
+  peso_destino_kg: number;
+  fecha_llegada_destino?: string;
+  numero_albaran_gestor?: string;
+  ticket_pesada_url?: string;
+  justificante_recepcion_url?: string;
+  observaciones?: string;
+  causa_discrepancia?: CausaDiscrepancia;
+  justificacion_discrepancia?: string;
 }
 
 export type CausaDiscrepancia =

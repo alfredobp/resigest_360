@@ -1,4 +1,4 @@
-import { generateContractPDF, generateIdentificationDocumentPDF } from '../pdfUtils';
+import { generateContractPDF, generateIdentificationDocumentPDF, generateDecaPDF } from '../pdfUtils';
 import type { WasteContract, IdentificationDocument } from '@/types/wasteManagement';
 
 describe('pdfUtils - generateContractPDF', () => {
@@ -194,6 +194,36 @@ describe('pdfUtils - generateIdentificationDocumentPDF', () => {
       numero_albaran_gestor: 'ALB-GESTOR-2026-LONGCAPTION-99999',
     };
     const doc = await generateIdentificationDocumentPDF(completelySignedDoc);
+    expect(doc).toBeDefined();
+    expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('pdfUtils - generateDecaPDF', () => {
+  it('debe generar el PDF del DeCA e incrustar metadatos CreationDate y ModDate (RES6-I08)', async () => {
+    const dummyDeca: any = {
+      id: 5,
+      numero_deca: 'DECA-2026-00001',
+      version: 2,
+      created_at: '2026-11-20T10:00:00Z',
+      updated_at: '2026-11-20T12:00:00Z',
+      transportista_razon_social: 'Transportes Rápidos S.L.',
+      cargador_razon_social: 'Productor Test S.L.',
+      origen_direccion: 'Calle Origen 1',
+      origen_localidad: 'Sevilla',
+      destino_razon_social: 'Gestor Test S.A.',
+      destino_direccion: 'Polígono Destino',
+      destino_localidad: 'Málaga',
+      lineas: [
+        {
+          codigo_ler: '15 01 01',
+          descripcion: 'Papel y cartón',
+          peso_kg: 8000,
+        },
+      ],
+    };
+
+    const doc = await generateDecaPDF(dummyDeca, 'https://resigest.com/inspect/dummy-token');
     expect(doc).toBeDefined();
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
   });

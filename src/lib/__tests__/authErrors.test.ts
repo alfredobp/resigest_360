@@ -1,4 +1,4 @@
-import { getAuthErrorMessage, extractErrorMessage } from '../authErrors';
+import { getAuthErrorMessage, getBusinessErrorMessage, extractErrorMessage } from '../authErrors';
 
 describe('authErrors - Utilidades de errores de autenticación', () => {
   describe('extractErrorMessage', () => {
@@ -169,6 +169,50 @@ describe('authErrors - Utilidades de errores de autenticación', () => {
     it('16. Mensaje desconocido debe devolver fallback en español', () => {
       expect(getAuthErrorMessage('An unknown internal provider error 500')).toBe(
         'No ha sido posible completar la operación. Verifica los datos e inténtalo de nuevo.'
+      );
+    });
+  });
+
+  describe('getBusinessErrorMessage (RES6-I14)', () => {
+    it('debe traducir error de coerción de tipos PostgREST a mensaje amigable', () => {
+      expect(getBusinessErrorMessage('Cannot coerce string "abc" to integer')).toBe(
+        'El identificador o parámetro proporcionado no tiene un formato válido.'
+      );
+    });
+
+    it('debe traducir violaciones de RLS a mensaje de permisos', () => {
+      expect(getBusinessErrorMessage('new row violates row-level security policy for table "identification_documents"')).toBe(
+        'No dispones de permisos suficientes para acceder o modificar este registro.'
+      );
+    });
+
+    it('debe traducir errores de clave foránea', () => {
+      expect(getBusinessErrorMessage('insert or update on table violates foreign key constraint')).toBe(
+        'La entidad vinculada (empresa, centro o contrato) no existe o no está disponible.'
+      );
+    });
+
+    it('debe traducir errores de unicidad / clave duplicada', () => {
+      expect(getBusinessErrorMessage('duplicate key value violates unique constraint "idx_cif"')).toBe(
+        'Ya existe un registro con estos datos únicos identificativos.'
+      );
+    });
+
+    it('debe traducir fallo de red o fetch', () => {
+      expect(getBusinessErrorMessage('Failed to fetch')).toBe(
+        'Error de conexión con el servidor. Comprueba tu conexión a internet o inténtalo de nuevo.'
+      );
+    });
+
+    it('debe traducir expiración de sesión JWT', () => {
+      expect(getBusinessErrorMessage('JWT expired')).toBe(
+        'Tu sesión ha caducado. Inicia sesión de nuevo.'
+      );
+    });
+
+    it('debe devolver fallback cuando la entrada es vacía', () => {
+      expect(getBusinessErrorMessage('')).toBe(
+        'Ha ocurrido un error inesperado. Por favor, inténtalo de nuevo.'
       );
     });
   });

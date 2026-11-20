@@ -92,10 +92,10 @@ export const PROFILE_DEFINITIONS: Record<OperationalProfile, ProfileDefinition> 
     id: 'negociante',
     label: 'Negociante / Intermediario Comercial',
     shortLabel: 'Negociante',
-    description: 'Operaciones comerciales aisladas, márgenes, compras/ventas, logística, contratos, DI y memorias.',
+    description: 'Operaciones comerciales aisladas, márgenes, compras/ventas, logística, contratos, DI, archivo cronológico y memorias.',
     defaultCompanyType: 'negociante',
     defaultRoles: ['negociante'],
-    defaultModules: ['empresas', 'contratos', 'gestores', 'flota_transporte', 'di', 'deca', 'operaciones_comerciales', 'memorias_anuales'],
+    defaultModules: ['empresas', 'contratos', 'gestores', 'flota_transporte', 'di', 'deca', 'archivo_cronologico', 'operaciones_comerciales', 'memorias_anuales'],
     homePath: '/app',
   },
   completo: {

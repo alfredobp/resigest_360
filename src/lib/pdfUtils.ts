@@ -1435,6 +1435,31 @@ export async function generateDecaPDF(deca: DecaDocument, inspectionUrl: string)
     format: 'a4',
   });
 
+  // RES6-I08 / D05: Incrustar CreationDate y ModDate en metadatos técnicos según Resolución 5/6/2026
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const formatPDFDate = (date: Date): string => {
+    const tzOffset = -date.getTimezoneOffset();
+    const tzSign = tzOffset >= 0 ? '+' : '-';
+    const tzH = pad(Math.floor(Math.abs(tzOffset) / 60));
+    const tzM = pad(Math.abs(tzOffset) % 60);
+    return `D:${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}${tzSign}${tzH}'${tzM}'`;
+  };
+
+  const cDate = deca.created_at ? new Date(deca.created_at) : new Date();
+  const mDate = deca.updated_at ? new Date(deca.updated_at) : cDate;
+
+  doc.setProperties({
+    title: `DeCA ${deca.numero_deca || ''} v${deca.version || 1}`,
+    subject: 'Documento Electrónico de Control y Acompañamiento (DeCA) - RD 553/2020',
+    author: deca.transportista_razon_social || 'ResiGest 360',
+    creator: 'ResiGest 360 Medio Ambiente',
+    modDate: formatPDFDate(mDate),
+  } as any);
+
+  if (typeof (doc as any).setCreationDate === 'function') {
+    (doc as any).setCreationDate(cDate);
+  }
+
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 

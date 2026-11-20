@@ -212,8 +212,26 @@ export async function createChronologicalEntry(
 
   const numero_asiento = await getNextChronologicalAsientoNumber(supabase, user.id, year, 1);
 
+  // RES6-I11: Resolver destino_nima si no viene explícito pero existe production_center_id
+  let destino_nima = data.destino_nima || null;
+  if (!destino_nima && data.production_center_id) {
+    try {
+      const pcTable: any = supabase.from('production_centers');
+      if (pcTable && typeof pcTable.select === 'function') {
+        const { data: center } = await pcTable
+          .select('nima')
+          .eq('id', data.production_center_id)
+          .maybeSingle();
+        if (center?.nima) destino_nima = center.nima;
+      }
+    } catch {
+      // Continuar con destino_nima existente
+    }
+  }
+
   const payload = {
     ...data,
+    destino_nima,
     user_id: user.id,
     numero_asiento,
     peligrosidad: data.codigo_ler.includes('*') ? 'peligroso' : data.peligrosidad
@@ -471,7 +489,7 @@ export async function syncEntryFromCommercialOperation(
       op.destino_gestor?.razon_social ||
       op.cliente_razon_social ||
       null,
-    destino_nima: op.destino_nima || op.destino_gestor?.nima || null,
+    destino_nima: op.destino_nima || (op as any).destino_center?.nima || op.destino_gestor?.nima || null,
     destino_autorizacion:
       op.destino_autorizacion || op.destino_gestor?.numero_autorizacion || null,
     operacion_rd: op.operacion_rd || null,
@@ -593,7 +611,7 @@ export function exportChronologicalToCSV(entries: ChronologicalEntry[]): void {
     e.transportista_matricula || '',
     e.destino_nif || '',
     `"${(e.destino_razon_social || '').replace(/"/g, '""')}"`,
-    e.destino_nima || '',
+    e.destino_nima || e.production_center?.nima || '',
     e.destino_autorizacion || '',
     e.operacion_rd || '',
     e.numero_documento_referencia || '',
@@ -639,7 +657,7 @@ export function exportChronologicalToExcelXML(entries: ChronologicalEntry[]): vo
       <Cell><Data ss:Type="String">${e.transportista_matricula || ''}</Data></Cell>
       <Cell><Data ss:Type="String">${e.destino_nif || ''}</Data></Cell>
       <Cell><Data ss:Type="String">${(e.destino_razon_social || '').replace(/[<>&]/g, '')}</Data></Cell>
-      <Cell><Data ss:Type="String">${e.destino_nima || ''}</Data></Cell>
+      <Cell><Data ss:Type="String">${e.destino_nima || e.production_center?.nima || ''}</Data></Cell>
       <Cell><Data ss:Type="String">${e.destino_autorizacion || ''}</Data></Cell>
       <Cell><Data ss:Type="String">${e.operacion_rd || ''}</Data></Cell>
       <Cell><Data ss:Type="String">${e.numero_documento_referencia || ''}</Data></Cell>

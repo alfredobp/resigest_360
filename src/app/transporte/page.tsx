@@ -106,8 +106,9 @@ export default function TransporteMobileHomePage() {
     tenant?.userEmail &&
     (tenant.userEmail.endsWith('.test') || tenant.userEmail === 'demo@resigest.com');
 
-  const activeDecas = decas.filter((d) => d.estado !== 'anulado' && d.estado !== 'finalizado');
-  const finishedDecas = decas.filter((d) => d.estado === 'finalizado');
+  // RES6-I09 / D04: Filtrar exclusivamente versiones vigentes del servicio
+  const activeDecas = decas.filter((d) => d.is_vigente !== false && d.estado !== 'anulado' && d.estado !== 'finalizado' && d.estado !== 'sustituido');
+  const finishedDecas = decas.filter((d) => d.is_vigente !== false && d.estado === 'finalizado');
   const disEnTransito = dis.filter((d) => d.estado_traslado === 'en_transito');
 
   return (

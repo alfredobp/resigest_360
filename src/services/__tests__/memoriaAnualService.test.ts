@@ -1250,6 +1250,62 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
       expect(resNull).toBeNull();
     });
 
+    it('debe reconciliar DIs cuando documentos_identificacion_ids está vacío (RES6-I04)', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      const mockMemoria: Partial<MemoriaAnual> = {
+        id: 11,
+        user_id: mockUser.id,
+        company_id: 1,
+        año: 2026,
+        production_center_id: 10,
+        tipo_memoria: 'productor',
+        documentos_identificacion_ids: [],
+      };
+
+      const memChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: mockMemoria, error: null }),
+      };
+
+      const mockDIs = [
+        {
+          id: 55,
+          codigo_ler: '15 01 01',
+          descripcion_residuo: 'Envases de papel y cartón',
+          peso_origen_kg: 2500,
+          peso_destino_kg: 2500,
+          unidad: 'kg',
+          gestor_cif: 'B99999999',
+          gestor_razon_social: 'Reciclajes Norte SL',
+          numero_documento: 'DI-2026-00055',
+          company_id: 1,
+          production_center_id: 10,
+          fecha_documento: '2026-04-15',
+          estado: 'completado',
+        },
+      ];
+
+      const diChain: any = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        in: jest.fn().mockReturnThis(),
+      };
+      diChain.then = (resolve: any) => resolve({ data: mockDIs, error: null });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'memorias_anuales') return memChain;
+        if (table === 'identification_documents') return diChain;
+        return null;
+      });
+
+      const result = await generateExcelData(11);
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBe(1);
+      expect(result[0].codigo_ler).toBe('15 01 01');
+      expect(result[0].cantidad_toneladas).toBe(2.5);
+    });
+
     it('debe fallar si la memoria no existe', async () => {
       mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const memChain = {

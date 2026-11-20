@@ -393,10 +393,10 @@ export const decaService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
-    // 1. Marcar versión anterior como no vigente
+    // 1. Marcar versión anterior como no vigente y sustituida (RES6-I09)
     await supabase
       .from('deca_documents')
-      .update({ is_vigente: false, updated_at: new Date().toISOString() })
+      .update({ is_vigente: false, estado: 'sustituido', updated_at: new Date().toISOString() })
       .eq('id', currentDeca.id)
       .eq('user_id', user.id);
 
@@ -487,6 +487,20 @@ export const decaService = {
 
     if (error) {
       throw new Error(`Error al finalizar servicio DeCA: ${error.message}`);
+    }
+
+    // RES6-I09 / D04: Unificar cierre de familia documental; cerrar versiones previas para que no queden vigentes
+    if (data?.numero_deca) {
+      try {
+        await supabase
+          .from('deca_documents')
+          .update({ is_vigente: false, estado: 'finalizado', updated_at: now })
+          .eq('numero_deca', data.numero_deca)
+          .eq('user_id', user.id)
+          .neq('id', id);
+      } catch (e) {
+        console.warn('Nota al cerrar versiones históricas de DeCA:', e);
+      }
     }
 
     await this.logAudit(id, 'finalizacion', data.version, { fecha_finalizacion: now });

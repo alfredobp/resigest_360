@@ -41,6 +41,9 @@ describe('moduleCatalog - Perfiles Operativos y Módulos', () => {
       const transMods = getDefaultModulesForProfile('transportista');
       expect(transMods).toEqual(['di', 'deca', 'flota_transporte']);
 
+      const negMods = getDefaultModulesForProfile('negociante');
+      expect(negMods).toContain('archivo_cronologico');
+
       expect(getDefaultModulesForProfile('chatarreria')).toContain('contratos');
       expect(getDefaultModulesForProfile('completo')).toEqual(ALL_MODULES);
     });

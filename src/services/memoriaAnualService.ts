@@ -390,15 +390,32 @@ export async function generateExcelData(
 
   const supabase = createClient();
 
-  // Obtener todos los documentos de identificación incluidos
-  const { data: documentos, error } = await supabase
-    .from('identification_documents')
-    .select('*')
-    .eq('user_id', memoria.user_id)
-    .in('id', memoria.documentos_identificacion_ids);
+  const ids = Array.isArray(memoria.documentos_identificacion_ids)
+    ? memoria.documentos_identificacion_ids.filter((id: any) => id != null)
+    : [];
 
-  if (error) throw error;
-  if (!documentos) return null;
+  let documentos: any[] = [];
+
+  if (ids.length > 0) {
+    // Obtener todos los documentos de identificación incluidos
+    const { data, error } = await supabase
+      .from('identification_documents')
+      .select('*')
+      .eq('user_id', memoria.user_id)
+      .in('id', ids);
+
+    if (error) throw error;
+    if (data === null) return null;
+    documentos = data;
+  } else {
+    // RES6-I04: Si no hay IDs guardados (array vacío), reconciliar con los DIs del año y centro
+    documentos = await getDocumentosIdentificacionByYear(
+      memoria.user_id,
+      memoria.company_id,
+      memoria.año,
+      memoria.production_center_id
+    );
+  }
 
   // Generar datos según el tipo de memoria
   switch (memoria.tipo_memoria) {
@@ -725,32 +742,44 @@ async function getDocumentosIdentificacionByYear(
 ): Promise<IdentificationDocument[]> {
   const supabase = createClient();
 
-  const fecha_inicio = `${año}-01-01`;
-  const fecha_fin = `${año}-12-31`;
-
-  let query = supabase
+  const query = supabase
     .from('identification_documents')
     .select('*')
     .eq('user_id', userId)
-    .eq('company_id', companyId)
-    .gte('fecha_documento', fecha_inicio)
-    .lte('fecha_documento', fecha_fin);
-
-  if (productionCenterId && productionCenterId > 0) {
-    query = query.eq('production_center_id', productionCenterId);
-  }
+    .eq('company_id', companyId);
 
   const { data, error } = await query;
   if (error) throw error;
   
-  const docs = data || [];
-  // Filtrar documentos que tengan estado completado, aceptado, tratado o traslado aceptado/cerrado
-  return docs.filter(doc => 
-    doc.estado === 'completado' ||
-    doc.estado === 'aceptado' ||
-    doc.estado === 'tratado' ||
-    ['aceptado', 'rechazado_parcial', 'tratado', 'entregado', 'aceptado_en_destino', 'tratado_cerrado'].includes(doc.estado_traslado || '')
-  );
+  const docs = (data || []) as IdentificationDocument[];
+
+  // RES6-I04 / D06: Conciliación exacta de movimientos entre archivo cronológico y memoria anual:
+  // 1. Considerar fecha de recepción, salida o documento dentro del año de ejercicio.
+  // 2. Si se especifica centro, incluir los del centro y los emitidos desde sede (production_center_id null).
+  // 3. Incluir documentos en estado aceptado, completado o tratado.
+  return docs.filter(doc => {
+    const docDateStr = (doc as any).fecha_recepcion || doc.fecha_llegada_destino || doc.fecha_salida || doc.fecha_documento;
+    if (docDateStr) {
+      const docDate = new Date(docDateStr);
+      if (!isNaN(docDate.getTime()) && docDate.getFullYear() !== año) {
+        return false;
+      }
+    }
+
+    if (productionCenterId && productionCenterId > 0) {
+      if (doc.production_center_id && doc.production_center_id !== productionCenterId) {
+        return false;
+      }
+    }
+
+    const isEligible =
+      doc.estado === 'completado' ||
+      (doc.estado as string) === 'aceptado' ||
+      (doc.estado as string) === 'tratado' ||
+      ['aceptado', 'rechazado_parcial', 'tratado', 'entregado', 'aceptado_en_destino', 'tratado_cerrado'].includes(doc.estado_traslado || '');
+
+    return isEligible;
+  });
 }
 
 function calculateResumenLER(documentos: IdentificationDocument[]): ResumenLER[] {
