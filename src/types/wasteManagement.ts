@@ -61,6 +61,24 @@ export interface TreatmentManagerFormData {
   holded_contact_id?: string;
 }
 
+export interface FleetVehicle {
+  id: string;
+  matricula: string;
+  tipo?: string; // 'Tractora', 'Rígido', 'Portacontenedores', 'Furgón', 'Cisterna'
+  remolque?: string;
+  autorizacion_especial?: string;
+  activo?: boolean;
+}
+
+export interface FleetDriver {
+  id: string;
+  nombre: string;
+  dni?: string;
+  telefono?: string;
+  vehiculo_asignado?: string; // matrícula
+  activo?: boolean;
+}
+
 export interface Carrier {
   id: number;
   user_id: string;
@@ -73,6 +91,10 @@ export interface Carrier {
 
   // Vehículo
   matricula?: string;
+
+  // Flota de medios y conductores (UXDEV-08)
+  flota_vehiculos?: FleetVehicle[];
+  flota_conductores?: FleetDriver[];
 
   // Domicilio
   direccion?: string;
@@ -105,6 +127,8 @@ export interface CarrierFormData {
   nima?: string;
   numero_autorizacion?: string;
   matricula?: string;
+  flota_vehiculos?: FleetVehicle[];
+  flota_conductores?: FleetDriver[];
   direccion?: string;
   codigo_postal?: string;
   municipio?: string;

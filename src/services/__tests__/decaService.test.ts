@@ -800,4 +800,77 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       expect(decaService.isTokenExpired(doc)).toBe(true);
     });
   });
+
+  describe('filterVigenteServices (UXDEV-04 / UX-12)', () => {
+    it('debe garantizar que si v2 está finalizada, v1 nunca aparece como activa en ruta', () => {
+      const decas: DecaDocument[] = [
+        // v1 histórica de 10 kg
+        {
+          id: 1,
+          numero_deca: 'DECA-2026-00001',
+          version: 1,
+          is_vigente: false,
+          estado: 'vigente', // Estado desfasado en BD
+          peso_kg: 10,
+        } as any,
+        // v2 finalizada de 8 kg
+        {
+          id: 2,
+          numero_deca: 'DECA-2026-00001-v2',
+          version: 2,
+          is_vigente: true,
+          estado: 'finalizado',
+          peso_kg: 8,
+          fecha_finalizacion: '2026-11-20T10:00:00Z',
+        } as any,
+      ];
+
+      const { activeDecas, finishedDecas, allLatest } = decaService.filterVigenteServices(decas);
+
+      expect(allLatest).toHaveLength(1);
+      expect(allLatest[0].version).toBe(2);
+      expect(allLatest[0].peso_kg).toBe(8);
+
+      // v1 no debe aparecer en activeDecas bajo ninguna circunstancia
+      expect(activeDecas).toHaveLength(0);
+
+      // v2 debe constar en finishedDecas
+      expect(finishedDecas).toHaveLength(1);
+      expect(finishedDecas[0].id).toBe(2);
+      expect(finishedDecas[0].version).toBe(2);
+    });
+
+    it('debe seleccionar exclusivamente la versión más alta activa cuando hay rectificación vigente', () => {
+      const decas: DecaDocument[] = [
+        {
+          id: 10,
+          numero_deca: 'DECA-2026-00050',
+          version: 1,
+          is_vigente: false,
+          estado: 'sustituido',
+        } as any,
+        {
+          id: 11,
+          numero_deca: 'DECA-2026-00050-v2',
+          version: 2,
+          is_vigente: true,
+          estado: 'en_transito',
+        } as any,
+      ];
+
+      const { activeDecas, finishedDecas } = decaService.filterVigenteServices(decas);
+
+      expect(activeDecas).toHaveLength(1);
+      expect(activeDecas[0].version).toBe(2);
+      expect(activeDecas[0].estado).toBe('en_transito');
+      expect(finishedDecas).toHaveLength(0);
+    });
+
+    it('debe manejar array vacío de forma segura', () => {
+      const result = decaService.filterVigenteServices([]);
+      expect(result.activeDecas).toEqual([]);
+      expect(result.finishedDecas).toEqual([]);
+      expect(result.allLatest).toEqual([]);
+    });
+  });
 });

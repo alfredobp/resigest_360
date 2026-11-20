@@ -24,7 +24,7 @@ jest.mock('../companyService', () => ({
   companyService: mockCompanyService,
 }));
 
-import { carrierService } from '../carrierService';
+import { carrierService, parseFleetFromNotes, serializeFleetToNotes } from '../carrierService';
 import type { Carrier, CarrierFormData } from '@/types/wasteManagement';
 
 describe('carrierService - Gestión de Transportistas e Integración', () => {
@@ -120,7 +120,14 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
 
       const result = await carrierService.getAll();
 
-      expect(result).toEqual(carriersList);
+      expect(result).toEqual([
+        expect.objectContaining({
+          id: 1,
+          user_id: 'user-1',
+          razon_social: 'Trans A',
+          cif: 'B11111111',
+        }),
+      ]);
       expect(consoleWarnSpy).toHaveBeenCalled();
       consoleWarnSpy.mockRestore();
     });
@@ -143,7 +150,7 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
 
       expect(eqMock).toHaveBeenCalledWith('id', 5);
       expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-1');
-      expect(result).toEqual(mockCarrier);
+      expect(result).toEqual(expect.objectContaining(mockCarrier));
     });
 
     it('debe lanzar error si la consulta por ID falla', async () => {
@@ -302,7 +309,7 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
         expect.objectContaining({ name: 'Nombre Nuevo' }),
         'holded_api_key_abc'
       );
-      expect(result).toEqual(updatedCarrier);
+      expect(result).toEqual(expect.objectContaining(updatedCarrier));
     });
 
     it('debe actualizar el transportista sin fallar si la actualización en Holded arroja error', async () => {
@@ -332,7 +339,7 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
 
       const result = await carrierService.update(5, { razon_social: 'Nombre' });
 
-      expect(result).toEqual(updatedCarrier);
+      expect(result).toEqual(expect.objectContaining(updatedCarrier));
       expect(consoleErrorSpy).toHaveBeenCalled();
       consoleErrorSpy.mockRestore();
     });
@@ -415,6 +422,226 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
       await expect(carrierService.update(1, {})).rejects.toThrow('Usuario no autenticado');
       await expect(carrierService.softDelete(1)).rejects.toThrow('Usuario no autenticado');
       await expect(carrierService.delete(1)).rejects.toThrow('Usuario no autenticado');
+    });
+  });
+
+  describe('Gestión de Flota (UXDEV-08 / UX-10)', () => {
+    it('debe permitir añadir y eliminar vehículos bajo una empresa sin duplicar su CIF', async () => {
+      const mockCarrier = {
+        id: 10,
+        user_id: 'user-1',
+        razon_social: 'TransLogística Express S.L.',
+        cif: 'B99062032',
+        matricula: '0620RST',
+        flota_vehiculos: [
+          { id: 'veh-main', matricula: '0620RST', tipo: 'Principal', activo: true },
+        ],
+        flota_conductores: [],
+        activo: true,
+      };
+
+      jest.spyOn(carrierService, 'getById').mockResolvedValue(mockCarrier as any);
+      const updateSpy = jest.spyOn(carrierService, 'update').mockImplementation(async (_id, data) => {
+        return {
+          ...mockCarrier,
+          ...data,
+        } as any;
+      });
+
+      // Añadir segundo camión
+      const updatedAfterAdd = await carrierService.addVehicle(10, {
+        matricula: '4812MTR',
+        tipo: 'Rígido',
+        activo: true,
+      });
+
+      expect(updateSpy).toHaveBeenCalledWith(10, {
+        flota_vehiculos: [
+          { id: 'veh-main', matricula: '0620RST', tipo: 'Principal', activo: true },
+          expect.objectContaining({ matricula: '4812MTR', tipo: 'Rígido' }),
+        ],
+      });
+
+      // Eliminar vehículo
+      jest.spyOn(carrierService, 'getById').mockResolvedValue({
+        ...mockCarrier,
+        flota_vehiculos: updatedAfterAdd.flota_vehiculos,
+      } as any);
+
+      await carrierService.removeVehicle(10, '4812MTR');
+
+      expect(updateSpy).toHaveBeenLastCalledWith(10, {
+        flota_vehiculos: [
+          { id: 'veh-main', matricula: '0620RST', tipo: 'Principal', activo: true },
+        ],
+      });
+
+      updateSpy.mockRestore();
+    });
+
+    it('debe permitir añadir y eliminar conductores asignables', async () => {
+      const mockCarrier = {
+        id: 10,
+        user_id: 'user-1',
+        razon_social: 'TransLogística Express S.L.',
+        cif: 'B99062032',
+        flota_vehiculos: [],
+        flota_conductores: [],
+        activo: true,
+      };
+
+      jest.spyOn(carrierService, 'getById').mockResolvedValue(mockCarrier as any);
+      const updateSpy = jest.spyOn(carrierService, 'update').mockImplementation(async (_id, data) => {
+        return {
+          ...mockCarrier,
+          ...data,
+        } as any;
+      });
+
+      // Añadir conductor
+      await carrierService.addDriver(10, {
+        nombre: 'Carlos Conductor',
+        dni: '50123456A',
+        telefono: '+34 600 111 222',
+        vehiculo_asignado: '0620RST',
+      });
+
+      expect(updateSpy).toHaveBeenCalledWith(10, {
+        flota_conductores: [
+          expect.objectContaining({
+            nombre: 'Carlos Conductor',
+            dni: '50123456A',
+            vehiculo_asignado: '0620RST',
+          }),
+        ],
+      });
+
+      // Eliminar conductor
+      jest.spyOn(carrierService, 'getById').mockResolvedValue({
+        ...mockCarrier,
+        flota_conductores: [
+          { id: 'drv-1', nombre: 'Carlos Conductor', dni: '50123456A' },
+        ],
+      } as any);
+
+      await carrierService.removeDriver(10, 'drv-1');
+
+      expect(updateSpy).toHaveBeenLastCalledWith(10, {
+        flota_conductores: [],
+      });
+
+      updateSpy.mockRestore();
+    });
+
+    it('parseFleetFromNotes y serializeFleetToNotes deben manejar todos los casos borde', () => {
+      // 1. undefined / null
+      expect(parseFleetFromNotes(undefined)).toEqual({ userNotes: '', vehicles: [], drivers: [] });
+      expect(parseFleetFromNotes('')).toEqual({ userNotes: '', vehicles: [], drivers: [] });
+
+      // 2. texto plano
+      expect(parseFleetFromNotes('Notas de prueba')).toEqual({
+        userNotes: 'Notas de prueba',
+        vehicles: [],
+        drivers: [],
+      });
+
+      // 3. json malformado
+      expect(parseFleetFromNotes('{"_fleet": invalid json}')).toEqual({
+        userNotes: '{"_fleet": invalid json}',
+        vehicles: [],
+        drivers: [],
+      });
+
+      // 4. json válido
+      const serialized = serializeFleetToNotes('Notas válidas', [
+        { id: 'v1', matricula: '1234BBB', tipo: 'Tractora' },
+      ], [
+        { id: 'd1', nombre: 'Juan' },
+      ]);
+      const parsed = parseFleetFromNotes(serialized);
+      expect(parsed.userNotes).toBe('Notas válidas');
+      expect(parsed.vehicles).toHaveLength(1);
+      expect(parsed.drivers).toHaveLength(1);
+
+      // 5. serialize con flota vacía retorna el texto plano
+      expect(serializeFleetToNotes('Texto solo', [], [])).toBe('Texto solo');
+      expect(serializeFleetToNotes('', [], [])).toBe('');
+    });
+
+    it('métodos de flota deben fallar si el transportista no existe', async () => {
+      jest.spyOn(carrierService, 'getById').mockResolvedValue(null);
+
+      await expect(carrierService.addVehicle(999, { matricula: '1111AAA' })).rejects.toThrow('Transportista no encontrado');
+      await expect(carrierService.removeVehicle(999, '1111AAA')).rejects.toThrow('Transportista no encontrado');
+      await expect(carrierService.addDriver(999, { nombre: 'Pedro' })).rejects.toThrow('Transportista no encontrado');
+      await expect(carrierService.removeDriver(999, 'drv-999')).rejects.toThrow('Transportista no encontrado');
+
+      jest.restoreAllMocks();
+    });
+
+    it('create y update deben serializar la flota en notas si se proporcionan', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'u1' } } });
+      mockCompanyService.getUserCompany.mockResolvedValue(null);
+
+      const fakeDbCarrier = {
+        id: 77,
+        user_id: 'u1',
+        razon_social: 'Trans Flota',
+        cif: 'B77777777',
+        matricula: '7777BBB',
+        persona_contacto: 'Ana Chofer',
+        notas: '',
+        activo: true,
+      };
+
+      const insertMock = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          single: jest.fn().mockResolvedValue({ data: fakeDbCarrier, error: null }),
+        }),
+      });
+      const updateMock = jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            select: jest.fn().mockReturnValue({
+              single: jest.fn().mockResolvedValue({ data: fakeDbCarrier, error: null }),
+            }),
+          }),
+        }),
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'carriers') {
+          return {
+            insert: insertMock,
+            update: updateMock,
+          };
+        }
+        return {};
+      });
+
+      // Create con flota
+      const created = await carrierService.create({
+        razon_social: 'Trans Flota',
+        cif: 'B77777777',
+        matricula: '7777BBB',
+        persona_contacto: 'Ana Chofer',
+        flota_vehiculos: [{ id: 'v1', matricula: '7777BBB', tipo: 'Principal' }],
+        flota_conductores: [{ id: 'd1', nombre: 'Ana Chofer' }],
+      });
+
+      expect(created.flota_vehiculos).toHaveLength(1);
+      expect(created.flota_conductores).toHaveLength(1);
+
+      // Update con notas y flota
+      jest.spyOn(carrierService, 'getById').mockResolvedValue(created);
+      const updated = await carrierService.update(77, {
+        notas: 'Nuevas notas',
+        flota_vehiculos: [{ id: 'v1', matricula: '7777BBB' }, { id: 'v2', matricula: '8888CCC' }],
+      });
+
+      expect(updateMock).toHaveBeenCalled();
+      expect(updated.id).toBe(77);
+      jest.restoreAllMocks();
     });
   });
 });

@@ -31,6 +31,56 @@ function generateSecureToken(): string {
   return token;
 }
 
+/**
+ * RES6-I09 / UXDEV-04 / UX-12:
+ * Resuelve y clasifica documentos DeCA garantizando coherencia de familia documental:
+ * Para cualquier servicio con múltiples versiones (v1, v2...), solo la versión más reciente
+ * representa el estado del servicio. Una versión histórica v1 nunca se muestra como activa en ruta
+ * si existe una v2 o si la revisión actual está finalizada.
+ */
+export function filterVigenteServices(decas: DecaDocument[]): {
+  activeDecas: DecaDocument[];
+  finishedDecas: DecaDocument[];
+  allLatest: DecaDocument[];
+} {
+  if (!decas || decas.length === 0) {
+    return { activeDecas: [], finishedDecas: [], allLatest: [] };
+  }
+
+  // Agrupar por identificador base de familia
+  const familyMap = new Map<string, DecaDocument[]>();
+
+  for (const doc of decas) {
+    const rawNum = doc.numero_deca || '';
+    const baseNum = rawNum.replace(/-v\d+$/, '').trim() || `id-${doc.id}`;
+    const list = familyMap.get(baseNum) || [];
+    list.push(doc);
+    familyMap.set(baseNum, list);
+  }
+
+  const allLatest: DecaDocument[] = [];
+  const activeDecas: DecaDocument[] = [];
+  const finishedDecas: DecaDocument[] = [];
+
+  for (const [, docs] of familyMap) {
+    // Ordenar de mayor a menor versión e ID
+    docs.sort((a, b) => (b.version - a.version) || (b.id - a.id));
+    const latest = docs[0];
+    allLatest.push(latest);
+
+    if (latest.estado === 'finalizado') {
+      finishedDecas.push(latest);
+    } else if (
+      (latest.estado === 'vigente' || latest.estado === 'en_transito') &&
+      latest.is_vigente !== false
+    ) {
+      activeDecas.push(latest);
+    }
+  }
+
+  return { activeDecas, finishedDecas, allLatest };
+}
+
 export const decaService = {
   /**
    * Obtener todos los documentos DeCA de la empresa/usuario actual
@@ -393,7 +443,7 @@ export const decaService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
-    // 1. Marcar versión anterior como no vigente y sustituida (RES6-I09)
+    // 1. Marcar versión anterior como no vigente y sustituida (RES6-I09 / UXDEV-04)
     await supabase
       .from('deca_documents')
       .update({ is_vigente: false, estado: 'sustituido', updated_at: new Date().toISOString() })
@@ -489,13 +539,14 @@ export const decaService = {
       throw new Error(`Error al finalizar servicio DeCA: ${error.message}`);
     }
 
-    // RES6-I09 / D04: Unificar cierre de familia documental; cerrar versiones previas para que no queden vigentes
+    // RES6-I09 / UXDEV-04: Unificar cierre de familia documental; cerrar versiones previas para que no queden vigentes
     if (data?.numero_deca) {
       try {
+        const baseNumero = data.numero_deca.replace(/-v\d+$/, '').trim();
         await supabase
           .from('deca_documents')
           .update({ is_vigente: false, estado: 'finalizado', updated_at: now })
-          .eq('numero_deca', data.numero_deca)
+          .ilike('numero_deca', `${baseNumero}%`)
           .eq('user_id', user.id)
           .neq('id', id);
       } catch (e) {
@@ -505,6 +556,21 @@ export const decaService = {
 
     await this.logAudit(id, 'finalizacion', data.version, { fecha_finalizacion: now });
     return data as DecaDocument;
+  },
+
+  /**
+   * RES6-I09 / UXDEV-04 / UX-12:
+   * Resuelve y clasifica documentos DeCA garantizando coherencia de familia documental:
+   * Para cualquier servicio con múltiples versiones (v1, v2...), solo la versión más reciente
+   * representa el estado del servicio. Una versión histórica v1 nunca se muestra como activa en ruta
+   * si existe una v2 o si la revisión actual está finalizada.
+   */
+  filterVigenteServices(decas: DecaDocument[]): {
+    activeDecas: DecaDocument[];
+    finishedDecas: DecaDocument[];
+    allLatest: DecaDocument[];
+  } {
+    return filterVigenteServices(decas);
   },
 
   /**

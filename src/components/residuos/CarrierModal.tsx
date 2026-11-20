@@ -224,13 +224,14 @@ export default function CarrierModal({
                         </div>
 
                         <div>
-                            <Label htmlFor="carrier_matricula">Matrícula</Label>
+                            <Label htmlFor="carrier_matricula">Matrícula Principal</Label>
                             <Input
                                 id="carrier_matricula"
                                 name="matricula"
                                 value={formData.matricula}
                                 onChange={handleChange}
                                 placeholder="1234BBB"
+                                hint="Vehículo principal. Para añadir múltiples camiones bajo este CIF, usa el botón Gestionar Flota."
                             />
                         </div>
 

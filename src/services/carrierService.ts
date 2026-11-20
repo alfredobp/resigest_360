@@ -4,11 +4,79 @@
 // =====================================================
 
 import { createClient } from '@/lib/supabase/client';
-import type { Carrier, CarrierFormData } from '@/types/wasteManagement';
+import type { Carrier, CarrierFormData, FleetVehicle, FleetDriver } from '@/types/wasteManagement';
 import { holdedService } from './holdedService';
 import { companyService } from './companyService';
 
 const supabase = createClient();
+
+/**
+ * Utilidades para parsear y persistir la flota de medios y conductores (UXDEV-08)
+ */
+export function parseFleetFromNotes(notas?: string): { userNotes: string; vehicles: FleetVehicle[]; drivers: FleetDriver[] } {
+    if (!notas) return { userNotes: '', vehicles: [], drivers: [] };
+    const trimmed = notas.trim();
+    if (trimmed.startsWith('{') && trimmed.includes('"_fleet"')) {
+        try {
+            const parsed = JSON.parse(trimmed);
+            return {
+                userNotes: parsed.notes || '',
+                vehicles: Array.isArray(parsed._fleet?.vehicles) ? parsed._fleet.vehicles : [],
+                drivers: Array.isArray(parsed._fleet?.drivers) ? parsed._fleet.drivers : [],
+            };
+        } catch {
+            // Fallback a texto plano si falla el parseo
+        }
+    }
+    return { userNotes: notas, vehicles: [], drivers: [] };
+}
+
+export function serializeFleetToNotes(userNotes: string = '', vehicles: FleetVehicle[] = [], drivers: FleetDriver[] = []): string {
+    const hasVehicles = Array.isArray(vehicles) && vehicles.length > 0;
+    const hasDrivers = Array.isArray(drivers) && drivers.length > 0;
+    if (!hasVehicles && !hasDrivers) {
+        return userNotes || '';
+    }
+    return JSON.stringify({
+        notes: userNotes || '',
+        _fleet: {
+            vehicles: vehicles || [],
+            drivers: drivers || [],
+        },
+    });
+}
+
+function enrichCarrierWithFleet(c: any): Carrier {
+    const { userNotes, vehicles, drivers } = parseFleetFromNotes(c.notas);
+    const vehicleList: FleetVehicle[] = [...vehicles];
+
+    // Si tiene matrícula principal en la ficha y no está en la lista de vehículos, incluirla como predeterminada
+    if (c.matricula && !vehicleList.some((v) => v.matricula.replace(/\s+/g, '').toUpperCase() === c.matricula.replace(/\s+/g, '').toUpperCase())) {
+        vehicleList.unshift({
+            id: 'veh-main',
+            matricula: c.matricula,
+            tipo: 'Principal',
+            activo: true,
+        });
+    }
+
+    const driverList: FleetDriver[] = [...drivers];
+    if (c.persona_contacto && !driverList.some((d) => d.nombre.trim().toLowerCase() === c.persona_contacto.trim().toLowerCase())) {
+        driverList.unshift({
+            id: 'drv-main',
+            nombre: c.persona_contacto,
+            telefono: c.telefono,
+            activo: true,
+        });
+    }
+
+    return {
+        ...c,
+        notas: userNotes,
+        flota_vehiculos: vehicleList,
+        flota_conductores: driverList,
+    };
+}
 
 export const carrierService = {
     /**
@@ -87,7 +155,7 @@ export const carrierService = {
             console.warn('Nota: compatibilidad con tabla companies unificada:', e);
         }
 
-        return list;
+        return list.map(enrichCarrierWithFleet);
     },
 
     /**
@@ -110,7 +178,7 @@ export const carrierService = {
             throw new Error(`Error al obtener transportista: ${error.message}`);
         }
 
-        return data as Carrier;
+        return enrichCarrierWithFleet(data);
     },
 
     /**
@@ -122,6 +190,13 @@ export const carrierService = {
             throw new Error('Usuario no autenticado');
         }
 
+        const { flota_vehiculos, flota_conductores, ...restCarrierData } = carrierData;
+        const serializedNotes = serializeFleetToNotes(
+            restCarrierData.notas || '',
+            flota_vehiculos || [],
+            flota_conductores || []
+        );
+
         // Obtener la empresa para usar su API Key de Holded
         const company = await companyService.getUserCompany();
         const holdedApiKey = company?.holded_api_key;
@@ -129,7 +204,8 @@ export const carrierService = {
         const { data, error } = await supabase
             .from('carriers')
             .insert({
-                ...carrierData,
+                ...restCarrierData,
+                notas: serializedNotes,
                 user_id: userData.user.id,
                 activo: carrierData.activo ?? true,
             })
@@ -180,7 +256,7 @@ export const carrierService = {
             }
         }
 
-        return data as Carrier;
+        return enrichCarrierWithFleet(data);
     },
 
     /**
@@ -196,9 +272,19 @@ export const carrierService = {
         const company = await companyService.getUserCompany();
         const holdedApiKey = company?.holded_api_key;
 
+        const { flota_vehiculos, flota_conductores, ...restCarrierData } = carrierData;
+        const updatePayload: any = { ...restCarrierData };
+
+        if (flota_vehiculos !== undefined || flota_conductores !== undefined || restCarrierData.notas !== undefined) {
+            const currentVehicles = flota_vehiculos !== undefined ? flota_vehiculos : (currentData?.flota_vehiculos || []);
+            const currentDrivers = flota_conductores !== undefined ? flota_conductores : (currentData?.flota_conductores || []);
+            const baseNotes = restCarrierData.notas !== undefined ? restCarrierData.notas : (currentData?.notas || '');
+            updatePayload.notas = serializeFleetToNotes(baseNotes, currentVehicles, currentDrivers);
+        }
+
         const { data, error } = await supabase
             .from('carriers')
-            .update(carrierData)
+            .update(updatePayload)
             .eq('id', id)
             .eq('user_id', user.id)
             .select()
@@ -239,7 +325,82 @@ export const carrierService = {
             }
         }
 
-        return data as Carrier;
+        return enrichCarrierWithFleet(data);
+    },
+
+    /**
+     * Gestión de Flota: Añadir vehículo hijo a empresa transportista (UXDEV-08)
+     */
+    async addVehicle(carrierId: number, vehicle: Omit<FleetVehicle, 'id'>): Promise<Carrier> {
+        const carrier = await this.getById(carrierId);
+        if (!carrier) throw new Error('Transportista no encontrado');
+
+        const newVehicle: FleetVehicle = {
+            ...vehicle,
+            id: `veh-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            activo: vehicle.activo ?? true,
+        };
+
+        const existing = carrier.flota_vehiculos || [];
+        const updatedVehicles = [...existing, newVehicle];
+
+        return await this.update(carrierId, {
+            flota_vehiculos: updatedVehicles,
+        });
+    },
+
+    /**
+     * Gestión de Flota: Eliminar vehículo hijo (UXDEV-08)
+     */
+    async removeVehicle(carrierId: number, vehicleIdOrMatricula: string): Promise<Carrier> {
+        const carrier = await this.getById(carrierId);
+        if (!carrier) throw new Error('Transportista no encontrado');
+
+        const cleanTarget = vehicleIdOrMatricula.replace(/\s+/g, '').toUpperCase();
+        const updatedVehicles = (carrier.flota_vehiculos || []).filter(
+            (v) => v.id !== vehicleIdOrMatricula && v.matricula.replace(/\s+/g, '').toUpperCase() !== cleanTarget
+        );
+
+        return await this.update(carrierId, {
+            flota_vehiculos: updatedVehicles,
+        });
+    },
+
+    /**
+     * Gestión de Flota: Añadir conductor hijo a empresa transportista (UXDEV-08)
+     */
+    async addDriver(carrierId: number, driver: Omit<FleetDriver, 'id'>): Promise<Carrier> {
+        const carrier = await this.getById(carrierId);
+        if (!carrier) throw new Error('Transportista no encontrado');
+
+        const newDriver: FleetDriver = {
+            ...driver,
+            id: `drv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            activo: driver.activo ?? true,
+        };
+
+        const existing = carrier.flota_conductores || [];
+        const updatedDrivers = [...existing, newDriver];
+
+        return await this.update(carrierId, {
+            flota_conductores: updatedDrivers,
+        });
+    },
+
+    /**
+     * Gestión de Flota: Eliminar conductor hijo (UXDEV-08)
+     */
+    async removeDriver(carrierId: number, driverIdOrDni: string): Promise<Carrier> {
+        const carrier = await this.getById(carrierId);
+        if (!carrier) throw new Error('Transportista no encontrado');
+
+        const updatedDrivers = (carrier.flota_conductores || []).filter(
+            (d) => d.id !== driverIdOrDni && d.dni !== driverIdOrDni
+        );
+
+        return await this.update(carrierId, {
+            flota_conductores: updatedDrivers,
+        });
     },
 
     /**

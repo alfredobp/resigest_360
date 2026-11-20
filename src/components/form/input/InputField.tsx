@@ -19,6 +19,7 @@ interface InputProps {
   success?: boolean;
   error?: boolean;
   hint?: string; // Optional hint text
+  list?: string;
 }
 
 const Input: FC<InputProps> = ({
@@ -40,6 +41,7 @@ const Input: FC<InputProps> = ({
   success = false,
   error = false,
   hint,
+  list,
 }) => {
   const isDateOrTime = type === "date" || type === "time";
 
@@ -87,6 +89,7 @@ const Input: FC<InputProps> = ({
         disabled={disabled}
         readOnly={readOnly}
         required={required}
+        list={list}
         aria-invalid={error ? "true" : undefined}
         aria-required={required ? "true" : undefined}
         className={inputClasses}

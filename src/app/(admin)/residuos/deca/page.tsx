@@ -8,7 +8,11 @@
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { decaService } from '@/services/decaService';
+import { useTenant } from '@/context/TenantContext';
+import { companyService } from '@/services/companyService';
+import { carrierService } from '@/services/carrierService';
 import type { DecaDocument, DecaFormData } from '@/types/deca';
+import type { Company, Carrier } from '@/types/wasteManagement';
 import { toast } from '@/context/ToastContext';
 import { Modal, ConfirmModal } from '@/components/ui/modal';
 import Label from '@/components/form/Label';
@@ -40,7 +44,10 @@ import {
 } from 'lucide-react';
 
 export default function DecaManagementPage() {
+  const { activeCompany } = useTenant();
   const [documents, setDocuments] = useState<DecaDocument[]>([]);
+  const [availableCompanies, setAvailableCompanies] = useState<Company[]>([]);
+  const [availableCarriers, setAvailableCarriers] = useState<Carrier[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -108,8 +115,14 @@ export default function DecaManagementPage() {
   const loadDocuments = async () => {
     try {
       setLoading(true);
-      const data = await decaService.getAll();
+      const [data, comps, carriers] = await Promise.all([
+        decaService.getAll().catch(() => [] as DecaDocument[]),
+        companyService.getAll().catch(() => [] as Company[]),
+        carrierService.getAll().catch(() => [] as Carrier[]),
+      ]);
       setDocuments(data);
+      setAvailableCompanies(comps);
+      setAvailableCarriers(carriers);
     } catch (err: any) {
       console.error('Error al cargar documentos DeCA:', err);
       toast.error(`Error al cargar documentos: ${err.message}`);
@@ -161,7 +174,40 @@ export default function DecaManagementPage() {
   };
 
   const openCreateModal = () => {
-    setFormData(initialFormData);
+    // Autocompletar datos propios de la empresa transportista activa (UXDEV-11 / UX-11)
+    const normCif = activeCompany?.cif?.toUpperCase().trim();
+    const currentCarrier = availableCarriers.find(
+      (c) => c.cif?.toUpperCase().trim() === normCif
+    );
+
+    const defaultTractora =
+      activeCompany?.matricula ||
+      currentCarrier?.matricula ||
+      currentCarrier?.flota_vehiculos?.[0]?.matricula ||
+      '';
+
+    const defaultConductor =
+      currentCarrier?.flota_conductores?.[0]?.nombre ||
+      activeCompany?.persona_contacto ||
+      '';
+
+    const prefilledData: Partial<DecaFormData> = {
+      ...initialFormData,
+      transportista_razon_social: activeCompany?.razon_social || activeCompany?.nombre_comercial || currentCarrier?.razon_social || '',
+      transportista_nif: activeCompany?.cif || currentCarrier?.cif || '',
+      transportista_autorizacion: activeCompany?.numero_autorizacion || activeCompany?.numero_inscripcion || currentCarrier?.numero_autorizacion || '',
+      transportista_nima: activeCompany?.nima || currentCarrier?.nima || '',
+      transportista_domicilio: activeCompany?.domicilio_social || activeCompany?.domicilio_instalacion || currentCarrier?.direccion || '',
+      transportista_municipio: activeCompany?.municipio_social || activeCompany?.municipio_instalacion || currentCarrier?.municipio || '',
+      transportista_provincia: activeCompany?.provincia_social || activeCompany?.provincia_instalacion || currentCarrier?.provincia || '',
+      transportista_codigo_postal: activeCompany?.codigo_postal_social || activeCompany?.codigo_postal_instalacion || currentCarrier?.codigo_postal || '',
+      matricula_tractora: defaultTractora,
+      conductor_nombre: defaultConductor,
+      fecha_transporte: new Date().toISOString().split('T')[0],
+      estado: 'vigente',
+    };
+
+    setFormData(prefilledData);
     setCreateErrors({});
     setCreateSubmitError(null);
     setCreateModalOpen(true);
@@ -506,57 +552,90 @@ export default function DecaManagementPage() {
                     </td>
 
                     <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                          doc.estado === 'vigente'
-                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
-                            : doc.estado === 'finalizado'
-                            ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                            : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
-                        }`}
-                      >
-                        {doc.estado.toUpperCase()}
-                      </span>
+                      {(() => {
+                        const baseNum = (doc.numero_deca || '').replace(/-v\d+$/, '').trim();
+                        const isLatestInFamily = !documents.some(
+                          (d) =>
+                            (d.numero_deca || '').replace(/-v\d+$/, '').trim() === baseNum &&
+                            (d.version > doc.version || (d.version === doc.version && d.id > doc.id))
+                        );
+
+                        if (!isLatestInFamily || doc.is_vigente === false || doc.estado === 'sustituido') {
+                          return (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                              SUSTITUIDA
+                            </span>
+                          );
+                        }
+
+                        return (
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                              doc.estado === 'vigente'
+                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                : doc.estado === 'finalizado'
+                                ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+                            }`}
+                          >
+                            {doc.estado.toUpperCase()}
+                          </span>
+                        );
+                      })()}
                     </td>
 
                     <td className="py-3.5 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => handleOpenQrModal(doc)}
-                          className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition"
-                          title="Ver QR y Enlaces Oficiales"
-                        >
-                          <QrCode className="w-4 h-4" />
-                        </button>
+                      {(() => {
+                        const baseNum = (doc.numero_deca || '').replace(/-v\d+$/, '').trim();
+                        const isLatestInFamily = !documents.some(
+                          (d) =>
+                            (d.numero_deca || '').replace(/-v\d+$/, '').trim() === baseNum &&
+                            (d.version > doc.version || (d.version === doc.version && d.id > doc.id))
+                        );
+                        const canModifyOrFinalize = isLatestInFamily && doc.is_vigente !== false && doc.estado !== 'finalizado' && doc.estado !== 'sustituido' && doc.estado !== 'anulado';
 
-                        <a
-                          href={`/api/deca/${doc.token}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition"
-                          title="Descargar PDF DeCA Oficial"
-                        >
-                          <Download className="w-4 h-4" />
-                        </a>
+                        return (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleOpenQrModal(doc)}
+                              className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition"
+                              title="Ver QR y Enlaces Oficiales"
+                            >
+                              <QrCode className="w-4 h-4" />
+                            </button>
 
-                        <button
-                          onClick={() => openVersionModal(doc)}
-                          className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition"
-                          title="Modificar (Crear Nueva Versión)"
-                        >
-                          <History className="w-4 h-4" />
-                        </button>
+                            <a
+                              href={`/api/deca/${doc.token}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition"
+                              title="Descargar PDF DeCA Oficial"
+                            >
+                              <Download className="w-4 h-4" />
+                            </a>
 
-                        {doc.estado === 'vigente' && (
-                          <button
-                            onClick={() => handleFinalize(doc.id)}
-                            className="p-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 rounded-lg transition"
-                            title="Finalizar Servicio de Transporte"
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
+                            {canModifyOrFinalize && (
+                              <button
+                                onClick={() => openVersionModal(doc)}
+                                className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition"
+                                title="Modificar (Crear Nueva Versión)"
+                              >
+                                <History className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {canModifyOrFinalize && doc.estado === 'vigente' && (
+                              <button
+                                onClick={() => handleFinalize(doc.id)}
+                                className="p-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 rounded-lg transition"
+                                title="Finalizar Servicio de Transporte"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))
@@ -718,11 +797,63 @@ export default function DecaManagementPage() {
                 antes de iniciar el servicio en carretera.
               </div>
 
-              {/* Cargador Contractual */}
+              {/* Cargador Contractual (UXDEV-11 / UX-11: Selector de cliente y autocompletado rápido) */}
               <div className="border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl space-y-3">
-                <h4 className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300">
-                  1. Cargador Contractual (Quien contrata el porte)
-                </h4>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <h4 className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300">
+                    1. Cargador Contractual (Quien contrata el porte)
+                  </h4>
+                  {availableCompanies.length > 0 && (
+                    <span className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold">
+                      Precarga con un clic
+                    </span>
+                  )}
+                </div>
+
+                {/* Selector rápido de Cliente / Cargador Habitual */}
+                {availableCompanies.length > 0 && (
+                  <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <Label htmlFor="deca_selector_cliente">Seleccionar Cliente / Cargador Habitual (Autorrellenado)</Label>
+                    <select
+                      id="deca_selector_cliente"
+                      className="mt-1 w-full text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onChange={(e) => {
+                        const selectedId = Number(e.target.value);
+                        const comp = availableCompanies.find((c) => c.id === selectedId);
+                        if (comp) {
+                          setFormData((prev) => ({
+                            ...prev,
+                            cargador_razon_social: comp.razon_social || comp.nombre_comercial || '',
+                            cargador_nif: comp.cif || '',
+                            cargador_domicilio: comp.domicilio_social || comp.domicilio_instalacion || '',
+                            cargador_municipio: comp.municipio_social || comp.municipio_instalacion || '',
+                            cargador_provincia: comp.provincia_social || comp.provincia_instalacion || '',
+                            cargador_codigo_postal: comp.codigo_postal_social || comp.codigo_postal_instalacion || '',
+                            origen_direccion: prev.origen_direccion || comp.domicilio_instalacion || comp.domicilio_social || '',
+                            origen_municipio: prev.origen_municipio || comp.municipio_instalacion || comp.municipio_social || '',
+                            origen_provincia: prev.origen_provincia || comp.provincia_instalacion || comp.provincia_social || '',
+                          }));
+                          clearCreateError('cargador_razon_social');
+                          clearCreateError('cargador_nif');
+                          clearCreateError('cargador_domicilio');
+                          clearCreateError('origen_direccion');
+                          clearCreateError('origen_municipio');
+                          clearCreateError('origen_provincia');
+                        }
+                      }}
+                    >
+                      <option value="">-- Elige un cliente para precargar automáticamente --</option>
+                      {availableCompanies
+                        .filter((c) => c.cif?.toUpperCase() !== activeCompany?.cif?.toUpperCase())
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.razon_social || c.nombre_comercial} ({c.cif})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label htmlFor="deca_create_cargador_razon_social" required>Razón Social</Label>
@@ -770,11 +901,32 @@ export default function DecaManagementPage() {
                 </div>
               </div>
 
+              {/* Datalists para medios y conductores de la flota */}
+              <datalist id="deca_vehiculos_datalist">
+                {availableCarriers.flatMap((c) => c.flota_vehiculos || []).map((v, i) => (
+                  <option key={`v-${v.matricula}-${i}`} value={v.matricula}>
+                    {v.matricula} {v.tipo ? `(${v.tipo})` : ''}
+                  </option>
+                ))}
+              </datalist>
+              <datalist id="deca_conductores_datalist">
+                {availableCarriers.flatMap((c) => c.flota_conductores || []).map((d, i) => (
+                  <option key={`d-${d.nombre}-${i}`} value={d.nombre}>
+                    {d.nombre} {d.dni ? `(${d.dni})` : ''}
+                  </option>
+                ))}
+              </datalist>
+
               {/* Transportista Efectivo */}
               <div className="border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl space-y-3">
-                <h4 className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300">
-                  2. Transportista Efectivo y Vehículo
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300">
+                    2. Transportista Efectivo y Vehículo
+                  </h4>
+                  <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                    Datos propios precargados
+                  </span>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <Label htmlFor="deca_create_transportista_razon_social" required>Transportista</Label>
@@ -821,6 +973,7 @@ export default function DecaManagementPage() {
                       id="deca_create_matricula_tractora"
                       type="text"
                       placeholder="1234-BBB"
+                      list="deca_vehiculos_datalist"
                       value={formData.matricula_tractora || ''}
                       onChange={(e) => {
                         setFormData({ ...formData, matricula_tractora: e.target.value.toUpperCase() });
@@ -847,6 +1000,7 @@ export default function DecaManagementPage() {
                     <Input
                       id="deca_create_conductor_nombre"
                       type="text"
+                      list="deca_conductores_datalist"
                       value={formData.conductor_nombre || ''}
                       onChange={(e) => setFormData({ ...formData, conductor_nombre: e.target.value })}
                     />

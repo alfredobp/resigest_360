@@ -11,6 +11,7 @@ import { toast } from '@/context/ToastContext';
 import carrierService from '@/services/carrierService';
 import type { Carrier } from '@/types/wasteManagement';
 import CarrierModal from '@/components/residuos/CarrierModal';
+import CarrierFleetModal from '@/components/residuos/CarrierFleetModal';
 
 export default function TransportistasPage() {
     const [loading, setLoading] = useState(true);
@@ -19,6 +20,8 @@ export default function TransportistasPage() {
     const [showModal, setShowModal] = useState(false);
     const [selectedCarrier, setSelectedCarrier] = useState<Carrier | undefined>(undefined);
     const [carrierToDelete, setCarrierToDelete] = useState<number | null>(null);
+    const [showFleetModal, setShowFleetModal] = useState(false);
+    const [fleetCarrier, setFleetCarrier] = useState<Carrier | undefined>(undefined);
 
     useEffect(() => {
         loadData();
@@ -39,6 +42,11 @@ export default function TransportistasPage() {
     const handleEdit = (carrier: Carrier) => {
         setSelectedCarrier(carrier);
         setShowModal(true);
+    };
+
+    const handleManageFleet = (carrier: Carrier) => {
+        setFleetCarrier(carrier);
+        setShowFleetModal(true);
     };
 
     const handleAddNew = () => {
@@ -130,29 +138,63 @@ export default function TransportistasPage() {
                                 <div className="space-y-4">
                                     <div className="space-y-1 text-sm text-muted">
                                         <p><span className="font-medium text-foreground">CIF:</span> {carrier.cif}</p>
-                                        {carrier.matricula && <p><span className="font-medium text-foreground">Matrícula:</span> {carrier.matricula}</p>}
+                                        {carrier.matricula && <p><span className="font-medium text-foreground">Matrícula Principal:</span> <span className="font-mono font-bold text-foreground">{carrier.matricula}</span></p>}
                                         {carrier.nima && <p><span className="font-medium text-foreground">NIMA:</span> {carrier.nima}</p>}
                                         {carrier.numero_autorizacion && (
                                             <p><span className="font-medium text-foreground">Autorización:</span> {carrier.numero_autorizacion}</p>
                                         )}
+
+                                        {/* Flota y Medios (UXDEV-08 / UX-10) */}
+                                        <div className="pt-2 border-t border-dashed border-stroke/70">
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="font-medium text-foreground">Flota registrada:</span>
+                                                <span className="font-bold text-blue-600 dark:text-blue-400">
+                                                    {(carrier.flota_vehiculos?.length || 0)} vehículo{(carrier.flota_vehiculos?.length || 0) === 1 ? '' : 's'} · {(carrier.flota_conductores?.length || 0)} conductor{(carrier.flota_conductores?.length || 0) === 1 ? '' : 'es'}
+                                                </span>
+                                            </div>
+                                            {carrier.flota_vehiculos && carrier.flota_vehiculos.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                                    {carrier.flota_vehiculos.slice(0, 4).map((v, i) => (
+                                                        <span key={i} className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                                                            {v.matricula}
+                                                        </span>
+                                                    ))}
+                                                    {carrier.flota_vehiculos.length > 4 && (
+                                                        <span className="text-[10px] text-slate-400 self-center">
+                                                            +{carrier.flota_vehiculos.length - 4} más
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
-                                    <div className="flex justify-end gap-2 pt-4 border-t border-stroke">
+                                    <div className="flex flex-wrap justify-between items-center gap-2 pt-3 border-t border-stroke">
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => handleEdit(carrier)}
+                                            onClick={() => handleManageFleet(carrier)}
+                                            className="text-xs text-blue-600 border-blue-200 dark:border-blue-900 hover:bg-blue-50 dark:hover:bg-blue-950/40"
                                         >
-                                            Editar
+                                            Gestionar Flota
                                         </Button>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => handleDelete(carrier.id)}
-                                            className="text-red-600 hover:bg-red-50"
-                                        >
-                                            Eliminar
-                                        </Button>
+                                        <div className="flex items-center gap-1.5 ml-auto">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleEdit(carrier)}
+                                            >
+                                                Editar
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleDelete(carrier.id)}
+                                                className="text-red-600 hover:bg-red-50"
+                                            >
+                                                Eliminar
+                                            </Button>
+                                        </div>
                                     </div>
                                 </div>
                             </ComponentCard>
@@ -165,6 +207,13 @@ export default function TransportistasPage() {
                     onClose={() => setShowModal(false)}
                     onSuccess={loadData}
                     carrier={selectedCarrier}
+                />
+
+                <CarrierFleetModal
+                    isOpen={showFleetModal}
+                    onClose={() => setShowFleetModal(false)}
+                    onSuccess={loadData}
+                    carrier={fleetCarrier}
                 />
 
                 <ConfirmModal
