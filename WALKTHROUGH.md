@@ -348,3 +348,38 @@ npm run test:ci     # --> PASS (48 Test Suites, 950 tests pasados limpios)
 ```
 - `companyService.ts`: **93.99% Statements, 84.80% Branches, 100% Functions, 94.89% Lines**.
 - `wasteContractService.ts`: **97.96% Statements, 84.27% Branches, 100% Functions, 97.86% Lines**.
+
+---
+
+# Walkthrough: Fase 6 de Experiencia de Cliente (Fixture Desechable de Onboarding y Protocolo Piloto `UXDEV-16`)
+
+Se ha completado la implementación técnica y documental de **`UXDEV-16`** (`UX-25`), dejando listo el entorno aislado para las sesiones de validación con usuarios reales del perfil piloto (**Productor**).
+
+---
+
+## 🚀 Cambios Implementados en Fase 6
+
+### 1. API de Cuenta Vacía Desechable para Onboarding Desde Cero (`UXDEV-16` / `UX-25`)
+- **Fichero**: [onboarding-fixture/route.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/app/api/demo/onboarding-fixture/route.ts)
+- Crea en Supabase Auth (vía `SUPABASE_SERVICE_ROLE_KEY`) una cuenta nueva, única y desechable (`onboarding-fixture-<timestamp>-<rand>@resigest.test`) sin empresa configurada, inicia sesión automáticamente, limpia la cookie de empresa activa y redirige a `/onboarding`.
+- Protegido por `isDemoSignInAllowed()` (`403` si está deshabilitado en producción) y nunca modifica ni resetea `nuevo.prueba@resigest.test` ni cuentas con evidencias previas.
+
+### 2. Acceso Directo en `/accesos-prueba`
+- **Fichero**: [accesos-prueba/page.tsx](file:///c:/Users/Alfredo/Desktop/resigest_360/src/app/(full-width-pages)/accesos-prueba/page.tsx)
+- En la tarjeta **"Cliente Nuevo (Primer Acceso)"** se añade el botón **"Nueva cuenta vacía (UXDEV-16)"** que invoca `POST /api/demo/onboarding-fixture` y abre `/onboarding` desde estado cero.
+
+### 3. Protocolo de Sesiones Piloto con Clientes Reales
+- **Fichero**: [PROTOCOLO_PILOTO_UXDEV16.md](file:///c:/Users/Alfredo/Desktop/resigest_360/docs/PROTOCOLO_PILOTO_UXDEV16.md)
+- Guion de tareas sin guía (T1 Onboarding -> T2 Colaboradores/Contrato -> T3 Retirada 1 -> T4 Retirada 2 con "Repetir" -> T5 Justificante externo y Archivo Cronológico) y plantilla de métricas para 5 participantes del perfil Productor.
+
+---
+
+## 🧪 Verificación y Pruebas Realizadas en Fase 6
+
+- [onboardingFixture.route.test.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/app/api/__tests__/onboardingFixture.route.test.ts): 7 tests unitarios cubriendo `403`, `503`, `500`, `401` y `200`, registrado en [jest.config.js](file:///c:/Users/Alfredo/Desktop/resigest_360/jest.config.js) con umbral ≥ 80% en todas las métricas.
+- Verificaciones globales (`AGENTS.md`):
+```bash
+npm run typecheck   # --> PASS (0 errores TypeScript)
+npm run lint        # --> PASS (0 errores / advertencias ESLint)
+npm run test:ci     # --> PASS (49 Test Suites, 957 tests pasados limpios)
+```

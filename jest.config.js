@@ -66,6 +66,7 @@ module.exports = {
     'src/lib/profiles/moduleCatalog.ts',
     'src/services/tenantContextService.ts',
     'src/app/api/demo/signin/route.ts',
+    'src/app/api/demo/onboarding-fixture/route.ts',
     'src/services/priorNotificationService.ts',
     'src/app/api/residuos/sira/enviar-nt/route.ts',
     'src/lib/validations/normativeCompliance.ts',
@@ -285,6 +286,12 @@ module.exports = {
       statements: 80
     },
     './src/app/api/demo/signin/route.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/app/api/demo/onboarding-fixture/route.ts': {
       branches: 80,
       functions: 80,
       lines: 80,

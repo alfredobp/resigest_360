@@ -126,10 +126,34 @@ const DEMO_CARDS: DemoCardItem[] = [
 ];
 
 export default function QuickTestAccessPage() {
-  const [loadingKey, setLoadingKey] = useState<DemoProfileKey | null>(null);
+  const [loadingKey, setLoadingKey] = useState<DemoProfileKey | 'fixture_onboarding' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const demoEnabled = process.env.NEXT_PUBLIC_ENABLE_DEMO_ACCESS === 'true';
+
+  const handleLaunchCleanOnboardingFixture = async () => {
+    setError(null);
+    setLoadingKey('fixture_onboarding');
+    try {
+      const res = await fetch('/api/demo/onboarding-fixture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetProfile: 'productor' }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || 'No se pudo crear la cuenta vacía desechable de onboarding.');
+        setLoadingKey(null);
+        return;
+      }
+
+      window.location.assign(data.redirectTo || '/onboarding');
+    } catch {
+      setError('Error de red al conectar con /api/demo/onboarding-fixture.');
+      setLoadingKey(null);
+    }
+  };
 
   const handleEnterAs = async (profileKey: DemoProfileKey) => {
     setError(null);
@@ -257,19 +281,33 @@ export default function QuickTestAccessPage() {
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-black/5 dark:border-white/10 flex items-center justify-between gap-3">
+                  <div className="pt-2 border-t border-black/5 dark:border-white/10 flex flex-wrap items-center justify-between gap-2">
                     <span className="text-[11px] font-mono text-gray-500 dark:text-gray-400 truncate">
                       {card.email}
                     </span>
-                    <button
-                      type="button"
-                      disabled={!demoEnabled || loadingKey !== null}
-                      onClick={() => handleEnterAs(card.key)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition cursor-pointer shrink-0"
-                    >
-                      {isLoading ? 'Accediendo...' : card.buttonLabel}
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {card.key === 'nuevo' && (
+                        <button
+                          type="button"
+                          disabled={!demoEnabled || loadingKey !== null}
+                          onClick={handleLaunchCleanOnboardingFixture}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition cursor-pointer shrink-0"
+                          title="Crea una cuenta completamente nueva y vacía sin alterar evidencias previas (UXDEV-16)"
+                        >
+                          {loadingKey === 'fixture_onboarding' ? 'Creando cuenta...' : 'Nueva cuenta vacía (UXDEV-16)'}
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={!demoEnabled || loadingKey !== null}
+                        onClick={() => handleEnterAs(card.key)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition cursor-pointer shrink-0"
+                      >
+                        {isLoading ? 'Accediendo...' : card.buttonLabel}
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
