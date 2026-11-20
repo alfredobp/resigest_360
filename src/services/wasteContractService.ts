@@ -16,6 +16,162 @@ import type {
 const supabase = createClient();
 
 /**
+ * Compara si la edición de un contrato implica cambios materiales sobre una revisión
+ * que ya disponía de conformidades/firmas de productor o gestor (P0 A04-02).
+ */
+export function detectContractMaterialChanges(
+  existing: Partial<WasteContract> | null | undefined,
+  incoming: Partial<WasteContractFormData> & {
+    codigos_ler?: string[];
+    operaciones_tratamiento?: string[];
+    contract_waste_codes?: ContractWasteCodeFormData[];
+  }
+): { hasMaterialChange: boolean; changedFields: string[] } {
+  if (!existing) {
+    return { hasMaterialChange: false, changedFields: [] };
+  }
+
+  const changedFields: string[] = [];
+
+  const normNum = (v: unknown) => (v === undefined || v === null || v === '' ? null : Number(v));
+  const normStr = (v: unknown) => (v === undefined || v === null ? '' : String(v).trim());
+  const normDate = (v: unknown) => normStr(v).split('T')[0];
+
+  if (
+    incoming.cantidad_maxima_anual !== undefined &&
+    normNum(incoming.cantidad_maxima_anual) !== normNum(existing.cantidad_maxima_anual)
+  ) {
+    changedFields.push('cantidad_maxima_anual');
+  }
+
+  if (
+    incoming.unidad_cantidad !== undefined &&
+    normStr(incoming.unidad_cantidad) !== normStr(existing.unidad_cantidad || 'toneladas')
+  ) {
+    changedFields.push('unidad_cantidad');
+  }
+
+  if (
+    incoming.precio_unitario !== undefined &&
+    normNum(incoming.precio_unitario) !== normNum(existing.precio_unitario)
+  ) {
+    changedFields.push('precio_unitario');
+  }
+
+  if (
+    incoming.frecuencia_recogida !== undefined &&
+    normStr(incoming.frecuencia_recogida) !== normStr(existing.frecuencia_recogida)
+  ) {
+    changedFields.push('frecuencia_recogida');
+  }
+
+  if (
+    incoming.tipo_contrato !== undefined &&
+    normStr(incoming.tipo_contrato) !== normStr(existing.tipo_contrato)
+  ) {
+    changedFields.push('tipo_contrato');
+  }
+
+  if (
+    incoming.fecha_inicio !== undefined &&
+    normDate(incoming.fecha_inicio) !== normDate(existing.fecha_inicio)
+  ) {
+    changedFields.push('fecha_inicio');
+  }
+
+  if (
+    incoming.fecha_fin !== undefined &&
+    normDate(incoming.fecha_fin) !== normDate(existing.fecha_fin)
+  ) {
+    changedFields.push('fecha_fin');
+  }
+
+  if (
+    incoming.descripcion_residuos !== undefined &&
+    normStr(incoming.descripcion_residuos) !== normStr(existing.descripcion_residuos)
+  ) {
+    changedFields.push('descripcion_residuos');
+  }
+
+  if (
+    incoming.notas !== undefined &&
+    normStr(incoming.notas) !== normStr(existing.notas)
+  ) {
+    changedFields.push('notas');
+  }
+
+  if (
+    incoming.company_id !== undefined &&
+    normNum(incoming.company_id) !== normNum(existing.company_id)
+  ) {
+    changedFields.push('company_id');
+  }
+
+  if (
+    incoming.gestor_company_id !== undefined &&
+    normNum(incoming.gestor_company_id) !== normNum(existing.gestor_company_id)
+  ) {
+    changedFields.push('gestor_company_id');
+  }
+
+  if (
+    incoming.treatment_manager_id !== undefined &&
+    normNum(incoming.treatment_manager_id) !== normNum(existing.treatment_manager_id)
+  ) {
+    changedFields.push('treatment_manager_id');
+  }
+
+  if (
+    incoming.producer_center_id !== undefined &&
+    normNum(incoming.producer_center_id) !== normNum(existing.producer_center_id)
+  ) {
+    changedFields.push('producer_center_id');
+  }
+
+  if (
+    incoming.gestor_center_id !== undefined &&
+    normNum(incoming.gestor_center_id) !== normNum(existing.gestor_center_id)
+  ) {
+    changedFields.push('gestor_center_id');
+  }
+
+  if (incoming.codigos_ler !== undefined) {
+    const prevLers = (existing.codigos_ler || []).map((c) => c.trim()).sort().join('|');
+    const nextLers = (incoming.codigos_ler || []).map((c) => c.trim()).sort().join('|');
+    if (prevLers !== nextLers) {
+      changedFields.push('codigos_ler');
+    }
+  }
+
+  if (incoming.operaciones_tratamiento !== undefined) {
+    const prevOps = (existing.operaciones_tratamiento || []).map((o) => o.trim().toUpperCase()).sort().join('|');
+    const nextOps = (incoming.operaciones_tratamiento || []).map((o) => o.trim().toUpperCase()).sort().join('|');
+    if (prevOps !== nextOps) {
+      changedFields.push('operaciones_tratamiento');
+    }
+  }
+
+  if (incoming.contract_waste_codes !== undefined && Array.isArray(existing.contract_waste_codes) && existing.contract_waste_codes.length > 0) {
+    const serializeCodes = (codes: Array<Partial<ContractWasteCode> | ContractWasteCodeFormData>) =>
+      codes
+        .map(
+          (c) =>
+            `${normStr(c.codigo_ler)}:${normStr(c.operacion_tratamiento).toUpperCase()}:${normNum(c.cantidad_estimada_anual) ?? ''}:${normNum(c.tarifa_gestion) ?? ''}`
+        )
+        .sort()
+        .join('|');
+    if (serializeCodes(existing.contract_waste_codes) !== serializeCodes(incoming.contract_waste_codes)) {
+      changedFields.push('contract_waste_codes');
+    }
+  }
+
+  return {
+    hasMaterialChange: changedFields.length > 0,
+    changedFields,
+  };
+}
+
+/**
  * Resuelve de forma segura las referencias al gestor destino para evitar
  * violaciones de FK (`waste_contracts_treatment_manager_id_fkey`) cuando
  * el gestor proviene del directorio unificado `public.companies`.
@@ -452,8 +608,13 @@ export const wasteContractService = {
       Object.keys(mainData).some((k) =>
         [
           'cantidad_maxima_anual',
+          'unidad_cantidad',
+          'frecuencia_recogida',
+          'tipo_contrato',
           'fecha_inicio',
           'fecha_fin',
+          'descripcion_residuos',
+          'notas',
           'condiciones_entrega',
           'condiciones_pago',
           'clausulas_adicionales',
@@ -461,17 +622,20 @@ export const wasteContractService = {
           'gestor_company_id',
           'treatment_manager_id',
           'production_center_id',
+          'producer_center_id',
+          'gestor_center_id',
           'precio_unitario',
         ].includes(k)
       );
 
     let signaturesInvalidated = false;
+    let changedFieldsList: string[] = [];
 
     if (!isExplicitSignatureAction && hasMaterialChanges) {
       try {
         const lookup: any = supabase.from('waste_contracts');
         if (typeof lookup?.select === 'function') {
-          const sel = lookup.select('id, firmado_productor, firmado_gestor, firma_productor_url, firma_gestor_url, estado, version, company_id');
+          const sel = lookup.select('id, firmado_productor, firmado_gestor, firma_productor_url, firma_gestor_url, estado, version, company_id, revision_history');
           if (typeof sel?.eq === 'function') {
             const eqRes = sel.eq('id', id);
             const fetcher = typeof eqRes?.maybeSingle === 'function' ? eqRes.maybeSingle.bind(eqRes) : (typeof eqRes?.single === 'function' ? eqRes.single.bind(eqRes) : null);
@@ -484,6 +648,11 @@ export const wasteContractService = {
                   currentContract.firma_productor_url ||
                   currentContract.firma_gestor_url)
               ) {
+                const diff = detectContractMaterialChanges(currentContract, {
+                  ...updatePayload,
+                  contract_waste_codes,
+                });
+                changedFieldsList = diff.changedFields;
                 signaturesInvalidated = true;
                 updatePayload.firmado_productor = false;
                 updatePayload.firmado_gestor = false;
@@ -565,6 +734,9 @@ export const wasteContractService = {
         estado: (data as WasteContract)?.estado,
         firmas_invalidadas: signaturesInvalidated,
         motivo: signaturesInvalidated ? 'Modificación material de términos del contrato (Art. 5 RD 553/2020)' : undefined,
+        ...(signaturesInvalidated && changedFieldsList.length > 0
+          ? { campos_modificados: changedFieldsList }
+          : {}),
       },
     });
 

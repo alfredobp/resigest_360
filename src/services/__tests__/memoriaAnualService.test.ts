@@ -49,8 +49,8 @@ import type { IdentificationDocument, MemoriaAnual } from '@/types/wasteManageme
 describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.spyOn(console, 'warn').mockImplementation(() => {});
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => { });
+    jest.spyOn(console, 'error').mockImplementation(() => { });
   });
 
   afterEach(() => {
@@ -1518,6 +1518,136 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
         },
       ];
       expect(() => exportMemoriaToCSV(mockNegMemoria, negData)).not.toThrow();
+    });
+
+    it('recalculateDraftMemoria debe agregar DIs de gestor y asientos del Archivo Cronológico sin duplicar movimientos (A04-07)', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      const mockGestorMemoria = {
+        id: 26,
+        user_id: mockUser.id,
+        company_id: 10,
+        production_center_id: 5,
+        año: 2026,
+        tipo_memoria: 'gestor',
+        nif_empresa: 'B12345678',
+        numero_memoria: 'MA-2026-GEST-001',
+        estado: 'borrador',
+        total_movimientos: 0,
+        total_toneladas: 0,
+      };
+
+      const diChain: any = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockReturnThis(),
+      };
+      diChain.then = (resolve: any) =>
+        Promise.resolve({
+          data: [
+            {
+              id: 501,
+              numero_documento: 'DI-501',
+              codigo_ler: '17 04 05',
+              descripcion_residuo: 'Hierro y acero',
+              peso_destino_kg: 1000,
+              estado: 'completado',
+              estado_traslado: 'tratado',
+            },
+          ],
+          error: null,
+        }).then(resolve);
+
+      const chronoChain: any = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockResolvedValue({
+          data: [
+            // 1. Duplicado por identification_document_id (debe ignorarse)
+            {
+              id: 1,
+              identification_document_id: 501,
+              tipo_operacion: 'entrada_recepcion',
+              codigo_ler: '17 04 05',
+              cantidad_kg: 1000,
+            },
+            // 2. Duplicado por numero_documento_referencia (debe ignorarse)
+            {
+              id: 2,
+              numero_documento_referencia: 'DI-501',
+              tipo_operacion: 'entrada_recepcion',
+              codigo_ler: '17 04 05',
+              cantidad_kg: 1000,
+            },
+            // 3. Otra empresa distinta (debe ignorarse)
+            {
+              id: 3,
+              company_id: 99,
+              tipo_operacion: 'entrada_recepcion',
+              codigo_ler: '17 04 05',
+              cantidad_kg: 500,
+            },
+            // 4. Operación produccion_interna (debe ignorarse en recepción/salida gestor)
+            {
+              id: 4,
+              tipo_operacion: 'produccion_interna',
+              codigo_ler: '17 04 05',
+              cantidad_kg: 500,
+            },
+            // 5. Asiento de recepción válido no duplicado (debe sumarse: 2500 kg = 2.5 t)
+            {
+              id: 5,
+              company_id: 10,
+              numero_asiento: 'AS-2026-000005',
+              tipo_operacion: 'entrada_recepcion',
+              codigo_ler: '17 04 05',
+              descripcion_residuo: 'Hierro y acero',
+              cantidad_kg: 2500,
+              fecha: '2026-11-16',
+            },
+          ],
+          error: null,
+        }),
+      };
+
+      const updateSingleMock = jest.fn().mockResolvedValue({
+        data: {
+          ...mockGestorMemoria,
+          total_movimientos: 2,
+          total_toneladas: 3.5,
+          documentos_identificacion_ids: [501],
+        },
+        error: null,
+      });
+
+      const memChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: mockGestorMemoria, error: null }),
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnThis(),
+          select: jest.fn().mockReturnThis(),
+          single: updateSingleMock,
+        }),
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'memorias_anuales') return memChain;
+        if (table === 'identification_documents') return diChain;
+        if (table === 'chronological_registry') return chronoChain;
+        return null;
+      });
+
+      const res = await recalculateDraftMemoria(26);
+      expect(diChain.or).toHaveBeenCalledWith(
+        'company_id.eq.10,gestor_company_id.eq.10,gestor_cif.ilike.B12345678'
+      );
+      expect(res.total_movimientos).toBe(2);
+      expect(res.total_toneladas).toBe(3.5);
+      expect(res.documentos_identificacion_ids).toEqual([501]);
     });
   });
 });

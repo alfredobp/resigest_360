@@ -1041,6 +1041,86 @@ describe('chronologicalRegistryService - Archivo Cronológico (Art. 64 Ley 7/202
         })
       );
     });
+
+    it('debe omitir la sincronización cuando la operación comercial es intermediación sin posesión física (QA5-I02)', async () => {
+      const res = await syncEntryFromCommercialOperation({
+        id: 60,
+        numero_operacion: 'OP-2026-0060',
+        codigo_ler: '17 04 05',
+        modalidad_posesion: 'intermediacion_sin_posesion',
+      } as CommercialOperation);
+
+      expect(res).toBeNull();
+      expect(mockSupabase.from).not.toHaveBeenCalled();
+    });
+
+    it('createChronologicalEntry debe normalizar e invertir origen/destino en entrada_recepcion cuando vienen invertidos (A04-03)', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      const insertMock = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          single: jest.fn().mockResolvedValue({
+            data: { id: 901, numero_asiento: 'AS-2026-000001' },
+            error: null,
+          }),
+        }),
+      });
+
+      mockSupabase.from.mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockResolvedValue({ count: 0, data: [], error: null }),
+        }),
+        insert: insertMock,
+      });
+
+      await createChronologicalEntry({
+        fecha: '2026-11-18',
+        tipo_operacion: 'entrada_recepcion',
+        codigo_ler: '17 04 05',
+        descripcion_residuo: 'Hierro y acero',
+        peligrosidad: 'no-peligroso',
+        cantidad_kg: 1200,
+        origen_razon_social: 'Planta Receptora Propia S.L.',
+        origen_nif: 'B11111111',
+        destino_razon_social: 'Productor Externo Remitente S.A.',
+        destino_nif: 'A22222222',
+      } as any);
+
+      expect(insertMock).toHaveBeenCalledWith([
+        expect.objectContaining({
+          tipo_operacion: 'entrada_recepcion',
+          origen_tipo: 'tercero_productor',
+          origen_razon_social: 'Productor Externo Remitente S.A.',
+          origen_nif: 'A22222222',
+          destino_tipo: 'propio',
+          destino_razon_social: 'Planta Receptora Propia S.L.',
+          destino_nif: 'B11111111',
+        }),
+      ]);
+
+      // Caso entrada_recepcion donde ya viene correctamente tipado como tercero_productor
+      await createChronologicalEntry({
+        fecha: '2026-11-18',
+        tipo_operacion: 'entrada_recepcion',
+        codigo_ler: '17 04 05',
+        descripcion_residuo: 'Hierro y acero',
+        peligrosidad: 'no-peligroso',
+        cantidad_kg: 800,
+        origen_tipo: 'tercero_productor',
+        origen_razon_social: 'Productor Directo S.A.',
+        destino_tipo: 'propio',
+        destino_razon_social: 'Planta Propia S.L.',
+      } as any);
+
+      expect(insertMock).toHaveBeenLastCalledWith([
+        expect.objectContaining({
+          origen_tipo: 'tercero_productor',
+          origen_razon_social: 'Productor Directo S.A.',
+          destino_tipo: 'propio',
+          destino_razon_social: 'Planta Propia S.L.',
+        }),
+      ]);
+    });
   });
 
   describe('Exportaciones CSV y Excel XML', () => {

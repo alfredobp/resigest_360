@@ -12,6 +12,7 @@ jest.mock('@/lib/supabase/client', () => ({
 import {
   ACTIVE_COMPANY_COOKIE,
   applyTenantScope,
+  applyDITenantScope,
   getActiveCompanyCookie,
   resolveTenantContext,
   sanitizeCompanySecrets,
@@ -421,6 +422,63 @@ describe('tenantContextService - Contexto Multi-Empresa, Perfiles y Permisos', (
 
       expect(applyTenantScope(queryWithoutOr, 'u-1', 42)).toBe('eq-result');
       expect(eqMock).toHaveBeenCalledWith('user_id', 'u-1');
+    });
+
+    it('applyDITenantScope aplica cláusulas multi-actor en DI con empresa activa y CIF o fallback', () => {
+      const orMock = jest.fn().mockReturnValue('or-di-result');
+      const eqMock = jest.fn().mockReturnValue('eq-di-result');
+      const queryWithOr = { or: orMock, eq: eqMock };
+      const queryWithoutOr = { eq: eqMock };
+
+      // Caso 1: con activeCompanyId y activeCompanyCif
+      expect(applyDITenantScope(queryWithOr, 'u-di-1', 50, 'B12345678')).toBe('or-di-result');
+      expect(orMock).toHaveBeenCalledWith(
+        'user_id.eq.u-di-1,company_id.eq.50,transportista_company_id.eq.50,gestor_company_id.eq.50,transportista_cif.ilike.B12345678,gestor_cif.ilike.B12345678'
+      );
+
+      // Caso 2: solo con CIF
+      orMock.mockClear();
+      expect(applyDITenantScope(queryWithOr, 'u-di-1', null, 'A99999999')).toBe('or-di-result');
+      expect(orMock).toHaveBeenCalledWith(
+        'user_id.eq.u-di-1,transportista_cif.ilike.A99999999,gestor_cif.ilike.A99999999'
+      );
+
+      // Caso 3: sin empresa ni CIF -> fallback eq(user_id)
+      expect(applyDITenantScope(queryWithOr, 'u-di-1', null, null)).toBe('eq-di-result');
+      expect(eqMock).toHaveBeenCalledWith('user_id', 'u-di-1');
+
+      // Caso 4: query sin .or -> fallback eq(user_id)
+      eqMock.mockClear();
+      expect(applyDITenantScope(queryWithoutOr, 'u-di-1', 50, 'B12345678')).toBe('eq-di-result');
+      expect(eqMock).toHaveBeenCalledWith('user_id', 'u-di-1');
+    });
+
+    it('sincroniza y borra cookie si targetId no coincide con ninguna empresa accesible', async () => {
+      (global as any).document = { cookie: `${ACTIVE_COMPANY_COOKIE}=88` };
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-no-comp', email: 'none@resigest.test' } },
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'user' } }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockReturnThis(),
+          order: jest.fn().mockReturnValue({
+            order: jest.fn().mockResolvedValue({ data: [] }),
+          }),
+        };
+      });
+
+      const ctx = await resolveTenantContext(mockSupabase, 88);
+      expect(ctx.activeCompany).toBeNull();
+      expect((global as any).document.cookie).toContain('max-age=0');
     });
   });
 });

@@ -198,6 +198,52 @@ async function getNextChronologicalAsientoNumber(
 }
 
 // =====================================================
+// NORMALIZACIÓN SEMÁNTICA ORIGEN / DESTINO (A04-03)
+// =====================================================
+export function normalizeEntryOriginDestination(
+  data: ChronologicalEntryFormData
+): ChronologicalEntryFormData {
+  if (data.tipo_operacion !== 'entrada_recepcion') {
+    return data;
+  }
+
+  // En una entrada por recepción en planta propia, el Origen es el tercero productor
+  // y el Destino es la instalación receptora propia.
+  const shouldSwap =
+    data.origen_tipo === 'propio' ||
+    (Boolean(data.origen_razon_social?.trim()) &&
+      Boolean(data.destino_razon_social?.trim()) &&
+      !data.origen_tipo &&
+      data.destino_tipo !== 'propio');
+
+  if (shouldSwap) {
+    return {
+      ...data,
+      origen_tipo: 'tercero_productor',
+      origen_nif: data.destino_nif || undefined,
+      origen_razon_social: data.destino_razon_social || undefined,
+      origen_nima: data.destino_nima || undefined,
+      origen_direccion: data.destino_direccion || undefined,
+      origen_municipio: data.destino_municipio || undefined,
+      origen_provincia: data.destino_provincia || undefined,
+      destino_tipo: 'propio',
+      destino_nif: data.origen_nif || undefined,
+      destino_razon_social: data.origen_razon_social || undefined,
+      destino_nima: data.origen_nima || undefined,
+      destino_direccion: data.origen_direccion || undefined,
+      destino_municipio: data.origen_municipio || undefined,
+      destino_provincia: data.origen_provincia || undefined,
+    };
+  }
+
+  return {
+    ...data,
+    origen_tipo: data.origen_tipo || 'tercero_productor',
+    destino_tipo: data.destino_tipo || 'propio',
+  };
+}
+
+// =====================================================
 // CREAR ASIENTO MANUAL
 // =====================================================
 export async function createChronologicalEntry(
@@ -207,7 +253,8 @@ export async function createChronologicalEntry(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay usuario autenticado');
 
-  const fechaObj = new Date(data.fecha || new Date());
+  const normalizedData = normalizeEntryOriginDestination(data);
+  const fechaObj = new Date(normalizedData.fecha || new Date());
   const year = isNaN(fechaObj.getFullYear()) ? new Date().getFullYear() : fechaObj.getFullYear();
 
   const numero_asiento = await getNextChronologicalAsientoNumber(supabase, user.id, year, 1);
@@ -230,11 +277,11 @@ export async function createChronologicalEntry(
   }
 
   const payload = {
-    ...data,
+    ...normalizedData,
     destino_nima,
     user_id: user.id,
     numero_asiento,
-    peligrosidad: data.codigo_ler.includes('*') ? 'peligroso' : data.peligrosidad
+    peligrosidad: normalizedData.codigo_ler.includes('*') ? 'peligroso' : normalizedData.peligrosidad
   };
 
   const { data: created, error } = await supabase
@@ -365,6 +412,7 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
     company_id: di.company_id,
     production_center_id: di.production_center_id,
     fecha: fechaAsiento,
+    fecha_hora_movimiento: fechaAsiento,
     tipo_operacion: isGestor ? 'entrada_recepcion' : 'salida_traslado',
     codigo_ler: di.codigo_ler,
     descripcion_residuo: di.descripcion_residuo,
@@ -395,13 +443,12 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
     operacion_rd: di.operacion_tratamiento_ejecutada || di.operacion_tratamiento,
     identification_document_id: di.id,
     numero_documento_referencia: di.numero_albaran_gestor || di.numero_documento,
-    observaciones: `Registro cronológico sincronizado desde DI ${di.numero_documento} (${isGestor ? 'Entrada / Recepción en planta' : 'Salida / Traslado'})${
-      di.operacion_tratamiento_ejecutada &&
+    observaciones: `Registro cronológico sincronizado desde DI ${di.numero_documento} (${isGestor ? 'Entrada / Recepción en planta' : 'Salida / Traslado'})${di.operacion_tratamiento_ejecutada &&
       di.operacion_tratamiento &&
       di.operacion_tratamiento_ejecutada !== di.operacion_tratamiento
-        ? ` | Op. prevista: ${di.operacion_tratamiento}, Op. ejecutada: ${di.operacion_tratamiento_ejecutada}`
-        : ''
-    }`
+      ? ` | Op. prevista: ${di.operacion_tratamiento}, Op. ejecutada: ${di.operacion_tratamiento_ejecutada}`
+      : ''
+      }`
   };
 
   if (existing) {
@@ -439,6 +486,10 @@ export async function syncEntryFromCommercialOperation(
   op: CommercialOperation
 ): Promise<ChronologicalEntry | null> {
   if (!op || !op.numero_operacion || !op.codigo_ler) return null;
+  // QA5-I02: Las operaciones de intermediación sin posesión física en planta propia no deben alterar el stock físico
+  if (op.modalidad_posesion === 'intermediacion_sin_posesion') {
+    return null;
+  }
 
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -618,7 +669,7 @@ export function exportChronologicalToCSV(entries: ChronologicalEntry[]): void {
     `"${(e.observaciones || '').replace(/"/g, '""')}"`
   ]);
 
-  const csvContent = `\uFEFF${  [headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n')}`;
+  const csvContent = `\uFEFF${[headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n')}`;
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

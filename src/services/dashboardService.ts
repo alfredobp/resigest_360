@@ -116,7 +116,7 @@ export const dashboardService = {
         ? supabase.from('commercial_operations').select('*').eq(filterColumn, filterValue)
         : Promise.resolve({ data: [] as any[] }),
       supabase.from('companies').select('id, cif, razon_social').eq('user_id', user.id),
-      supabase.from('chronological_registry').select('tipo_operacion, cantidad_kg').eq(filterColumn, filterValue),
+      supabase.from('chronological_registry').select('tipo_operacion, cantidad_kg, origen_tipo, destino_tipo, numero_documento_referencia').eq(filterColumn, filterValue),
     ]);
 
     const dis = disRes.data || [];
@@ -426,9 +426,11 @@ export const dashboardService = {
     let salidasKg = 0;
     chronoEntries.forEach((entry: any) => {
       const kg = Number(entry.cantidad_kg) || 0;
+      const isThirdPartyBrokerage =
+        entry.origen_tipo === 'tercero_productor' && entry.destino_tipo === 'tercero_gestor';
       if (entry.tipo_operacion === 'entrada_recepcion' || entry.tipo_operacion === 'produccion_interna') {
         entradasKg += kg;
-      } else if (entry.tipo_operacion === 'salida_traslado' || entry.tipo_operacion === 'merma_ajuste') {
+      } else if ((entry.tipo_operacion === 'salida_traslado' || entry.tipo_operacion === 'merma_ajuste') && !isThirdPartyBrokerage) {
         salidasKg += kg;
       }
     });

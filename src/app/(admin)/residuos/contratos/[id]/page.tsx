@@ -213,10 +213,13 @@ export default function ContractDetailPage() {
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-2xl font-bold text-foreground">
               {contract.numero_contrato || `Contrato #${contract.id}`}
             </h2>
+            <Badge color="light" size="sm">
+              Revisión v{contract.version || 1}
+            </Badge>
             {(() => {
               const effective = getContractEffectiveStatus(contract);
               return (
@@ -582,40 +585,105 @@ export default function ContractDetailPage() {
           </div>
         </ComponentCard>
 
-        {/* Firmas */}
-        {(contract.firma_productor_url || contract.firma_gestor_url) && (
-          <ComponentCard title="Firmas del Contrato">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {contract.firma_productor_url && (
-                <div className="flex flex-col items-center p-4 border rounded-xl bg-gray-50 dark:bg-gray-800/50">
-                  <span className="text-sm font-medium text-muted mb-4">Firma del Productor</span>
+        {/* Firmas y Estado de Conformidades por Revisión (A04-02) */}
+        <ComponentCard
+          title={`Firmas y Conformidades (Revisión v${contract.version || 1})`}
+          desc="Las conformidades quedan vinculadas a la revisión aceptada. Un cambio material en cantidades, residuos o condiciones genera una nueva revisión pendiente de conformidad."
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="flex flex-col items-center justify-between p-4 border rounded-xl bg-gray-50 dark:bg-gray-800/50">
+              <div className="w-full flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold text-foreground">1. Conformidad del Productor</span>
+                {contract.firma_productor_url || contract.firmado_productor ? (
+                  <Badge color="success" size="sm">✓ Aceptado (v{contract.version || 1})</Badge>
+                ) : (
+                  <Badge color="warning" size="sm">Pendiente (v{contract.version || 1})</Badge>
+                )}
+              </div>
+              {contract.firma_productor_url ? (
+                <>
                   <img
                     src={contract.firma_productor_url}
                     alt="Firma Productor"
-                    className="max-h-32 object-contain bg-white rounded shadow-sm p-2"
+                    className="max-h-28 object-contain bg-white rounded shadow-sm p-2"
                   />
-                  <span className="text-[10px] text-gray-400 mt-4 italic">
+                  <span className="text-[11px] text-gray-500 mt-3 italic">
                     Firmado el: {contract.fecha_firma_productor ? formatDate(contract.fecha_firma_productor) : '-'}
                   </span>
-                </div>
+                </>
+              ) : (
+                <p className="text-xs text-muted py-6 text-center">
+                  Pendiente de firma del productor para la Revisión v{contract.version || 1}.
+                </p>
               )}
+            </div>
 
-              {contract.firma_gestor_url && (
-                <div className="flex flex-col items-center p-4 border rounded-xl bg-gray-50 dark:bg-gray-800/50">
-                  <span className="text-sm font-medium text-muted mb-4">Firma del Gestor</span>
+            <div className="flex flex-col items-center justify-between p-4 border rounded-xl bg-gray-50 dark:bg-gray-800/50">
+              <div className="w-full flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold text-foreground">2. Conformidad del Gestor</span>
+                {contract.firma_gestor_url || contract.firmado_gestor ? (
+                  <Badge color="success" size="sm">✓ Aceptado (v{contract.version || 1})</Badge>
+                ) : (
+                  <Badge color="warning" size="sm">Pendiente (v{contract.version || 1})</Badge>
+                )}
+              </div>
+              {contract.firma_gestor_url ? (
+                <>
                   <img
                     src={contract.firma_gestor_url}
                     alt="Firma Gestor"
-                    className="max-h-32 object-contain bg-white rounded shadow-sm p-2"
+                    className="max-h-28 object-contain bg-white rounded shadow-sm p-2"
                   />
-                  <span className="text-[10px] text-gray-400 mt-4 italic">
+                  <span className="text-[11px] text-gray-500 mt-3 italic">
                     Firmado el: {contract.fecha_firma_gestor ? formatDate(contract.fecha_firma_gestor) : '-'}
                   </span>
-                </div>
+                </>
+              ) : (
+                <p className="text-xs text-muted py-6 text-center">
+                  Pendiente de firma del gestor para la Revisión v{contract.version || 1}.
+                </p>
               )}
             </div>
-          </ComponentCard>
-        )}
+          </div>
+
+          {Array.isArray(contract.revision_history) && contract.revision_history.length > 0 && (
+            <div className="mt-6 pt-5 border-t border-gray-200 dark:border-gray-800 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted">
+                Historial de Revisiones Anteriores Custodiadas ({contract.revision_history.length})
+              </h4>
+              <div className="space-y-2.5">
+                {contract.revision_history.map((rev, idx) => (
+                  <div
+                    key={`rev-${rev.version}-${idx}`}
+                    className="p-3.5 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/20 text-xs space-y-1.5"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-bold text-foreground">
+                        Revisión v{rev.version} (Sustituida el {new Date(rev.archived_at).toLocaleString('es-ES')})
+                      </span>
+                      <span className="text-[11px] font-mono text-amber-800 dark:text-amber-300">
+                        Cambios: {(rev.changed_fields || []).join(', ')}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-muted">
+                      <span>
+                        <strong>Cantidad máx.:</strong>{' '}
+                        {rev.cantidad_maxima_anual ? `${rev.cantidad_maxima_anual} ${rev.unidad_cantidad || 't'}` : '-'}
+                      </span>
+                      <span>
+                        <strong>LER:</strong> {(rev.codigos_ler || []).join(', ') || '-'}
+                      </span>
+                      <span>
+                        <strong>Conformidades v{rev.version}:</strong>{' '}
+                        Productor: {rev.firmado_productor ? 'Firmado' : 'No'} · Gestor: {rev.firmado_gestor ? 'Firmado' : 'No'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </ComponentCard>
 
         {/* Acciones */}
         <ComponentCard title="Acciones">

@@ -6,6 +6,7 @@ import {
   getMemoriaById,
   updateEstado,
   deleteMemoria,
+  recalculateDraftMemoria,
   generateExcelData,
   exportMemoriaToExcelXML,
   exportMemoriaToCSV
@@ -29,7 +30,28 @@ export default function DetalleMemoriaPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [processingExcel, setProcessingExcel] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+  const handleRecalculateDraft = async () => {
+    if (!memoria || memoria.estado !== 'borrador') return;
+    try {
+      setRecalculating(true);
+      setError(null);
+      const updated = await recalculateDraftMemoria(memoria.id);
+      setMemoria(updated);
+      const msg = `Memoria recalculada con éxito: ${updated.total_movimientos} movimientos (${updated.total_toneladas.toFixed(3)} t).`;
+      setSuccess(msg);
+      toast.success(msg);
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (err: any) {
+      const msg = err?.message || 'Error al recalcular la memoria anual';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setRecalculating(false);
+    }
+  };
 
   useEffect(() => {
     if (memoriaId) {
@@ -407,15 +429,25 @@ export default function DetalleMemoriaPage() {
                 Descargar PDF Oficial
               </Button>
 
-              {/* Cambiar Estado */}
+              {/* Recalcular y Cambiar Estado */}
               {memoria.estado === 'borrador' && (
-                <Button
-                  className="w-full justify-start"
-                  variant="outline"
-                  onClick={() => handleChangeEstado('revision')}
-                >
-                  Enviar a Revisión
-                </Button>
+                <>
+                  <Button
+                    className="w-full justify-start text-brand-700 hover:text-brand-800 hover:bg-brand-50 dark:text-brand-400"
+                    variant="outline"
+                    onClick={handleRecalculateDraft}
+                    disabled={recalculating}
+                  >
+                    {recalculating ? 'Recalculando movimientos...' : 'Recalcular / Sincronizar Movimientos'}
+                  </Button>
+                  <Button
+                    className="w-full justify-start"
+                    variant="outline"
+                    onClick={() => handleChangeEstado('revision')}
+                  >
+                    Enviar a Revisión
+                  </Button>
+                </>
               )}
 
               {memoria.estado === 'revision' && (

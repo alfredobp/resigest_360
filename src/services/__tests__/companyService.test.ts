@@ -740,6 +740,20 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
       }));
       expect(res.id).toBe(112);
 
+      // También probar update, softDelete y delete en contexto delegado
+      const updateSingle = jest.fn().mockResolvedValue({ data: { id: 105, razon_social: 'Editado', cif: 'B1' }, error: null });
+      const updateSelect = jest.fn().mockReturnValue({ single: updateSingle });
+      const updateOr = jest.fn().mockReturnValue({ select: updateSelect, error: null });
+      const updateEq = jest.fn().mockReturnValue({ or: updateOr });
+      mockSupabase.from.mockReturnValue({
+        update: jest.fn().mockReturnValue({ eq: updateEq }),
+        delete: jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ or: jest.fn().mockResolvedValue({ error: null }) }) }),
+      });
+
+      await companyService.update(105, { razon_social: 'Editado' });
+      await companyService.softDelete(105);
+      await companyService.delete(105);
+
       companyService.setActiveCompanyId(null);
       (companyService.getUserCompany as any).mockRestore?.();
     });

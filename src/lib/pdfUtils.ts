@@ -119,7 +119,7 @@ export async function generateContractPDF(contract: WasteContract) {
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text(contract.numero_contrato || `#${contract.id}`, 25, yPos + 15);
+  doc.text(`${contract.numero_contrato || `#${contract.id}`} (v${contract.version || 1})`, 25, yPos + 15);
   doc.text(formatSafeDate(contract.fecha_contrato), pageWidth / 2, yPos + 15);
 
   const estado = (contract.estado || 'borrador').toUpperCase();
@@ -973,12 +973,13 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
     yPos + 8
   );
   if (docData.nombre_productor) {
-    doc.setFontSize(6.5);
-    doc.text(fitText(doc, `${docData.nombre_productor} ${docData.dni_productor ? `(${docData.dni_productor})` : ''}`, 50), 18, yPos + 11.5);
+    doc.setFontSize(6.2);
+    const prodLines = doc.splitTextToSize(`${docData.nombre_productor} ${docData.dni_productor ? `(${docData.dni_productor})` : ''}`, 52).slice(0, 2);
+    doc.text(prodLines, 18, yPos + 11.5);
   }
   if (docData.fecha_firma_productor) {
     doc.setFontSize(6);
-    doc.text(formatSafeDateTime(docData.fecha_firma_productor), 18, yPos + (docData.nombre_productor ? 15 : 11.5));
+    doc.text(formatSafeDateTime(docData.fecha_firma_productor), 18, yPos + (docData.nombre_productor ? 17 : 11.5));
   }
 
   // Transportista
@@ -1007,12 +1008,13 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
     yPos + 8
   );
   if (docData.nombre_transportista) {
-    doc.setFontSize(6.5);
-    doc.text(fitText(doc, `${docData.nombre_transportista} ${docData.dni_transportista ? `(${docData.dni_transportista})` : ''}`, 50), 80, yPos + 11.5);
+    doc.setFontSize(6.2);
+    const transLines = doc.splitTextToSize(`${docData.nombre_transportista} ${docData.dni_transportista ? `(${docData.dni_transportista})` : ''}`, 52).slice(0, 2);
+    doc.text(transLines, 80, yPos + 11.5);
   }
   if (docData.fecha_firma_transportista) {
     doc.setFontSize(6);
-    doc.text(formatSafeDateTime(docData.fecha_firma_transportista), 80, yPos + (docData.nombre_transportista ? 15 : 11.5));
+    doc.text(formatSafeDateTime(docData.fecha_firma_transportista), 80, yPos + (docData.nombre_transportista ? 17 : 11.5));
   }
 
   // Gestor
@@ -1041,12 +1043,13 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
     yPos + 8
   );
   if (docData.nombre_gestor) {
-    doc.setFontSize(6.5);
-    doc.text(fitText(doc, `${docData.nombre_gestor} ${docData.dni_gestor ? `(${docData.dni_gestor})` : ''}`, 50), 142, yPos + 11.5);
+    doc.setFontSize(6.2);
+    const gestLines = doc.splitTextToSize(`${docData.nombre_gestor} ${docData.dni_gestor ? `(${docData.dni_gestor})` : ''}`, 52).slice(0, 2);
+    doc.text(gestLines, 142, yPos + 11.5);
   }
   if (docData.fecha_firma_gestor) {
     doc.setFontSize(6);
-    doc.text(formatSafeDateTime(docData.fecha_firma_gestor), 142, yPos + (docData.nombre_gestor ? 15 : 11.5));
+    doc.text(formatSafeDateTime(docData.fecha_firma_gestor), 142, yPos + (docData.nombre_gestor ? 17 : 11.5));
   }
 
   // Pie de página
@@ -1269,10 +1272,10 @@ export async function generateCommercialOperationPDF(op: CommercialOperation) {
 
   // 1. Datos del Residuo y Flujo Físico
   doc.setFillColor(accentBg[0], accentBg[1], accentBg[2]);
-  doc.roundedRect(14, yPos, pageWidth - 28, 42, 2, 2, 'F');
+  doc.roundedRect(14, yPos, pageWidth - 28, 46, 2, 2, 'F');
   doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   doc.setLineWidth(0.3);
-  doc.roundedRect(14, yPos, pageWidth - 28, 42, 2, 2, 'S');
+  doc.roundedRect(14, yPos, pageWidth - 28, 46, 2, 2, 'S');
 
   doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   doc.setFont('helvetica', 'bold');
@@ -1280,44 +1283,54 @@ export async function generateCommercialOperationPDF(op: CommercialOperation) {
   doc.text('1. TRAZABILIDAD FÍSICA Y AMBIENTAL DEL RESIDUO', 20, yPos + 7);
 
   doc.setTextColor(0, 0, 0);
-  doc.setFontSize(8.5);
+  doc.setFontSize(8.2);
   doc.setFont('helvetica', 'bold');
   doc.text('Código LER:', 20, yPos + 14);
   doc.setFont('helvetica', 'normal');
   doc.text(`${op.codigo_ler} - ${op.descripcion_residuo}`, 45, yPos + 14);
 
+  // QA5-I03: Renderizar razones sociales completas con salto de línea controlado sin truncar con '...'
   doc.setFont('helvetica', 'bold');
-  doc.text('Productor (Origen):', 20, yPos + 21);
+  doc.text('Productor (Origen):', 20, yPos + 20.5);
   doc.setFont('helvetica', 'normal');
-  doc.text(fitText(doc, op.origen_nombre_personalizado || op.origen_productor?.razon_social || '-', 56), 56, yPos + 21);
+  doc.setFontSize(7.6);
+  const origenLines = doc.splitTextToSize(op.origen_nombre_personalizado || op.origen_productor?.razon_social || '-', 56).slice(0, 2);
+  doc.text(origenLines, 53, yPos + 20.5);
+
+  doc.setFontSize(8.2);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Gestor (Destino):', 112, yPos + 20.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.6);
+  const destinoLines = doc.splitTextToSize(op.destino_nombre_personalizado || op.destino_gestor?.razon_social || '-', 52).slice(0, 2);
+  doc.text(destinoLines, 140, yPos + 20.5);
+
+  doc.setFontSize(8.2);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Transportista:', 20, yPos + 31);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.6);
+  const transLinesOp = doc.splitTextToSize(op.transportista_nombre_personalizado || op.transportista?.razon_social || '-', 65).slice(0, 2);
+  doc.text(transLinesOp, 45, yPos + 31);
+
+  doc.setFontSize(8.2);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Matrícula:', 112, yPos + 31);
+  doc.setFont('helvetica', 'normal');
+  doc.text(op.transportista_matricula || '-', 135, yPos + 31);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('Gestor (Destino):', 115, yPos + 21);
-  doc.setFont('helvetica', 'normal');
-  doc.text(fitText(doc, op.destino_nombre_personalizado || op.destino_gestor?.razon_social || '-', 48), 145, yPos + 21);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('Transportista:', 20, yPos + 28);
-  doc.setFont('helvetica', 'normal');
-  doc.text(fitText(doc, op.transportista_nombre_personalizado || op.transportista?.razon_social || '-', 67), 45, yPos + 28);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('Matrícula:', 115, yPos + 28);
-  doc.setFont('helvetica', 'normal');
-  doc.text(op.transportista_matricula || '-', 135, yPos + 28);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('Toneladas Totales:', 20, yPos + 35);
+  doc.text('Toneladas Totales:', 20, yPos + 39);
   doc.setFont('helvetica', 'normal');
   const ton = (op.cantidad_real_t && op.cantidad_real_t > 0 ? op.cantidad_real_t : op.cantidad_estimada_t) || 0;
-  doc.text(`${ton.toFixed(3)} t ${op.cantidad_real_t ? '(Verificado en báscula)' : '(Estimado)'}`, 52, yPos + 35);
+  doc.text(`${ton.toFixed(3)} t ${op.cantidad_real_t ? '(Verificado en báscula)' : '(Estimado)'}`, 52, yPos + 39);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('Documento DI:', 115, yPos + 35);
+  doc.text('Documento DI:', 112, yPos + 39);
   doc.setFont('helvetica', 'normal');
-  doc.text(op.identification_document_id ? `DI #${op.identification_document_id}` : 'No vinculado', 142, yPos + 35);
+  doc.text(op.identification_document_id ? `DI #${op.identification_document_id}` : 'No vinculado', 140, yPos + 39);
 
-  yPos += 48;
+  yPos += 52;
 
   // 2. Liquidación Económica y Desglose Financiero
   doc.setFillColor(249, 250, 251);
@@ -1428,6 +1441,13 @@ export async function generateCommercialOperationPDF(op: CommercialOperation) {
  * Genera el PDF oficial del Documento Electrónico de Control Administrativo (DeCA)
  * Conforme a la Orden FOM/2861/2012, Ley 9/2025 y Resolución de 5 de junio de 2026.
  */
+function toPdfInfoDateString(dateInput?: string | null, fallbackIso = '2026-01-01T00:00:00Z'): string {
+  const parsed = dateInput ? new Date(dateInput) : new Date(fallbackIso);
+  const d = isNaN(parsed.getTime()) ? new Date(fallbackIso) : parsed;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `D:${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}+00'00'`;
+}
+
 export async function generateDecaPDF(deca: DecaDocument, inspectionUrl: string): Promise<jsPDF> {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -1435,29 +1455,29 @@ export async function generateDecaPDF(deca: DecaDocument, inspectionUrl: string)
     format: 'a4',
   });
 
-  // RES6-I08 / D05: Incrustar CreationDate y ModDate en metadatos técnicos según Resolución 5/6/2026
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const formatPDFDate = (date: Date): string => {
-    const tzOffset = -date.getTimezoneOffset();
-    const tzSign = tzOffset >= 0 ? '+' : '-';
-    const tzH = pad(Math.floor(Math.abs(tzOffset) / 60));
-    const tzM = pad(Math.abs(tzOffset) % 60);
-    return `D:${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}${tzSign}${tzH}'${tzM}'`;
-  };
+  // RES6-I08 / D05 / N05: Metadatos deterministas /CreationDate y /ModDate para inmutabilidad forense (RD 553/2020)
+  const deterministicCreatedIso = deca.created_at || (deca.fecha_transporte ? `${deca.fecha_transporte}T08:00:00Z` : '2026-01-01T08:00:00Z');
+  const deterministicUpdatedIso = deca.updated_at || deterministicCreatedIso;
+  const createdDateObj = new Date(deterministicCreatedIso);
+  const safeCreatedObj = isNaN(createdDateObj.getTime()) ? new Date('2026-01-01T08:00:00Z') : createdDateObj;
 
-  const cDate = deca.created_at ? new Date(deca.created_at) : new Date();
-  const mDate = deca.updated_at ? new Date(deca.updated_at) : cDate;
+  const pdfModDateStr = toPdfInfoDateString(deterministicUpdatedIso, deterministicCreatedIso);
 
   doc.setProperties({
     title: `DeCA ${deca.numero_deca || ''} v${deca.version || 1}`,
     subject: 'Documento Electrónico de Control y Acompañamiento (DeCA) - RD 553/2020',
     author: deca.transportista_razon_social || 'ResiGest 360',
     creator: 'ResiGest 360 Medio Ambiente',
-    modDate: formatPDFDate(mDate),
+    modDate: pdfModDateStr,
   } as any);
 
   if (typeof (doc as any).setCreationDate === 'function') {
-    (doc as any).setCreationDate(cDate);
+    (doc as any).setCreationDate(safeCreatedObj);
+  }
+  if ((doc as any).internal?.events?.subscribe && typeof (doc as any).internal?.write === 'function') {
+    (doc as any).internal.events.subscribe('putInfo', () => {
+      (doc as any).internal.write(`/ModDate (${pdfModDateStr})`);
+    });
   }
 
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -1826,8 +1846,11 @@ export async function generateDecaPDF(deca: DecaDocument, inspectionUrl: string)
     14,
     pageHeight - 7
   );
+  const footerDateLabel = deca.version > 1
+    ? `Emitido v1: ${formatSafeDateTime(deterministicCreatedIso)} | Modificado v${deca.version}: ${formatSafeDateTime(deterministicUpdatedIso)}`
+    : `Emitido por RESIGEST 360: ${formatSafeDateTime(deterministicCreatedIso)}`;
   doc.text(
-    `Generado por RESIGEST 360 el ${new Date().toLocaleDateString('es-ES')} a las ${new Date().toLocaleTimeString('es-ES')}.`,
+    footerDateLabel,
     pageWidth - 14,
     pageHeight - 7,
     { align: 'right' }

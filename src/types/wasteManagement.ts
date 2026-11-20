@@ -166,9 +166,13 @@ export interface Company {
   nombre_comercial?: string;
   cif: string;
 
-  // Números de registro
+  // Números de registro y RD 764/2026
   nima?: string;
   numero_inscripcion?: string;
+  tipo_inscripcion?: OfficialRegistrationCode | string;
+  estado_verificacion_nima?: NimaVerificationStatus;
+  fecha_ultima_verificacion_nima?: string;
+  cnae?: string;
   numero_autorizacion?: string;
   matricula?: string;
 
@@ -231,6 +235,14 @@ export interface ProductionCenter {
   codigo_postal?: string;
   descripcion?: string;
   tipo_instalacion?: FacilityType;
+  cnae?: string;
+  tipo_inscripcion?: OfficialRegistrationCode | string;
+  numero_inscripcion?: string;
+  organismo_registro?: string;
+  estado_verificacion_nima?: NimaVerificationStatus;
+  fecha_ultima_verificacion_nima?: string;
+  inscripciones_registro?: CenterRegistration[];
+  historial_titularidad?: OwnershipTransferRecord[];
 
   activo: boolean;
   created_at: string;
@@ -247,6 +259,14 @@ export interface ProductionCenterFormData {
   codigo_postal?: string;
   descripcion?: string;
   tipo_instalacion?: FacilityType;
+  cnae?: string;
+  tipo_inscripcion?: OfficialRegistrationCode | string;
+  numero_inscripcion?: string;
+  organismo_registro?: string;
+  estado_verificacion_nima?: NimaVerificationStatus;
+  fecha_ultima_verificacion_nima?: string;
+  inscripciones_registro?: CenterRegistration[];
+  historial_titularidad?: OwnershipTransferRecord[];
   activo?: boolean;
 }
 
@@ -256,6 +276,10 @@ export interface CompanyFormData {
   cif: string;
   nima?: string;
   numero_inscripcion?: string;
+  tipo_inscripcion?: OfficialRegistrationCode | string;
+  estado_verificacion_nima?: NimaVerificationStatus;
+  fecha_ultima_verificacion_nima?: string;
+  cnae?: string;
   numero_autorizacion?: string;
   matricula?: string;
   domicilio_social?: string;
@@ -382,10 +406,11 @@ export interface WasteContract {
   firmado_gestor?: boolean;
   fecha_firma_gestor?: string;
 
-  // Metadata
+  // Metadata y Versionado de Conformidades (A04-02)
   version?: number;
   signing_token?: string;
   metadata_snapshot?: ContractMetadataSnapshot | null;
+  revision_history?: WasteContractRevision[];
   notas?: string;
   created_at: string;
   updated_at: string;
@@ -410,6 +435,30 @@ export interface ContractMetadataSnapshot {
   producer_center?: Partial<ProductionCenter>;
   gestor_center?: Partial<ProductionCenter>;
   environmental_authorization?: Partial<EnvironmentalAuthorization>;
+}
+
+export interface WasteContractRevision {
+  version: number;
+  archived_at: string;
+  motivo_cambio?: string;
+  changed_fields: string[];
+  cantidad_maxima_anual?: number;
+  unidad_cantidad?: string;
+  frecuencia_recogida?: string;
+  precio_unitario?: number;
+  moneda?: string;
+  fecha_inicio?: string;
+  fecha_fin?: string;
+  codigos_ler?: string[];
+  operaciones_tratamiento?: string[];
+  contract_waste_codes?: ContractWasteCode[];
+  firmado_productor?: boolean;
+  firma_productor_url?: string;
+  fecha_firma_productor?: string;
+  firmado_gestor?: boolean;
+  firma_gestor_url?: string;
+  fecha_firma_gestor?: string;
+  documento_url?: string;
 }
 
 export interface WasteContractFormData {
@@ -455,14 +504,27 @@ export interface IdentificationDocument {
   user_id: string;
   contract_id?: number;
   company_id: number;
-  gestor_company_id?: number;
   production_center_id?: number;
+  transportista_company_id?: number | null;
+  gestor_company_id?: number | null;
 
   numero_documento: string;
   fecha_documento: string;
   tipo_notificacion: 'sin-notificacion' | 'con-notificacion-previa';
   numero_notificacion?: string;
   prior_notification_id?: number;
+
+  // Operador del Traslado (Art. 2.a RD 553/2020)
+  operador_tipo?: 'productor' | 'gestor' | 'negociante' | 'agente' | 'poseedor';
+  operador_razon_social?: string;
+  operador_cif?: string;
+  operador_nima?: string;
+  operador_direccion?: string;
+  operador_codigo_postal?: string;
+  operador_municipio?: string;
+  operador_provincia?: string;
+  operador_telefono?: string;
+  operador_email?: string;
 
   // Productor
   productor_razon_social: string;
@@ -503,11 +565,14 @@ export interface IdentificationDocument {
   estado_fisico: 'solido' | 'liquido' | 'pastoso' | 'gaseoso';
   peligrosidad: 'no-peligroso' | 'peligroso';
 
-  // Cantidad
+  // Cantidad y Contenedores
   cantidad: number;
   unidad: 'kg' | 'toneladas' | 'litros' | 'm3' | 'unidades';
+  densidad_justificada_kg_m3?: number;
   numero_envases?: number;
   tipo_envases?: string;
+  contenedor_detalles?: ContainerSpecification[];
+  fecha_inicio_deposito?: string;
 
   // Tratamiento
   operacion_tratamiento?: string; // Operación prevista declarada al emitir el DI
@@ -1021,6 +1086,7 @@ export interface ChronologicalEntry {
   production_center_id?: number | null;
   numero_asiento: string;
   fecha: string;
+  fecha_hora_movimiento?: string | null;
   tipo_operacion: TipoOperacionCronologica;
   codigo_ler: string;
   descripcion_residuo: string;
@@ -1031,6 +1097,8 @@ export interface ChronologicalEntry {
   cantidad_t?: number;
   envase_tipo?: string | null;
   envase_unidades?: number | null;
+  contenedor_detalles?: ContainerSpecification[] | null;
+  fecha_inicio_deposito?: string | null;
 
   // Procedencia / Origen
   origen_tipo?: string;
@@ -1077,6 +1145,7 @@ export interface ChronologicalEntryFormData {
   company_id?: number | null;
   production_center_id?: number | null;
   fecha: string;
+  fecha_hora_movimiento?: string | null;
   tipo_operacion: TipoOperacionCronologica;
   codigo_ler: string;
   descripcion_residuo: string;
@@ -1086,6 +1155,8 @@ export interface ChronologicalEntryFormData {
   cantidad_kg: number;
   envase_tipo?: string;
   envase_unidades?: number;
+  contenedor_detalles?: ContainerSpecification[];
+  fecha_inicio_deposito?: string;
 
   origen_tipo?: string;
   origen_nif?: string;
@@ -1149,6 +1220,10 @@ export type EstadoOperacionComercial =
 
 export type TipoPrecioOperacion = 'por_tonelada' | 'lote_fijo' | 'por_kg';
 
+export type ModalidadPosesionComercial =
+  | 'intermediacion_sin_posesion'
+  | 'almacenamiento_planta_propia';
+
 export interface CommercialOperation {
   id: number;
   user_id: string;
@@ -1156,6 +1231,7 @@ export interface CommercialOperation {
   numero_operacion: string;
   fecha: string;
   estado: EstadoOperacionComercial;
+  modalidad_posesion?: ModalidadPosesionComercial;
 
   // Flujo Físico
   origen_productor_id?: number | null;
@@ -1236,6 +1312,7 @@ export interface CommercialOperationFormData {
   company_id?: number | null;
   fecha: string;
   estado?: EstadoOperacionComercial;
+  modalidad_posesion?: ModalidadPosesionComercial;
 
   // Flujo Físico
   origen_productor_id?: number | null;
@@ -1308,7 +1385,17 @@ export interface CommercialOperationStats {
 // BLOQUE 8: INTEGRACIONES (SIRA / e3l, HOLDED) Y AUDITORÍA
 // =====================================================
 
-export type SiraSubmissionStatus = 'pendiente' | 'enviado' | 'aceptado' | 'rechazado' | 'error';
+export type SiraSubmissionStatus =
+  | 'documento_interno'
+  | 'xml_generado'
+  | 'xml_validado'
+  | 'presentado'
+  | 'acuse_oficial'
+  | 'pendiente'
+  | 'enviado'
+  | 'aceptado'
+  | 'rechazado'
+  | 'error';
 export type SiraSubmissionType = 'di' | 'notificacion_previa' | 'memoria_anual';
 
 export interface SiraSubmission {
@@ -1502,6 +1589,12 @@ export interface PriorNotification {
   caracteristica_peligrosidad?: string;
   cantidad_estimada_kg: number;
 
+  // Instalación de Tratamiento Posterior (obligatoria si operacion_tratamiento es intermedia R12/R13/D13/D14/D15)
+  destino_posterior_razon_social?: string;
+  destino_posterior_cif?: string;
+  destino_posterior_nima?: string;
+  destino_posterior_operacion_rd?: string;
+
   // Integración SIRA
   estado: EstadoNotificacionPrevia;
   sira_id?: string;
@@ -1516,3 +1609,151 @@ export interface PriorNotification {
   created_at: string;
   updated_at: string;
 }
+
+// =====================================================
+// ORIENTACIONES NORMATIVAS (RD 764/2026, LEY 7/2022, CONTENEDORES)
+// =====================================================
+
+export type NimaVerificationStatus =
+  | 'pendiente_verificar'
+  | 'formato_valido'
+  | 'verificado'
+  | 'incidencia'
+  | 'invalido';
+
+export type OfficialRegistrationCode =
+  | 'P01'
+  | 'P02'
+  | 'P03'
+  | 'G01'
+  | 'G02'
+  | 'G04'
+  | 'G05'
+  | 'E01'
+  | 'E02'
+  | 'T01'
+  | 'T02'
+  | 'N01'
+  | 'N02'
+  | 'A01'
+  | 'A02';
+
+export interface CenterRegistration {
+  id?: string;
+  tipo_inscripcion?: OfficialRegistrationCode;
+  codigo_inscripcion?: OfficialRegistrationCode;
+  numero_inscripcion: string;
+  organismo?: string;
+  fecha_inscripcion?: string;
+  estado?: 'vigente' | 'en_tramite' | 'suspendida' | 'baja';
+  ler_autorizados?: string[];
+  operaciones_R_D?: string[];
+  documento_acreditativo?: string;
+  fecha_ultima_verificacion?: string;
+}
+
+export interface OwnershipTransferRecord {
+  fecha_transmision?: string;
+  fecha_cambio_titularidad?: string;
+  nif_anterior?: string;
+  previous_owner_nif?: string;
+  razon_social_anterior?: string;
+  previous_owner_razon_social?: string;
+  nif_nuevo?: string;
+  new_owner_nif?: string;
+  razon_social_nueva?: string;
+  new_owner_razon_social?: string;
+  mantiene_nima?: boolean;
+  preserved_nima?: string;
+  expediente_administrativo?: string;
+  observaciones?: string;
+}
+
+export type PhysicalContainerTypeId =
+  | 'contenedor_metalico_abierto'
+  | 'contenedor_metalico_cerrado'
+  | 'contenedor_metalico_obra'
+  | 'contenedor_gancho_cuba'
+  | 'banera_basculante'
+  | 'autocompactador'
+  | 'contenedor_autocompactador'
+  | 'contenedor_ruedas_eurocontenedor'
+  | 'contenedor_movil_2_4_ruedas'
+  | 'contenedor_isotermo_refrigerado'
+  | 'contenedor_especifico_biosanitario'
+  | 'iglu_recogida_selectiva'
+  | 'jaula_metalica_raee'
+  | 'jaula_contenedor_malla'
+  | 'big_bag_saco_flexible'
+  | 'big_bag'
+  | 'saco_bolsa'
+  | 'bidon_tambor'
+  | 'garrafa_recipiente_pequeno'
+  | 'garrafa_jerrican'
+  | 'grg_ibc'
+  | 'cisterna_deposito'
+  | 'cisterna_tanque_movil'
+  | 'pale_palot_caja_pale'
+  | 'pallet_paletizado_retractilado'
+  | 'fardo_bala_prensada'
+  | 'cubeto_recipiente_retencion'
+  | 'caja_contenedor_plastico'
+  | 'caja_cajon'
+  | 'granel_acopio_sin_contenedor'
+  | 'granel_sin_envase'
+  | 'otro';
+
+export type ContainerMaterial =
+  | 'PEAD_plastico'
+  | 'acero_metal'
+  | 'carton'
+  | 'madera'
+  | 'rafia_textil'
+  | 'compuesto'
+  | 'sin_envase'
+  | 'otro';
+
+export interface ContainerSpecification {
+  tipo?: PhysicalContainerTypeId;
+  tipo_contenedor?: PhysicalContainerTypeId;
+  descripcion_personalizada?: string;
+  proponer_nuevo_tipo?: boolean;
+  material?: ContainerMaterial | string;
+  capacidad_valor?: number;
+  capacidad_unidad?: 'L' | 'm3' | 'kg';
+  numero_unidades: number;
+  peso_estimado_kg?: number;
+  densidad_kg_m3?: number;
+  ubicacion?: string;
+  codigo_ler?: string;
+  fecha_inicio_deposito?: string;
+  compatibilidad_quimica?: boolean;
+  estanqueidad_retencion?: boolean;
+  etiquetado_reglamentario?: boolean;
+  verificaciones_rp?: {
+    compatibilidad_quimica: boolean;
+    estanqueidad_retencion: boolean;
+    etiquetado_reglamentario: boolean;
+  };
+}
+
+export type LegalObligationStatus =
+  | 'cumple'
+  | 'pendiente_acreditar'
+  | 'no_aplica'
+  | 'incidencia';
+
+export interface LegalObligationItem {
+  id: string;
+  perfil?: CompanyRole | 'consultor';
+  titulo: string;
+  normativa_referencia?: string;
+  fuente_legal?: string;
+  estado: LegalObligationStatus;
+  exigible?: boolean;
+  bloqueante?: boolean;
+  justificacion: string;
+  fecha_limite?: string;
+  accion_recomendada?: string;
+}
+
