@@ -710,16 +710,31 @@ export default function DetalleDocumentoIdentificacionPage() {
               </div>
 
               {/* Paso 5: Tratamiento y Cierre */}
-              <div className={`p-3 rounded-xl border flex flex-col justify-between ${tracking.step === 5 ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-800 opacity-60'}`}>
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 5</span>
-                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{tracking.step === 5 ? '✓' : '○'}</span>
+              {(() => {
+                const isProducerClosedExternally =
+                  isProductorOnly && tracking.step === 4 && !document.resultado_recepcion?.includes('rechazado');
+                const isStep5Done = tracking.step === 5 || isProducerClosedExternally;
+                return (
+                  <div className={`p-3 rounded-xl border flex flex-col justify-between ${isStep5Done ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-800 opacity-60'}`}>
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 5</span>
+                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{isStep5Done ? '✓' : '○'}</span>
+                      </div>
+                      <p className="text-xs font-semibold text-foreground">
+                        {isProducerClosedExternally ? 'Seguimiento Completado' : 'Tratado y Cerrado'}
+                      </p>
+                      <p className="text-[11px] text-muted mt-1">
+                        {document.fecha_tratamiento
+                          ? formatDate(document.fecha_tratamiento)
+                          : isProducerClosedExternally
+                            ? 'Tratamiento R/D a cargo del gestor externo'
+                            : 'Pendiente operación'}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-xs font-semibold text-foreground">Tratado y Cerrado</p>
-                  <p className="text-[11px] text-muted mt-1">{document.fecha_tratamiento ? formatDate(document.fecha_tratamiento) : 'Pendiente operación'}</p>
-                </div>
-              </div>
+                );
+              })()}
             </div>
           </div>
         </ComponentCard>
@@ -1314,6 +1329,12 @@ export default function DetalleDocumentoIdentificacionPage() {
                 >
                   <span>{document.estado_traslado === 'tratado' ? 'Rectificar Tratamiento' : 'Certificar Tratamiento y Cierre'}</span>
                 </Button>
+              )}
+
+              {isProductorOnly && document.estado_traslado === 'aceptado' && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs font-medium text-emerald-800 dark:text-emerald-300">
+                  ✓ Seguimiento completado (el tratamiento R/D lo certifica el gestor de destino — Art. 6 RD 553/2020)
+                </span>
               )}
 
               {/* Acción Regularizar / Vincular Contrato (Art. 5 RD 553/2020) */}
