@@ -80,32 +80,32 @@ export function reconstructContractFromRevision(
   contract: WasteContract,
   revision: WasteContractRevision
 ): WasteContract {
+  const isFullySigned =
+    Boolean(revision.firmado_productor || revision.firma_productor_url) &&
+    Boolean(revision.firmado_gestor || revision.firma_gestor_url);
+
   return {
     ...contract,
     version: revision.version,
-    cantidad_maxima_anual: revision.cantidad_maxima_anual ?? contract.cantidad_maxima_anual,
-    unidad_cantidad: revision.unidad_cantidad ?? contract.unidad_cantidad,
-    frecuencia_recogida: revision.frecuencia_recogida ?? contract.frecuencia_recogida,
-    precio_unitario: revision.precio_unitario ?? contract.precio_unitario,
-    moneda: revision.moneda ?? contract.moneda,
-    fecha_inicio: revision.fecha_inicio ?? contract.fecha_inicio,
-    fecha_fin: revision.fecha_fin ?? contract.fecha_fin,
-    codigos_ler: revision.codigos_ler ?? contract.codigos_ler,
-    operaciones_tratamiento: revision.operaciones_tratamiento ?? contract.operaciones_tratamiento,
-    contract_waste_codes: revision.contract_waste_codes ?? contract.contract_waste_codes,
-    firmado_productor: revision.firmado_productor ?? false,
+    cantidad_maxima_anual: revision.cantidad_maxima_anual,
+    unidad_cantidad: revision.unidad_cantidad,
+    frecuencia_recogida: revision.frecuencia_recogida,
+    precio_unitario: revision.precio_unitario,
+    moneda: revision.moneda,
+    fecha_inicio: revision.fecha_inicio,
+    fecha_fin: revision.fecha_fin,
+    codigos_ler: revision.codigos_ler,
+    operaciones_tratamiento: revision.operaciones_tratamiento,
+    contract_waste_codes: revision.contract_waste_codes,
+    firmado_productor: Boolean(revision.firmado_productor),
     firma_productor_url: revision.firma_productor_url,
     fecha_firma_productor: revision.fecha_firma_productor,
-    firmado_gestor: revision.firmado_gestor ?? false,
+    firmado_gestor: Boolean(revision.firmado_gestor),
     firma_gestor_url: revision.firma_gestor_url,
     fecha_firma_gestor: revision.fecha_firma_gestor,
     documento_url: revision.documento_url,
-    metadata_snapshot: revision.metadata_snapshot ?? contract.metadata_snapshot ?? null,
-    estado:
-      (revision.firmado_productor || Boolean(revision.firma_productor_url)) &&
-      (revision.firmado_gestor || Boolean(revision.firma_gestor_url))
-        ? 'vigente'
-        : contract.estado,
+    metadata_snapshot: revision.metadata_snapshot ?? null,
+    estado: isFullySigned ? 'vigente' : contract.estado,
   };
 }
 

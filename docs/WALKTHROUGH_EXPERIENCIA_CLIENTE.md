@@ -302,3 +302,49 @@ npm run typecheck   # --> PASS (0 errores TypeScript)
 npm run lint        # --> PASS (0 errores / advertencias ESLint)
 npm run test:ci     # --> PASS (47 Test Suites, 945 tests pasados limpios, cobertura >= 80% en todos los módulos)
 ```
+
+---
+
+# Walkthrough: Fase 5 de Experiencia de Cliente (Integridad P0: Maestros por CIF e Instantáneas Inmutables de Contratos Firmados)
+
+Se ha completado con éxito la ejecución de la **Fase 5 (Prioridad P0)** del informe de auditoría de experiencia de cliente (`RESIGEST_360_Experiencia_Cliente_2026-11-20`), cerrando los dos requisitos bloqueantes heredados: **`UXDEV-01`** (`RES6-I01`) y **`UXDEV-02`** (`RES6-I02`).
+
+---
+
+## 🚀 Cambios Implementados en Fase 5 (P0)
+
+### 1. Protección de CIF, Separación Alta/Edición y Fusión Explícita (`UXDEV-01` / `RES6-I01`)
+- **Fichero**: [companyService.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/services/companyService.ts)
+- Se incorporó `computeCompanyFingerprint` para calcular la huella determinista (64 hex) de una ficha maestra y verificar que ningún intento de alta duplicada altera sus datos.
+- En `companyService.update` se añadió control de colisión de CIF dentro del mismo tenant (`neq('id', id)`): si el CIF modificado ya pertenece a otra ficha, se rechaza la sobrescritura remitiendo a la fusión explícita.
+- Se implementó `companyService.mergeExplicit(targetId, sourceId, options)` que separa formalmente la fusión del alta/edición: conserva datos ya poblados en destino (salvo campos indicados en `overwriteFields`), unifica roles sin duplicados, desactiva (`softDelete`) la ficha origen y registra el evento `fusion_explicita` en `audit_logs`.
+
+### 2. Instantáneas Inmutables por Revisión, Hash PDF Determinista y Recuperación Histórica (`UXDEV-02` / `RES6-I02`)
+- **Ficheros**:
+  - [wasteManagement.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/types/wasteManagement.ts): `WasteContractRevision` incorpora `metadata_snapshot` para custodiar la instantánea completa de cada revisión archivada.
+  - [wasteContractService.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/services/wasteContractService.ts):
+    - Nuevos helpers exportados `computeContractSnapshotHash`, `buildContractRevisionRecord` y `reconstructContractFromRevision`.
+    - En `signContract`: se calcula y almacena `metadata_snapshot.pdf_hash` al congelar las partes y términos de la revisión firmada.
+    - En `update`: al detectar cambios materiales sobre un contrato firmado, **se archiva automáticamente la revisión anterior en `revision_history`** (con sus firmas, términos y `metadata_snapshot` congelado) antes de invalidar conformidades e incrementar `version`.
+  - [pdfUtils.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/lib/pdfUtils.ts):
+    - `generateContractPDF(contract, archivedRevision?)` soporta recuperación directa de cualquier revisión archivada y fija metadatos deterministas (`setCreationDate`, `setFileId` y `/ModDate`), garantizando **identidad exacta byte a byte (mismo SHA-256)** antes y después de modificar el maestro de empresas.
+  - [contratos/[id]/page.tsx](file:///c:/Users/Alfredo/Desktop/resigest_360/src/app/(admin)/residuos/contratos/[id]/page.tsx):
+    - En **Historial de Revisiones Anteriores Custodiadas** se añade el botón **"Recuperar PDF v{rev.version}"** para descargar cualquier revisión firmada anterior.
+
+---
+
+## 🧪 Verificación y Pruebas Realizadas en Fase 5
+
+### 1. Suite de Integración P0 de Integridad
+- [p0IntegrityAuditJourney.test.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/services/__tests__/p0IntegrityAuditJourney.test.ts):
+  - **UXDEV-01**: valida rechazo de alta duplicada por CIF con huella de ficha inalterada, rechazo de colisión en edición y fusión explícita auditada.
+  - **UXDEV-02**: valida que el **SHA-256 real del PDF firmado es idéntico byte a byte** antes y después de renombrar/editar el maestro del gestor; valida invalidación de firmas a `v2`, archivado automático de `v1` en `revision_history` y recuperación del PDF de `v1` con exactamente el mismo SHA-256 original.
+
+### 2. Verificaciones de Calidad Globales del Repositorio (AGENTS.md)
+```bash
+npm run typecheck   # --> PASS (0 errores TypeScript)
+npm run lint        # --> PASS (0 errores / advertencias ESLint)
+npm run test:ci     # --> PASS (48 Test Suites, 950 tests pasados limpios)
+```
+- `companyService.ts`: **93.99% Statements, 84.80% Branches, 100% Functions, 94.89% Lines**.
+- `wasteContractService.ts`: **97.96% Statements, 84.27% Branches, 100% Functions, 97.86% Lines**.

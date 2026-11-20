@@ -126,10 +126,22 @@ export async function generateContractPDF(
     creator: 'RESIGEST 360',
   });
   const docAny = doc as any;
+  if (typeof docAny.setCreationDate === 'function') {
+    docAny.setCreationDate(new Date(deterministicDateIso));
+  }
+  if (typeof docAny.setFileId === 'function') {
+    const stableFileId = (
+      contract.metadata_snapshot?.pdf_hash ||
+      `${contract.id || 0}${contract.numero_contrato || 'CT'}v${contract.version || 1}${deterministicDateIso}`
+    )
+      .replace(/[^0-9a-fA-F]/g, '0')
+      .padEnd(32, '0')
+      .slice(0, 32);
+    docAny.setFileId(stableFileId);
+  }
   if (docAny?.internal?.events?.subscribe) {
     const pdfDate = toPdfInfoDateString(deterministicDateIso);
     docAny.internal.events.subscribe('putInfo', function (this: any) {
-      this.internal.write(`/CreationDate (${pdfDate})`);
       this.internal.write(`/ModDate (${pdfDate})`);
     });
   }

@@ -184,8 +184,33 @@ describe('Auditoría P0 (Fase 5): Integridad de Maestros por CIF y Contratos Fir
         })
       );
 
-      // Validaciones de error en mergeExplicit
+      // Validaciones de error y opciones avanzadas en mergeExplicit
       await expect(companyService.mergeExplicit(101, 101)).rejects.toThrow(/consigo misma/);
+
+      mockSupabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      await expect(companyService.mergeExplicit(101, 202)).rejects.toThrow('Usuario no autenticado');
+
+      getByIdSpy.mockResolvedValueOnce(null).mockResolvedValueOnce(sourceCompany);
+      await expect(companyService.mergeExplicit(101, 202)).rejects.toThrow(/No se encontraron las fichas/);
+
+      // Fusión con overwriteFields y fallback de roles desde tipo_empresa legado
+      const legacyTarget = { ...targetCompany, roles: undefined };
+      const legacySource = { ...sourceCompany, roles: undefined, domicilio_social: 'Calle Nueva 9' };
+      getByIdSpy.mockResolvedValueOnce(legacyTarget as any).mockResolvedValueOnce(legacySource as any);
+      updateSpy.mockResolvedValueOnce({
+        ...targetCompany,
+        roles: ['gestor', 'transportista'],
+        domicilio_social: 'Calle Nueva 9',
+      });
+      softDeleteSpy.mockResolvedValueOnce();
+
+      const mergedWithOverwrite = await companyService.mergeExplicit(101, 202, {
+        overwriteFields: ['domicilio_social'],
+      });
+      expect(mergedWithOverwrite.domicilio_social).toBe('Calle Nueva 9');
+
+      // computeCompanyFingerprint maneja campos vacíos/nulos
+      expect(computeCompanyFingerprint({})).toMatch(/^[0-9a-f]{64}$/);
 
       getByIdSpy.mockRestore();
       updateSpy.mockRestore();
@@ -330,11 +355,15 @@ describe('Auditoría P0 (Fase 5): Integridad de Maestros por CIF y Contratos Fir
       const recoveredPdfHash = sha256(recoveredPdf.output());
       expect(recoveredPdfHash).toBe(originalPdfHash);
 
-      // Helper reconstructContractFromRevision preserva versión y firmas de v1
+      // Helper reconstructContractFromRevision preserva versión y firmas de v1 y también soporta revisión sin firmar
       const reconstructed = reconstructContractFromRevision(updatedV2, archivedV1);
       expect(reconstructed.version).toBe(1);
       expect(reconstructed.estado).toBe('vigente');
       expect(reconstructed.cantidad_maxima_anual).toBe(50);
+
+      const unsignedRev = buildContractRevisionRecord({ ...signedContractV1, firmado_productor: false, firmado_gestor: false }, ['notas']);
+      const reconstructedUnsigned = reconstructContractFromRevision(updatedV2, unsignedRev);
+      expect(reconstructedUnsigned.estado).toBe('pendiente_firma');
 
       // Helper buildContractRevisionRecord crea registro estructurado
       const built = buildContractRevisionRecord(signedContractV1, ['cantidad_maxima_anual'], '2026-06-01T00:00:00Z');
