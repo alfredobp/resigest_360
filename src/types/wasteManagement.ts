@@ -1406,6 +1406,48 @@ export interface CommercialOperationStats {
 }
 
 // =====================================================
+// BLOQUE 7B: CHATARRERÍA Y ENTRADAS DE BÁSCULA MULTIMATERIAL (UXDEV-09)
+// =====================================================
+
+export interface ScrapYardMaterialLine {
+  id: string;
+  codigo_ler: string;
+  descripcion_residuo: string;
+  peligrosidad: 'no-peligroso' | 'peligroso';
+  operacion_rd?: string;
+  peso_kg: number;
+  precio_eur_kg?: number;
+  subtotal_eur?: number;
+  asiento_id?: number;
+  asiento_numero?: string;
+}
+
+export interface ScrapYardEntryFormData {
+  fecha: string;
+  ticket_numero?: string;
+  proveedor_tipo: 'particular' | 'empresa';
+  proveedor_nombre: string;
+  proveedor_nif: string;
+  proveedor_direccion?: string;
+  proveedor_municipio?: string;
+  proveedor_provincia?: string;
+  vehiculo_matricula?: string;
+  production_center_id?: number;
+  lineas: ScrapYardMaterialLine[];
+  observaciones?: string;
+}
+
+export interface ScrapYardEntry extends ScrapYardEntryFormData {
+  id: string;
+  user_id: string;
+  company_id?: number;
+  ticket_numero: string;
+  total_kg: number;
+  total_importe_eur: number;
+  created_at: string;
+}
+
+// =====================================================
 // BLOQUE 8: INTEGRACIONES (SIRA / e3l, HOLDED) Y AUDITORÍA
 // =====================================================
 

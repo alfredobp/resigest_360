@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Copy } from 'lucide-react';
 import { siraValidationSchema } from '@/lib/validations/sira'; // IMPORT AÑADIDO
 import { type z } from 'zod'; // IMPORT AÑADIDO
@@ -30,6 +31,8 @@ import { PHYSICAL_CONTAINER_CATALOG } from '@/lib/validations/normativeComplianc
 
 export default function NuevoDocumentoIdentificacionPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const forcedPerspectiva = searchParams.get('perspectiva') || searchParams.get('sentido');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,9 +89,11 @@ export default function NuevoDocumentoIdentificacionPage() {
 
       setMyCompany(company);
 
-      // Determinar perspectiva inicial de expedición según el tipo de empresa
+      // Determinar perspectiva inicial de expedición según el tipo de empresa y parámetros de navegación
       const isCompanyGestor = company.tipo_empresa === 'gestor' || company.roles?.includes('gestor');
-      const initialRole = isCompanyGestor ? 'gestor' : 'productor';
+      const initialRole = (forcedPerspectiva === 'productor' || forcedPerspectiva === 'salida')
+        ? 'productor'
+        : (isCompanyGestor ? 'gestor' : 'productor');
       setExpeditionRole(initialRole);
 
       // Cargar centros de producción
@@ -892,6 +897,22 @@ export default function NuevoDocumentoIdentificacionPage() {
                   onChange={(value) => handleContractChange(value)}
                   placeholder="Selecciona un contrato"
                 />
+
+                {contracts.length === 0 && (
+                  <div className="mt-3 p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 space-y-1.5">
+                    <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-semibold text-xs">
+                      <span>⚠️ Cobertura Contractual Requerida (Art. 5 RD 553/2020)</span>
+                    </div>
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                      No dispone de contratos vigentes registrados con gestores de destino. Puede preparar este borrador de traslado, pero no podrá iniciar la expedición oficial hasta formalizar un contrato de tratamiento.
+                    </p>
+                    <div>
+                      <Link href="/residuos/contratos" className="text-xs font-bold text-amber-800 dark:text-amber-300 underline hover:no-underline">
+                        + Dar de alta un Contrato de Tratamiento →
+                      </Link>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </ComponentCard>

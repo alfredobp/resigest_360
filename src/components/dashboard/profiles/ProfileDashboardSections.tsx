@@ -206,9 +206,10 @@ export function ProfileKpiGrid({ profile, data, canViewCommercial }: ProfileKpis
             </span>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">
-                {plantaStats.entradasToneladas.toFixed(2)}
+                {plantaStats.entradasToneladas > 0 && plantaStats.entradasToneladas < 1
+                  ? `${(plantaStats.entradasToneladas * 1000).toFixed(0)} kg`
+                  : `${plantaStats.entradasToneladas.toFixed(2)} t`}
               </span>
-              <span className="text-xs font-medium text-gray-500">toneladas</span>
             </div>
             <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[11px]">
               <span className="text-gray-500">Asientos en archivo:</span>
@@ -224,9 +225,10 @@ export function ProfileKpiGrid({ profile, data, canViewCommercial }: ProfileKpis
             </span>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-extrabold text-blue-600 dark:text-blue-400">
-                {plantaStats.salidasToneladas.toFixed(2)}
+                {plantaStats.salidasToneladas > 0 && plantaStats.salidasToneladas < 1
+                  ? `${(plantaStats.salidasToneladas * 1000).toFixed(0)} kg`
+                  : `${plantaStats.salidasToneladas.toFixed(2)} t`}
               </span>
-              <span className="text-xs font-medium text-gray-500">toneladas</span>
             </div>
             <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[11px]">
               <span className="text-gray-500">DIs completados:</span>
@@ -244,16 +246,37 @@ export function ProfileKpiGrid({ profile, data, canViewCommercial }: ProfileKpis
             </span>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-extrabold text-gray-900 dark:text-white">
-                {plantaStats.existenciasToneladas.toFixed(2)}
-              </span>
-              <span className="text-xs font-medium text-gray-500">toneladas</span>
-            </div>
-            <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[11px]">
-              <span className="text-gray-500">Discrepancias báscula:</span>
-              <span className="font-bold text-amber-600 dark:text-amber-400">
-                {alertas.disDiscrepanciaCount}
+                {plantaStats.existenciasToneladas > 0 && plantaStats.existenciasToneladas < 1
+                  ? `${(plantaStats.existenciasToneladas * 1000).toFixed(0)} kg`
+                  : `${plantaStats.existenciasToneladas.toFixed(2)} t`}
               </span>
             </div>
+            {plantaStats.existenciasPorLer && plantaStats.existenciasPorLer.length > 0 ? (
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-800 space-y-1">
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider block">
+                  Stock por material (LER):
+                </span>
+                <div className="space-y-0.5 max-h-24 overflow-y-auto pr-1">
+                  {plantaStats.existenciasPorLer.slice(0, 3).map((item: any) => (
+                    <div key={item.ler} className="flex justify-between items-center text-[11px]">
+                      <span className="text-gray-600 dark:text-gray-300 truncate max-w-[140px]" title={item.descripcion}>
+                        {item.ler}
+                      </span>
+                      <span className="font-bold text-gray-800 dark:text-gray-200">
+                        {item.kg >= 1000 ? `${item.toneladas.toFixed(2)} t` : `${item.kg} kg`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[11px]">
+                <span className="text-gray-500">Discrepancias báscula:</span>
+                <span className="font-bold text-amber-600 dark:text-amber-400">
+                  {alertas.disDiscrepanciaCount}
+                </span>
+              </div>
+            )}
           </div>
         </ComponentCard>
 

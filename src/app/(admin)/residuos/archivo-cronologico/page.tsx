@@ -31,6 +31,7 @@ import Alert from '@/components/ui/alert/Alert';
 import { Modal, ConfirmModal } from '@/components/ui/modal';
 import { DataTable, type ColumnDef } from '@/components/ui/table';
 import LerSelector from '@/components/residuos/LerSelector';
+import { useTenant } from '@/context/TenantContext';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -84,6 +85,7 @@ function formatDateTime(fechaStr?: string | null, createdAtStr?: string | null):
 }
 
 export default function ArchivoCronologicoPage() {
+  const { perfilOperativo } = useTenant();
   const [activeTab, setActiveTab] = useState<'consolidado' | 'pendientes'>('consolidado');
   const [entries, setEntries] = useState<ChronologicalEntry[]>([]);
   const [pendingDispatches, setPendingDispatches] = useState<PendingDispatch[]>([]);
@@ -104,7 +106,7 @@ export default function ArchivoCronologicoPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [savingEntry, setSavingEntry] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<number | null>(null);
-  const [myCompany, setMyCompany] = useState<{ id: number; razon_social?: string; nombre_comercial?: string; cif?: string } | null>(null);
+  const [myCompany, setMyCompany] = useState<{ id: number; razon_social?: string; nombre_comercial?: string; cif?: string; tipo_empresa?: string } | null>(null);
   const [formData, setFormData] = useState<ChronologicalEntryFormData>({
     fecha: new Date().toISOString().split('T')[0],
     tipo_operacion: 'produccion_interna',
@@ -123,6 +125,38 @@ export default function ArchivoCronologicoPage() {
     numero_documento_referencia: '',
     observaciones: ''
   });
+
+  const openNewEntryModal = () => {
+    const isGestorOrChat =
+      perfilOperativo === 'chatarreria' ||
+      perfilOperativo === 'gestor_rp' ||
+      myCompany?.tipo_empresa === 'gestor';
+    const initialTipo: TipoOperacionCronologica = isGestorOrChat ? 'entrada_recepcion' : 'produccion_interna';
+    const ownName = myCompany?.razon_social || myCompany?.nombre_comercial || '';
+    const ownCif = myCompany?.cif || '';
+
+    setFormData({
+      fecha: new Date().toISOString().split('T')[0],
+      tipo_operacion: initialTipo,
+      codigo_ler: '',
+      descripcion_residuo: '',
+      peligrosidad: 'no-peligroso',
+      cantidad_kg: 0,
+      estado_fisico: 'solido',
+      envase_tipo: 'GRG / Contenedor',
+      envase_unidades: 1,
+      origen_tipo: initialTipo === 'entrada_recepcion' ? 'tercero_productor' : 'propio',
+      origen_razon_social: initialTipo === 'entrada_recepcion' ? '' : ownName,
+      origen_nif: initialTipo === 'entrada_recepcion' ? '' : ownCif,
+      destino_tipo: initialTipo === 'entrada_recepcion' ? 'propio' : 'tercero_gestor',
+      destino_razon_social: initialTipo === 'entrada_recepcion' ? ownName : '',
+      destino_nif: initialTipo === 'entrada_recepcion' ? ownCif : '',
+      operacion_rd: initialTipo === 'entrada_recepcion' ? 'R13' : '',
+      numero_documento_referencia: '',
+      observaciones: ''
+    });
+    setModalOpen(true);
+  };
 
   const loadData = async () => {
     try {
@@ -219,14 +253,18 @@ export default function ArchivoCronologicoPage() {
       setSuccess(msg);
       toast.success(msg);
       setModalOpen(false);
-      // Reset form
+      // Reset form sin retener proveedor previo (UX-18)
       setFormData(prev => ({
         ...prev,
         codigo_ler: '',
         descripcion_residuo: '',
         cantidad_kg: 0,
         numero_documento_referencia: '',
-        observaciones: ''
+        observaciones: '',
+        origen_razon_social: prev.tipo_operacion === 'entrada_recepcion' ? '' : prev.origen_razon_social,
+        origen_nif: prev.tipo_operacion === 'entrada_recepcion' ? '' : prev.origen_nif,
+        destino_razon_social: prev.tipo_operacion !== 'entrada_recepcion' ? '' : prev.destino_razon_social,
+        destino_nif: prev.tipo_operacion !== 'entrada_recepcion' ? '' : prev.destino_nif,
       }));
       await loadData();
       setTimeout(() => setSuccess(null), 4000);
@@ -486,7 +524,7 @@ export default function ArchivoCronologicoPage() {
 
           <Button
             size="sm"
-            onClick={() => setModalOpen(true)}
+            onClick={openNewEntryModal}
             className="bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors"
           >
             Nuevo Asiento Manual
@@ -769,7 +807,7 @@ export default function ArchivoCronologicoPage() {
                   <Button size="sm" variant="outline" onClick={handleSyncDIs}>
                     Sincronizar DIs
                   </Button>
-                  <Button size="sm" onClick={() => setModalOpen(true)}>
+                  <Button size="sm" onClick={openNewEntryModal}>
                     Nuevo Asiento
                   </Button>
                 </div>

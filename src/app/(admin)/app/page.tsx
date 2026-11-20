@@ -15,6 +15,7 @@ import {
   ProfileKpiGrid,
   ProfileShortcutsCard,
 } from '@/components/dashboard/profiles/ProfileDashboardSections';
+import ScrapYardEntryModal from '@/components/residuos/ScrapYardEntryModal';
 import type { AppModule, OperationalProfile } from '@/types/wasteManagement';
 
 export default function ExecutiveDashboardPage() {
@@ -57,33 +58,33 @@ export default function ExecutiveDashboardPage() {
   const [executiveData, setExecutiveData] = useState<ExecutiveDashboardData | null>(null);
   const [monthlyData, setMonthlyData] = useState<Array<{ name: string; value: number }>>([]);
   const [recentDIs, setRecentDIs] = useState<any[]>([]);
+  const [isScrapModalOpen, setIsScrapModalOpen] = useState(false);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const scopedCompanyId = isPlatformAdmin && !activeCompanyId ? null : activeCompanyId;
+      const [overview, monthly, recent] = await Promise.all([
+        dashboardService.getExecutiveOverview({
+          companyId: scopedCompanyId,
+          includeCommercial: canCreateOp,
+        }),
+        dashboardService.getMonthlyWasteData(scopedCompanyId),
+        dashboardService.getRecentActivity(scopedCompanyId),
+      ]);
+
+      setExecutiveData(overview);
+      setMonthlyData(monthly);
+      setRecentDIs(recent);
+    } catch (err) {
+      console.error('Error al cargar datos del dashboard ejecutivo:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (tenantLoading) return;
-
-    async function loadData() {
-      try {
-        setLoading(true);
-        const scopedCompanyId = isPlatformAdmin && !activeCompanyId ? null : activeCompanyId;
-        const [overview, monthly, recent] = await Promise.all([
-          dashboardService.getExecutiveOverview({
-            companyId: scopedCompanyId,
-            includeCommercial: canCreateOp,
-          }),
-          dashboardService.getMonthlyWasteData(scopedCompanyId),
-          dashboardService.getRecentActivity(scopedCompanyId),
-        ]);
-
-        setExecutiveData(overview);
-        setMonthlyData(monthly);
-        setRecentDIs(recent);
-      } catch (err) {
-        console.error('Error al cargar datos del dashboard ejecutivo:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
     loadData();
   }, [tenantLoading, activeCompanyId, isPlatformAdmin, canCreateOp, tenant?.userId]);
 
@@ -132,10 +133,20 @@ export default function ExecutiveDashboardPage() {
           {canCreateDI && (
             <Button
               size="sm"
-              onClick={() => router.push('/residuos/documentos-identificacion/nuevo')}
+              onClick={() =>
+                router.push(
+                  effectiveProfile === 'chatarreria'
+                    ? '/residuos/documentos-identificacion/nuevo?perspectiva=productor'
+                    : '/residuos/documentos-identificacion/nuevo'
+                )
+              }
               className="bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors"
             >
-              {effectiveProfile === 'productor' ? 'Nueva Retirada (DI)' : 'Nuevo Traslado (DI)'}
+              {effectiveProfile === 'productor'
+                ? 'Nueva Retirada (DI)'
+                : effectiveProfile === 'chatarreria'
+                ? 'Nueva Salida (Expedición)'
+                : 'Nuevo Traslado (DI)'}
             </Button>
           )}
 
@@ -143,10 +154,16 @@ export default function ExecutiveDashboardPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push('/residuos/operaciones/nueva')}
+              onClick={() => {
+                if (effectiveProfile === 'chatarreria') {
+                  setIsScrapModalOpen(true);
+                } else {
+                  router.push('/residuos/operaciones/nueva');
+                }
+              }}
               className="text-brand-600 dark:text-brand-400 font-medium hover:bg-brand-50 dark:hover:bg-brand-950/40"
             >
-              {effectiveProfile === 'chatarreria' ? 'Nuevo Pesaje / Compraventa' : 'Nueva Operación'}
+              {effectiveProfile === 'chatarreria' ? 'Nueva Entrada (Báscula / Recepción)' : 'Nueva Operación'}
             </Button>
           )}
 
@@ -439,6 +456,13 @@ export default function ExecutiveDashboardPage() {
           <ProfileShortcutsCard hasModule={effectiveHasModule} />
         </div>
       </div>
+
+      {/* Modal de Entrada de Báscula / Recepción Multimaterial (Chatarrería) */}
+      <ScrapYardEntryModal
+        isOpen={isScrapModalOpen}
+        onClose={() => setIsScrapModalOpen(false)}
+        onSuccess={() => loadData()}
+      />
     </div>
   );
 }

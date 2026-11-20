@@ -86,6 +86,7 @@ export interface ExecutiveDashboardData {
     entradasToneladas: number;
     salidasToneladas: number;
     existenciasToneladas: number;
+    existenciasPorLer?: Array<{ ler: string; descripcion: string; kg: number; toneladas: number }>;
     totalAsientos: number;
     totalContratos: number;
     contratosVigentes: number;
@@ -424,14 +425,24 @@ export const dashboardService = {
     // Métricas de planta / archivo cronológico y contratos
     let entradasKg = 0;
     let salidasKg = 0;
+    const stockMap: Record<string, { ler: string; descripcion: string; kg: number }> = {};
+
     chronoEntries.forEach((entry: any) => {
       const kg = Number(entry.cantidad_kg) || 0;
+      const ler = entry.codigo_ler || 'Sin LER';
       const isThirdPartyBrokerage =
         entry.origen_tipo === 'tercero_productor' && entry.destino_tipo === 'tercero_gestor';
+
+      if (!stockMap[ler]) {
+        stockMap[ler] = { ler, descripcion: entry.descripcion_residuo || ler, kg: 0 };
+      }
+
       if (entry.tipo_operacion === 'entrada_recepcion' || entry.tipo_operacion === 'produccion_interna') {
         entradasKg += kg;
+        stockMap[ler].kg += kg;
       } else if ((entry.tipo_operacion === 'salida_traslado' || entry.tipo_operacion === 'merma_ajuste') && !isThirdPartyBrokerage) {
         salidasKg += kg;
+        stockMap[ler].kg = Math.max(0, stockMap[ler].kg - kg);
       }
     });
 
@@ -439,6 +450,14 @@ export const dashboardService = {
     const salidasToneladas = Number((salidasKg / 1000).toFixed(3));
     const existenciasToneladas = Number(Math.max(0, (entradasKg - salidasKg) / 1000).toFixed(3));
     const contratosVigentes = contracts.filter((c: any) => getContractEffectiveStatus(c).status === 'vigente').length;
+
+    const existenciasPorLer = Object.values(stockMap)
+      .filter(item => item.kg > 0)
+      .sort((a, b) => b.kg - a.kg)
+      .map(item => ({
+        ...item,
+        toneladas: Number((item.kg / 1000).toFixed(3)),
+      }));
 
     return {
       conformidad: {
@@ -486,6 +505,7 @@ export const dashboardService = {
         entradasToneladas,
         salidasToneladas,
         existenciasToneladas,
+        existenciasPorLer,
         totalAsientos: chronoEntries.length,
         totalContratos: contracts.length,
         contratosVigentes,

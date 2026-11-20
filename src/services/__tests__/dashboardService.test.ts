@@ -615,7 +615,7 @@ describe('dashboardService - Dashboard Ejecutivo e Indicadores', () => {
 
       expect(eqCalls).toContainEqual(['company_id', 77]);
       expect(res.comercial.totalOperaciones).toBe(0);
-      expect(res.planta).toEqual({
+      expect(res.planta).toMatchObject({
         entradasToneladas: 12,
         salidasToneladas: 4.5,
         existenciasToneladas: 7.5,

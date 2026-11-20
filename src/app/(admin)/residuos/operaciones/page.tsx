@@ -18,6 +18,7 @@ import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
 import { useTenant } from '@/context/TenantContext';
+import ScrapYardEntryModal from '@/components/residuos/ScrapYardEntryModal';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -39,6 +40,7 @@ export default function OperacionesComercialesPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [opToDelete, setOpToDelete] = useState<number | null>(null);
+  const [isScrapModalOpen, setIsScrapModalOpen] = useState(false);
 
   const isAuthorized =
     isPlatformAdmin || (hasModule('operaciones_comerciales') && canViewCommercial);
@@ -149,6 +151,15 @@ export default function OperacionesComercialesPage() {
             className="text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 font-medium"
           >
             CSV
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsScrapModalOpen(true)}
+            className="text-emerald-700 dark:text-emerald-400 border-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 font-medium"
+          >
+            Nueva Entrada (Báscula)
           </Button>
 
           <Button
@@ -441,6 +452,12 @@ export default function OperacionesComercialesPage() {
         onConfirm={confirmDelete}
         title="Eliminar operación comercial"
         message="¿Confirma la eliminación de esta operación comercial? Esta acción no se puede deshacer."
+      />
+
+      <ScrapYardEntryModal
+        isOpen={isScrapModalOpen}
+        onClose={() => setIsScrapModalOpen(false)}
+        onSuccess={() => loadData()}
       />
     </div>
   );
