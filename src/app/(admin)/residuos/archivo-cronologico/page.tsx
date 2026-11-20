@@ -10,6 +10,8 @@ import {
   syncAllClosedDIs,
   exportChronologicalToCSV,
   exportChronologicalToExcelXML,
+  getPendingDispatches,
+  type PendingDispatch,
   type ChronologicalFilter
 } from '@/services/chronologicalRegistryService';
 import productionCenterService from '@/services/productionCenterService';
@@ -82,7 +84,9 @@ function formatDateTime(fechaStr?: string | null, createdAtStr?: string | null):
 }
 
 export default function ArchivoCronologicoPage() {
+  const [activeTab, setActiveTab] = useState<'consolidado' | 'pendientes'>('consolidado');
   const [entries, setEntries] = useState<ChronologicalEntry[]>([]);
+  const [pendingDispatches, setPendingDispatches] = useState<PendingDispatch[]>([]);
   const [stats, setStats] = useState<ChronologicalStats | null>(null);
   const [centers, setCenters] = useState<ProductionCenter[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,13 +153,18 @@ export default function ArchivoCronologicoPage() {
         peligrosidad: selectedPeligrosidad !== 'todas' ? (selectedPeligrosidad as any) : 'todas'
       };
 
-      const [entriesData, statsData] = await Promise.all([
+      const [entriesData, statsData, pendingData] = await Promise.all([
         getChronologicalEntries(filters),
-        getChronologicalStats(selectedYear, selectedCenter !== 'todos' ? Number(selectedCenter) : 'todos')
+        getChronologicalStats(selectedYear, selectedCenter !== 'todos' ? Number(selectedCenter) : 'todos'),
+        getPendingDispatches({
+          año: selectedYear,
+          production_center_id: selectedCenter !== 'todos' ? Number(selectedCenter) : 'todos'
+        }).catch(() => [])
       ]);
 
       setEntries(entriesData);
       setStats(statsData);
+      setPendingDispatches(pendingData);
     } catch (err: any) {
       console.error('Error al cargar datos del Archivo Cronológico:', err);
       if (err?.code === 'PGRST205' || err?.message?.includes('chronological_registry') || err?.message?.includes('schema cache')) {
@@ -617,40 +626,157 @@ export default function ArchivoCronologicoPage() {
         </div>
       </div>
 
-      {/* Tabla de Registros con DataTable y Paginación */}
-      {loading ? (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/80 p-12 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3" />
-          <p className="text-sm text-gray-500">Cargando libro cronológico oficial...</p>
+      {/* Pestañas de Vista: Libro Oficial vs Traslados en Tránsito (UXDEV-06 / UX-09) */}
+      <div className="flex border-b border-gray-200 dark:border-gray-800 gap-4 mb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab('consolidado')}
+          className={`pb-3 px-1 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === 'consolidado'
+              ? 'border-primary text-primary dark:text-white'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          <span>Libro Cronológico Consolidado (Art. 64)</span>
+          <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-bold">
+            {entries.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('pendientes')}
+          className={`pb-3 px-1 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === 'pendientes'
+              ? 'border-brand-500 text-brand-600 dark:text-brand-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          <span>Traslados en Curso / Pendientes de Justificante</span>
+          {pendingDispatches.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-xs bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold">
+              {pendingDispatches.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeTab === 'pendientes' ? (
+        <div className="space-y-4">
+          <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 rounded-xl flex items-start gap-3">
+            <span className="text-amber-600 dark:text-amber-400 font-bold text-lg mt-0.5">ℹ</span>
+            <div className="text-xs text-amber-900 dark:text-amber-300 space-y-1">
+              <p className="font-semibold text-sm">
+                Explicación de inclusión / exclusión de traslados en curso (RD 553/2020)
+              </p>
+              <p>
+                Los traslados aquí listados corresponden a residuos que ya han salido físicamente de su centro de producción pero cuyo gestor destinatario todavía no ha registrado la recepción formal ni la pesada en báscula.
+              </p>
+              <p className="font-medium">
+                • <strong>Criterio de Memoria Anual:</strong> Estos residuos quedan provisionalmente excluidos del cómputo consolidado y de la Memoria Anual hasta que conste la confirmación y el justificante de destino (Art. 65 Ley 7/2022).
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/80 overflow-x-auto">
+            {pendingDispatches.length === 0 ? (
+              <div className="p-12 text-center text-gray-500 text-sm">
+                No hay traslados en curso pendientes de justificante para los filtros seleccionados.
+              </div>
+            ) : (
+              <table className="w-full text-left text-xs">
+                <thead className="bg-gray-50 dark:bg-gray-900/60 text-gray-600 dark:text-gray-400 uppercase font-semibold border-b border-gray-100 dark:border-gray-800">
+                  <tr>
+                    <th className="px-4 py-3">Fecha Salida</th>
+                    <th className="px-4 py-3">Nº Documento (DI)</th>
+                    <th className="px-4 py-3">Residuo (LER)</th>
+                    <th className="px-4 py-3">Cantidad Estimada</th>
+                    <th className="px-4 py-3">Gestor Destino</th>
+                    <th className="px-4 py-3">Transportista</th>
+                    <th className="px-4 py-3">Estado</th>
+                    <th className="px-4 py-3 text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {pendingDispatches.map((d) => (
+                    <tr key={d.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
+                      <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900 dark:text-white">
+                        {d.fecha_inicio_traslado || d.fecha_documento}
+                      </td>
+                      <td className="px-4 py-3 font-mono font-semibold text-brand-600 dark:text-brand-400">
+                        {d.numero_documento}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="font-mono font-bold text-gray-800 dark:text-gray-200 mr-1.5">{d.codigo_ler}</span>
+                        <span className="text-gray-500 truncate block max-w-xs">{d.descripcion_residuo}</span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="font-bold text-gray-900 dark:text-white">{d.cantidad_kg.toLocaleString('es-ES')} kg</span>
+                        <span className="text-[11px] text-gray-400 ml-1">({(d.cantidad_kg / 1000).toFixed(3)} t)</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-gray-800 dark:text-gray-200">{d.gestor_razon_social}</p>
+                        <p className="text-[10px] text-gray-400 font-mono">{d.gestor_cif}</p>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                        {d.transportista_razon_social || '-'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400">
+                          EN TRÁNSITO
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <Link
+                          href={`/residuos/documentos-identificacion/${d.id}`}
+                          className="inline-flex items-center text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                        >
+                          Aportar Justificante →
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       ) : (
-        <DataTable
-          data={entries}
-          columns={columns}
-          searchPlaceholder="Buscar por asiento, LER, empresa, documento..."
-          defaultPageSize={25}
-          pageSizeOptions={[10, 25, 50, 100]}
-          initialSortBy="asiento"
-          initialSortOrder="desc"
-          emptyState={
-            <div className="p-8 text-center space-y-3">
-              <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">
-                No hay asientos cronológicos para los filtros seleccionados
-              </h3>
-              <p className="text-xs text-gray-500 max-w-md mx-auto">
-                Puede sincronizar automáticamente las operaciones desde sus Documentos de Identificación cerrados o registrar un asiento manual.
-              </p>
-              <div className="flex justify-center gap-2 pt-2">
-                <Button size="sm" variant="outline" onClick={handleSyncDIs}>
-                  Sincronizar DIs
-                </Button>
-                <Button size="sm" onClick={() => setModalOpen(true)}>
-                  Nuevo Asiento
-                </Button>
+        /* Tabla de Registros con DataTable y Paginación */
+        loading ? (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/80 p-12 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3" />
+            <p className="text-sm text-gray-500">Cargando libro cronológico oficial...</p>
+          </div>
+        ) : (
+          <DataTable
+            data={entries}
+            columns={columns}
+            searchPlaceholder="Buscar por asiento, LER, empresa, documento..."
+            defaultPageSize={25}
+            pageSizeOptions={[10, 25, 50, 100]}
+            initialSortBy="asiento"
+            initialSortOrder="desc"
+            emptyState={
+              <div className="p-8 text-center space-y-3">
+                <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">
+                  No hay asientos cronológicos para los filtros seleccionados
+                </h3>
+                <p className="text-xs text-gray-500 max-w-md mx-auto">
+                  Puede sincronizar automáticamente las operaciones desde sus Documentos de Identificación cerrados o registrar un asiento manual.
+                </p>
+                <div className="flex justify-center gap-2 pt-2">
+                  <Button size="sm" variant="outline" onClick={handleSyncDIs}>
+                    Sincronizar DIs
+                  </Button>
+                  <Button size="sm" onClick={() => setModalOpen(true)}>
+                    Nuevo Asiento
+                  </Button>
+                </div>
               </div>
-            </div>
-          }
-        />
+            }
+          />
+        )
       )}
 
       {/* Modal para Nuevo Asiento Manual */}

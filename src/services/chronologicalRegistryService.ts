@@ -774,3 +774,79 @@ export function exportChronologicalToExcelXML(entries: ChronologicalEntry[]): vo
     URL.revokeObjectURL(url);
   }
 }
+
+export interface PendingDispatch {
+  id: number;
+  numero_documento: string;
+  fecha_documento: string;
+  fecha_inicio_traslado?: string;
+  codigo_ler: string;
+  descripcion_residuo: string;
+  peligrosidad: string;
+  cantidad_kg: number;
+  productor_razon_social: string;
+  productor_cif: string;
+  gestor_razon_social: string;
+  gestor_cif: string;
+  transportista_razon_social?: string;
+  estado_traslado: string;
+  production_center_id?: number;
+  notas?: string;
+}
+
+/**
+ * Obtiene los Documentos de Identificación que han iniciado salida y están en tránsito
+ * o pendientes de justificante de destino (UXDEV-06 / UX-09).
+ */
+export async function getPendingDispatches(filters?: {
+  año?: number;
+  production_center_id?: number | 'todos';
+}): Promise<PendingDispatch[]> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay usuario autenticado');
+
+  let query = supabase
+    .from('identification_documents')
+    .select('*')
+    .eq('user_id', user.id)
+    .in('estado_traslado', ['en_transito', 'recepcionado']);
+
+  if (filters?.production_center_id && filters.production_center_id !== 'todos') {
+    query = query.eq('production_center_id', filters.production_center_id);
+  }
+
+  const { data, error } = await query.order('fecha_documento', { ascending: false });
+  if (error) {
+    console.error('Error al obtener traslados pendientes:', error);
+    throw error;
+  }
+
+  let items: PendingDispatch[] = (data || []).map((d: any) => ({
+    id: d.id,
+    numero_documento: d.numero_documento,
+    fecha_documento: d.fecha_documento,
+    fecha_inicio_traslado: d.fecha_inicio_traslado,
+    codigo_ler: d.codigo_ler,
+    descripcion_residuo: d.descripcion_residuo,
+    peligrosidad: d.peligrosidad,
+    cantidad_kg: Number(d.peso_origen_kg || d.cantidad || d.cantidad_kg || 0),
+    productor_razon_social: d.productor_razon_social,
+    productor_cif: d.productor_cif,
+    gestor_razon_social: d.gestor_razon_social,
+    gestor_cif: d.gestor_cif,
+    transportista_razon_social: d.transportista_razon_social,
+    estado_traslado: d.estado_traslado,
+    production_center_id: d.production_center_id,
+    notas: d.notas,
+  }));
+
+  if (filters?.año) {
+    items = items.filter(i => {
+      const f = i.fecha_inicio_traslado || i.fecha_documento;
+      return Boolean(f && new Date(f).getFullYear() === filters.año);
+    });
+  }
+
+  return items;
+}

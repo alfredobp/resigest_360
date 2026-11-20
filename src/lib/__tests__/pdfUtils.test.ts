@@ -197,6 +197,20 @@ describe('pdfUtils - generateIdentificationDocumentPDF', () => {
     expect(doc).toBeDefined();
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
   });
+
+  it('debe incluir marca de agua BORRADOR y texto legal provisional cuando el DI está en borrador (UXDEV-12)', async () => {
+    const draftDoc: IdentificationDocument = {
+      ...baseDoc,
+      estado: 'borrador',
+      estado_traslado: 'borrador',
+      firmado_productor: false,
+      firmado_gestor: false,
+    };
+    const doc = await generateIdentificationDocumentPDF(draftDoc);
+    expect(doc).toBeDefined();
+    const pdfOutput = doc.output();
+    expect(pdfOutput).toContain('BORRADOR');
+  });
 });
 
 describe('pdfUtils - generateDecaPDF', () => {

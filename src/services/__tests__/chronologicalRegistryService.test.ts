@@ -40,6 +40,7 @@ import {
   syncAllClosedDIs,
   exportChronologicalToCSV,
   exportChronologicalToExcelXML,
+  getPendingDispatches,
 } from '../chronologicalRegistryService';
 import type { CommercialOperation, IdentificationDocument } from '@/types/wasteManagement';
 
@@ -1189,6 +1190,74 @@ describe('chronologicalRegistryService - Archivo Cronológico (Art. 64 Ley 7/202
       expect(document.createElement).toHaveBeenCalledWith('a');
       expect(document.body.appendChild).toHaveBeenCalled();
       expect(document.body.removeChild).toHaveBeenCalled();
+    });
+  });
+
+  describe('getPendingDispatches (UXDEV-06 / UX-09)', () => {
+    it('debe lanzar error si no hay usuario autenticado', async () => {
+      mockSupabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      await expect(getPendingDispatches()).rejects.toThrow('No hay usuario autenticado');
+    });
+
+    it('debe obtener y mapear correctamente traslados en tránsito y recepcionados', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'usr-1' } } });
+
+      const mockQueryBuilder: any = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        in: jest.fn().mockReturnThis(),
+        order: jest.fn().mockResolvedValue({
+          data: [
+            {
+              id: 101,
+              numero_documento: 'DI-2026-001',
+              fecha_documento: '2026-11-20',
+              fecha_inicio_traslado: '2026-11-20',
+              codigo_ler: '17 04 05',
+              descripcion_residuo: 'Hierro y acero',
+              peligrosidad: 'no-peligroso',
+              peso_origen_kg: 850,
+              productor_razon_social: 'Productor Test SL',
+              productor_cif: 'B12345678',
+              gestor_razon_social: 'Gestor Destino SA',
+              gestor_cif: 'A87654321',
+              transportista_razon_social: 'TransLog SL',
+              estado_traslado: 'en_transito',
+              production_center_id: 5,
+            },
+          ],
+          error: null,
+        }),
+      };
+
+      mockSupabase.from.mockReturnValue(mockQueryBuilder);
+
+      const res = await getPendingDispatches({ año: 2026, production_center_id: 5 });
+
+      expect(mockSupabase.from).toHaveBeenCalledWith('identification_documents');
+      expect(mockQueryBuilder.eq).toHaveBeenCalledWith('user_id', 'usr-1');
+      expect(mockQueryBuilder.eq).toHaveBeenCalledWith('production_center_id', 5);
+      expect(mockQueryBuilder.in).toHaveBeenCalledWith('estado_traslado', ['en_transito', 'recepcionado']);
+      expect(res).toHaveLength(1);
+      expect(res[0].numero_documento).toBe('DI-2026-001');
+      expect(res[0].cantidad_kg).toBe(850);
+      expect(res[0].estado_traslado).toBe('en_transito');
+    });
+
+    it('debe propagar error de base de datos si la consulta falla', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'usr-1' } } });
+      const mockQueryBuilder: any = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        in: jest.fn().mockReturnThis(),
+        order: jest.fn().mockResolvedValue({
+          data: null,
+          error: new Error('Database query failure'),
+        }),
+      };
+      mockSupabase.from.mockReturnValue(mockQueryBuilder);
+
+      await expect(getPendingDispatches()).rejects.toThrow('Database query failure');
     });
   });
 });

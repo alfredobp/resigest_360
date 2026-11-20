@@ -601,7 +601,7 @@ export async function generateContractPDF(contract: WasteContract) {
   // RES6-I07: El pie de página no debe proclamar validez vinculante si el contrato es un borrador o está pendiente de firma
   const isFirmado =
     ((contract.firmado_productor || Boolean(contract.firma_productor_url)) &&
-     (contract.firmado_gestor || Boolean(contract.firma_gestor_url))) ||
+      (contract.firmado_gestor || Boolean(contract.firma_gestor_url))) ||
     contract.estado === 'vigente';
 
   const footerText = isFirmado
@@ -634,6 +634,30 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
     unit: 'mm',
     format: 'a4',
   });
+
+  // UXDEV-05: Metadatos deterministas /CreationDate y /ModDate para inmutabilidad forense (RD 553/2020)
+  const deterministicCreatedIso = docData.created_at || (docData.fecha_documento ? `${docData.fecha_documento}T08:00:00Z` : '2026-01-01T08:00:00Z');
+  const deterministicUpdatedIso = docData.updated_at || deterministicCreatedIso;
+  const createdDateObj = new Date(deterministicCreatedIso);
+  const safeCreatedObj = isNaN(createdDateObj.getTime()) ? new Date('2026-01-01T08:00:00Z') : createdDateObj;
+  const pdfModDateStr = toPdfInfoDateString(deterministicUpdatedIso, deterministicCreatedIso);
+
+  doc.setProperties({
+    title: `DI ${docData.numero_documento || ''}`,
+    subject: 'Documento de Identificación (DI) de Traslado de Residuos - RD 553/2020',
+    author: docData.productor_razon_social || 'ResiGest 360',
+    creator: 'ResiGest 360 Medio Ambiente',
+    modDate: pdfModDateStr,
+  } as any);
+
+  if (typeof (doc as any).setCreationDate === 'function') {
+    (doc as any).setCreationDate(safeCreatedObj);
+  }
+  if ((doc as any).internal?.events?.subscribe && typeof (doc as any).internal?.write === 'function') {
+    (doc as any).internal.events.subscribe('putInfo', () => {
+      (doc as any).internal.write(`/ModDate (${pdfModDateStr})`);
+    });
+  }
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -1052,19 +1076,31 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
     doc.text(formatSafeDateTime(docData.fecha_firma_gestor), 142, yPos + (docData.nombre_gestor ? 17 : 11.5));
   }
 
-  // Pie de página
+  // Pie de página y distinción legal de borrador vs oficial (UXDEV-12)
+  const isCompletelySigned = Boolean(docData.firmado_productor && docData.firmado_gestor);
+  const isDraft = !docData.estado_traslado || docData.estado_traslado === 'borrador' || docData.estado === 'borrador';
+  const legalText = isDraft
+    ? 'COPIA DE BORRADOR (Real Decreto 553/2020). No válida como documento oficial de transporte ni control ambiental hasta inicio formal de traslado.'
+    : isCompletelySigned
+      ? 'Documento oficial de control y seguimiento de traslados según art. 6 del Real Decreto 553/2020. Validez legal ante autoridades competentes.'
+      : 'Documento en tramitación de traslado (Real Decreto 553/2020). Pendiente de completar firmas requeridas para formalización documental definitiva.';
+
   doc.setFontSize(7);
   doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-  const isCompletelySigned = Boolean(docData.firmado_productor && docData.firmado_gestor);
-  const legalText = isCompletelySigned
-    ? 'Documento oficial de control y seguimiento de traslados según art. 6 del Real Decreto 553/2020. Validez legal ante autoridades competentes.'
-    : 'Documento en tramitación de traslado (Real Decreto 553/2020). Pendiente de completar firmas requeridas para formalización documental definitiva.';
   doc.text(
     legalText,
     pageWidth / 2,
     pageHeight - 8,
     { align: 'center' }
   );
+
+  // Marca de agua para borradores no oficiales
+  if (isDraft) {
+    doc.setFontSize(34);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(225, 230, 235);
+    doc.text('BORRADOR - NO OFICIAL', pageWidth / 2, pageHeight / 2, { align: 'center', angle: 45 });
+  }
 
   return doc;
 }

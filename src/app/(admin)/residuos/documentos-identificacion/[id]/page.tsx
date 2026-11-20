@@ -1293,9 +1293,18 @@ export default function DetalleDocumentoIdentificacionPage() {
               {/* Acción 2: Registrar Recepción o Justificante Externo */}
               {!isTransportistaOnly && (document.estado_traslado === 'en_transito' || document.estado_traslado === 'recepcionado') && (
                 <Button onClick={() => { setModalActionError(null); setIsReceptionModalOpen(true); }}>
-                  <span>{isProductorOnly ? 'Registrar Justificante de Recepción (Gestor Externo)' : 'Registrar Recepción en Báscula'}</span>
+                  <span>{isProductorOnly ? 'Aportar Justificante de Destino (Gestor Externo)' : 'Registrar Recepción en Báscula'}</span>
                 </Button>
               )}
+
+              {/* Acción Repetir Retirada Similar (UXDEV-07) */}
+              <Button
+                variant="outline"
+                onClick={() => router.push(`/residuos/documentos-identificacion/nuevo?duplicate_from=${document.id}`)}
+                className="text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+              >
+                <span>Repetir Retirada Similar</span>
+              </Button>
 
               {/* Acción 3: Certificar Tratamiento y Cierre (Exclusivo para Gestores autorizados Art. 6 RD 553/2020) */}
               {!isTransportistaOnly && !isProductorOnly && (document.estado_traslado === 'aceptado' || document.estado_traslado === 'rechazado_parcial' || document.estado_traslado === 'tratado') && (
@@ -1319,13 +1328,19 @@ export default function DetalleDocumentoIdentificacionPage() {
                 </span>
               </Button>
 
-              {/* Descargar PDF */}
+              {/* Descargar PDF (distinción Borrador vs Oficial UXDEV-12) */}
               <Button
                 variant="outline"
                 onClick={handleDownloadPDF}
                 disabled={downloading}
               >
-                <span>{downloading ? 'Generando PDF...' : 'Descargar PDF Oficial (RD 553/2020)'}</span>
+                <span>
+                  {downloading
+                    ? 'Generando PDF...'
+                    : !document.estado_traslado || document.estado_traslado === 'borrador' || document.estado === 'borrador'
+                      ? 'Descargar Borrador (PDF)'
+                      : 'Descargar Documento Oficial (PDF)'}
+                </span>
               </Button>
 
               {/* Enviar a SIRA */}
@@ -1460,10 +1475,10 @@ export default function DetalleDocumentoIdentificacionPage() {
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap">
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${sub.estado === 'aceptado'
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400'
-                                : sub.estado === 'rechazado'
-                                  ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400'
-                                  : 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400'
+                              : sub.estado === 'rechazado'
+                                ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400'
+                                : 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400'
                               }`}>
                               {sub.estado.toUpperCase()}
                             </span>
@@ -2133,10 +2148,10 @@ export default function DetalleDocumentoIdentificacionPage() {
         initialName={signerInitialData.nombre}
         initialDni={signerInitialData.dni}
         title={`Firmar Documento de Identificación como ${signingRole === 'productor'
-            ? 'Productor / Remitente'
-            : signingRole === 'transportista'
-              ? 'Transportista en Carga'
-              : 'Gestor Destinatario'
+          ? 'Productor / Remitente'
+          : signingRole === 'transportista'
+            ? 'Transportista en Carga'
+            : 'Gestor Destinatario'
           }`}
         description="Dibuje su firma en el recuadro para validar la conformidad y registrarla en el documento oficial."
       />

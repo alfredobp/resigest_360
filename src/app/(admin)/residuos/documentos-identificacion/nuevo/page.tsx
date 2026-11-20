@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Copy } from 'lucide-react';
 import { siraValidationSchema } from '@/lib/validations/sira'; // IMPORT AÑADIDO
 import { type z } from 'zod'; // IMPORT AÑADIDO
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
@@ -47,6 +48,7 @@ export default function NuevoDocumentoIdentificacionPage() {
   const [selectedOrigin, setSelectedOrigin] = useState<string>('principal');
   const [expeditionRole, setExpeditionRole] = useState<'productor' | 'gestor'>('productor');
   const [selectedClientContact, setSelectedClientContact] = useState<string>('');
+  const [duplicateSourceInfo, setDuplicateSourceInfo] = useState<{ id: number; numero_documento: string } | null>(null);
 
   const [formData, setFormData] = useState<Partial<IdentificationDocument>>({
     tipo_notificacion: 'sin-notificacion',
@@ -182,6 +184,91 @@ export default function NuevoDocumentoIdentificacionPage() {
             }));
           }
         }
+
+        // UXDEV-07 / UX-06: Duplicar retirada anterior si viene duplicate_from o duplicateFrom
+        const queryDuplicateId = urlParams.get('duplicate_from') || urlParams.get('duplicateFrom');
+        if (queryDuplicateId) {
+          try {
+            const srcDoc = await identificationDocumentService.getById(parseInt(queryDuplicateId, 10));
+            if (srcDoc) {
+              setDuplicateSourceInfo({
+                id: srcDoc.id,
+                numero_documento: srcDoc.numero_documento,
+              });
+
+              setFormData(prev => ({
+                ...prev,
+                contract_id: srcDoc.contract_id || undefined,
+                production_center_id: srcDoc.production_center_id || undefined,
+                // Productor
+                productor_razon_social: srcDoc.productor_razon_social || prev.productor_razon_social,
+                productor_cif: srcDoc.productor_cif || prev.productor_cif,
+                productor_nima: srcDoc.productor_nima || prev.productor_nima,
+                productor_direccion: srcDoc.productor_direccion || prev.productor_direccion,
+                productor_municipio: srcDoc.productor_municipio || prev.productor_municipio,
+                productor_provincia: srcDoc.productor_provincia || prev.productor_provincia,
+                productor_codigo_postal: srcDoc.productor_codigo_postal || prev.productor_codigo_postal,
+                productor_telefono: srcDoc.productor_telefono || prev.productor_telefono,
+                // Gestor
+                gestor_razon_social: srcDoc.gestor_razon_social || prev.gestor_razon_social,
+                gestor_cif: srcDoc.gestor_cif || prev.gestor_cif,
+                gestor_nima: srcDoc.gestor_nima || prev.gestor_nima,
+                gestor_numero_autorizacion: srcDoc.gestor_numero_autorizacion || prev.gestor_numero_autorizacion,
+                gestor_direccion: srcDoc.gestor_direccion || prev.gestor_direccion,
+                gestor_municipio: srcDoc.gestor_municipio || prev.gestor_municipio,
+                gestor_provincia: srcDoc.gestor_provincia || prev.gestor_provincia,
+                gestor_codigo_postal: srcDoc.gestor_codigo_postal || prev.gestor_codigo_postal,
+                gestor_telefono: srcDoc.gestor_telefono || prev.gestor_telefono,
+                // Transportista
+                transportista_razon_social: srcDoc.transportista_razon_social || prev.transportista_razon_social,
+                transportista_cif: srcDoc.transportista_cif || prev.transportista_cif,
+                transportista_nima: srcDoc.transportista_nima || prev.transportista_nima,
+                transportista_direccion: srcDoc.transportista_direccion || prev.transportista_direccion,
+                transportista_municipio: srcDoc.transportista_municipio || prev.transportista_municipio,
+                transportista_provincia: srcDoc.transportista_provincia || prev.transportista_provincia,
+                transportista_codigo_postal: srcDoc.transportista_codigo_postal || prev.transportista_codigo_postal,
+                transportista_matricula: srcDoc.transportista_matricula || prev.transportista_matricula,
+                transportista_telefono: srcDoc.transportista_telefono || prev.transportista_telefono,
+                // Residuo
+                codigo_ler: srcDoc.codigo_ler || prev.codigo_ler,
+                descripcion_residuo: srcDoc.descripcion_residuo || prev.descripcion_residuo,
+                peligrosidad: srcDoc.peligrosidad || prev.peligrosidad,
+                waste_type_id: srcDoc.waste_type_id || prev.waste_type_id,
+                tipo_envases: srcDoc.tipo_envases || prev.tipo_envases,
+                numero_envases: srcDoc.numero_envases || prev.numero_envases,
+                operacion_tratamiento: srcDoc.operacion_tratamiento || prev.operacion_tratamiento,
+                operacion_tratamiento_ejecutada: srcDoc.operacion_tratamiento_ejecutada || prev.operacion_tratamiento_ejecutada,
+                // Notificación previa
+                tipo_notificacion: srcDoc.tipo_notificacion || prev.tipo_notificacion,
+                prior_notification_id: srcDoc.prior_notification_id || prev.prior_notification_id,
+                numero_notificacion: srcDoc.numero_notificacion || prev.numero_notificacion,
+                // Cantidad previa conservada para confirmación rápida
+                cantidad: srcDoc.cantidad,
+                // Resetear estados, pesajes de destino y firmas
+                estado: 'borrador',
+                estado_traslado: 'borrador',
+                firmado_productor: false,
+                firmado_gestor: false,
+                firmado_transportista: false,
+                firma_productor_url: undefined,
+                firma_gestor_url: undefined,
+                firma_transportista_url: undefined,
+                peso_destino_kg: undefined,
+                numero_albaran_gestor: undefined,
+                archivo_justificante_url: undefined,
+                fecha_documento: new Date().toISOString().split('T')[0],
+                fecha_inicio_traslado: new Date().toISOString().split('T')[0],
+                numero_documento: identificationDocumentService.generateDocumentNumber(company.nima || company.cif),
+              }));
+
+              if (srcDoc.production_center_id) {
+                setSelectedOrigin(String(srcDoc.production_center_id));
+              }
+            }
+          } catch (e) {
+            console.warn('No se pudo precargar la retirada anterior:', e);
+          }
+        }
       }
 
       // Cargar tipos de residuos (LER)
@@ -250,6 +337,8 @@ export default function NuevoDocumentoIdentificacionPage() {
   };
 
   const handleRoleSwitch = (newRole: 'productor' | 'gestor') => {
+    const isGestorAllowed = Boolean(myCompany?.tipo_empresa === 'gestor' || myCompany?.roles?.includes('gestor'));
+    if (newRole === 'gestor' && !isGestorAllowed) return;
     setExpeditionRole(newRole);
     if (!myCompany) return;
 
@@ -328,38 +417,47 @@ export default function NuevoDocumentoIdentificacionPage() {
     if (!contract) return;
 
     if (contract.treatment_manager) {
+      const tm = contract.treatment_manager;
+      const tmCp = tm.codigo_postal || '';
+      const tmProv = tm.provincia || (tmCp ? getProvinceByPostalCode(tmCp) : '') || '';
       setFormData(prev => ({
         ...prev,
         contract_id: contract.id,
-        gestor_razon_social: contract.treatment_manager!.razon_social,
-        gestor_cif: contract.treatment_manager!.cif,
-        gestor_nima: contract.treatment_manager!.nima || '',
-        gestor_numero_autorizacion: contract.treatment_manager!.numero_autorizacion || '',
-        gestor_direccion: contract.treatment_manager!.direccion || '',
-        gestor_codigo_postal: contract.treatment_manager!.codigo_postal || '',
-        gestor_municipio: contract.treatment_manager!.municipio || '',
-        gestor_provincia: contract.treatment_manager!.provincia || '',
-        gestor_telefono: contract.treatment_manager!.telefono || '',
+        gestor_razon_social: tm.razon_social,
+        gestor_cif: tm.cif,
+        gestor_nima: tm.nima || '',
+        gestor_numero_autorizacion: tm.numero_autorizacion || '',
+        gestor_direccion: tm.direccion || '',
+        gestor_codigo_postal: tmCp,
+        gestor_municipio: tm.municipio || '',
+        gestor_provincia: tmProv,
+        gestor_telefono: tm.telefono || '',
       }));
     } else if (contract.gestor_company) {
+      const gc = contract.gestor_company;
       const authNum =
         contract.environmental_authorization?.numero_autorizacion ||
-        contract.gestor_company.numero_autorizacion ||
-        (contract.gestor_company as any).numero_autorizacion_gestor ||
+        gc.numero_autorizacion ||
+        (gc as any).numero_autorizacion_gestor ||
         '';
+
+      const gcCp = gc.codigo_postal_instalacion || gc.codigo_postal_social || (gc as any).codigo_postal || '';
+      const gcMuni = gc.municipio_instalacion || gc.municipio_social || (gc as any).municipio || '';
+      const gcProv = gc.provincia_instalacion || gc.provincia_social || (gc as any).provincia || (gcCp ? getProvinceByPostalCode(gcCp) : '') || '';
+      const gcDir = gc.domicilio_instalacion || gc.domicilio_social || (gc as any).direccion || '';
 
       setFormData(prev => ({
         ...prev,
         contract_id: contract.id,
-        gestor_razon_social: contract.gestor_company!.razon_social,
-        gestor_cif: contract.gestor_company!.cif,
-        gestor_nima: contract.gestor_company!.nima || '',
+        gestor_razon_social: gc.razon_social,
+        gestor_cif: gc.cif,
+        gestor_nima: gc.nima || '',
         gestor_numero_autorizacion: authNum,
-        gestor_direccion: contract.gestor_company!.domicilio_social || '',
-        gestor_codigo_postal: contract.gestor_company!.codigo_postal_social || '',
-        gestor_municipio: contract.gestor_company!.municipio_social || '',
-        gestor_provincia: contract.gestor_company!.provincia_social || '',
-        gestor_telefono: contract.gestor_company!.telefono || '',
+        gestor_direccion: gcDir,
+        gestor_codigo_postal: gcCp,
+        gestor_municipio: gcMuni,
+        gestor_provincia: gcProv,
+        gestor_telefono: gc.telefono || '',
       }));
 
       // Si no viene en el contrato pero hay gestor_company_id, consultar autorizaciones asociadas
@@ -380,16 +478,21 @@ export default function NuevoDocumentoIdentificacionPage() {
   const handleGestorChange = (gestorId: string) => {
     const gestor = gestores.find(g => g.id === parseInt(gestorId));
     if (gestor) {
+      const gCp = gestor.codigo_postal_instalacion || gestor.codigo_postal_social || (gestor as any).codigo_postal || '';
+      const gMuni = gestor.municipio_instalacion || gestor.municipio_social || (gestor as any).municipio || '';
+      const gProv = gestor.provincia_instalacion || gestor.provincia_social || (gestor as any).provincia || (gCp ? getProvinceByPostalCode(gCp) : '') || '';
+      const gDir = gestor.domicilio_instalacion || gestor.domicilio_social || (gestor as any).direccion || '';
+
       setFormData(prev => ({
         ...prev,
         gestor_razon_social: gestor.razon_social,
         gestor_cif: gestor.cif,
         gestor_nima: gestor.nima || '',
-        gestor_numero_autorizacion: gestor.numero_inscripcion || '',
-        gestor_direccion: gestor.domicilio_social || '',
-        gestor_codigo_postal: gestor.codigo_postal_social || '',
-        gestor_municipio: gestor.municipio_social || '',
-        gestor_provincia: gestor.provincia_social || '',
+        gestor_numero_autorizacion: gestor.numero_inscripcion || gestor.numero_autorizacion || '',
+        gestor_direccion: gDir,
+        gestor_codigo_postal: gCp,
+        gestor_municipio: gMuni,
+        gestor_provincia: gProv,
         gestor_telefono: gestor.telefono || '',
       }));
     }
@@ -398,6 +501,8 @@ export default function NuevoDocumentoIdentificacionPage() {
   const handleInternalGestorChange = (gestorId: string) => {
     const gestor = internalGestores.find(g => g.id === parseInt(gestorId));
     if (gestor) {
+      const gCp = gestor.codigo_postal || '';
+      const gProv = gestor.provincia || (gCp ? getProvinceByPostalCode(gCp) : '') || '';
       setFormData(prev => ({
         ...prev,
         gestor_razon_social: gestor.razon_social,
@@ -405,9 +510,9 @@ export default function NuevoDocumentoIdentificacionPage() {
         gestor_nima: gestor.nima || '',
         gestor_numero_autorizacion: gestor.numero_autorizacion || '',
         gestor_direccion: gestor.direccion || '',
-        gestor_codigo_postal: gestor.codigo_postal || '',
+        gestor_codigo_postal: gCp,
         gestor_municipio: gestor.municipio || '',
-        gestor_provincia: gestor.provincia || '',
+        gestor_provincia: gProv,
         gestor_telefono: gestor.telefono || '',
       }));
     }
@@ -416,10 +521,21 @@ export default function NuevoDocumentoIdentificacionPage() {
   const handleTransportistaChange = (transportistaId: string) => {
     const transportista = transportistas.find(t => t.id === parseInt(transportistaId));
     if (transportista) {
+      const tCp = transportista.codigo_postal_instalacion || transportista.codigo_postal_social || (transportista as any).codigo_postal || '';
+      const tMuni = transportista.municipio_instalacion || transportista.municipio_social || (transportista as any).municipio || '';
+      const tProv = transportista.provincia_instalacion || transportista.provincia_social || (transportista as any).provincia || (tCp ? getProvinceByPostalCode(tCp) : '') || '';
+      const tDir = transportista.domicilio_instalacion || transportista.domicilio_social || (transportista as any).direccion || '';
+
       setFormData(prev => ({
         ...prev,
         transportista_razon_social: transportista.razon_social,
         transportista_cif: transportista.cif,
+        transportista_nima: transportista.nima || '',
+        transportista_numero_inscripcion: transportista.numero_inscripcion || transportista.numero_autorizacion || '',
+        transportista_direccion: tDir,
+        transportista_codigo_postal: tCp,
+        transportista_municipio: tMuni,
+        transportista_provincia: tProv,
         transportista_telefono: transportista.telefono || '',
       }));
     }
@@ -555,52 +671,84 @@ export default function NuevoDocumentoIdentificacionPage() {
           </Button>
         </div>
 
+        {duplicateSourceInfo && (
+          <div className="p-4 bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800 rounded-xl flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="p-2 bg-emerald-100 dark:bg-emerald-900/50 rounded-lg text-emerald-700 dark:text-emerald-300">
+                <Copy className="w-5 h-5" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+                  Repitiendo retirada basada en {duplicateSourceInfo.numero_documento}
+                </p>
+                <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                  Se han precargado los datos de contrato, centro, gestor, transportista y residuo LER. Revise la cantidad y confirme la fecha.
+                </p>
+              </div>
+            </div>
+            <span className="text-xs px-2.5 py-1 bg-emerald-200/60 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-semibold rounded-full">
+              Borrador Nuevo
+            </span>
+          </div>
+        )}
+
         {error && (
           <Alert variant="error" title="Error" message={error} />
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6" noValidate>
           {/* Modalidad de Expedición */}
-          <ComponentCard
-            title="Perspectiva de Expedición (RD 553/2020)"
-            desc="Selecciona si emites el traslado como Productor (envío de tus residuos) o como Gestor Receptor (recepción o gestión para un cliente)."
-          >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => handleRoleSwitch('productor')}
-                className={`p-4 rounded-xl border text-left transition-all ${
-                  expeditionRole === 'productor'
-                    ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
-                    : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
-                }`}
-              >
-                <div className="mb-1">
-                  <span className="font-semibold text-sm text-foreground">Como Productor / Poseedor</span>
-                </div>
-                <p className="text-xs text-muted">
-                  Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) genera el residuo y lo transfiere a un gestor de destino.
-                </p>
-              </button>
+          {myCompany?.tipo_empresa === 'gestor' || myCompany?.roles?.includes('gestor') ? (
+            <ComponentCard
+              title="Perspectiva de Expedición (RD 553/2020)"
+              desc="Selecciona si emites el traslado como Productor (envío de tus residuos) o como Gestor Receptor (recepción o gestión para un cliente)."
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => handleRoleSwitch('productor')}
+                  className={`p-4 rounded-xl border text-left transition-all ${
+                    expeditionRole === 'productor'
+                      ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
+                      : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
+                  }`}
+                >
+                  <div className="mb-1">
+                    <span className="font-semibold text-sm text-foreground">Como Productor / Poseedor</span>
+                  </div>
+                  <p className="text-xs text-muted">
+                    Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) genera el residuo y lo transfiere a un gestor de destino.
+                  </p>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => handleRoleSwitch('gestor')}
-                className={`p-4 rounded-xl border text-left transition-all ${
-                  expeditionRole === 'gestor'
-                    ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
-                    : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
-                }`}
-              >
-                <div className="mb-1">
-                  <span className="font-semibold text-sm text-foreground">Como Gestor Receptor</span>
-                </div>
-                <p className="text-xs text-muted">
-                  Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) es la instalación autorizada que recepcionará el residuo de un cliente.
-                </p>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => handleRoleSwitch('gestor')}
+                  className={`p-4 rounded-xl border text-left transition-all ${
+                    expeditionRole === 'gestor'
+                      ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
+                      : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
+                  }`}
+                >
+                  <div className="mb-1">
+                    <span className="font-semibold text-sm text-foreground">Como Gestor Receptor</span>
+                  </div>
+                  <p className="text-xs text-muted">
+                    Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) es la instalación autorizada que recepcionará el residuo de un cliente.
+                  </p>
+                </button>
+              </div>
+            </ComponentCard>
+          ) : (
+            <div className="p-3.5 bg-brand-50/40 dark:bg-brand-950/20 border border-brand-200/60 dark:border-brand-900/40 rounded-xl flex items-center justify-between text-xs text-brand-900 dark:text-brand-300">
+              <span>
+                Expedición desde centro de origen como <strong>Productor / Poseedor</strong> ({myCompany?.razon_social || 'Mi Empresa'}).
+              </span>
+              <span className="px-2 py-0.5 bg-brand-100 dark:bg-brand-900/60 rounded text-[11px] font-semibold text-brand-700 dark:text-brand-300">
+                Rol: Productor
+              </span>
             </div>
-          </ComponentCard>
+          )}
 
           {/* Datos del Documento */}
           <ComponentCard title="Datos del Documento">

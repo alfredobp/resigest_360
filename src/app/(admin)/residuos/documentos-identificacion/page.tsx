@@ -19,7 +19,7 @@ import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import { decaService } from '@/services/decaService';
 import { validateRequired, validateCIF, scrollToFirstError } from '@/lib/validations/formValidation';
-import { Truck, X, AlertTriangle, FilePlus, Table as TableIcon, LayoutGrid } from 'lucide-react';
+import { Truck, X, AlertTriangle, FilePlus, Table as TableIcon, LayoutGrid, Copy } from 'lucide-react';
 import { DataTable, type ColumnDef } from '@/components/ui/table';
 import type { IdentificationDocument, Company, ProductionCenter } from '@/types/wasteManagement';
 import type { DecaDocument } from '@/types/deca';
@@ -377,6 +377,20 @@ export default function DocumentosIdentificacionPage() {
           >
             Ver
           </Button>
+
+          {canCreateOrDeleteDi && (
+            <span title="Repetir retirada similar (precarga centro, gestor, transportista y LER)">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/residuos/documentos-identificacion/nuevo?duplicate_from=${row.id}`)}
+                className="text-[11px] py-1 px-2.5 h-auto text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+              >
+                <Copy className="w-3 h-3 mr-1" />
+                Repetir
+              </Button>
+            </span>
+          )}
 
           {canWrite && (
             <span title="Generar DeCA">
@@ -740,6 +754,18 @@ export default function DocumentosIdentificacionPage() {
                       >
                         Ver Detalle y Trazabilidad
                       </Button>
+
+                      {canCreateOrDeleteDi && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => router.push(`/residuos/documentos-identificacion/nuevo?duplicate_from=${doc.id}`)}
+                          className="text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center justify-center gap-1.5"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          Repetir Retirada
+                        </Button>
+                      )}
 
                       {canWrite && (
                         <Button

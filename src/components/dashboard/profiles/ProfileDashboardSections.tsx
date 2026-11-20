@@ -92,18 +92,32 @@ export function ProfileKpiGrid({ profile, data, canViewCommercial }: ProfileKpis
             </span>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-extrabold text-gray-900 dark:text-white">
-                {residuos.totalToneladas.toFixed(2)}
+                {residuos.totalToneladas > 0 && residuos.totalToneladas < 1
+                  ? `${(residuos.totalToneladas * 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 })} kg`
+                  : residuos.totalToneladas.toFixed(2)}
               </span>
-              <span className="text-xs font-medium text-gray-500">toneladas</span>
+              <span className="text-xs font-medium text-gray-500">
+                {residuos.totalToneladas > 0 && residuos.totalToneladas < 1
+                  ? `(${residuos.totalToneladas.toFixed(3)} t)`
+                  : 'toneladas'}
+              </span>
             </div>
             <div className="pt-2 border-t border-gray-100 dark:border-gray-800 grid grid-cols-2 gap-2 text-[11px]">
               <div>
                 <span className="text-amber-600 dark:text-amber-400 font-semibold">Peligrosos:</span>
-                <p className="font-bold text-gray-800 dark:text-gray-200">{residuos.toneladasPeligrosas.toFixed(2)} t</p>
+                <p className="font-bold text-gray-800 dark:text-gray-200">
+                  {residuos.toneladasPeligrosas > 0 && residuos.toneladasPeligrosas < 1
+                    ? `${(residuos.toneladasPeligrosas * 1000).toFixed(0)} kg`
+                    : `${residuos.toneladasPeligrosas.toFixed(2)} t`}
+                </p>
               </div>
               <div>
                 <span className="text-emerald-600 dark:text-emerald-400 font-semibold">No Peligrosos:</span>
-                <p className="font-bold text-gray-800 dark:text-gray-200">{residuos.toneladasNoPeligrosas.toFixed(2)} t</p>
+                <p className="font-bold text-gray-800 dark:text-gray-200">
+                  {residuos.toneladasNoPeligrosas > 0 && residuos.toneladasNoPeligrosas < 1
+                    ? `${(residuos.toneladasNoPeligrosas * 1000).toFixed(0)} kg`
+                    : `${residuos.toneladasNoPeligrosas.toFixed(2)} t`}
+                </p>
               </div>
             </div>
             {typeof residuos.totalAsientosArchivo === 'number' && residuos.totalAsientosArchivo > 0 && (
