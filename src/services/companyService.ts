@@ -10,10 +10,41 @@ import {
   setActiveCompanyCookie,
 } from '@/services/tenantContextService';
 import { auditService } from './auditService';
-import type { Company, CompanyFormData } from '@/types/wasteManagement';
+import type { Company, CompanyFormData, CompanyRole } from '@/types/wasteManagement';
 
 const supabase = createClient();
 const ACTIVE_COMPANY_STORAGE_KEY = 'resigest_active_company_id';
+
+/**
+ * Calcula una huella determinista de 64 caracteres hexadecimales de la ficha maestra
+ * para auditar integridad ante intentos de duplicación por CIF (UXDEV-01 / RES6-I01).
+ */
+export function computeCompanyFingerprint(company: Partial<Company>): string {
+  const canonical = JSON.stringify({
+    cif: (company.cif || '').trim().toUpperCase(),
+    razon_social: (company.razon_social || '').trim(),
+    nima: (company.nima || '').trim(),
+    numero_autorizacion: (company.numero_autorizacion || '').trim(),
+    domicilio_social: (company.domicilio_social || '').trim(),
+    municipio_social: (company.municipio_social || '').trim(),
+    provincia_social: (company.provincia_social || '').trim(),
+    roles: Array.isArray(company.roles) ? [...company.roles].sort() : [],
+  });
+  let h1 = 0xdeadbeef ^ canonical.length;
+  let h2 = 0x41c6ce57 ^ canonical.length;
+  let h3 = 0x9e3779b9 ^ canonical.length;
+  let h4 = 0x85ebca6b ^ canonical.length;
+  for (let i = 0; i < canonical.length; i++) {
+    const ch = canonical.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+    h3 = Math.imul(h3 ^ (ch + i), 2246822519);
+    h4 = Math.imul(h4 ^ (ch * 31), 3266489917);
+  }
+  return [h1, h2, h3, h4, h1 ^ h3, h2 ^ h4, h1 ^ h2, h3 ^ h4]
+    .map((n) => (n >>> 0).toString(16).padStart(8, '0'))
+    .join('');
+}
 
 export const companyService = {
   /**
@@ -439,9 +470,38 @@ export const companyService = {
 
     const { activeId, targetUserId, activeCompany } = await this.getDelegatedContext(user.id);
 
+    const normalizedUpdate: Partial<CompanyFormData> = { ...companyData };
+    if (normalizedUpdate.cif !== undefined) {
+      const normCif = normalizedUpdate.cif.trim().toUpperCase();
+      normalizedUpdate.cif = normCif;
+
+      // UXDEV-01 / RES6-I01: Impedir colisión de CIF al editar una ficha existente
+      try {
+        const dupCheck: any = supabase.from('companies');
+        if (typeof dupCheck?.select === 'function') {
+          const sel = dupCheck
+            .select('id, razon_social')
+            .eq('user_id', targetUserId)
+            .eq('cif', normCif);
+          if (typeof sel?.neq === 'function') {
+            const { data: conflict } = await sel.neq('id', id).maybeSingle();
+            if (conflict?.id) {
+              throw new Error(
+                `El CIF ${normCif} ya pertenece a otra ficha ("${conflict.razon_social || 'Ficha existente'}"). Si deseas unificar ambas empresas, utiliza la fusión explícita.`
+              );
+            }
+          }
+        }
+      } catch (dupErr: any) {
+        if (dupErr?.message?.includes('ya pertenece a otra ficha')) {
+          throw dupErr;
+        }
+      }
+    }
+
     let updateQuery = supabase
       .from('companies')
-      .update(companyData)
+      .update(normalizedUpdate)
       .eq('id', id);
 
     if (activeId && targetUserId !== user.id) {
@@ -475,6 +535,85 @@ export const companyService = {
     });
 
     return updated;
+  },
+
+  /**
+   * Fusión explícita de dos fichas de empresa dentro del mismo tenant (UXDEV-01 / RES6-I01).
+   * Conserva los datos ya poblados en la ficha destino salvo campos explícitos, unifica roles
+   * y desactiva (soft-delete) la ficha origen dejando constancia en auditoría.
+   */
+  async mergeExplicit(
+    targetId: number,
+    sourceId: number,
+    options?: { overwriteFields?: Array<keyof CompanyFormData> }
+  ): Promise<Company> {
+    if (targetId === sourceId) {
+      throw new Error('No se puede fusionar una empresa consigo misma.');
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    const target = await this.getById(targetId);
+    const source = await this.getById(sourceId);
+    if (!target || !source) {
+      throw new Error('No se encontraron las fichas de empresa a fusionar.');
+    }
+
+    const targetRoles: CompanyRole[] = Array.isArray(target.roles) && target.roles.length > 0
+      ? target.roles
+      : (target.tipo_empresa ? [target.tipo_empresa as CompanyRole] : []);
+    const sourceRoles: CompanyRole[] = Array.isArray(source.roles) && source.roles.length > 0
+      ? source.roles
+      : (source.tipo_empresa ? [source.tipo_empresa as CompanyRole] : []);
+    const mergedRoles = Array.from(new Set<CompanyRole>([...targetRoles, ...sourceRoles]));
+
+    const overwriteSet = new Set(options?.overwriteFields || []);
+    const mergeField = <K extends keyof CompanyFormData>(field: K): CompanyFormData[K] | undefined => {
+      const targetVal = (target as any)[field];
+      const sourceVal = (source as any)[field];
+      if (overwriteSet.has(field) && sourceVal !== undefined && sourceVal !== null && sourceVal !== '') {
+        return sourceVal;
+      }
+      if ((targetVal === undefined || targetVal === null || targetVal === '') && sourceVal) {
+        return sourceVal;
+      }
+      return targetVal;
+    };
+
+    const mergedPayload: Partial<CompanyFormData> = {
+      roles: mergedRoles,
+      nima: mergeField('nima'),
+      numero_autorizacion: mergeField('numero_autorizacion'),
+      domicilio_social: mergeField('domicilio_social'),
+      municipio_social: mergeField('municipio_social'),
+      provincia_social: mergeField('provincia_social'),
+      codigo_postal_social: mergeField('codigo_postal_social'),
+      email: mergeField('email'),
+      telefono: mergeField('telefono'),
+    };
+
+    const updatedTarget = await this.update(targetId, mergedPayload);
+    await this.softDelete(sourceId);
+
+    await auditService.logAction({
+      company_id: updatedTarget.id,
+      entidad: 'empresa',
+      entidad_id: updatedTarget.id,
+      accion: 'actualizar',
+      detalles: {
+        evento: 'fusion_explicita',
+        target_id: targetId,
+        source_id: sourceId,
+        target_cif: updatedTarget.cif,
+        source_cif: source.cif,
+        roles_resultantes: mergedRoles,
+      },
+    });
+
+    return updatedTarget;
   },
 
   /**

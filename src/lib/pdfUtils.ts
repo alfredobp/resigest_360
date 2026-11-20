@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
-import type { WasteContract, IdentificationDocument, MemoriaAnual, CommercialOperation } from '@/types/wasteManagement';
+import type { WasteContract, WasteContractRevision, IdentificationDocument, MemoriaAnual, CommercialOperation } from '@/types/wasteManagement';
 import type { DecaDocument } from '@/types/deca';
 import { CAUSA_DISCREPANCIA_LABELS } from '@/lib/validations/discrepancyJustification';
 
@@ -69,13 +69,70 @@ async function loadImageAsBase64(url: string): Promise<string | null> {
   }
 }
 
-export async function generateContractPDF(contract: WasteContract) {
+export async function generateContractPDF(
+  contractInput: WasteContract,
+  archivedRevision?: WasteContractRevision
+) {
+  // UXDEV-02 / RES6-I02: Permitir recuperar cualquier revisión anterior custodiada con su snapshot congelado
+  const contract: WasteContract = archivedRevision
+    ? {
+        ...contractInput,
+        version: archivedRevision.version,
+        cantidad_maxima_anual: archivedRevision.cantidad_maxima_anual ?? contractInput.cantidad_maxima_anual,
+        unidad_cantidad: archivedRevision.unidad_cantidad ?? contractInput.unidad_cantidad,
+        frecuencia_recogida: archivedRevision.frecuencia_recogida ?? contractInput.frecuencia_recogida,
+        precio_unitario: archivedRevision.precio_unitario ?? contractInput.precio_unitario,
+        moneda: archivedRevision.moneda ?? contractInput.moneda,
+        fecha_inicio: archivedRevision.fecha_inicio ?? contractInput.fecha_inicio,
+        fecha_fin: archivedRevision.fecha_fin ?? contractInput.fecha_fin,
+        codigos_ler: archivedRevision.codigos_ler ?? contractInput.codigos_ler,
+        operaciones_tratamiento: archivedRevision.operaciones_tratamiento ?? contractInput.operaciones_tratamiento,
+        contract_waste_codes: archivedRevision.contract_waste_codes ?? contractInput.contract_waste_codes,
+        firmado_productor: archivedRevision.firmado_productor ?? false,
+        firma_productor_url: archivedRevision.firma_productor_url,
+        fecha_firma_productor: archivedRevision.fecha_firma_productor,
+        firmado_gestor: archivedRevision.firmado_gestor ?? false,
+        firma_gestor_url: archivedRevision.firma_gestor_url,
+        fecha_firma_gestor: archivedRevision.fecha_firma_gestor,
+        documento_url: archivedRevision.documento_url,
+        metadata_snapshot: archivedRevision.metadata_snapshot ?? contractInput.metadata_snapshot ?? null,
+        estado:
+          (archivedRevision.firmado_productor || Boolean(archivedRevision.firma_productor_url)) &&
+          (archivedRevision.firmado_gestor || Boolean(archivedRevision.firma_gestor_url))
+            ? 'vigente'
+            : contractInput.estado,
+      }
+    : contractInput;
+
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const primaryColor = [37, 99, 235]; // Azul profesional (Royal Blue)
   const secondaryColor = [75, 85, 99]; // Gris oscuro
   const accentColor = [243, 244, 246]; // Gris muy claro para fondos
+
+  // UXDEV-02 / UXDEV-05: Metadatos forenses deterministas (/CreationDate y /ModDate)
+  // garantizan que la misma revisión firmada conserva exactamente el mismo hash PDF
+  // antes y después de modificar el maestro de empresas.
+  const deterministicDateIso =
+    contract.metadata_snapshot?.snapshot_date ||
+    contract.fecha_firma_gestor ||
+    contract.fecha_firma_productor ||
+    (contract.fecha_contrato ? `${contract.fecha_contrato.split('T')[0]}T00:00:00Z` : '2026-01-01T00:00:00Z');
+
+  doc.setProperties({
+    title: `Contrato_${contract.numero_contrato || contract.id}_v${contract.version || 1}`,
+    subject: `Contrato de Tratamiento RD 553/2020 (v${contract.version || 1})`,
+    creator: 'RESIGEST 360',
+  });
+  const docAny = doc as any;
+  if (docAny?.internal?.events?.subscribe) {
+    const pdfDate = toPdfInfoDateString(deterministicDateIso);
+    docAny.internal.events.subscribe('putInfo', function (this: any) {
+      this.internal.write(`/CreationDate (${pdfDate})`);
+      this.internal.write(`/ModDate (${pdfDate})`);
+    });
+  }
 
   // Función auxiliar para dibujar encabezados de sección
   const drawSectionHeader = (text: string, y: number) => {
@@ -1287,6 +1344,24 @@ export async function generateCommercialOperationPDF(op: CommercialOperation) {
   const secondaryColor = [75, 85, 99];
   const accentBg = [239, 246, 255]; // Blue 50
 
+  // UXDEV-05 / UXDEV-12: Metadatos forenses deterministas (/CreationDate y /ModDate)
+  const docDateIso = op.updated_at || op.created_at || `${op.fecha}T00:00:00Z`;
+  doc.setProperties({
+    title: `Liquidacion_${op.numero_operacion}`,
+    subject: `Operación comercial ${op.numero_operacion} (${op.estado.toUpperCase()})`,
+    creator: 'RESIGEST 360',
+  });
+  const docAny = doc as any;
+  if (docAny?.internal?.events?.subscribe) {
+    const pdfDate = toPdfInfoDateString(docDateIso);
+    docAny.internal.events.subscribe('putInfo', function (this: any) {
+      this.internal.write(`/CreationDate (${pdfDate})`);
+      this.internal.write(`/ModDate (${pdfDate})`);
+    });
+  }
+
+  const isProvisional = op.estado === 'borrador' || op.estado === 'abierta' || op.estado === 'en_transito';
+
   // Encabezado
   doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   doc.rect(0, 0, pageWidth, 28, 'F');
@@ -1294,12 +1369,18 @@ export async function generateCommercialOperationPDF(op: CommercialOperation) {
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.text('LIQUIDACIÓN DE OPERACIÓN COMERCIAL', 14, 12);
+  doc.text(
+    isProvisional
+      ? 'LIQUIDACIÓN PROVISIONAL DE OPERACIÓN COMERCIAL'
+      : 'LIQUIDACIÓN DE OPERACIÓN COMERCIAL',
+    14,
+    12
+  );
 
-  doc.setFontSize(9.5);
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.text(
-    `REF: ${op.numero_operacion}  |  FECHA: ${formatSafeDate(op.fecha)}  |  ESTADO: ${op.estado.toUpperCase()}`,
+    `REF: ${op.numero_operacion}  |  FECHA: ${formatSafeDate(op.fecha)}  |  ESTADO: ${op.estado.toUpperCase()}${isProvisional ? ' (NO ES FACTURA)' : ''}`,
     14,
     21
   );
@@ -1453,21 +1534,26 @@ export async function generateCommercialOperationPDF(op: CommercialOperation) {
     yPos += 16;
   }
 
-  // Pie de página
+  // Pie de página (UXDEV-12: distinguir liquidación económica de factura fiscal y de certificado ambiental)
   doc.setDrawColor(209, 213, 219);
-  doc.line(14, pageHeight - 20, pageWidth - 14, pageHeight - 20);
+  doc.line(14, pageHeight - 24, pageWidth - 14, pageHeight - 24);
 
-  doc.setFontSize(7.5);
+  doc.setFontSize(7.3);
   doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
   doc.text(
-    'Liquidación de Operación de Negociación/Agencia según Arts. 23 y 24 Ley 7/2022 de Residuos y Suelos Contaminados.',
+    'Documento económico de intermediación (Arts. 23-24 Ley 7/2022). NO constituye factura fiscal ni certifica el tratamiento ambiental (RD 553/2020).',
     14,
-    pageHeight - 14
+    pageHeight - 18
   );
   doc.text(
-    `Generado por RESIGEST 360 el ${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}.`,
+    `Estado documental: ${op.estado.toUpperCase()}${isProvisional ? ' — Operación abierta/provisional sujeta a liquidación definitiva' : ''}.`,
     14,
-    pageHeight - 9
+    pageHeight - 13
+  );
+  doc.text(
+    `Generado por RESIGEST 360 el ${formatSafeDate(docDateIso)}.`,
+    14,
+    pageHeight - 8
   );
 
   return doc;

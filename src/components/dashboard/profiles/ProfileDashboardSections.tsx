@@ -392,7 +392,87 @@ export function ProfileKpiGrid({ profile, data, canViewCommercial }: ProfileKpis
     );
   }
 
-  // Perfil Negociante o Completo
+  if (profile === 'negociante') {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <ComponentCard title="Operaciones Comerciales">
+          <div className="space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+              Actividad de Intermediación
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-extrabold text-gray-900 dark:text-white">
+                {comercial.totalOperaciones}
+              </span>
+              <span className="text-xs font-medium text-gray-500">operaciones</span>
+            </div>
+            <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[11px]">
+              <span className="text-gray-500">Abiertas / En curso:</span>
+              <span className="font-bold text-brand-600 dark:text-brand-400">
+                {comercial.operacionesAbiertas}
+              </span>
+            </div>
+          </div>
+        </ComponentCard>
+
+        <ComponentCard title="Facturación Comercial">
+          <div className="space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Ingresos de Venta</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-extrabold text-gray-900 dark:text-white">
+                {comercial.facturacionVenta.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+              </span>
+            </div>
+            <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[11px]">
+              <span className="text-gray-500">Costes Operativos:</span>
+              <span className="font-bold text-red-600 dark:text-red-400">
+                {comercial.costesTotales.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+              </span>
+            </div>
+          </div>
+        </ComponentCard>
+
+        <ComponentCard title="Rentabilidad Operativa">
+          <div className="space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Margen Bruto Total</span>
+            <div className="flex items-baseline gap-2">
+              <span className={`text-2xl font-extrabold ${comercial.margenBrutoTotal >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600'}`}>
+                {comercial.margenBrutoTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+              </span>
+            </div>
+            <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[11px]">
+              <span className="text-gray-500">Margen Medio / Tonelada:</span>
+              <span className="font-bold text-purple-600 dark:text-purple-400">
+                {comercial.margenMedioTon.toFixed(2)} €/t
+              </span>
+            </div>
+          </div>
+        </ComponentCard>
+
+        <ComponentCard title="Trazabilidad Documental">
+          <div className="space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+              DIs Vinculados / Archivo Art. 64
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-extrabold text-blue-600 dark:text-blue-400">
+                {residuos.totalDIs}
+              </span>
+              <span className="text-xs font-medium text-gray-500">DIs en seguimiento</span>
+            </div>
+            <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[11px]">
+              <span className="text-gray-500">Sin posesión física:</span>
+              <Link href="/residuos/archivo-cronologico" className="font-bold text-brand-600 hover:underline">
+                Ver registro →
+              </Link>
+            </div>
+          </div>
+        </ComponentCard>
+      </div>
+    );
+  }
+
+  // Perfil Completo
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <ComponentCard title="Balance de Masas">

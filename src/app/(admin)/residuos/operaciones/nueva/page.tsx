@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import commercialOperationService, {
-  calculateProfitability
+  calculateProfitability,
+  validateOperatorMandate
 } from '@/services/commercialOperationService';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
@@ -33,11 +34,16 @@ export default function NuevaOperacionComercialPage() {
   const [formData, setFormData] = useState<CommercialOperationFormData>({
     fecha: new Date().toISOString().split('T')[0],
     estado: 'abierta',
+    modalidad_posesion: 'intermediacion_sin_posesion',
+    actua_como_operador: false,
+    mandato_referencia: '',
+    mandato_fecha: '',
+    mandato_otorgante: '',
     codigo_ler: '',
     descripcion_residuo: '',
     peligrosidad: 'no-peligroso',
     operacion_rd: 'R13',
-    cantidad_estimada_t: 1.0,
+    cantidad_estimada_t: 0,
     cantidad_real_t: 0,
     tipo_precio_compra: 'por_tonelada',
     precio_unitario_compra: 0,
@@ -140,6 +146,17 @@ export default function NuevaOperacionComercialPage() {
     if (loading) return;
     if (!formData.codigo_ler || !formData.descripcion_residuo) {
       setError('Por favor especifique el código LER y la descripción del residuo.');
+      return;
+    }
+
+    if (!formData.cantidad_estimada_t || formData.cantidad_estimada_t <= 0) {
+      setError('Indique una cantidad estimada mayor que 0 toneladas.');
+      return;
+    }
+
+    const mandateCheck = validateOperatorMandate(formData);
+    if (!mandateCheck.valid) {
+      setError(mandateCheck.error || 'Falta acreditar el mandato escrito para actuar como operador.');
       return;
     }
 
@@ -290,6 +307,108 @@ export default function NuevaOperacionComercialPage() {
                     className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-700"
                   />
                 </div>
+              </div>
+
+              {/* Intervención Ambiental Estructurada (UXDEV-11 / UX-22) */}
+              <div className="p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/50 dark:bg-indigo-950/20 space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-xs font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wider">
+                    Intervención Ambiental (RD 553/2020)
+                  </span>
+                  <span className="text-[11px] text-indigo-700 dark:text-indigo-400">
+                    Campos estructurados de posesión y representación
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      Modalidad de Posesión Física *
+                    </label>
+                    <select
+                      value={formData.modalidad_posesion || 'intermediacion_sin_posesion'}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          modalidad_posesion: e.target.value as 'intermediacion_sin_posesion' | 'almacenamiento_planta_propia',
+                        }))
+                      }
+                      className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-700"
+                    >
+                      <option value="intermediacion_sin_posesion">
+                        Sin posesión física (Intermediación — no genera stock propio)
+                      </option>
+                      <option value="almacenamiento_planta_propia">
+                        Con posesión física en instalación propia autorizada
+                      </option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center pt-4">
+                    <label className="flex items-start gap-2 text-xs text-gray-800 dark:text-gray-200 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(formData.actua_como_operador)}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            actua_como_operador: e.target.checked,
+                          }))
+                        }
+                        className="mt-0.5 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                      />
+                      <span>
+                        <strong className="block">Actúo como Operador del Traslado (Art. 2.h RD 553/2020)</strong>
+                        <span className="text-[11px] text-gray-500">
+                          Requiere mandato o autorización escrita del productor/poseedor
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                {formData.actua_como_operador && (
+                  <div className="pt-2 border-t border-indigo-200/70 dark:border-indigo-800/50 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-indigo-900 dark:text-indigo-200 mb-1">
+                        Ref. Mandato / Representación Escrita *
+                      </label>
+                      <input
+                        type="text"
+                        required={Boolean(formData.actua_como_operador)}
+                        placeholder="Ej. MAND-2026-004"
+                        value={formData.mandato_referencia || ''}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, mandato_referencia: e.target.value }))}
+                        className="w-full text-xs rounded-lg border border-indigo-300 dark:border-indigo-700 p-2 bg-white dark:bg-gray-700 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-indigo-900 dark:text-indigo-200 mb-1">
+                        Otorgante (Productor / Poseedor)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Empresa que otorga el mandato"
+                        value={formData.mandato_otorgante || ''}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, mandato_otorgante: e.target.value }))}
+                        className="w-full text-xs rounded-lg border border-indigo-300 dark:border-indigo-700 p-2 bg-white dark:bg-gray-700"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-indigo-900 dark:text-indigo-200 mb-1">
+                        Fecha del Mandato
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.mandato_fecha || ''}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, mandato_fecha: e.target.value }))}
+                        className="w-full text-xs rounded-lg border border-indigo-300 dark:border-indigo-700 p-2 bg-white dark:bg-gray-700"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Cantidades */}

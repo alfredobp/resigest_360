@@ -204,7 +204,13 @@ export function getEffectiveModules(
     ? company.modulos_activos.filter((m): m is AppModule => ALL_MODULES.includes(m as AppModule))
     : [];
 
-  const baseModules = explicitModules.length > 0 ? explicitModules : getDefaultModulesForProfile(profile);
+  const baseModules = explicitModules.length > 0 ? [...explicitModules] : getDefaultModulesForProfile(profile);
+
+  // UXDEV-06 / UX-24: El perfil negociante/agente tiene obligación legal de llevar Archivo Cronológico (Art. 64 Ley 7/2022).
+  // Garantizamos su disponibilidad aunque la empresa conserve una lista explícita heredada sin dicho módulo.
+  if (profile === 'negociante' && !baseModules.includes('archivo_cronologico')) {
+    baseModules.push('archivo_cronologico');
+  }
 
   if (options?.canViewCommercial === false) {
     return baseModules.filter((m) => m !== 'operaciones_comerciales');

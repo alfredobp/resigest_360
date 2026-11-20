@@ -237,3 +237,68 @@ npm run lint        # --> PASS (0 errores / advertencias ESLint)
 npm run test:ci     # --> PASS (46 Test Suites, 933 tests pasados limpios, cobertura global > 96% statements y > 84% branches)
 ```
 
+
+---
+
+# Walkthrough: Fase 4 de Experiencia de Cliente (Negociante / Agente, Carpeta Documental y Archivo Cronológico)
+
+Se ha completado con éxito la ejecución de la **Fase 4** del informe de auditoría de experiencia de cliente (`RESIGEST_360_Experiencia_Cliente_2026-11-20`), abordando las observaciones del perfil **Negociante / Agente** (`UX-21`, `UX-22`, `UX-23`, `UX-24` / `UXDEV-06`, `UXDEV-11`, `UXDEV-12`, `UXDEV-14`).
+
+---
+
+## 🚀 Cambios Implementados en Fase 4
+
+### 1. Acceso Garantizado al Archivo Cronológico para Negociante / Agente (`UXDEV-06` / `UX-24`)
+- **Ficheros**:
+  - [moduleCatalog.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/lib/profiles/moduleCatalog.ts)
+  - [archivo-cronologico/page.tsx](file:///c:/Users/Alfredo/Desktop/resigest_360/src/app/(admin)/residuos/archivo-cronologico/page.tsx)
+- En `getEffectiveModules` se garantiza que el perfil `negociante` disponga siempre del módulo `archivo_cronologico` (Art. 64 Ley 7/2022), incluso si la empresa conservaba una configuración legada de `modulos_activos` sin incluirlo.
+- En el Archivo Cronológico se incorpora un banner normativo específico para el perfil Negociante/Agente aclarando que recoge la trazabilidad documental de residuos negociados y que las operaciones sin posesión física no generan stock propio de planta.
+
+### 2. Panel del Negociante Enfocado en Intermediación sin Posesión (`UXDEV-14` / `UX-21`)
+- **Ficheros**:
+  - [ProfileDashboardSections.tsx](file:///c:/Users/Alfredo/Desktop/resigest_360/src/components/dashboard/profiles/ProfileDashboardSections.tsx)
+  - [app/page.tsx](file:///c:/Users/Alfredo/Desktop/resigest_360/src/app/(admin)/app/page.tsx)
+- Se desacopló la vista de KPIs del perfil `negociante` de la de planta/completo, sustituyendo "Balance de Masas / Residuos Gestionados" por tarjetas enfocadas en su operativa real: **Operaciones Comerciales**, **Facturación Comercial**, **Rentabilidad Operativa** y **Trazabilidad Documental (Art. 64)**.
+- En las acciones rápidas del panel `/app`, **"Nueva Operación"** pasa a ser la acción principal del Negociante y **"Nuevo Traslado (DI)"** queda como acción secundaria.
+
+### 3. Campos Estructurados de Intervención Ambiental y Exigencia de Mandato (`UXDEV-11` / `UX-22`)
+- **Ficheros**:
+  - [wasteManagement.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/types/wasteManagement.ts)
+  - [commercialOperationService.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/services/commercialOperationService.ts)
+  - [operaciones/nueva/page.tsx](file:///c:/Users/Alfredo/Desktop/resigest_360/src/app/(admin)/residuos/operaciones/nueva/page.tsx)
+- Se añadieron campos estructurados de **Modalidad de Posesión Física** (`intermediacion_sin_posesion` por defecto vs `almacenamiento_planta_propia`) y **Actúo como Operador del Traslado** (`actua_como_operador`).
+- Se implementó `validateOperatorMandate` tanto en servicio (`create`/`update`) como en formulario: cuando el negociante declara actuar como operador del traslado (Art. 2.h RD 553/2020), exige obligatoriamente la referencia del mandato o representación escrita del productor/poseedor.
+- Las operaciones de intermediación sin posesión nunca generan movimientos de stock físico en el archivo cronológico de planta propia.
+
+### 4. Unidades Legibles (`€/kg`), Carpeta Documental con Procedencia y PDF Provisional (`UXDEV-11`, `UXDEV-12`, `UXDEV-14` / `UX-23`)
+- **Ficheros**:
+  - [commercialOperationService.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/services/commercialOperationService.ts)
+  - [operaciones/[id]/page.tsx](file:///c:/Users/Alfredo/Desktop/resigest_360/src/app/(admin)/residuos/operaciones/[id]/page.tsx)
+  - [pdfUtils.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/lib/pdfUtils.ts)
+- Se creó `formatPriceUnitLabel` eliminando identificadores técnicos como `por_kg` en favor de `€/kg`, `€/t` y `Lote fijo`.
+- En el detalle de la operación se implementó la **Carpeta Documental de la Operación** (`addDocumentAttachment` / `removeDocumentAttachment`), permitiendo adjuntar DI externos, mandatos de operador, albaranes y justificantes tras guardar, registrando tipo, emisor, fecha, procedencia (`Externo`/`Interno`) y huella digital determinista **SHA-256** (`computeDocumentFingerprint`).
+- Se añadió aviso explícito de que el cierre/liquidación comercial no certifica el tratamiento ambiental ni sustituye al DI.
+- En `generateCommercialOperationPDF` se distinguen las operaciones abiertas/provisionales (`LIQUIDACIÓN PROVISIONAL` / `NO ES FACTURA`), se añade pie legal diferenciando liquidación económica de factura fiscal y certificado ambiental, y se incorporan metadatos forenses `/CreationDate` y `/ModDate`.
+
+---
+
+## 🧪 Verificación y Pruebas Realizadas en Fase 4
+
+### 1. Test de Integración del Recorrido Negociante
+- [negotiatorAuditJourney.test.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/services/__tests__/negotiatorAuditJourney.test.ts):
+  - Valida acceso garantizado a `/residuos/archivo-cronologico` para cuentas negociantes con `modulos_activos` legados (`UX-24`).
+  - Valida operación sin posesión sin generación de stock propio y bloqueo de actuación como operador sin mandato escrito (`UX-22`).
+  - Valida formato `€/kg` legible y carpeta documental con procedencia externa y huella SHA-256 (`UX-23`).
+  - Valida PDF de liquidación provisional sin confusión con factura fiscal (`UXDEV-12`).
+
+### 2. Suites Unitarias Actualizadas
+- [commercialOperationService.test.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/services/__tests__/commercialOperationService.test.ts): **97.82% Statements, 83.19% Branches, 100% Functions, 97.74% Lines**.
+- [moduleCatalog.test.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/lib/profiles/__tests__/moduleCatalog.test.ts): valida garantía obligatoria de `archivo_cronologico` para el perfil `negociante`.
+
+### 3. Verificaciones de Calidad Globales del Repositorio (AGENTS.md)
+```bash
+npm run typecheck   # --> PASS (0 errores TypeScript)
+npm run lint        # --> PASS (0 errores / advertencias ESLint)
+npm run test:ci     # --> PASS (47 Test Suites, 945 tests pasados limpios, cobertura >= 80% en todos los módulos)
+```

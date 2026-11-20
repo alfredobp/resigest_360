@@ -3,11 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
-import commercialOperationService from '@/services/commercialOperationService';
+import commercialOperationService, {
+  formatPriceUnitLabel
+} from '@/services/commercialOperationService';
 import { generateCommercialOperationPDF } from '@/lib/pdfUtils';
 import {
   type CommercialOperation,
-  type EstadoOperacionComercial
+  type EstadoOperacionComercial,
+  type TipoDocumentoOperacion
 } from '@/types/wasteManagement';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
@@ -25,6 +28,15 @@ const ESTADO_CONFIG: Record<EstadoOperacionComercial, { label: string; color: 'l
   cancelada: { label: 'Cancelada', color: 'error' },
 };
 
+const TIPO_DOC_LABELS: Record<TipoDocumentoOperacion, string> = {
+  di_externo: 'DI Externo',
+  mandato_operador: 'Mandato de Operador',
+  albaran_bascula: 'Albarán de Báscula',
+  contrato_tratamiento: 'Contrato de Tratamiento',
+  factura: 'Factura Comercial',
+  otro: 'Otro Justificante',
+};
+
 export default function DetalleOperacionComercialPage() {
   const router = useRouter();
   const params = useParams();
@@ -40,6 +52,17 @@ export default function DetalleOperacionComercialPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isEditingSettlement, setIsEditingSettlement] = useState(false);
   const [savingSettlement, setSavingSettlement] = useState(false);
+  const [showDocForm, setShowDocForm] = useState(false);
+  const [savingDoc, setSavingDoc] = useState(false);
+  const [docForm, setDocForm] = useState({
+    tipo: 'di_externo' as TipoDocumentoOperacion,
+    nombre: '',
+    emisor: '',
+    fecha: new Date().toISOString().split('T')[0],
+    procedencia: 'externo' as 'externo' | 'interno',
+    url: '',
+    notas: '',
+  });
   const [settlementForm, setSettlementForm] = useState({
     cantidad_real_t: '',
     coste_transporte: '0',
@@ -158,6 +181,65 @@ export default function DetalleOperacionComercialPage() {
       toast.error(msg);
     } finally {
       setSavingSettlement(false);
+    }
+  };
+
+  const handleAddDocument = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!operation) return;
+    if (!docForm.nombre.trim() || !docForm.emisor.trim()) {
+      const msg = 'Indique el nombre del documento y la entidad emisora.';
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    try {
+      setSavingDoc(true);
+      setError(null);
+      await commercialOperationService.addDocumentAttachment(operation.id, {
+        tipo: docForm.tipo,
+        nombre: docForm.nombre.trim(),
+        emisor: docForm.emisor.trim(),
+        fecha: docForm.fecha,
+        procedencia: docForm.procedencia,
+        url: docForm.url.trim() || undefined,
+        notas: docForm.notas.trim() || undefined,
+      });
+      const msg = 'Documento incorporado a la carpeta de la operación con huella de integridad.';
+      setSuccess(msg);
+      toast.success(msg);
+      setShowDocForm(false);
+      setDocForm({
+        tipo: 'di_externo',
+        nombre: '',
+        emisor: '',
+        fecha: new Date().toISOString().split('T')[0],
+        procedencia: 'externo',
+        url: '',
+        notas: '',
+      });
+      await loadOperation();
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (err: any) {
+      console.error(err);
+      const msg = err?.message || 'Error al adjuntar documento a la carpeta de operación.';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setSavingDoc(false);
+    }
+  };
+
+  const handleRemoveDocument = async (docId: string) => {
+    if (!operation) return;
+    try {
+      await commercialOperationService.removeDocumentAttachment(operation.id, docId);
+      toast.success('Documento eliminado de la carpeta.');
+      await loadOperation();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || 'Error al eliminar el documento.');
     }
   };
 
@@ -510,7 +592,7 @@ export default function DetalleOperacionComercialPage() {
               {(operation.ingreso_venta_total || 0).toFixed(2)} €
             </p>
             <p className="text-[10.5px] text-gray-400">
-              {(operation.precio_unitario_venta || 0).toFixed(2)} € / {operation.tipo_precio_venta === 'por_tonelada' ? 't' : operation.tipo_precio_venta}
+              {(operation.precio_unitario_venta || 0).toFixed(2)} {formatPriceUnitLabel(operation.tipo_precio_venta)}
             </p>
           </div>
 
@@ -520,7 +602,7 @@ export default function DetalleOperacionComercialPage() {
               {(operation.coste_compra_total || 0).toFixed(2)} €
             </p>
             <p className="text-[10.5px] text-gray-400">
-              {(operation.precio_unitario_compra || 0).toFixed(2)} € / {operation.tipo_precio_compra === 'por_tonelada' ? 't' : operation.tipo_precio_compra}
+              {(operation.precio_unitario_compra || 0).toFixed(2)} {formatPriceUnitLabel(operation.tipo_precio_compra)}
             </p>
           </div>
 
@@ -546,6 +628,40 @@ export default function DetalleOperacionComercialPage() {
         {/* Bloque: Trazabilidad Física y Residuo */}
         <ComponentCard title="Trazabilidad Física y Ambiental">
           <div className="space-y-4 text-xs">
+            {/* Intervención Ambiental Estructurada (UXDEV-11 / UX-22) */}
+            <div className="p-3 rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/40 dark:bg-indigo-950/20 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant="light"
+                  color={operation.modalidad_posesion === 'almacenamiento_planta_propia' ? 'warning' : 'info'}
+                  size="sm"
+                >
+                  {operation.modalidad_posesion === 'almacenamiento_planta_propia'
+                    ? 'Con posesión física (Planta propia)'
+                    : 'Sin posesión física (Sin stock propio)'}
+                </Badge>
+                <Badge
+                  variant="light"
+                  color={operation.actua_como_operador ? 'primary' : 'light'}
+                  size="sm"
+                >
+                  {operation.actua_como_operador
+                    ? 'Actúa como Operador del Traslado'
+                    : 'Solo Intermediación Comercial'}
+                </Badge>
+              </div>
+              {operation.actua_como_operador && (
+                <p className="text-[11px] text-indigo-800 dark:text-indigo-300">
+                  Mandato escrito: <span className="font-mono font-semibold">{operation.mandato_referencia || 'Pendiente'}</span>
+                  {operation.mandato_otorgante ? ` • Otorgante: ${operation.mandato_otorgante}` : ''}
+                  {operation.mandato_fecha ? ` • Fecha: ${operation.mandato_fecha}` : ''}
+                </p>
+              )}
+              <p className="text-[10.5px] text-gray-500">
+                El cierre o liquidación comercial registra el margen económico, pero no sustituye al DI ni certifica el tratamiento ambiental del residuo.
+              </p>
+            </div>
+
             {/* Residuo */}
             <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl space-y-1">
               <div className="flex items-center gap-2">
@@ -605,7 +721,188 @@ export default function DetalleOperacionComercialPage() {
                     </Link>
                   </div>
                 ) : (
-                  <p className="text-gray-400 mt-1">Sin DI oficial vinculado</p>
+                  <p className="text-gray-400 mt-1">Sin DI interno vinculado (puede adjuntar un DI externo en la Carpeta Documental)</p>
+                )}
+              </div>
+
+              {/* Carpeta Documental con Procedencia y Hash (UXDEV-11 / UX-23) */}
+              <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <span className="font-bold text-gray-800 dark:text-gray-200">
+                      Carpeta Documental de la Operación ({operation.documentos_adjuntos?.length || 0})
+                    </span>
+                    <p className="text-[10.5px] text-gray-400">
+                      DI externos, mandatos de operador, albaranes y justificantes con procedencia y huella SHA-256
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={showDocForm ? 'primary' : 'outline'}
+                    onClick={() => setShowDocForm((prev) => !prev)}
+                  >
+                    {showDocForm ? 'Cerrar' : '+ Adjuntar Documento'}
+                  </Button>
+                </div>
+
+                {showDocForm && (
+                  <form
+                    onSubmit={handleAddDocument}
+                    className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-700 space-y-2.5"
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                          Tipo de Documento *
+                        </label>
+                        <select
+                          value={docForm.tipo}
+                          onChange={(e) => setDocForm((prev) => ({ ...prev, tipo: e.target.value as TipoDocumentoOperacion }))}
+                          className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
+                        >
+                          <option value="di_externo">DI Externo</option>
+                          <option value="mandato_operador">Mandato de Operador</option>
+                          <option value="albaran_bascula">Albarán de Báscula</option>
+                          <option value="contrato_tratamiento">Contrato de Tratamiento</option>
+                          <option value="factura">Factura Comercial</option>
+                          <option value="otro">Otro Justificante</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                          Procedencia *
+                        </label>
+                        <select
+                          value={docForm.procedencia}
+                          onChange={(e) => setDocForm((prev) => ({ ...prev, procedencia: e.target.value as 'externo' | 'interno' }))}
+                          className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
+                        >
+                          <option value="externo">Externo (recibido de tercero)</option>
+                          <option value="interno">Interno (emitido por mi empresa)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div className="sm:col-span-1">
+                        <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                          Nombre / Referencia *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Ej. DI-EXT-2026-881.pdf"
+                          value={docForm.nombre}
+                          onChange={(e) => setDocForm((prev) => ({ ...prev, nombre: e.target.value }))}
+                          className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
+                        />
+                      </div>
+                      <div className="sm:col-span-1">
+                        <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                          Emisor *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Ej. Planta Gestora Destino SL"
+                          value={docForm.emisor}
+                          onChange={(e) => setDocForm((prev) => ({ ...prev, emisor: e.target.value }))}
+                          className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
+                        />
+                      </div>
+                      <div className="sm:col-span-1">
+                        <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                          Fecha *
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={docForm.fecha}
+                          onChange={(e) => setDocForm((prev) => ({ ...prev, fecha: e.target.value }))}
+                          className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                        Enlace / URL del Archivo (Opcional)
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="https://..."
+                        value={docForm.url}
+                        onChange={(e) => setDocForm((prev) => ({ ...prev, url: e.target.value }))}
+                        className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button type="button" size="sm" variant="outline" onClick={() => setShowDocForm(false)}>
+                        Cancelar
+                      </Button>
+                      <Button type="submit" size="sm" disabled={savingDoc}>
+                        {savingDoc ? 'Guardando...' : 'Guardar en Carpeta'}
+                      </Button>
+                    </div>
+                  </form>
+                )}
+
+                {operation.documentos_adjuntos && operation.documentos_adjuntos.length > 0 ? (
+                  <div className="space-y-2">
+                    {operation.documentos_adjuntos.map((docItem) => (
+                      <div
+                        key={docItem.id}
+                        className="p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                      >
+                        <div className="space-y-0.5 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant="light" color={docItem.procedencia === 'externo' ? 'warning' : 'info'} size="sm">
+                              {docItem.procedencia === 'externo' ? 'Externo' : 'Interno'}
+                            </Badge>
+                            <span className="text-[11px] font-bold text-gray-900 dark:text-white truncate">
+                              {docItem.nombre}
+                            </span>
+                            <span className="text-[10px] text-gray-500">
+                              ({TIPO_DOC_LABELS[docItem.tipo] || docItem.tipo})
+                            </span>
+                          </div>
+                          <p className="text-[10.5px] text-gray-500">
+                            Emisor: <span className="font-medium text-gray-700 dark:text-gray-300">{docItem.emisor}</span> • Fecha: {docItem.fecha}
+                          </p>
+                          {docItem.hash_sha256 && (
+                            <p className="text-[10px] font-mono text-gray-400">
+                              SHA-256: {docItem.hash_sha256.slice(0, 16)}…
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {docItem.url && (
+                            <a
+                              href={docItem.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] font-semibold text-brand-600 hover:underline"
+                            >
+                              Abrir ↗
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDocument(docItem.id)}
+                            className="text-[11px] text-red-600 hover:underline font-medium"
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-gray-400 italic">
+                    No hay documentos adjuntos en la carpeta de esta operación.
+                  </p>
                 )}
               </div>
             </div>

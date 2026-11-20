@@ -52,12 +52,13 @@ describe('moduleCatalog - Perfiles Operativos y Módulos', () => {
       expect(getEffectiveModules(null)).toEqual([]);
     });
 
-    it('debe priorizar modulos_activos explícitos válidos y respetar restricción comercial de consultoría', () => {
+    it('debe priorizar modulos_activos explícitos válidos, garantizar archivo_cronologico para negociante y respetar restricción comercial de consultoría', () => {
       const mods = getEffectiveModules({
         perfil_operativo: 'negociante',
         modulos_activos: ['di', 'operaciones_comerciales', 'modulo_inexistente'],
       });
-      expect(mods).toEqual(['di', 'operaciones_comerciales']);
+      // UXDEV-06 / UX-24: archivo_cronologico es obligatorio por Art. 64 Ley 7/2022 para negociante
+      expect(mods).toEqual(['di', 'operaciones_comerciales', 'archivo_cronologico']);
 
       const restrictedMods = getEffectiveModules(
         {

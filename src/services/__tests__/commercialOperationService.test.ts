@@ -50,6 +50,11 @@ if (typeof document === 'undefined') {
 import {
   commercialOperationService,
   calculateProfitability,
+  formatPriceUnitLabel,
+  computeDocumentFingerprint,
+  parseCommercialMetaFromNotes,
+  serializeCommercialMetaToNotes,
+  validateOperatorMandate,
 } from '../commercialOperationService';
 import { holdedService } from '../holdedService';
 import { auditService } from '../auditService';
@@ -987,6 +992,157 @@ describe('commercialOperationService - Operaciones Comerciales', () => {
       // Si el registro cronológico falla, no bloquea el flujo comercial
       (syncEntryFromCommercialOperation as jest.Mock).mockRejectedValueOnce(new Error('Sync fail'));
       await expect(commercialOperationService.update(91, { estado: 'liquidada' })).resolves.toBeDefined();
+    });
+  });
+
+  describe('Fase 4 (UXDEV-11 / UXDEV-14): Intervención ambiental, unidades y carpeta documental', () => {
+    it('debe formatear etiquetas de modalidad de precio legibles', () => {
+      expect(formatPriceUnitLabel('por_kg')).toBe('€/kg');
+      expect(formatPriceUnitLabel('lote_fijo')).toBe('Lote fijo');
+      expect(formatPriceUnitLabel('por_tonelada')).toBe('€/t');
+      expect(formatPriceUnitLabel(undefined)).toBe('€/t');
+    });
+
+    it('debe generar huella digital determinista de 64 caracteres hexadecimales', () => {
+      const h1 = computeDocumentFingerprint('op-39|di_externo|doc.pdf');
+      const h2 = computeDocumentFingerprint('op-39|di_externo|doc.pdf');
+      const h3 = computeDocumentFingerprint('op-39|di_externo|otro.pdf');
+      expect(h1).toMatch(/^[0-9a-f]{64}$/);
+      expect(h1).toBe(h2);
+      expect(h1).not.toBe(h3);
+    });
+
+    it('debe serializar y parsear metadatos de intervención y carpeta documental (incluyendo JSON corrupto)', () => {
+      const serialized = serializeCommercialMetaToNotes('Nota del negociante', {
+        modalidad_posesion: 'almacenamiento_planta_propia',
+        actua_como_operador: true,
+        mandato_referencia: 'MAND-2026-01',
+        mandato_fecha: '2026-11-20',
+        mandato_otorgante: 'Productor SL',
+        documentos: [
+          {
+            id: 'd1',
+            tipo: 'mandato_operador',
+            nombre: 'Mandato.pdf',
+            emisor: 'Productor SL',
+            fecha: '2026-11-20',
+            procedencia: 'externo',
+          },
+        ],
+      });
+
+      const parsed = parseCommercialMetaFromNotes(serialized);
+      expect(parsed.cleanNotes).toBe('Nota del negociante');
+      expect(parsed.meta.modalidad_posesion).toBe('almacenamiento_planta_propia');
+      expect(parsed.meta.actua_como_operador).toBe(true);
+      expect(parsed.meta.mandato_referencia).toBe('MAND-2026-01');
+      expect(parsed.meta.documentos).toHaveLength(1);
+
+      // JSON corrupto devuelve fallback seguro
+      const corrupted = parseCommercialMetaFromNotes('Texto limpio\n__RESIGEST_OP_META__:{bad-json');
+      expect(corrupted.cleanNotes).toBe('Texto limpio');
+      expect(corrupted.meta.documentos).toEqual([]);
+    });
+
+    it('debe validar el mandato escrito cuando actua_como_operador es true', () => {
+      expect(validateOperatorMandate({ actua_como_operador: false }).valid).toBe(true);
+      expect(validateOperatorMandate({ actua_como_operador: true, mandato_referencia: 'MAND-1' }).valid).toBe(true);
+      expect(validateOperatorMandate({ actua_como_operador: true, mandato_referencia: '' }).valid).toBe(false);
+    });
+
+    it('debe adjuntar y eliminar documentos de la carpeta documental y validar errores', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      // Error si no existe la operación
+      const notFoundChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: null, error: { message: 'Not found' } }),
+      };
+      mockSupabase.from.mockReturnValueOnce(notFoundChain);
+      await expect(
+        commercialOperationService.addDocumentAttachment(999, {
+          tipo: 'di_externo',
+          nombre: 'DI.pdf',
+          emisor: 'Gestor',
+          fecha: '2026-11-20',
+          procedencia: 'externo',
+        })
+      ).rejects.toThrow('Operación comercial no encontrada');
+
+      // Error si faltan nombre o emisor
+      const existingOp = {
+        id: 50,
+        user_id: mockUser.id,
+        company_id: 10,
+        numero_operacion: 'OP-2026-000050',
+        estado: 'abierta',
+        observaciones: serializeCommercialMetaToNotes('Base', {
+          modalidad_posesion: 'intermediacion_sin_posesion',
+          actua_como_operador: false,
+          documentos: [
+            {
+              id: 'doc-existing',
+              tipo: 'albaran_bascula',
+              nombre: 'ALB-1.pdf',
+              emisor: 'Planta',
+              fecha: '2026-11-19',
+              procedencia: 'externo',
+            },
+          ],
+        }),
+      };
+
+      const foundChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: existingOp, error: null }),
+      };
+      mockSupabase.from.mockReturnValueOnce(foundChain);
+      await expect(
+        commercialOperationService.addDocumentAttachment(50, {
+          tipo: 'di_externo',
+          nombre: '',
+          emisor: 'Gestor',
+          fecha: '2026-11-20',
+          procedencia: 'externo',
+        })
+      ).rejects.toThrow('Debe indicar el nombre del documento y el emisor');
+
+      // Eliminar documento existente
+      const updateChain = {
+        update: jest.fn().mockImplementation((payload: any) => ({
+          eq: jest.fn().mockReturnThis(),
+          select: jest.fn().mockReturnThis(),
+          single: jest.fn().mockResolvedValue({
+            data: { ...existingOp, ...payload },
+            error: null,
+          }),
+        })),
+      };
+      mockSupabase.from
+        .mockReturnValueOnce(foundChain)
+        .mockReturnValueOnce(foundChain)
+        .mockReturnValueOnce(updateChain);
+
+      const afterRemove = await commercialOperationService.removeDocumentAttachment(50, 'doc-existing');
+      expect(afterRemove.documentos_adjuntos).toEqual([]);
+
+      // Error al eliminar si no existe la operación
+      mockSupabase.from.mockReturnValueOnce(notFoundChain);
+      await expect(
+        commercialOperationService.removeDocumentAttachment(999, 'doc-1')
+      ).rejects.toThrow('Operación comercial no encontrada');
+    });
+
+    it('debe rechazar update si se activa actua_como_operador sin mandato_referencia', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      await expect(
+        commercialOperationService.update(50, {
+          actua_como_operador: true,
+          mandato_referencia: '',
+        })
+      ).rejects.toThrow(/mandato/i);
     });
   });
 });

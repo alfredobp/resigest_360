@@ -130,8 +130,19 @@ export default function ExecutiveDashboardPage() {
 
         {/* Acciones Rápidas según perfil */}
         <div className="flex flex-wrap items-center gap-2">
+          {effectiveProfile === 'negociante' && canCreateOp && (
+            <Button
+              size="sm"
+              onClick={() => router.push('/residuos/operaciones/nueva')}
+              className="bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors"
+            >
+              Nueva Operación
+            </Button>
+          )}
+
           {canCreateDI && (
             <Button
+              variant={effectiveProfile === 'negociante' ? 'outline' : 'primary'}
               size="sm"
               onClick={() =>
                 router.push(
@@ -140,7 +151,11 @@ export default function ExecutiveDashboardPage() {
                     : '/residuos/documentos-identificacion/nuevo'
                 )
               }
-              className="bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors"
+              className={
+                effectiveProfile === 'negociante'
+                  ? 'text-gray-700 dark:text-gray-300 font-medium'
+                  : 'bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors'
+              }
             >
               {effectiveProfile === 'productor'
                 ? 'Nueva Retirada (DI)'
@@ -150,7 +165,7 @@ export default function ExecutiveDashboardPage() {
             </Button>
           )}
 
-          {canCreateOp && (
+          {effectiveProfile !== 'negociante' && canCreateOp && (
             <Button
               variant="outline"
               size="sm"

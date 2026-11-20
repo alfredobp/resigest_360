@@ -532,6 +532,14 @@ export default function ArchivoCronologicoPage() {
         </div>
       </div>
 
+      {/* Banner normativo para Negociante / Agente (UXDEV-06 / UX-24) */}
+      {perfilOperativo === 'negociante' && (
+        <div className="p-4 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/50 text-xs text-indigo-900 dark:text-indigo-200">
+          <strong>Registro Cronológico de Negociante / Agente (Art. 64 Ley 7/2022):</strong>{' '}
+          Recoge únicamente la trazabilidad documental de residuos gestionados por su organización. Las operaciones de intermediación sin posesión física no generan stock propio de planta.
+        </div>
+      )}
+
       {/* Alertas */}
       {error && (
         <Alert variant="error" title="Atención" message={error} />

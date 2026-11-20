@@ -483,6 +483,7 @@ export interface WasteContractRevision {
   firma_gestor_url?: string;
   fecha_firma_gestor?: string;
   documento_url?: string;
+  metadata_snapshot?: ContractMetadataSnapshot | null;
 }
 
 export interface WasteContractFormData {
@@ -1248,6 +1249,35 @@ export type ModalidadPosesionComercial =
   | 'intermediacion_sin_posesion'
   | 'almacenamiento_planta_propia';
 
+export type TipoDocumentoOperacion =
+  | 'di_externo'
+  | 'mandato_operador'
+  | 'albaran_bascula'
+  | 'contrato_tratamiento'
+  | 'factura'
+  | 'otro';
+
+export interface CommercialOperationDocument {
+  id: string;
+  tipo: TipoDocumentoOperacion;
+  nombre: string;
+  emisor: string;
+  fecha: string;
+  procedencia: 'externo' | 'interno';
+  url?: string;
+  hash_sha256?: string;
+  notas?: string;
+}
+
+export interface CommercialInterventionMeta {
+  modalidad_posesion: ModalidadPosesionComercial;
+  actua_como_operador: boolean;
+  mandato_referencia?: string;
+  mandato_fecha?: string;
+  mandato_otorgante?: string;
+  documentos: CommercialOperationDocument[];
+}
+
 export interface CommercialOperation {
   id: number;
   user_id: string;
@@ -1256,6 +1286,11 @@ export interface CommercialOperation {
   fecha: string;
   estado: EstadoOperacionComercial;
   modalidad_posesion?: ModalidadPosesionComercial;
+  actua_como_operador?: boolean;
+  mandato_referencia?: string | null;
+  mandato_fecha?: string | null;
+  mandato_otorgante?: string | null;
+  documentos_adjuntos?: CommercialOperationDocument[];
 
   // Flujo Físico
   origen_productor_id?: number | null;
@@ -1337,6 +1372,11 @@ export interface CommercialOperationFormData {
   fecha: string;
   estado?: EstadoOperacionComercial;
   modalidad_posesion?: ModalidadPosesionComercial;
+  actua_como_operador?: boolean;
+  mandato_referencia?: string;
+  mandato_fecha?: string;
+  mandato_otorgante?: string;
+  documentos_adjuntos?: CommercialOperationDocument[];
 
   // Flujo Físico
   origen_productor_id?: number | null;

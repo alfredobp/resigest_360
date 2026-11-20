@@ -9,11 +9,105 @@ import { getActiveCompanyCookie } from './tenantContextService';
 import type {
   WasteContract,
   WasteContractFormData,
+  WasteContractRevision,
   ContractWasteCode,
   ContractWasteCodeFormData,
 } from '@/types/wasteManagement';
 
 const supabase = createClient();
+
+/**
+ * Calcula una huella determinista de 64 caracteres hexadecimales para custodiar
+ * una instantánea de revisión contractual firmada (UXDEV-02 / RES6-I02).
+ */
+export function computeContractSnapshotHash(payload: unknown): string {
+  const canonical = JSON.stringify(payload);
+  let h1 = 0xdeadbeef ^ canonical.length;
+  let h2 = 0x41c6ce57 ^ canonical.length;
+  let h3 = 0x9e3779b9 ^ canonical.length;
+  let h4 = 0x85ebca6b ^ canonical.length;
+  for (let i = 0; i < canonical.length; i++) {
+    const ch = canonical.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+    h3 = Math.imul(h3 ^ (ch + i), 2246822519);
+    h4 = Math.imul(h4 ^ (ch * 31), 3266489917);
+  }
+  return [h1, h2, h3, h4, h1 ^ h3, h2 ^ h4, h1 ^ h2, h3 ^ h4]
+    .map((n) => (n >>> 0).toString(16).padStart(8, '0'))
+    .join('');
+}
+
+/**
+ * Construye el registro de revisión archivada antes de invalidar firmas por cambio material (UXDEV-02).
+ */
+export function buildContractRevisionRecord(
+  currentContract: Partial<WasteContract>,
+  changedFields: string[],
+  archivedAt = new Date().toISOString()
+): WasteContractRevision {
+  return {
+    version: currentContract.version || 1,
+    archived_at: archivedAt,
+    motivo_cambio: 'Modificación material de términos del contrato (Art. 5 RD 553/2020)',
+    changed_fields: changedFields,
+    cantidad_maxima_anual: currentContract.cantidad_maxima_anual,
+    unidad_cantidad: currentContract.unidad_cantidad,
+    frecuencia_recogida: currentContract.frecuencia_recogida,
+    precio_unitario: currentContract.precio_unitario,
+    moneda: currentContract.moneda,
+    fecha_inicio: currentContract.fecha_inicio,
+    fecha_fin: currentContract.fecha_fin,
+    codigos_ler: currentContract.codigos_ler,
+    operaciones_tratamiento: currentContract.operaciones_tratamiento,
+    contract_waste_codes: currentContract.contract_waste_codes,
+    firmado_productor: currentContract.firmado_productor,
+    firma_productor_url: currentContract.firma_productor_url,
+    fecha_firma_productor: currentContract.fecha_firma_productor,
+    firmado_gestor: currentContract.firmado_gestor,
+    firma_gestor_url: currentContract.firma_gestor_url,
+    fecha_firma_gestor: currentContract.fecha_firma_gestor,
+    documento_url: currentContract.documento_url,
+    metadata_snapshot: currentContract.metadata_snapshot ?? null,
+  };
+}
+
+/**
+ * Reconstruye un WasteContract inmutable a partir de una revisión archivada del historial
+ * para permitir recuperar/descargar la revisión firmada anterior (UXDEV-02).
+ */
+export function reconstructContractFromRevision(
+  contract: WasteContract,
+  revision: WasteContractRevision
+): WasteContract {
+  return {
+    ...contract,
+    version: revision.version,
+    cantidad_maxima_anual: revision.cantidad_maxima_anual ?? contract.cantidad_maxima_anual,
+    unidad_cantidad: revision.unidad_cantidad ?? contract.unidad_cantidad,
+    frecuencia_recogida: revision.frecuencia_recogida ?? contract.frecuencia_recogida,
+    precio_unitario: revision.precio_unitario ?? contract.precio_unitario,
+    moneda: revision.moneda ?? contract.moneda,
+    fecha_inicio: revision.fecha_inicio ?? contract.fecha_inicio,
+    fecha_fin: revision.fecha_fin ?? contract.fecha_fin,
+    codigos_ler: revision.codigos_ler ?? contract.codigos_ler,
+    operaciones_tratamiento: revision.operaciones_tratamiento ?? contract.operaciones_tratamiento,
+    contract_waste_codes: revision.contract_waste_codes ?? contract.contract_waste_codes,
+    firmado_productor: revision.firmado_productor ?? false,
+    firma_productor_url: revision.firma_productor_url,
+    fecha_firma_productor: revision.fecha_firma_productor,
+    firmado_gestor: revision.firmado_gestor ?? false,
+    firma_gestor_url: revision.firma_gestor_url,
+    fecha_firma_gestor: revision.fecha_firma_gestor,
+    documento_url: revision.documento_url,
+    metadata_snapshot: revision.metadata_snapshot ?? contract.metadata_snapshot ?? null,
+    estado:
+      (revision.firmado_productor || Boolean(revision.firma_productor_url)) &&
+      (revision.firmado_gestor || Boolean(revision.firma_gestor_url))
+        ? 'vigente'
+        : contract.estado,
+  };
+}
 
 /**
  * Compara si la edición de un contrato implica cambios materiales sobre una revisión
@@ -635,7 +729,9 @@ export const wasteContractService = {
       try {
         const lookup: any = supabase.from('waste_contracts');
         if (typeof lookup?.select === 'function') {
-          const sel = lookup.select('id, firmado_productor, firmado_gestor, firma_productor_url, firma_gestor_url, estado, version, company_id, revision_history');
+          const sel = lookup.select(
+            'id, firmado_productor, firmado_gestor, firma_productor_url, firma_gestor_url, fecha_firma_productor, fecha_firma_gestor, documento_url, metadata_snapshot, estado, version, company_id, revision_history, cantidad_maxima_anual, unidad_cantidad, frecuencia_recogida, precio_unitario, moneda, fecha_inicio, fecha_fin, codigos_ler, operaciones_tratamiento'
+          );
           if (typeof sel?.eq === 'function') {
             const eqRes = sel.eq('id', id);
             const fetcher = typeof eqRes?.maybeSingle === 'function' ? eqRes.maybeSingle.bind(eqRes) : (typeof eqRes?.single === 'function' ? eqRes.single.bind(eqRes) : null);
@@ -654,6 +750,14 @@ export const wasteContractService = {
                 });
                 changedFieldsList = diff.changedFields;
                 signaturesInvalidated = true;
+
+                // UXDEV-02 / RES6-I02: Archivar la revisión firmada anterior en revision_history antes de invalidar conformidades
+                const archivedRevision = buildContractRevisionRecord(currentContract, changedFieldsList);
+                const prevHistory = Array.isArray(currentContract.revision_history)
+                  ? currentContract.revision_history
+                  : [];
+                updatePayload.revision_history = [...prevHistory, archivedRevision];
+
                 updatePayload.firmado_productor = false;
                 updatePayload.firmado_gestor = false;
                 updatePayload.firma_productor_url = null;
@@ -1132,6 +1236,20 @@ export const wasteContractService = {
             nima: current.gestor_center.nima,
           };
         }
+        snapshot.pdf_hash = computeContractSnapshotHash({
+          id: current.id,
+          numero_contrato: current.numero_contrato,
+          version: snapshot.version,
+          company: snapshot.company,
+          gestor_company: snapshot.gestor_company,
+          producer_center: snapshot.producer_center,
+          gestor_center: snapshot.gestor_center,
+          codigos_ler: current.codigos_ler || [],
+          operaciones_tratamiento: current.operaciones_tratamiento || [],
+          fecha_inicio: current.fecha_inicio,
+          fecha_fin: current.fecha_fin,
+          cantidad_maxima_anual: current.cantidad_maxima_anual,
+        });
         updateData.metadata_snapshot = snapshot;
       }
     } catch (snapErr) {

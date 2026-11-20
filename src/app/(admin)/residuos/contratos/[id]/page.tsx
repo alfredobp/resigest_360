@@ -661,9 +661,28 @@ export default function ContractDetailPage() {
                       <span className="font-bold text-foreground">
                         Revisión v{rev.version} (Sustituida el {new Date(rev.archived_at).toLocaleString('es-ES')})
                       </span>
-                      <span className="text-[11px] font-mono text-amber-800 dark:text-amber-300">
-                        Cambios: {(rev.changed_fields || []).join(', ')}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-mono text-amber-800 dark:text-amber-300">
+                          Cambios: {(rev.changed_fields || []).join(', ')}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              const revDoc = await generateContractPDF(contract, rev);
+                              revDoc.save(`Contrato_${contract.numero_contrato || contract.id}_v${rev.version}_custodiada.pdf`);
+                              toast.success(`Revisión v${rev.version} recuperada en PDF.`);
+                            } catch (err) {
+                              console.error('Error al recuperar revisión custodiada:', err);
+                              toast.error('No se pudo generar el PDF de la revisión anterior.');
+                            }
+                          }}
+                        >
+                          Recuperar PDF v{rev.version}
+                        </Button>
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-muted">
                       <span>

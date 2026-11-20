@@ -5,14 +5,160 @@
 import { createClient } from '@/lib/supabase/client';
 import {
   type CommercialOperation,
+  type CommercialOperationDocument,
   type CommercialOperationFormData,
   type CommercialOperationStats,
-  type EstadoOperacionComercial
+  type CommercialInterventionMeta,
+  type EstadoOperacionComercial,
+  type ModalidadPosesionComercial,
+  type TipoPrecioOperacion
 } from '@/types/wasteManagement';
 import { holdedService } from './holdedService';
 import { auditService } from './auditService';
 import { tenantContextService } from './tenantContextService';
 import { syncEntryFromCommercialOperation } from './chronologicalRegistryService';
+
+const OP_META_MARKER = '__RESIGEST_OP_META__:';
+
+/**
+ * Formatea la modalidad de precio en texto legible para interfaz y PDF (UXDEV-14 / UX-23).
+ */
+export function formatPriceUnitLabel(tipo?: TipoPrecioOperacion | string | null): string {
+  if (tipo === 'por_kg') return '€/kg';
+  if (tipo === 'lote_fijo') return 'Lote fijo';
+  return '€/t';
+}
+
+/**
+ * Genera una huella digital determinista de 64 caracteres hexadecimales para trazabilidad
+ * documental en navegador y servidor (UXDEV-11 / UX-23).
+ */
+export function computeDocumentFingerprint(seed: string): string {
+  let h1 = 0xdeadbeef ^ seed.length;
+  let h2 = 0x41c6ce57 ^ seed.length;
+  let h3 = 0x9e3779b9 ^ seed.length;
+  let h4 = 0x85ebca6b ^ seed.length;
+
+  for (let i = 0; i < seed.length; i++) {
+    const ch = seed.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+    h3 = Math.imul(h3 ^ (ch + i), 2246822519);
+    h4 = Math.imul(h4 ^ (ch * 31), 3266489917);
+  }
+
+  const parts = [h1, h2, h3, h4, h1 ^ h3, h2 ^ h4, h1 ^ h2, h3 ^ h4];
+  return parts.map((n) => (n >>> 0).toString(16).padStart(8, '0')).join('');
+}
+
+/**
+ * Extrae metadatos estructurados de intervención ambiental y carpeta documental
+ * desde el campo observaciones sin requerir columnas adicionales en base de datos (UXDEV-11).
+ */
+export function parseCommercialMetaFromNotes(
+  observaciones?: string | null,
+  fallbackModalidad?: ModalidadPosesionComercial
+): { cleanNotes: string; meta: CommercialInterventionMeta } {
+  const defaultMeta: CommercialInterventionMeta = {
+    modalidad_posesion: fallbackModalidad || 'intermediacion_sin_posesion',
+    actua_como_operador: false,
+    documentos: [],
+  };
+
+  if (!observaciones) {
+    return { cleanNotes: '', meta: defaultMeta };
+  }
+
+  const markerIdx = observaciones.indexOf(OP_META_MARKER);
+  if (markerIdx === -1) {
+    return { cleanNotes: observaciones, meta: defaultMeta };
+  }
+
+  const cleanNotes = observaciones.slice(0, markerIdx).trim();
+  const rawJson = observaciones.slice(markerIdx + OP_META_MARKER.length).trim();
+
+  try {
+    const parsed = JSON.parse(rawJson);
+    return {
+      cleanNotes,
+      meta: {
+        modalidad_posesion:
+          parsed.modalidad_posesion === 'almacenamiento_planta_propia'
+            ? 'almacenamiento_planta_propia'
+            : fallbackModalidad || 'intermediacion_sin_posesion',
+        actua_como_operador: Boolean(parsed.actua_como_operador),
+        mandato_referencia: parsed.mandato_referencia || undefined,
+        mandato_fecha: parsed.mandato_fecha || undefined,
+        mandato_otorgante: parsed.mandato_otorgante || undefined,
+        documentos: Array.isArray(parsed.documentos) ? parsed.documentos : [],
+      },
+    };
+  } catch {
+    return { cleanNotes, meta: defaultMeta };
+  }
+}
+
+/**
+ * Serializa observaciones del usuario junto con metadatos estructurados de intervención ambiental
+ * y carpeta documental (UXDEV-11).
+ */
+export function serializeCommercialMetaToNotes(
+  userNotes: string | undefined | null,
+  meta: CommercialInterventionMeta
+): string {
+  const base = (userNotes || '').split(OP_META_MARKER)[0].trim();
+  const serialized = `${OP_META_MARKER}${JSON.stringify({
+    modalidad_posesion: meta.modalidad_posesion,
+    actua_como_operador: Boolean(meta.actua_como_operador),
+    ...(meta.mandato_referencia ? { mandato_referencia: meta.mandato_referencia } : {}),
+    ...(meta.mandato_fecha ? { mandato_fecha: meta.mandato_fecha } : {}),
+    ...(meta.mandato_otorgante ? { mandato_otorgante: meta.mandato_otorgante } : {}),
+    documentos: Array.isArray(meta.documentos) ? meta.documentos : [],
+  })}`;
+  return base ? `${base}\n\n${serialized}` : serialized;
+}
+
+/**
+ * Valida la exigencia de representación/mandato escrito cuando el negociante o agente
+ * declara actuar como operador del traslado (Art. 2.h RD 553/2020 — UXDEV-11 / UX-22).
+ */
+export function validateOperatorMandate(
+  data: Partial<CommercialOperationFormData>
+): { valid: boolean; error?: string } {
+  if (!data.actua_como_operador) {
+    return { valid: true };
+  }
+  const ref = (data.mandato_referencia || '').trim();
+  if (!ref) {
+    return {
+      valid: false,
+      error:
+        'Para actuar como operador del traslado (Art. 2.h RD 553/2020) es obligatorio acreditar la referencia del mandato o representación escrita del productor/poseedor.',
+    };
+  }
+  return { valid: true };
+}
+
+function hydrateCommercialOperation(op: CommercialOperation): CommercialOperation {
+  const hasMarker = Boolean(op.observaciones && op.observaciones.includes(OP_META_MARKER));
+  if (!hasMarker) {
+    return op;
+  }
+  const { cleanNotes, meta } = parseCommercialMetaFromNotes(
+    op.observaciones,
+    op.modalidad_posesion
+  );
+  return {
+    ...op,
+    observaciones: cleanNotes || null,
+    modalidad_posesion: op.modalidad_posesion ?? meta.modalidad_posesion,
+    actua_como_operador: meta.actua_como_operador,
+    mandato_referencia: meta.mandato_referencia || null,
+    mandato_fecha: meta.mandato_fecha || null,
+    mandato_otorgante: meta.mandato_otorgante || null,
+    documentos_adjuntos: meta.documentos,
+  };
+}
 
 async function syncClosedOperationToChronologicalRegistry(op: CommercialOperation): Promise<void> {
   // QA5-I02: Si es intermediación pura sin posesión física en planta propia, no generar salida de stock físico
@@ -145,7 +291,9 @@ export const commercialOperationService = {
       throw error;
     }
 
-    let results: CommercialOperation[] = data || [];
+    let results: CommercialOperation[] = (data || []).map((item: CommercialOperation) =>
+      hydrateCommercialOperation(item)
+    );
 
     if (filters.search && filters.search.trim()) {
       const q = filters.search.toLowerCase().trim();
@@ -193,7 +341,7 @@ export const commercialOperationService = {
       return null;
     }
 
-    return data as CommercialOperation;
+    return hydrateCommercialOperation(data as CommercialOperation);
   },
 
   /**
@@ -203,6 +351,12 @@ export const commercialOperationService = {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No hay usuario autenticado');
+
+    // UXDEV-11 / UX-22: Exigir mandato escrito antes de consultar o insertar si declara actuar como operador del traslado
+    const mandateValidation = validateOperatorMandate(data);
+    if (!mandateValidation.valid) {
+      throw new Error(mandateValidation.error);
+    }
 
     // Idempotencia: si viene idempotency_key y ya se registró antes para este usuario, devolverla
     if (data.idempotency_key) {
@@ -250,8 +404,37 @@ export const commercialOperationService = {
       return `OP-${companyTag}-${year}-${padded}`;
     };
 
+    // Separar campos virtuales de intervención ambiental y carpeta documental
+    const {
+      actua_como_operador,
+      mandato_referencia,
+      mandato_fecha,
+      mandato_otorgante,
+      documentos_adjuntos,
+      ...dbData
+    } = data;
+
+    const hasStructuredMeta =
+      actua_como_operador !== undefined ||
+      mandato_referencia !== undefined ||
+      mandato_fecha !== undefined ||
+      mandato_otorgante !== undefined ||
+      (Array.isArray(documentos_adjuntos) && documentos_adjuntos.length > 0);
+
+    const finalObservaciones = hasStructuredMeta
+      ? serializeCommercialMetaToNotes(data.observaciones, {
+          modalidad_posesion: data.modalidad_posesion || 'intermediacion_sin_posesion',
+          actua_como_operador: Boolean(actua_como_operador),
+          mandato_referencia: mandato_referencia?.trim() || undefined,
+          mandato_fecha: mandato_fecha || undefined,
+          mandato_otorgante: mandato_otorgante?.trim() || undefined,
+          documentos: Array.isArray(documentos_adjuntos) ? documentos_adjuntos : [],
+        })
+      : data.observaciones;
+
     const basePayload = {
-      ...data,
+      ...dbData,
+      observaciones: finalObservaciones,
       user_id: user.id,
       estado: data.estado || 'abierta',
       peligrosidad: data.codigo_ler.includes('*') ? 'peligroso' : data.peligrosidad,
@@ -315,9 +498,10 @@ export const commercialOperationService = {
       },
     });
 
-    await syncClosedOperationToChronologicalRegistry(created as CommercialOperation);
+    const hydratedCreated = hydrateCommercialOperation(created as CommercialOperation);
+    await syncClosedOperationToChronologicalRegistry(hydratedCreated);
 
-    return created as CommercialOperation;
+    return hydratedCreated;
   },
 
   /**
@@ -327,6 +511,27 @@ export const commercialOperationService = {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No hay usuario autenticado');
+
+    const mandateValidation = validateOperatorMandate(data);
+    if (!mandateValidation.valid) {
+      throw new Error(mandateValidation.error);
+    }
+
+    const {
+      actua_como_operador,
+      mandato_referencia,
+      mandato_fecha,
+      mandato_otorgante,
+      documentos_adjuntos,
+      ...dbData
+    } = data;
+
+    const hasMetaFields =
+      actua_como_operador !== undefined ||
+      mandato_referencia !== undefined ||
+      mandato_fecha !== undefined ||
+      mandato_otorgante !== undefined ||
+      documentos_adjuntos !== undefined;
 
     const hasFinancialFields =
       data.cantidad_estimada_t !== undefined ||
@@ -339,14 +544,47 @@ export const commercialOperationService = {
       data.otros_costes !== undefined;
 
     const payload: any = {
-      ...data,
+      ...dbData,
       updated_at: new Date().toISOString()
     };
+
+    const existing = (hasFinancialFields || hasMetaFields) ? await this.getById(id) : null;
+
+    if (hasMetaFields) {
+      payload.observaciones = serializeCommercialMetaToNotes(
+        data.observaciones !== undefined ? data.observaciones : existing?.observaciones,
+        {
+          modalidad_posesion:
+            data.modalidad_posesion ||
+            existing?.modalidad_posesion ||
+            'intermediacion_sin_posesion',
+          actua_como_operador:
+            actua_como_operador !== undefined
+              ? Boolean(actua_como_operador)
+              : Boolean(existing?.actua_como_operador),
+          mandato_referencia:
+            mandato_referencia !== undefined
+              ? mandato_referencia.trim() || undefined
+              : existing?.mandato_referencia || undefined,
+          mandato_fecha:
+            mandato_fecha !== undefined
+              ? mandato_fecha || undefined
+              : existing?.mandato_fecha || undefined,
+          mandato_otorgante:
+            mandato_otorgante !== undefined
+              ? mandato_otorgante.trim() || undefined
+              : existing?.mandato_otorgante || undefined,
+          documentos:
+            documentos_adjuntos !== undefined
+              ? documentos_adjuntos
+              : existing?.documentos_adjuntos || [],
+        }
+      );
+    }
 
     // Recalcular rentabilidad solo si se proporcionan campos económicos o de cantidad,
     // fusionando previamente con los valores persistidos para no sobrescribir precios con 0.
     if (hasFinancialFields) {
-      const existing = await this.getById(id);
       const mergedFinancialData: Partial<CommercialOperationFormData> = {
         cantidad_estimada_t: existing?.cantidad_estimada_t,
         cantidad_real_t: existing?.cantidad_real_t ?? undefined,
@@ -385,17 +623,87 @@ export const commercialOperationService = {
       throw error;
     }
 
+    const hydratedUpdated = hydrateCommercialOperation(updated as CommercialOperation);
+
     await auditService.logAction({
-      company_id: (updated as CommercialOperation).company_id || null,
+      company_id: hydratedUpdated.company_id || null,
       entidad: 'operacion_comercial',
       entidad_id: id,
       accion: 'actualizar',
-      detalles: { estado: (updated as CommercialOperation).estado },
+      detalles: { estado: hydratedUpdated.estado },
     });
 
-    await syncClosedOperationToChronologicalRegistry(updated as CommercialOperation);
+    await syncClosedOperationToChronologicalRegistry(hydratedUpdated);
 
-    return updated as CommercialOperation;
+    return hydratedUpdated;
+  },
+
+  /**
+   * Carpeta Documental (UXDEV-11 / UX-23): Adjuntar documento externo o interno con procedencia y hash SHA-256.
+   */
+  async addDocumentAttachment(
+    operationId: number,
+    docInput: Omit<CommercialOperationDocument, 'id' | 'hash_sha256'> & { hash_sha256?: string }
+  ): Promise<CommercialOperation> {
+    const existing = await this.getById(operationId);
+    if (!existing) {
+      throw new Error('Operación comercial no encontrada');
+    }
+    if (!docInput.nombre?.trim() || !docInput.emisor?.trim()) {
+      throw new Error('Debe indicar el nombre del documento y el emisor.');
+    }
+
+    const hashSeed = `${operationId}|${docInput.tipo}|${docInput.nombre.trim()}|${docInput.emisor.trim()}|${docInput.fecha}|${docInput.procedencia}|${docInput.url || ''}`;
+    const newDoc: CommercialOperationDocument = {
+      id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      tipo: docInput.tipo,
+      nombre: docInput.nombre.trim(),
+      emisor: docInput.emisor.trim(),
+      fecha: docInput.fecha,
+      procedencia: docInput.procedencia,
+      url: docInput.url?.trim() || undefined,
+      hash_sha256: docInput.hash_sha256 || computeDocumentFingerprint(hashSeed),
+      notas: docInput.notas?.trim() || undefined,
+    };
+
+    const currentDocs = existing.documentos_adjuntos || [];
+    const updated = await this.update(operationId, {
+      documentos_adjuntos: [...currentDocs, newDoc],
+    });
+
+    await auditService.logAction({
+      company_id: updated.company_id || null,
+      entidad: 'operacion_comercial',
+      entidad_id: operationId,
+      accion: 'actualizar',
+      detalles: {
+        evento: 'adjuntar_documento',
+        documento_id: newDoc.id,
+        tipo: newDoc.tipo,
+        procedencia: newDoc.procedencia,
+        emisor: newDoc.emisor,
+        hash_sha256: newDoc.hash_sha256,
+      },
+    });
+
+    return updated;
+  },
+
+  /**
+   * Carpeta Documental (UXDEV-11 / UX-23): Eliminar documento adjunto de la carpeta de la operación.
+   */
+  async removeDocumentAttachment(
+    operationId: number,
+    docId: string
+  ): Promise<CommercialOperation> {
+    const existing = await this.getById(operationId);
+    if (!existing) {
+      throw new Error('Operación comercial no encontrada');
+    }
+    const filtered = (existing.documentos_adjuntos || []).filter((d) => d.id !== docId);
+    return this.update(operationId, {
+      documentos_adjuntos: filtered,
+    });
   },
 
   /**
