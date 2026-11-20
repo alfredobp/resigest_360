@@ -1649,5 +1649,89 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
       expect(res.total_toneladas).toBe(3.5);
       expect(res.documentos_identificacion_ids).toEqual([501]);
     });
+
+    it('debe incluir en memoria de productor DIs aceptados emitidos desde sede (production_center_id null) sin filtrarlos en SQL', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      const diEqCalls: Array<[string, unknown]> = [];
+      const diChain: any = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockImplementation((col: string, val: unknown) => {
+          diEqCalls.push([col, val]);
+          return diChain;
+        }),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockReturnThis(),
+      };
+      diChain.then = (resolve: any) =>
+        Promise.resolve({
+          data: [
+            {
+              id: 701,
+              company_id: 10,
+              production_center_id: null, // Emitido desde sede
+              numero_documento: 'DI-2026-0701',
+              fecha_documento: '2026-11-20',
+              codigo_ler: '17 04 05',
+              descripcion_residuo: 'Hierro y acero',
+              peso_destino_kg: 2,
+              estado: 'pendiente',
+              estado_traslado: 'aceptado',
+            },
+            {
+              id: 702,
+              company_id: 10,
+              production_center_id: 99, // Otro centro distinto: debe excluirse
+              numero_documento: 'DI-2026-0702',
+              fecha_documento: '2026-11-20',
+              codigo_ler: '17 04 05',
+              descripcion_residuo: 'Hierro y acero',
+              peso_destino_kg: 500,
+              estado: 'completado',
+              estado_traslado: 'tratado',
+            },
+          ],
+          error: null,
+        }).then(resolve);
+
+      const memChain: any = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({
+          data: {
+            id: 30,
+            user_id: mockUser.id,
+            company_id: 10,
+            production_center_id: 5,
+            tipo_memoria: 'productor',
+            año: 2026,
+            nif_empresa: 'B12345678',
+            estado: 'borrador',
+          },
+          error: null,
+        }),
+        update: jest.fn().mockImplementation((payload: any) => ({
+          eq: jest.fn().mockReturnThis(),
+          select: jest.fn().mockReturnThis(),
+          single: jest.fn().mockResolvedValue({
+            data: { id: 30, ...payload },
+            error: null,
+          }),
+        })),
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'memorias_anuales') return memChain;
+        if (table === 'identification_documents') return diChain;
+        return null;
+      });
+
+      const res = await recalculateDraftMemoria(30);
+      expect(diEqCalls.some(([col]) => col === 'production_center_id')).toBe(false);
+      expect(res.total_movimientos).toBe(1);
+      expect(res.documentos_identificacion_ids).toEqual([701]);
+      expect(res.total_toneladas).toBe(0.002);
+    });
   });
 });

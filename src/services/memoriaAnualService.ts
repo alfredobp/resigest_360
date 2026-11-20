@@ -775,10 +775,10 @@ async function getDocumentosIdentificacionByYear(
     query = query.lte('fecha_documento', fecha_fin);
   }
 
-  // En memorias de gestor, production_center_id en identification_documents pertenece al productor de origen
-  if (!isGestorMemoria && productionCenterId && productionCenterId > 0 && typeof query.eq === 'function') {
-    query = query.eq('production_center_id', productionCenterId);
-  }
+  // Nota: NO filtrar production_center_id con .eq() en SQL porque en PostgreSQL
+  // descartaría los DIs emitidos desde sede (production_center_id IS NULL).
+  // El filtrado por centro (incluyendo los de sede con production_center_id null)
+  // se aplica justo debajo sobre el conjunto recuperado del tenant/empresa.
 
   const { data, error } = await query;
   if (error) throw error;
