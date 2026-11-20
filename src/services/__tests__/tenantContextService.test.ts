@@ -331,6 +331,50 @@ describe('tenantContextService - Contexto Multi-Empresa, Perfiles y Permisos', (
       expect(ctx.accessibleCompanies).toEqual([]);
       tenantContextService.setActiveCompany(null);
     });
+
+    it('debe sincronizar y corregir la cookie si contenía una empresa inaccesible de otra sesión', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-user-1', email: 'user@empresa.com' } },
+      });
+
+      // Cookie simula ID 999 de otra sesión/usuario anterior
+      (global as any).document = {
+        cookie: 'resigest_active_company_id=999',
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: 10,
+                    user_id: 'uid-user-1',
+                    razon_social: 'Empresa Propia',
+                    is_my_company: true,
+                    activo: true,
+                    perfil_operativo: 'productor',
+                    onboarding_completado: true,
+                  },
+                ],
+              }),
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data: [] }),
+        };
+      });
+
+      const ctx = await tenantContextService.getTenantContext();
+      expect(ctx.activeCompanyId).toBe(10);
+      expect((global as any).document.cookie).toContain('resigest_active_company_id=10');
+      delete (global as any).document;
+    });
   });
 
   describe('sanitizeCompanySecrets y applyTenantScope', () => {

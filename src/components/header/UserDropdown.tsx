@@ -115,6 +115,7 @@ export default function UserDropdown() {
   }
 
   const handleSignOut = async () => {
+    companyService.setActiveCompanyId(null);
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push('/signin');

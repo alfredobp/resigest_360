@@ -341,6 +341,31 @@ export const companyService = {
     }
 
     const { targetUserId, activeCompany } = await this.getDelegatedContext(userData.user.id);
+    const normCif = companyData.cif.trim().toUpperCase();
+
+    // Si se crea como empresa titular (is_my_company = true), asegurar unicidad global de titularidad
+    if (companyData.is_my_company) {
+      let ownerCheckQuery = supabase
+        .from('companies')
+        .select('id, user_id, razon_social')
+        .eq('cif', normCif)
+        .eq('is_my_company', true)
+        .eq('activo', true);
+
+      if (targetUserId) {
+        ownerCheckQuery = ownerCheckQuery.neq('user_id', targetUserId);
+      }
+
+      const { data: existingOwner, error: ownerCheckError } = await ownerCheckQuery
+        .limit(1)
+        .maybeSingle();
+
+      if (!ownerCheckError && existingOwner) {
+        throw new Error(
+          `Ya existe una empresa titular registrada con el CIF ${normCif}. Si perteneces a esta organización, solicita a su administrador una invitación de acceso a tu equipo.`
+        );
+      }
+    }
 
     // Normalizar roles
     const roles = companyData.roles && companyData.roles.length > 0
@@ -354,7 +379,7 @@ export const companyService = {
       .from('companies')
       .select('id, roles')
       .eq('user_id', targetUserId)
-      .eq('cif', companyData.cif.trim())
+      .eq('cif', normCif)
       .maybeSingle();
 
     if (existing?.id) {
@@ -363,6 +388,7 @@ export const companyService = {
       const mergedRoles = Array.from(new Set([...existingRoles, ...roles]));
       return this.update(existing.id, {
         ...companyData,
+        cif: normCif,
         roles: mergedRoles as any,
       });
     }
@@ -371,6 +397,7 @@ export const companyService = {
       .from('companies')
       .insert({
         ...companyData,
+        cif: normCif,
         user_id: targetUserId,
         tipo_empresa: primaryType,
         roles,
@@ -574,6 +601,54 @@ export const companyService = {
   async hasCompany(): Promise<boolean> {
     const company = await this.getUserCompany();
     return company !== null;
+  },
+
+  /**
+   * Comprueba si un CIF está disponible para darse de alta como empresa titular (is_my_company).
+   * Retorna available: false con un mensaje descriptivo si ya pertenece a otra cuenta titular.
+   */
+  async checkCifAvailability(cif: string): Promise<{ available: boolean; message?: string }> {
+    const cleanCif = (cif || '').trim().toUpperCase();
+    if (!cleanCif) {
+      return { available: false, message: 'El CIF no puede estar vacío.' };
+    }
+    if (!this.validateCIF(cleanCif)) {
+      return { available: false, message: 'El formato del CIF/NIF/NIE no es válido.' };
+    }
+
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const currentUserId = authData?.user?.id;
+
+      let query = supabase
+        .from('companies')
+        .select('id, user_id, razon_social')
+        .eq('cif', cleanCif)
+        .eq('is_my_company', true)
+        .eq('activo', true);
+
+      if (currentUserId) {
+        query = query.neq('user_id', currentUserId);
+      }
+
+      const { data: existingOwner, error } = await query.limit(1).maybeSingle();
+
+      if (error) {
+        // En caso de degradación de red o fallo parcial en cliente, no bloquear prematuramente
+        return { available: true };
+      }
+
+      if (existingOwner) {
+        return {
+          available: false,
+          message: `Ya existe una empresa titular registrada con el CIF ${cleanCif}. Si perteneces a esta organización, solicita a su administrador una invitación de acceso a tu equipo.`,
+        };
+      }
+
+      return { available: true };
+    } catch {
+      return { available: true };
+    }
   },
 
   /**

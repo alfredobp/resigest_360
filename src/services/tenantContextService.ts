@@ -218,6 +218,16 @@ export async function resolveTenantContext(
     null;
 
   const activeCompany = selectedEntry?.company || null;
+
+  // Sincronizar cookie si apuntaba a una empresa inaccesible o si el usuario no tiene empresas
+  if (typeof document !== 'undefined' && targetId) {
+    if (activeCompany && activeCompany.id !== targetId) {
+      setActiveCompanyCookie(activeCompany.id);
+    } else if (!activeCompany) {
+      setActiveCompanyCookie(null);
+    }
+  }
+
   const canViewCommercial = selectedEntry ? selectedEntry.canViewCommercial : true;
   const membershipRole: MembershipRole = selectedEntry?.membershipRole || 'owner';
   const canWrite = canWriteWithMembershipRole(membershipRole, isPlatformAdmin);

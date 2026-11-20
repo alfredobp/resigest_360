@@ -346,6 +346,28 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
       expect(result).toEqual(newCompany);
     });
 
+    it('create debe rechazar la creación de empresa titular si ya existe otro titular activo con ese CIF', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-2' } },
+      });
+
+      const existingOtherOwner = { id: 99, user_id: 'user-1', razon_social: 'Titular Existente S.L.' };
+
+      const maybeSingleMock = jest.fn().mockResolvedValue({ data: existingOtherOwner, error: null });
+      const limitMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const neqMock = jest.fn().mockReturnValue({ limit: limitMock });
+      const eqActivoMock = jest.fn().mockReturnValue({ neq: neqMock });
+      const eqMyCompMock = jest.fn().mockReturnValue({ eq: eqActivoMock });
+      const eqCifMock = jest.fn().mockReturnValue({ eq: eqMyCompMock });
+      const selectMock = jest.fn().mockReturnValue({ eq: eqCifMock });
+
+      mockSupabase.from.mockReturnValue({ select: selectMock });
+
+      await expect(
+        companyService.create({ ...validFormData, is_my_company: true })
+      ).rejects.toThrow('Ya existe una empresa titular registrada con el CIF B12345678');
+    });
+
     it('update debe modificar datos de la empresa', async () => {
       mockSupabase.auth.getUser.mockResolvedValue({
         data: { user: { id: 'user-1' } },
@@ -505,6 +527,64 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
         expect(companyService.validateNIMA(nima)).toBe(false);
       }
     );
+  });
+
+  describe('checkCifAvailability', () => {
+    it('debe rechazar CIF vacío o formato inválido', async () => {
+      const resEmpty = await companyService.checkCifAvailability('');
+      expect(resEmpty.available).toBe(false);
+      expect(resEmpty.message).toContain('no puede estar vacío');
+
+      const resInvalid = await companyService.checkCifAvailability('1234');
+      expect(resInvalid.available).toBe(false);
+      expect(resInvalid.message).toContain('formato');
+    });
+
+    it('debe indicar no disponible si ya existe una empresa titular de otro usuario con ese CIF', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-2' } },
+      });
+
+      const existingOwner = { id: 10, user_id: 'user-1', razon_social: 'Empresa A S.L.' };
+      const maybeSingleMock = jest.fn().mockResolvedValue({ data: existingOwner, error: null });
+      const limitMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const neqMock = jest.fn().mockReturnValue({ limit: limitMock });
+      const eqActivoMock = jest.fn().mockReturnValue({ neq: neqMock });
+      const eqMyCompMock = jest.fn().mockReturnValue({ eq: eqActivoMock });
+      const eqCifMock = jest.fn().mockReturnValue({ eq: eqMyCompMock });
+      const selectMock = jest.fn().mockReturnValue({ eq: eqCifMock });
+
+      mockSupabase.from.mockReturnValue({ select: selectMock });
+
+      const res = await companyService.checkCifAvailability('B12345678');
+      expect(res.available).toBe(false);
+      expect(res.message).toContain('Ya existe una empresa titular registrada con el CIF B12345678');
+    });
+
+    it('debe indicar disponible si no existe otra empresa titular activa con ese CIF', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-2' } },
+      });
+
+      const maybeSingleMock = jest.fn().mockResolvedValue({ data: null, error: null });
+      const limitMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const neqMock = jest.fn().mockReturnValue({ limit: limitMock });
+      const eqActivoMock = jest.fn().mockReturnValue({ neq: neqMock });
+      const eqMyCompMock = jest.fn().mockReturnValue({ eq: eqActivoMock });
+      const eqCifMock = jest.fn().mockReturnValue({ eq: eqMyCompMock });
+      const selectMock = jest.fn().mockReturnValue({ eq: eqCifMock });
+
+      mockSupabase.from.mockReturnValue({ select: selectMock });
+
+      const res = await companyService.checkCifAvailability('B12345678');
+      expect(res.available).toBe(true);
+    });
+
+    it('debe retornar available: true si la consulta falla o lanza excepción', async () => {
+      mockSupabase.auth.getUser.mockRejectedValue(new Error('Network error'));
+      const res = await companyService.checkCifAvailability('B12345678');
+      expect(res.available).toBe(true);
+    });
   });
 
   describe('Gestión multiempresa (getMyCompanies y selección activa)', () => {

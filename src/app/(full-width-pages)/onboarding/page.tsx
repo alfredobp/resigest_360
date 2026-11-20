@@ -57,19 +57,21 @@ export default function OnboardingPage() {
   const [createInitialCenter, setCreateInitialCenter] = useState(true);
 
   const [saving, setSaving] = useState(false);
+  const [checkingCif, setCheckingCif] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const profileDef = PROFILE_DEFINITIONS[selectedProfile];
   const activeModules = getDefaultModulesForProfile(selectedProfile);
 
-  const handleNextFromStep2 = (e: React.FormEvent) => {
+  const handleNextFromStep2 = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!razonSocial.trim()) {
       setError('La razón social es obligatoria.');
       return;
     }
-    if (!cif.trim() || !companyService.validateCIF(cif)) {
+    const cleanCif = cif.trim().toUpperCase();
+    if (!cleanCif || !companyService.validateCIF(cleanCif)) {
       setError('Introduce un CIF/NIF válido (ej. B12345678).');
       return;
     }
@@ -81,7 +83,20 @@ export default function OnboardingPage() {
       setError('Indica al menos una matrícula principal de vehículo.');
       return;
     }
-    setStep(3);
+
+    try {
+      setCheckingCif(true);
+      const check = await companyService.checkCifAvailability(cleanCif);
+      if (!check.available) {
+        setError(check.message || 'El CIF ya se encuentra registrado como empresa titular.');
+        return;
+      }
+      setStep(3);
+    } catch {
+      setStep(3);
+    } finally {
+      setCheckingCif(false);
+    }
   };
 
   const handleFinish = async () => {
@@ -403,9 +418,10 @@ export default function OnboardingPage() {
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold shadow-sm transition cursor-pointer"
+                  disabled={checkingCif}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold shadow-sm transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Revisar módulos y activar
+                  {checkingCif ? 'Comprobando CIF...' : 'Revisar módulos y activar'}
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>

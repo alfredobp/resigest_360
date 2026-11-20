@@ -18,6 +18,7 @@ import {
 import { useTenant } from '@/context/TenantContext';
 import { decaService } from '@/services/decaService';
 import { identificationDocumentService } from '@/services/identificationDocumentService';
+import { companyService } from '@/services/companyService';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from '@/context/ToastContext';
 import { getModuleLabel } from '@/lib/profiles/moduleCatalog';
@@ -94,6 +95,7 @@ export default function TransporteMobileHomePage() {
   };
 
   const handleSignOut = async () => {
+    companyService.setActiveCompanyId(null);
     const supabase = createClient();
     await supabase.auth.signOut();
     router.replace('/signin');
