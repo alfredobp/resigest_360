@@ -380,6 +380,12 @@ export async function generateContractPDF(
 
   const padesMode = Boolean(options?.padesMode);
 
+  // En modo PAdES (AutoFirma), ambas cajas comparten el mismo pie neutro ("Firma electrónica (PAdES)")
+  // salvo que ya exista una firma manuscrita (imagen) previa, para que las co-firmas secuenciales
+  // queden visualmente idénticas y sin duplicar el timestamp que ya estampa AutoFirma.
+  const showProducerSignedFooter = producerSigned && (!padesMode || Boolean(contract.firma_productor_url));
+  const showGestorSignedFooter = gestorSigned && (!padesMode || Boolean(contract.firma_gestor_url));
+
   await drawSignatureBlocks(
     doc,
     [
@@ -387,29 +393,33 @@ export async function generateContractPDF(
         roleKey: 'productor',
         roleTitle: 'Por el Productor',
         imageUrl: contract.firma_productor_url,
-        isSigned: producerSigned,
+        isSigned: showProducerSignedFooter,
         hidePendingPlaceholder: padesMode,
         neutralStatus: padesMode,
-        statusLabel: producerSigned
+        statusLabel: showProducerSignedFooter
           ? 'Firmado digitalmente'
           : padesMode
             ? 'Firma electrónica (PAdES)'
             : 'Pendiente de firma',
-        timestamp: contract.fecha_firma_productor ? `Fecha: ${formatSafeDateTime(contract.fecha_firma_productor)}` : undefined,
+        timestamp: showProducerSignedFooter && contract.fecha_firma_productor
+          ? `Fecha: ${formatSafeDateTime(contract.fecha_firma_productor)}`
+          : undefined,
       },
       {
         roleKey: 'gestor',
         roleTitle: 'Por el Gestor Autorizado',
         imageUrl: contract.firma_gestor_url,
-        isSigned: gestorSigned,
+        isSigned: showGestorSignedFooter,
         hidePendingPlaceholder: padesMode,
         neutralStatus: padesMode,
-        statusLabel: gestorSigned
+        statusLabel: showGestorSignedFooter
           ? 'Firmado digitalmente'
           : padesMode
             ? 'Firma electrónica (PAdES)'
             : 'Pendiente de firma',
-        timestamp: contract.fecha_firma_gestor ? `Fecha: ${formatSafeDateTime(contract.fecha_firma_gestor)}` : undefined,
+        timestamp: showGestorSignedFooter && contract.fecha_firma_gestor
+          ? `Fecha: ${formatSafeDateTime(contract.fecha_firma_gestor)}`
+          : undefined,
       },
     ],
     yPos

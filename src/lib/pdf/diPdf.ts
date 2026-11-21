@@ -374,6 +374,16 @@ export async function generateIdentificationDocumentPDF(
 
   const padesMode = Boolean(options?.padesMode);
 
+  // En modo PAdES (AutoFirma), todas las cajas comparten el mismo pie neutro ("Firma electrónica (PAdES)")
+  // salvo que ya exista una firma manuscrita (imagen) previa, para que las co-firmas secuenciales
+  // queden visualmente idénticas y sin duplicar el timestamp que ya estampa AutoFirma.
+  const showProducerSignedFooter =
+    Boolean(docData.firmado_productor) && (!padesMode || Boolean(docData.firma_productor_url));
+  const showTransportistaSignedFooter =
+    Boolean(docData.firmado_transportista) && (!padesMode || Boolean(docData.firma_transportista_url));
+  const showGestorSignedFooter =
+    Boolean(docData.firmado_gestor) && (!padesMode || Boolean(docData.firma_gestor_url));
+
   await drawSignatureBlocks(
     doc,
     [
@@ -381,52 +391,67 @@ export async function generateIdentificationDocumentPDF(
         roleKey: 'productor',
         roleTitle: 'El Productor / Remitente',
         imageUrl: docData.firma_productor_url,
-        isSigned: Boolean(docData.firmado_productor),
+        isSigned: showProducerSignedFooter,
         hidePendingPlaceholder: padesMode,
         neutralStatus: padesMode,
-        statusLabel: docData.firmado_productor
+        statusLabel: showProducerSignedFooter
           ? docData.firma_productor_url
             ? 'Firmado en salida'
             : 'Firmado digitalmente (PAdES)'
           : padesMode
             ? 'Firma electrónica (PAdES)'
             : 'Pendiente de firma',
-        signerDetails: formatSigner(docData.nombre_productor, docData.dni_productor),
-        timestamp: docData.fecha_firma_productor ? formatSafeDateTime(docData.fecha_firma_productor) : undefined,
+        signerDetails: showProducerSignedFooter
+          ? formatSigner(docData.nombre_productor, docData.dni_productor)
+          : undefined,
+        timestamp:
+          showProducerSignedFooter && docData.fecha_firma_productor
+            ? formatSafeDateTime(docData.fecha_firma_productor)
+            : undefined,
       },
       {
         roleKey: 'transportista',
         roleTitle: 'El Transportista',
         imageUrl: docData.firma_transportista_url,
-        isSigned: Boolean(docData.firmado_transportista),
+        isSigned: showTransportistaSignedFooter,
         hidePendingPlaceholder: padesMode,
         neutralStatus: padesMode,
-        statusLabel: docData.firmado_transportista
+        statusLabel: showTransportistaSignedFooter
           ? docData.firma_transportista_url
             ? 'Conforme y firmado en carga'
             : 'Firmado digitalmente (PAdES)'
           : padesMode
             ? 'Firma electrónica (PAdES)'
             : 'Pendiente de firma',
-        signerDetails: formatSigner(docData.nombre_transportista, docData.dni_transportista),
-        timestamp: docData.fecha_firma_transportista ? formatSafeDateTime(docData.fecha_firma_transportista) : undefined,
+        signerDetails: showTransportistaSignedFooter
+          ? formatSigner(docData.nombre_transportista, docData.dni_transportista)
+          : undefined,
+        timestamp:
+          showTransportistaSignedFooter && docData.fecha_firma_transportista
+            ? formatSafeDateTime(docData.fecha_firma_transportista)
+            : undefined,
       },
       {
         roleKey: 'gestor',
         roleTitle: 'El Gestor Destinatario',
         imageUrl: docData.firma_gestor_url,
-        isSigned: Boolean(docData.firmado_gestor),
+        isSigned: showGestorSignedFooter,
         hidePendingPlaceholder: padesMode,
         neutralStatus: padesMode,
-        statusLabel: docData.firmado_gestor
+        statusLabel: showGestorSignedFooter
           ? docData.firma_gestor_url
             ? 'Recepcionado y firmado'
             : 'Firmado digitalmente (PAdES)'
           : padesMode
             ? 'Firma electrónica (PAdES)'
             : 'Pendiente de recepción',
-        signerDetails: formatSigner(docData.nombre_gestor, docData.dni_gestor),
-        timestamp: docData.fecha_firma_gestor ? formatSafeDateTime(docData.fecha_firma_gestor) : undefined,
+        signerDetails: showGestorSignedFooter
+          ? formatSigner(docData.nombre_gestor, docData.dni_gestor)
+          : undefined,
+        timestamp:
+          showGestorSignedFooter && docData.fecha_firma_gestor
+            ? formatSafeDateTime(docData.fecha_firma_gestor)
+            : undefined,
       },
     ],
     yPos
