@@ -13,7 +13,10 @@ jest.mock('@/lib/supabase/client', () => ({
 }));
 
 // Importamos el servicio después de establecer el mock
-import { productionCenterService } from '../productionCenterService';
+import {
+  productionCenterService,
+  findPrincipalProductionCenter,
+} from '../productionCenterService';
 
 describe('productionCenterService - Entidad Centros de Producción', () => {
   beforeEach(() => {
@@ -331,6 +334,28 @@ describe('productionCenterService - Entidad Centros de Producción', () => {
       await expect(productionCenterService.update(1, { nombre: 'X' })).rejects.toThrow('Usuario no autenticado');
       await expect(productionCenterService.softDelete(1)).rejects.toThrow('Usuario no autenticado');
       await expect(productionCenterService.delete(1)).rejects.toThrow('Usuario no autenticado');
+    });
+  });
+
+  describe('findPrincipalProductionCenter', () => {
+    it('devuelve undefined si no hay centros', () => {
+      expect(findPrincipalProductionCenter({ nima: '1234567890' }, [])).toBeUndefined();
+    });
+
+    it('detecta el centro principal por nombre, NIMA o dirección', () => {
+      const byName = { id: 1, nombre: 'Mi Empresa - Centro Principal', nima: 'PENDIENTE', direccion: 'Otra' } as any;
+      expect(findPrincipalProductionCenter({ nima: '1111111111' }, [byName])).toBe(byName);
+
+      const byNima = { id: 2, nombre: 'Planta 1', nima: '1234567890', direccion: 'Otra' } as any;
+      expect(findPrincipalProductionCenter({ nima: '1234567890' }, [byNima])).toBe(byNima);
+
+      const byAddr = { id: 3, nombre: 'Nave Sur', nima: '9999999999', direccion: 'Calle Mayor 1' } as any;
+      expect(findPrincipalProductionCenter({ domicilio_social: 'Calle Mayor 1' }, [byAddr])).toBe(byAddr);
+
+      const secondary = { id: 4, nombre: 'Delegación Norte', nima: '8888888888', direccion: 'Polígono B' } as any;
+      expect(
+        findPrincipalProductionCenter({ nima: '1234567890', domicilio_social: 'Calle Mayor 1' }, [secondary])
+      ).toBeUndefined();
     });
   });
 });

@@ -18,7 +18,7 @@ import wasteContractService, {
 import companyService from '@/services/companyService';
 import wasteTypeService from '@/services/wasteTypeService';
 import treatmentManagerService from '@/services/treatmentManagerService';
-import productionCenterService from '@/services/productionCenterService';
+import productionCenterService, { findPrincipalProductionCenter } from '@/services/productionCenterService';
 import authorizationService, { type AuthorizedScopeResult } from '@/services/authorizationService';
 import type {
   WasteContract,
@@ -575,7 +575,9 @@ export default function EditarContratoPage() {
                   </label>
                   <Select
                     options={[
-                      { value: '', label: '-- Centro general / Sede principal --' },
+                      ...(!findPrincipalProductionCenter(contract?.company, producerCenters) || !formData.producer_center_id
+                        ? [{ value: '', label: '-- Centro general / Sede principal --' }]
+                        : []),
                       ...producerCenters.map(c => ({
                         value: c.id.toString(),
                         label: `${c.nombre} (${c.municipio || ''}${c.nima ? ` - NIMA: ${c.nima}` : ''})`,
@@ -690,7 +692,12 @@ export default function EditarContratoPage() {
                       </label>
                       <Select
                         options={[
-                          { value: '', label: '-- Instalación general / Sede principal --' },
+                          ...(!findPrincipalProductionCenter(
+                            gestores.find((g) => g.id === formData.gestor_company_id),
+                            gestorCenters
+                          ) || !formData.gestor_center_id
+                            ? [{ value: '', label: '-- Instalación general / Sede principal --' }]
+                            : []),
                           ...gestorCenters.map(c => ({
                             value: c.id.toString(),
                             label: `${c.nombre} (${c.municipio || ''}${c.nima ? ` - NIMA: ${c.nima}` : ''})`,

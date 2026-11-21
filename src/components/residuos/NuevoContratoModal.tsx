@@ -14,7 +14,7 @@ import { validateRequired, scrollToFirstError } from '@/lib/validations/formVali
 import companyService from '@/services/companyService';
 import wasteTypeService from '@/services/wasteTypeService';
 import treatmentManagerService from '@/services/treatmentManagerService';
-import productionCenterService from '@/services/productionCenterService';
+import productionCenterService, { findPrincipalProductionCenter } from '@/services/productionCenterService';
 import authorizationService, { type AuthorizedScopeResult } from '@/services/authorizationService';
 import type {
   Company,
@@ -127,7 +127,15 @@ export default function NuevoContratoModal({
 const loadProducerCenters = async () => {
   try {
     const centers = await productionCenterService.getByCompanyId(myCompany.id);
-    setProducerCenters(centers.filter((c) => c.company_id === myCompany.id));
+    const ownCenters = centers.filter((c) => c.company_id === myCompany.id);
+    setProducerCenters(ownCenters);
+    const principalCenter = findPrincipalProductionCenter(myCompany, ownCenters);
+    if (principalCenter) {
+      setFormData((prev) => ({
+        ...prev,
+        producer_center_id: prev.producer_center_id || principalCenter.id,
+      }));
+    }
   } catch (e) {
     console.error('Error cargando centros del productor:', e);
   }
@@ -488,7 +496,9 @@ return (
                 }
                 className="h-10 w-full rounded-lg border border-stroke bg-white dark:bg-dark px-3 text-sm shadow-xs focus:border-primary"
               >
-                <option value="">Sede / Instalación Principal</option>
+                {!findPrincipalProductionCenter(myCompany, producerCenters) && (
+                  <option value="">Sede / Instalación Principal</option>
+                )}
                 {producerCenters.map((center) => (
                   <option key={center.id} value={center.id}>
                     {center.nombre} ({center.municipio || 'S/D'}) - NIMA: {center.nima}
@@ -607,7 +617,10 @@ return (
               }
               className="h-10 w-full rounded-lg border border-stroke bg-white dark:bg-dark px-3 text-sm shadow-xs focus:border-primary"
             >
-              <option value="">Sede / Planta Principal del Gestor</option>
+              {!findPrincipalProductionCenter(
+                gestores.find((g) => g.id === formData.gestor_company_id),
+                gestorCenters
+              ) && <option value="">Sede / Planta Principal del Gestor</option>}
               {gestorCenters.map((center) => (
                 <option key={center.id} value={center.id}>
                   {center.nombre} ({center.municipio || 'S/D'}) - NIMA: {center.nima}

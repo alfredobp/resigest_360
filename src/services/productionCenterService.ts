@@ -6,9 +6,32 @@
 import { createClient } from '@/lib/supabase/client';
 import { auditService } from './auditService';
 import { applyTenantScope } from './tenantContextService';
-import type { ProductionCenter, ProductionCenterFormData } from '@/types/wasteManagement';
+import type { Company, ProductionCenter, ProductionCenterFormData } from '@/types/wasteManagement';
 
 const supabase = createClient();
+
+/**
+ * Detecta si la lista de centros ya incluye la sede / instalación principal de la empresa
+ * (por nombre "Centro Principal" / "Sede Principal", coincidencia de NIMA o dirección)
+ * para evitar duplicar la opción sintética "Sede / Instalación Principal" en los selectores.
+ */
+export function findPrincipalProductionCenter(
+    company: Pick<Company, 'nima' | 'domicilio_social' | 'domicilio_instalacion'> | null | undefined,
+    centers: ProductionCenter[]
+): ProductionCenter | undefined {
+    if (!centers || centers.length === 0) return undefined;
+    const companyNima = company?.nima?.trim().toUpperCase();
+    const companyAddr = (company?.domicilio_instalacion || company?.domicilio_social || '').trim().toLowerCase();
+    return centers.find((c) => {
+        const centerName = (c.nombre || '').toLowerCase();
+        if (centerName.includes('centro principal') || centerName.includes('sede principal')) return true;
+        const centerNima = c.nima?.trim().toUpperCase();
+        if (companyNima && centerNima && centerNima === companyNima) return true;
+        const centerAddr = (c.direccion || '').trim().toLowerCase();
+        if (companyAddr && centerAddr && centerAddr === companyAddr) return true;
+        return false;
+    });
+}
 
 export const productionCenterService = {
     /**

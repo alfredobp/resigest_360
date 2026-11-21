@@ -18,7 +18,7 @@ import identificationDocumentService from '@/services/identificationDocumentServ
 import documentSequenceService from '@/services/documentSequenceService';
 import companyService from '@/services/companyService';
 import wasteContractService from '@/services/wasteContractService';
-import productionCenterService from '@/services/productionCenterService';
+import productionCenterService, { findPrincipalProductionCenter } from '@/services/productionCenterService';
 import wasteTypeService from '@/services/wasteTypeService';
 import treatmentManagerService from '@/services/treatmentManagerService';
 import carrierService from '@/services/carrierService';
@@ -99,7 +99,14 @@ function NuevoDocumentoIdentificacionContent() {
 
       // Cargar centros de producción
       const centers = await productionCenterService.getByCompanyId(company.id);
-      setProductionCenters(centers.filter((c) => c.company_id === company.id));
+      const ownCenters = centers.filter((c) => c.company_id === company.id);
+      setProductionCenters(ownCenters);
+      const principalCenter = findPrincipalProductionCenter(company, ownCenters);
+      if (principalCenter) {
+        setSelectedOrigin(principalCenter.id.toString());
+      } else {
+        setSelectedOrigin('principal');
+      }
 
       // Pre-rellenar según el rol inicial
       const defaultDir = company.domicilio_instalacion || company.domicilio_social || '';
@@ -133,6 +140,7 @@ function NuevoDocumentoIdentificacionContent() {
         setFormData(prev => ({
           ...prev,
           company_id: company.id,
+          production_center_id: principalCenter?.id,
           productor_razon_social: company.razon_social,
           productor_cif: company.cif,
           productor_nima: defaultNima,
@@ -835,7 +843,9 @@ function NuevoDocumentoIdentificacionContent() {
                     <label htmlFor="origin_selector" className="block text-sm font-medium mb-2">Origen del Residuo (Instalación / Centro) *</label>
                     <Select
                       options={[
-                        { value: 'principal', label: `Sede / Instalación Principal (${myCompany?.razon_social || 'Mi Empresa'})` },
+                        ...(!findPrincipalProductionCenter(myCompany, productionCenters)
+                          ? [{ value: 'principal', label: `Sede / Instalación Principal (${myCompany?.razon_social || 'Mi Empresa'})` }]
+                          : []),
                         ...productionCenters.map(pc => ({
                           value: pc.id.toString(),
                           label: `${pc.nombre} (${pc.nima})`,
