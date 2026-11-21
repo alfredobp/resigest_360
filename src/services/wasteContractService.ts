@@ -1439,6 +1439,9 @@ export function validateContractActivation(
   if (contract.fecha_fin && !isNotExpired) {
     errors.push(`La fecha de fin del contrato (${contract.fecha_fin}) ya ha expirado.`);
   }
+  if (contract.fecha_inicio && contract.fecha_fin && new Date(contract.fecha_fin) < new Date(contract.fecha_inicio)) {
+    errors.push(`La fecha de fin (${contract.fecha_fin}) no puede ser anterior a la fecha de inicio (${contract.fecha_inicio}).`);
+  }
 
   const wasteCodesList = contract.contract_waste_codes ?? (contract as any).contractWasteCodes;
 

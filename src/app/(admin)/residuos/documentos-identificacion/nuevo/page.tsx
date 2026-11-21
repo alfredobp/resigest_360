@@ -243,7 +243,7 @@ function NuevoDocumentoIdentificacionContent() {
                   tipo_envases: srcDoc.tipo_envases || prev.tipo_envases,
                   numero_envases: srcDoc.numero_envases || prev.numero_envases,
                   operacion_tratamiento: srcDoc.operacion_tratamiento || prev.operacion_tratamiento,
-                  operacion_tratamiento_ejecutada: srcDoc.operacion_tratamiento_ejecutada || prev.operacion_tratamiento_ejecutada,
+                  operacion_tratamiento_ejecutada: undefined,
                   // Notificación previa
                   tipo_notificacion: srcDoc.tipo_notificacion || prev.tipo_notificacion,
                   prior_notification_id: srcDoc.prior_notification_id || prev.prior_notification_id,

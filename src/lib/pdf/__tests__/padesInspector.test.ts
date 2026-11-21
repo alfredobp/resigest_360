@@ -11,6 +11,7 @@ function createTestPkcs7Hex(options?: {
   issuerCn?: string;
   includeCert?: boolean;
   includeCaChain?: boolean;
+  signedPayload?: Buffer;
 }): { hex: string; cert: forge.pki.Certificate } {
   const keys = forge.pki.rsa.generateKeyPair(1024);
   const cert = forge.pki.createCertificate();
@@ -34,7 +35,9 @@ function createTestPkcs7Hex(options?: {
   cert.sign(keys.privateKey, forge.md.sha256.create());
 
   const p7 = forge.pkcs7.createSignedData();
-  p7.content = forge.util.createBuffer('pdf-byte-range-digest', 'utf8');
+  p7.content = options?.signedPayload
+    ? forge.util.createBuffer(options.signedPayload.toString('binary'), 'raw')
+    : forge.util.createBuffer('pdf-byte-range-digest', 'utf8');
 
   if (options?.includeCaChain) {
     const caCert = forge.pki.createCertificate();
@@ -68,6 +71,47 @@ function createTestPkcs7Hex(options?: {
   const derBytes = forge.asn1.toDer(p7.toAsn1()).getBytes();
   const hex = Buffer.from(derBytes, 'binary').toString('hex');
   return { hex, cert };
+}
+
+function buildRealSignedPdf(
+  signerConfigs: Array<Parameters<typeof createTestPkcs7Hex>[0]>,
+  options?: { trailingGarbage?: string; padZeros?: number }
+): Buffer {
+  let content = '%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\n';
+
+  for (let i = 0; i < signerConfigs.length; i++) {
+    const cfg = signerConfigs[i] || {};
+    const placeholderLen = 8192;
+    const prefix = `${content}2 ${i} obj << /Type /Sig /SubFilter /ETSI.CAdES.detached /ByteRange [0 `;
+    const suffixStart = `] /Contents `;
+    const tail = ` >> endobj\n%%EOF\n`;
+
+    let b = 0;
+    let c = 0;
+    let d = tail.length;
+    for (let iter = 0; iter < 4; iter++) {
+      const rangeStr = `${b} ${c} ${d}`;
+      const beforeContents = `${prefix}${rangeStr}${suffixStart}`;
+      b = beforeContents.length;
+      c = b + placeholderLen + 2; // < + hex + >
+      d = tail.length;
+    }
+
+    const beforeContents = `${prefix}${b} ${c} ${d}${suffixStart}`;
+    const signedPayload = Buffer.concat([
+      Buffer.from(beforeContents, 'latin1'),
+      Buffer.from(tail, 'latin1'),
+    ]);
+    const { hex } = createTestPkcs7Hex({ ...cfg, signedPayload });
+    const paddedHex = hex.padEnd(placeholderLen, '0');
+    content = `${beforeContents}<${paddedHex}>${tail}`;
+  }
+
+  if (options?.trailingGarbage) {
+    content += options.trailingGarbage;
+  }
+
+  return Buffer.from(content, 'latin1');
 }
 
 function buildSyntheticSignedPdf(
@@ -107,13 +151,14 @@ function buildSyntheticSignedPdf(
 
 describe('padesInspector', () => {
   it('inspecciona un PDF firmado PAdES-BES válido y extrae CN, NIF e issuer', () => {
-    const { hex } = createTestPkcs7Hex({
-      cn: 'ALFREDO PRUEBA',
-      serialNumberAttr: 'IDCES-12345678Z',
-      issuerCn: 'AC FNMT Usuarios',
-      includeCaChain: true,
-    });
-    const pdf = buildSyntheticSignedPdf([hex], { padZeros: 8 });
+    const pdf = buildRealSignedPdf([
+      {
+        cn: 'ALFREDO PRUEBA',
+        serialNumberAttr: 'IDCES-12345678Z',
+        issuerCn: 'AC FNMT Usuarios',
+        includeCaChain: true,
+      },
+    ]);
 
     const result = inspectSignedPdf(pdf);
 
@@ -127,16 +172,25 @@ describe('padesInspector', () => {
     expect(result.fileSizeBytes).toBe(pdf.length);
   });
 
-  it('soporta co-firma secuencial (2 firmas) y toma los datos de la última firma', () => {
-    const first = createTestPkcs7Hex({
-      cn: 'PRODUCTOR UNO',
-      serialNumberAttr: 'VATES-B11111111',
-    });
-    const second = createTestPkcs7Hex({
-      cn: 'GESTOR DOS - NIF 87654321X',
-    });
+  it('rechaza un PDF manipulado cuyo contenido no coincide con el messageDigest del PKCS#7', () => {
+    const pdf = buildRealSignedPdf([{ cn: 'ALFREDO PRUEBA' }]);
+    // Alterar un byte dentro del rango firmado (en la cabecera del catálogo)
+    const tampered = Buffer.from(pdf);
+    const idx = tampered.indexOf('Catalog');
+    tampered[idx] = 'X'.charCodeAt(0);
+    expect(() => inspectSignedPdf(tampered)).toThrow(/integridad criptográfica/i);
+  });
 
-    const pdf = buildSyntheticSignedPdf([first.hex, second.hex]);
+  it('soporta co-firma secuencial (2 firmas) y toma los datos de la última firma', () => {
+    const pdf = buildRealSignedPdf([
+      {
+        cn: 'PRODUCTOR UNO',
+        serialNumberAttr: 'VATES-B11111111',
+      },
+      {
+        cn: 'GESTOR DOS - NIF 87654321X',
+      },
+    ]);
     const result = inspectSignedPdf(pdf);
 
     expect(result.signatureCount).toBe(2);
@@ -199,8 +253,7 @@ describe('padesInspector', () => {
   });
 
   it('rechaza PKCS#7 que no incluye certificado del firmante', () => {
-    const { hex } = createTestPkcs7Hex({ includeCert: false });
-    const pdf = buildSyntheticSignedPdf([hex]);
+    const pdf = buildRealSignedPdf([{ includeCert: false }]);
     expect(() => inspectSignedPdf(pdf)).toThrow(/no incluye el certificado/i);
   });
 });

@@ -262,7 +262,17 @@ export const priorNotificationService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
-    const dateErrors = validateNTDateRules(notificationData);
+    const existing = await this.getById(id).catch(() => null);
+    if (existing && (existing.estado === 'aceptada' || existing.estado === 'enviada_sira')) {
+      throw new Error(
+        `No se puede modificar una Notificación Previa en estado '${existing.estado}'.`
+      );
+    }
+
+    const mergedForValidation = existing
+      ? { ...existing, ...notificationData }
+      : notificationData;
+    const dateErrors = validateNTDateRules(mergedForValidation);
     if (dateErrors.length > 0) {
       throw new Error(dateErrors[0]);
     }

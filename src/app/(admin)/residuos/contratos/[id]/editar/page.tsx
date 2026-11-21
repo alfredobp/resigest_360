@@ -341,12 +341,20 @@ export default function EditarContratoPage() {
       };
 
       if (formData.estado === 'vigente') {
-        const val = validateContractActivation({
-          ...cleanedData,
-          company: contract?.company,
-          treatment_manager: contract?.treatment_manager,
-          gestor_company: contract?.gestor_company,
-        });
+        const val = validateContractActivation(
+          {
+            ...cleanedData,
+            company: contract?.company,
+            treatment_manager: contract?.treatment_manager,
+            gestor_company: contract?.gestor_company,
+            firmado_productor: contract?.firmado_productor,
+            firmado_gestor: contract?.firmado_gestor,
+            firma_productor_url: contract?.firma_productor_url,
+            firma_gestor_url: contract?.firma_gestor_url,
+            documento_url: contract?.documento_url,
+          },
+          { requireSignatures: true }
+        );
         if (!val.valid) {
           const msg = `No se puede guardar como vigente: ${val.errors.join('; ')}`;
           setError(msg);
@@ -398,10 +406,10 @@ export default function EditarContratoPage() {
 
   const hasAnySignature = Boolean(
     contract &&
-      (contract.firmado_productor ||
-        contract.firmado_gestor ||
-        contract.firma_productor_url ||
-        contract.firma_gestor_url)
+    (contract.firmado_productor ||
+      contract.firmado_gestor ||
+      contract.firma_productor_url ||
+      contract.firma_gestor_url)
   );
 
   if (hasAnySignature && contract) {

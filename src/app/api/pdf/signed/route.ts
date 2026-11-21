@@ -24,13 +24,14 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 async function getAccessibleCompanyIds(
   supabase: SupabaseServerClient,
-  userId: string
+  userId: string,
+  requireWrite = false
 ): Promise<number[]> {
   const [ownedRes, memberRes] = await Promise.all([
     supabase.from('companies').select('id').eq('user_id', userId),
     supabase
       .from('company_memberships')
-      .select('company_id')
+      .select('company_id, role')
       .eq('user_id', userId),
   ]);
 
@@ -38,7 +39,8 @@ async function getAccessibleCompanyIds(
   for (const row of ownedRes.data ?? []) {
     if (typeof row.id === 'number') ids.add(row.id);
   }
-  for (const row of memberRes.data ?? []) {
+  for (const row of (memberRes.data ?? []) as Array<{ company_id?: number; role?: string }>) {
+    if (requireWrite && row.role === 'lectura') continue;
     if (typeof row.company_id === 'number') ids.add(row.company_id);
   }
   return Array.from(ids);
@@ -219,7 +221,7 @@ export async function POST(req: NextRequest) {
     }
 
     const meta = parsedMeta.data;
-    const accessibleCompanyIds = await getAccessibleCompanyIds(supabase, user.id);
+    const accessibleCompanyIds = await getAccessibleCompanyIds(supabase, user.id, true);
     const companyId = await resolveAuthorizedEntityCompanyId(
       supabase,
       user.id,

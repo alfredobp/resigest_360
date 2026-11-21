@@ -16,8 +16,10 @@ function redirectWithSupabaseCookies(
 ): NextResponse {
   const redirectResponse = NextResponse.redirect(url)
   supabaseResponse.cookies.getAll().forEach((cookie) => {
-    redirectResponse.cookies.set(cookie.name, cookie.value, {
-      path: cookie.path || '/',
+    const { name, value, ...options } = cookie
+    redirectResponse.cookies.set(name, value, {
+      ...options,
+      path: options.path || '/',
     })
   })
   return redirectResponse

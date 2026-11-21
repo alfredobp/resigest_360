@@ -9,6 +9,7 @@ import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFi
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import companyService from '@/services/companyService';
+import { parseFleetFromNotes, serializeFleetToNotes } from '@/services/carrierService';
 import { getProvinceByPostalCode } from '@/lib/validations/spainLocations';
 import {
   validateRequired,
@@ -133,7 +134,7 @@ export default function EmpresaModal({
           email: company.email || '',
           persona_contacto: company.persona_contacto || '',
           roles: existingRoles,
-          notas: company.notas || '',
+          notas: parseFleetFromNotes(company.notas).userNotes,
           activo: company.activo ?? true,
         });
       } else {
@@ -217,7 +218,12 @@ export default function EmpresaModal({
     try {
       setSaving(true);
       if (company) {
-        await companyService.update(company.id, formData);
+        const parsedFleet = parseFleetFromNotes(company.notas);
+        const preservedNotes =
+          parsedFleet.vehicles.length > 0 || parsedFleet.drivers.length > 0
+            ? serializeFleetToNotes(formData.notas || '', parsedFleet.vehicles, parsedFleet.drivers)
+            : formData.notas;
+        await companyService.update(company.id, { ...formData, notas: preservedNotes });
       } else {
         await companyService.create(formData);
       }

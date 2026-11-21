@@ -448,10 +448,17 @@ describe('priorNotificationService', () => {
 
     it('update actualiza los datos y devuelve el registro', async () => {
       const mockUpdated = { id: 100, estado: 'aceptada' };
-      mockSingle.mockResolvedValue({ data: mockUpdated, error: null });
+      mockSingle
+        .mockResolvedValueOnce({ data: { id: 100, estado: 'borrador' }, error: null })
+        .mockResolvedValueOnce({ data: mockUpdated, error: null });
 
       const res = await priorNotificationService.update(100, { estado: 'aceptada' });
       expect(res).toEqual(mockUpdated);
+
+      mockSingle.mockResolvedValueOnce({ data: { id: 100, estado: 'aceptada' }, error: null });
+      await expect(
+        priorNotificationService.update(100, { descripcion_residuo: 'Intento de alteración' })
+      ).rejects.toThrow("No se puede modificar una Notificación Previa en estado 'aceptada'");
     });
 
     it('update lanza error si usuario no auth o falla DB', async () => {

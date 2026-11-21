@@ -136,14 +136,101 @@ function extractSignatureBlocks(pdfBuffer: Buffer): ExtractedSignatureBlock[] {
 }
 
 /**
- * Elimina el relleno de ceros (0x00) al final del buffer DER de un PKCS#7 embebido en PDF.
+ * Extrae el tamaño exacto del objeto ASN.1 DER (SEQUENCE 0x30) para evitar truncar
+ * bytes 0x00 legítimos al final de la firma criptográfica; recurre al recorte de
+ * relleno de ceros solo si el encabezado no sigue formato DER estándar.
  */
 function trimTrailingZeroPadding(rawBytes: Buffer): Buffer {
+  if (rawBytes.length >= 2 && rawBytes[0] === 0x30) {
+    const lenByte = rawBytes[1];
+    if ((lenByte & 0x80) === 0) {
+      const total = 2 + lenByte;
+      if (total <= rawBytes.length) return rawBytes.subarray(0, total);
+    } else {
+      const numLenBytes = lenByte & 0x7f;
+      if (numLenBytes >= 1 && numLenBytes <= 4 && rawBytes.length >= 2 + numLenBytes) {
+        let contentLen = 0;
+        for (let i = 0; i < numLenBytes; i++) {
+          contentLen = (contentLen << 8) | rawBytes[2 + i];
+        }
+        const total = 2 + numLenBytes + contentLen;
+        if (total > 0 && total <= rawBytes.length) {
+          return rawBytes.subarray(0, total);
+        }
+      }
+    }
+  }
   let end = rawBytes.length;
   while (end > 0 && rawBytes[end - 1] === 0) {
     end--;
   }
   return rawBytes.subarray(0, end);
+}
+
+const DIGEST_OID_TO_NODE_ALGO: Record<string, string> = {
+  '2.16.840.1.101.3.4.2.1': 'sha256',
+  '2.16.840.1.101.3.4.2.2': 'sha384',
+  '2.16.840.1.101.3.4.2.3': 'sha512',
+  '1.3.14.3.2.26': 'sha1',
+};
+
+/**
+ * Verifica que el messageDigest embebido en el SignerInfo del PKCS#7 coincide
+ * exactamente con el hash calculado sobre los bytes reales cubiertos por /ByteRange.
+ */
+function verifyByteRangeDigest(
+  pdfBuffer: Buffer,
+  byteRange: [number, number, number, number],
+  pkcs7Asn1: forge.asn1.Asn1
+): void {
+  const [a, b, c, d] = byteRange;
+  if (a < 0 || b < 0 || c < a + b || d < 0 || c + d > pdfBuffer.length) {
+    throw new InvalidPadesSignatureError('El rango /ByteRange de la firma PAdES está fuera de límites.');
+  }
+
+  // En SignedData (ContentInfo -> [0] SignedData -> signerInfos SET -> SignerInfo SEQUENCE),
+  // buscar el OID de messageDigest (1.2.840.113549.1.9.4) y el algoritmo de digest.
+  const messageDigestOid = forge.pki.oids.messageDigest; // 1.2.840.113549.1.9.4
+  let embeddedDigestHex: string | null = null;
+  let digestAlgoName = 'sha256';
+
+  const walk = (node: forge.asn1.Asn1): void => {
+    if (!node || !Array.isArray(node.value)) return;
+    const children = node.value as forge.asn1.Asn1[];
+    if (
+      children.length >= 2 &&
+      children[0].type === forge.asn1.Type.OID &&
+      typeof children[0].value === 'string'
+    ) {
+      const oid = forge.asn1.derToOid(children[0].value);
+      if (DIGEST_OID_TO_NODE_ALGO[oid]) {
+        digestAlgoName = DIGEST_OID_TO_NODE_ALGO[oid];
+      }
+      if (oid === messageDigestOid && Array.isArray(children[1].value)) {
+        const setVal = children[1].value as forge.asn1.Asn1[];
+        if (setVal[0]?.type === forge.asn1.Type.OCTETSTRING && typeof setVal[0].value === 'string') {
+          embeddedDigestHex = Buffer.from(setVal[0].value, 'binary').toString('hex').toLowerCase();
+        }
+      }
+    }
+    for (const child of children) {
+      walk(child);
+    }
+  };
+
+  walk(pkcs7Asn1);
+
+  if (embeddedDigestHex) {
+    const hash = crypto.createHash(digestAlgoName);
+    hash.update(pdfBuffer.subarray(a, a + b));
+    hash.update(pdfBuffer.subarray(c, c + d));
+    const computedDigestHex = hash.digest('hex').toLowerCase();
+    if (computedDigestHex !== embeddedDigestHex) {
+      throw new InvalidPadesSignatureError(
+        'La integridad criptográfica del PDF firmado ha fallado (el hash del documento no coincide con el messageDigest de la firma PAdES).'
+      );
+    }
+  }
 }
 
 /**
@@ -201,17 +288,20 @@ export function inspectSignedPdf(pdfBuffer: Buffer): PadesInspectionResult {
     );
   }
 
-  // Decodificar el bloque PKCS#7 / CMS
+  // Decodificar el bloque PKCS#7 / CMS y verificar digest sobre /ByteRange
   let pkcs7Message: forge.pkcs7.PkcsSignedData;
+  let asn1: forge.asn1.Asn1;
   try {
     const rawDer = trimTrailingZeroPadding(Buffer.from(latestBlock.contentsHex, 'hex'));
-    const asn1 = forge.asn1.fromDer(forge.util.createBuffer(rawDer.toString('binary')));
+    asn1 = forge.asn1.fromDer(forge.util.createBuffer(rawDer.toString('binary')));
     pkcs7Message = forge.pkcs7.messageFromAsn1(asn1) as forge.pkcs7.PkcsSignedData;
   } catch {
     throw new InvalidPadesSignatureError(
       'El bloque criptográfico CMS/PKCS#7 del PDF está corrupto o no es estándar.'
     );
   }
+
+  verifyByteRangeDigest(pdfBuffer, latestBlock.byteRange, asn1);
 
   const certificates = pkcs7Message.certificates ?? [];
   if (certificates.length === 0) {

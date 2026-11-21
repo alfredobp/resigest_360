@@ -512,8 +512,8 @@ function generateDataProductor(
     razon_social_destino: doc.gestor_razon_social || '',
     nombre_centro_destino: doc.gestor_direccion || '',
     tipo_inscripcion_destino: 'G01',
-    codigo_operacion_rd: doc.operacion_tratamiento || '',
-    codigo_operacion_rd_4cifras: doc.operacion_tratamiento?.substring(0, 4),
+    codigo_operacion_rd: doc.operacion_tratamiento_ejecutada || doc.operacion_tratamiento || '',
+    codigo_operacion_rd_4cifras: (doc.operacion_tratamiento_ejecutada || doc.operacion_tratamiento)?.substring(0, 4),
     provincia_destino: doc.gestor_provincia,
     codigo_provincia_destino: undefined,
     municipio_destino: doc.gestor_municipio,
@@ -536,8 +536,8 @@ function generateDataGestor(
   salidas: EntradaMemoriaGestorSalida[];
 } {
   const entradas: EntradaMemoriaGestorEntrada[] = documentos.map(doc => ({
-    codigo_operacion_rd: doc.operacion_tratamiento || '',
-    codigo_operacion_rd_4cifras: doc.operacion_tratamiento?.substring(0, 4),
+    codigo_operacion_rd: doc.operacion_tratamiento_ejecutada || doc.operacion_tratamiento || '',
+    codigo_operacion_rd_4cifras: (doc.operacion_tratamiento_ejecutada || doc.operacion_tratamiento)?.substring(0, 4),
     codigo_proceso_interno: undefined,
     denominacion_proceso_interno: undefined,
 

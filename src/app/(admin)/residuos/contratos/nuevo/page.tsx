@@ -265,17 +265,14 @@ export default function NuevoContratoPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Estado</label>
+                <label className="block text-sm font-medium mb-2">Estado inicial</label>
                 <select
                   name="estado"
                   value={formData.estado}
                   onChange={handleChange}
                   className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
                 >
-                  <option value="borrador">Borrador</option>
-                  <option value="vigente">Vigente</option>
-                  <option value="finalizado">Finalizado</option>
-                  <option value="cancelado">Cancelado</option>
+                  <option value="borrador">Borrador (requiere firma y activación posterior)</option>
                 </select>
               </div>
             </div>
