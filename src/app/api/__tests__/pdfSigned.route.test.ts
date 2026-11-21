@@ -551,6 +551,50 @@ describe('/api/pdf/signed & /api/pdf/signed/[id]', () => {
       expect(res.headers.get('Content-Type')).toBe('application/pdf');
       expect(res.headers.get('X-Document-SHA256')).toBe('b'.repeat(64));
     });
+
+    it('permite descargar PDF firmado de contrato a la parte gestora (gestor_company_id)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'u-gestor' } }, error: null });
+      let companyCalls = 0;
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'signed_documents') {
+          return makeChain({
+            data: {
+              id: 'sig-2',
+              user_id: 'u-productor',
+              company_id: 10,
+              entity_type: 'contract',
+              entity_id: '42',
+              storage_path: '10/contract/42/doc.pdf',
+              file_name: 'contrato_42.pdf',
+              sha256_hash: 'c'.repeat(64),
+            },
+            error: null,
+          });
+        }
+        if (table === 'waste_contracts') {
+          return makeChain({ data: { gestor_company_id: 20 }, error: null });
+        }
+        if (table === 'companies') {
+          companyCalls++;
+          // Primera llamada cid=10 (no), segunda cid=20 (sí)
+          return makeChain({ data: companyCalls === 2 ? { id: 20 } : null, error: null });
+        }
+        if (table === 'company_memberships') {
+          return makeChain({ data: null, error: null });
+        }
+        return makeChain({ data: null, error: null });
+      });
+      mockStorageDownload.mockResolvedValue({
+        data: new Blob(['%PDF-1.4 gestor'], { type: 'application/pdf' }),
+        error: null,
+      });
+
+      const res = await downloadSignedGET(
+        new NextRequest('http://localhost/api/pdf/signed/sig-2'),
+        { params: Promise.resolve({ id: 'sig-2' }) }
+      );
+      expect(res.status).toBe(200);
+    });
   });
 });
 

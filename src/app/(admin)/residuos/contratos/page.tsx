@@ -27,7 +27,7 @@ const STATUS_COLORS = {
 
 export default function ContratosPage() {
   const router = useRouter();
-  const { canWrite } = useTenant();
+  const { canWrite, activeCompanyId } = useTenant();
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -61,7 +61,7 @@ export default function ContratosPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activeCompanyId]);
 
   const loadData = async () => {
     try {

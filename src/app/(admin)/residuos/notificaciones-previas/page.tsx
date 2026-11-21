@@ -13,11 +13,13 @@ import { toast } from '@/context/ToastContext';
 import { priorNotificationService } from '@/services/priorNotificationService';
 import { resolvePlatformForNT } from '@/services/siraService';
 import companyService from '@/services/companyService';
+import { useTenant } from '@/context/TenantContext';
 import type { PriorNotification, Company } from '@/types/wasteManagement';
 import { FileText, Send, Trash2, Eye, Plus } from 'lucide-react';
 
 export default function NotificacionesPreviasPage() {
   const router = useRouter();
+  const { activeCompanyId, canWrite } = useTenant();
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<PriorNotification[]>([]);
   const [myCompany, setMyCompany] = useState<Company | null>(null);
@@ -31,7 +33,7 @@ export default function NotificacionesPreviasPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activeCompanyId]);
 
   const loadData = async () => {
     try {
@@ -144,13 +146,15 @@ export default function NotificacionesPreviasPage() {
               Obligación previa reglamentaria (RD 553/2020) conectada automáticamente con SIRA (Andalucía) y e-SIR (MITECO).
             </p>
           </div>
-          <Button
-            onClick={() => router.push('/residuos/notificaciones-previas/nueva')}
-            className="flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Nueva Notificación Previa
-          </Button>
+          {canWrite && (
+            <Button
+              onClick={() => router.push('/residuos/notificaciones-previas/nueva')}
+              className="flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Nueva Notificación Previa
+            </Button>
+          )}
         </div>
 
         {!hasCredentials && (

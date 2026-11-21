@@ -421,12 +421,12 @@ export const companyService = {
     // ni vaciar la ficha previa silenciosamente. Debe ser rechazada para salvaguardar la integridad de datos maestros.
     const { data: existing } = await supabase
       .from('companies')
-      .select('id, roles, razon_social')
+      .select('id, roles, razon_social, activo')
       .eq('user_id', targetUserId)
       .eq('cif', normCif)
       .maybeSingle();
 
-    if (existing?.id) {
+    if (existing?.id && existing.activo !== false) {
       throw new Error(
         `Ya existe una empresa o contacto registrado con el CIF ${normCif} ("${existing.razon_social || 'Ficha existente'}"). No se permite duplicar el CIF ni sobrescribir sus datos. Si deseas actualizar sus datos o añadirle nuevos roles operativos, edita la ficha existente.`
       );

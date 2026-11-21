@@ -1647,5 +1647,27 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
           expect(metaPending.label).toBe('Tratado (Pendiente Firma Productor)');
           expect(metaPending.badgeColor).toBe('warning');
         });
+
+        it('signDocument como productor promueve DI tratado pendiente-firma a completado y bloquea estados inválidos', async () => {
+          jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+            id: 99,
+            estado: 'pendiente-firma',
+            estado_traslado: 'tratado',
+          } as any);
+          const spyUpdate = jest.spyOn(identificationDocumentService, 'update').mockResolvedValue({
+            id: 99,
+            company_id: 1,
+            estado: 'completado',
+            firmado_productor: true,
+          } as any);
+
+          const res = await identificationDocumentService.signDocument(99, 'productor');
+          expect(spyUpdate).toHaveBeenCalledWith(
+            99,
+            expect.objectContaining({ firmado_productor: true, estado: 'completado' })
+          );
+          expect(res.estado).toBe('completado');
+          spyUpdate.mockRestore();
+        });
       });
     });

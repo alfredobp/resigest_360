@@ -1,16 +1,13 @@
 -- ==============================================================================
 -- RESIGEST 360 - ENDURECIMIENTO DE RPCs DE FIRMA PÚBLICA (CONTRATOS Y DI)
--- 1. Contratos: transiciona estado a pendiente_firma/vigente, bloquea cancelado/
---    finalizado e impide sobrescribir firmas PAdES previas (COALESCE(firmado_*, FALSE)).
--- 2. DI: verifica caducidad de token, bloquea cancelado/rechazado_total e impide
---    sobrescribir firmantes ya confirmados (COALESCE(firmado_*, FALSE)).
+-- Mantiene las firmas exactas de parámetros (3 y 5 args) para reemplazar in-place
+-- sin ambigüedad PostgREST (PGRST203), usa cast UUID::text y columnas reales.
 -- ==============================================================================
 
 CREATE OR REPLACE FUNCTION public.sign_contract_by_signing_token(
   p_token TEXT,
   p_role TEXT,
-  p_signature_url TEXT,
-  p_fecha TIMESTAMPTZ DEFAULT NOW()
+  p_signature_url TEXT
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -23,8 +20,9 @@ DECLARE
   v_next_prod BOOLEAN;
   v_next_gest BOOLEAN;
   v_next_estado TEXT;
+  v_now TIMESTAMPTZ := NOW();
 BEGIN
-  IF p_token IS NULL OR length(trim(p_token)) < 16 THEN
+  IF p_token IS NULL OR length(btrim(p_token)) < 16 THEN
     RAISE EXCEPTION 'Token de firma inválido';
   END IF;
 
@@ -35,8 +33,8 @@ BEGIN
   SELECT *
   INTO v_contract
   FROM public.waste_contracts
-  WHERE signing_token = p_token
-    AND (signing_token_expires_at IS NULL OR signing_token_expires_at > NOW())
+  WHERE signing_token::text = btrim(p_token)
+    AND (signing_token_expires_at IS NULL OR signing_token_expires_at > v_now)
   LIMIT 1;
 
   IF NOT FOUND THEN
@@ -69,10 +67,10 @@ BEGIN
     UPDATE public.waste_contracts
     SET
       firma_productor_url = p_signature_url,
-      fecha_firma_productor = p_fecha,
+      fecha_firma_productor = v_now,
       firmado_productor = TRUE,
       estado = v_next_estado,
-      updated_at = NOW()
+      updated_at = v_now
     WHERE id = v_contract.id
       AND COALESCE(firmado_productor, FALSE) = FALSE
     RETURNING * INTO v_updated;
@@ -80,10 +78,10 @@ BEGIN
     UPDATE public.waste_contracts
     SET
       firma_gestor_url = p_signature_url,
-      fecha_firma_gestor = p_fecha,
+      fecha_firma_gestor = v_now,
       firmado_gestor = TRUE,
       estado = v_next_estado,
-      updated_at = NOW()
+      updated_at = v_now
     WHERE id = v_contract.id
       AND COALESCE(firmado_gestor, FALSE) = FALSE
     RETURNING * INTO v_updated;
@@ -97,13 +95,14 @@ BEGIN
 END;
 $$;
 
+GRANT EXECUTE ON FUNCTION public.sign_contract_by_signing_token(TEXT, TEXT, TEXT) TO anon, authenticated;
+
 CREATE OR REPLACE FUNCTION public.sign_di_by_signing_token(
   p_token TEXT,
   p_role TEXT,
   p_signature_url TEXT,
   p_signer_name TEXT,
-  p_signer_dni TEXT DEFAULT NULL,
-  p_fecha TIMESTAMPTZ DEFAULT NOW()
+  p_signer_dni TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -114,8 +113,9 @@ DECLARE
   v_doc public.identification_documents%ROWTYPE;
   v_updated public.identification_documents%ROWTYPE;
   v_all_signed BOOLEAN;
+  v_now TIMESTAMPTZ := NOW();
 BEGIN
-  IF p_token IS NULL OR length(trim(p_token)) < 16 THEN
+  IF p_token IS NULL OR length(btrim(p_token)) < 16 THEN
     RAISE EXCEPTION 'Token de firma inválido';
   END IF;
 
@@ -126,8 +126,8 @@ BEGIN
   SELECT *
   INTO v_doc
   FROM public.identification_documents
-  WHERE signing_token = p_token
-    AND (signing_token_expires_at IS NULL OR signing_token_expires_at > NOW())
+  WHERE signing_token::text = btrim(p_token)
+    AND (signing_token_expires_at IS NULL OR signing_token_expires_at > v_now)
   LIMIT 1;
 
   IF NOT FOUND THEN
@@ -142,11 +142,11 @@ BEGIN
     UPDATE public.identification_documents
     SET
       firma_productor_url = p_signature_url,
-      nombre_productor_firmante = p_signer_name,
-      dni_productor_firmante = p_signer_dni,
-      fecha_firma_productor = p_fecha,
+      nombre_productor = p_signer_name,
+      dni_productor = p_signer_dni,
+      fecha_firma_productor = v_now,
       firmado_productor = TRUE,
-      updated_at = NOW()
+      updated_at = v_now
     WHERE id = v_doc.id
       AND COALESCE(firmado_productor, FALSE) = FALSE
     RETURNING * INTO v_updated;
@@ -154,11 +154,11 @@ BEGIN
     UPDATE public.identification_documents
     SET
       firma_transportista_url = p_signature_url,
-      nombre_transportista_firmante = p_signer_name,
-      dni_transportista_firmante = p_signer_dni,
-      fecha_firma_transportista = p_fecha,
+      nombre_transportista = p_signer_name,
+      dni_transportista = p_signer_dni,
+      fecha_firma_transportista = v_now,
       firmado_transportista = TRUE,
-      updated_at = NOW()
+      updated_at = v_now
     WHERE id = v_doc.id
       AND COALESCE(firmado_transportista, FALSE) = FALSE
     RETURNING * INTO v_updated;
@@ -166,11 +166,11 @@ BEGIN
     UPDATE public.identification_documents
     SET
       firma_gestor_url = p_signature_url,
-      nombre_gestor_firmante = p_signer_name,
-      dni_gestor_firmante = p_signer_dni,
-      fecha_firma_gestor = p_fecha,
+      nombre_gestor = p_signer_name,
+      dni_gestor = p_signer_dni,
+      fecha_firma_gestor = v_now,
       firmado_gestor = TRUE,
-      updated_at = NOW()
+      updated_at = v_now
     WHERE id = v_doc.id
       AND COALESCE(firmado_gestor, FALSE) = FALSE
     RETURNING * INTO v_updated;
@@ -187,7 +187,7 @@ BEGIN
 
   IF v_all_signed AND v_updated.estado <> 'completado' THEN
     UPDATE public.identification_documents
-    SET estado = 'completado', updated_at = NOW()
+    SET estado = 'completado', updated_at = v_now
     WHERE id = v_updated.id
     RETURNING * INTO v_updated;
   END IF;
@@ -196,3 +196,4 @@ BEGIN
 END;
 $$;
 
+GRANT EXECUTE ON FUNCTION public.sign_di_by_signing_token(TEXT, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;

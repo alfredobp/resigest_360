@@ -42,7 +42,6 @@ async function resolveHoldedKey(req?: NextRequest): Promise<{ apiKey: string } |
                 .select('id')
                 .eq('company_id', activeCompanyId)
                 .eq('user_id', user.id)
-                .eq('activo', true)
                 .limit(1);
             isAuthorized = Boolean(membership && membership.length > 0);
         }

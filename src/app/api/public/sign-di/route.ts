@@ -141,7 +141,7 @@ export async function POST(request: Request) {
     }
 
     const updated = await identificationDocumentService.signDocumentByToken(
-      token,
+      token.trim(),
       role as 'productor' | 'transportista' | 'gestor',
       signatureBase64,
       {
@@ -150,10 +150,20 @@ export async function POST(request: Request) {
       }
     );
 
+    const {
+      user_id: _hiddenUpdatedUserId,
+      signing_token: _hiddenUpdatedToken,
+      notas: _hiddenUpdatedNotes,
+      ...publicUpdatedDoc
+    } = (updated || {}) as unknown as Record<string, unknown>;
+    void _hiddenUpdatedUserId;
+    void _hiddenUpdatedToken;
+    void _hiddenUpdatedNotes;
+
     return NextResponse.json({
       success: true,
       message: `Firma de ${role} registrada con éxito.`,
-      document: updated,
+      document: publicUpdatedDoc,
     });
   } catch (error: any) {
     console.error('[API Public Sign DI] Error al procesar firma pública:', error);

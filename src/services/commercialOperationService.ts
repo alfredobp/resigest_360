@@ -549,9 +549,9 @@ export const commercialOperationService = {
       updated_at: new Date().toISOString()
     };
 
-    const existing = (hasFinancialFields || hasMetaFields) ? await this.getById(id) : null;
+    const existing = (hasFinancialFields || hasMetaFields || data.observaciones !== undefined) ? await this.getById(id) : null;
 
-    if (hasMetaFields) {
+    if (hasMetaFields || (data.observaciones !== undefined && existing)) {
       payload.observaciones = serializeCommercialMetaToNotes(
         data.observaciones !== undefined ? data.observaciones : existing?.observaciones,
         {

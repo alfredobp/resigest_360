@@ -310,7 +310,7 @@ export const carrierService = {
             if (flota_vehiculos !== undefined || flota_conductores !== undefined || restCarrierData.notas !== undefined) {
                 const currentVehicles = flota_vehiculos ?? currentEnriched?.flota_vehiculos ?? [];
                 const currentDrivers = flota_conductores ?? currentEnriched?.flota_conductores ?? [];
-                const baseNotes = restCarrierData.notas ?? currentComp?.notas ?? '';
+                const baseNotes = restCarrierData.notas ?? currentEnriched?.notas ?? '';
                 companyPayload.notas = serializeFleetToNotes(baseNotes, currentVehicles, currentDrivers);
             }
 

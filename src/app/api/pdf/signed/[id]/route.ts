@@ -45,24 +45,43 @@ export async function GET(
       );
     }
 
-    // Verificación explícita multi-tenant además de RLS
+    // Verificación explícita multi-tenant además de RLS (incluyendo parte gestora en contratos)
     if (docRecord.user_id !== user.id) {
-      const [ownedRes, memberRes] = await Promise.all([
-        supabase
-          .from('companies')
-          .select('id')
-          .eq('id', docRecord.company_id)
-          .eq('user_id', user.id)
-          .maybeSingle(),
-        supabase
-          .from('company_memberships')
-          .select('id')
-          .eq('company_id', docRecord.company_id)
-          .eq('user_id', user.id)
-          .maybeSingle(),
-      ]);
+      let authorizedCompanyIds: number[] = [docRecord.company_id];
+      if (docRecord.entity_type === 'contract' && docRecord.entity_id) {
+        const { data: contractRow } = await supabase
+          .from('waste_contracts')
+          .select('gestor_company_id')
+          .eq('id', docRecord.entity_id)
+          .maybeSingle();
+        if (typeof contractRow?.gestor_company_id === 'number') {
+          authorizedCompanyIds = [...authorizedCompanyIds, contractRow.gestor_company_id];
+        }
+      }
 
-      if (!ownedRes.data && !memberRes.data) {
+      let hasAccess = false;
+      for (const cid of authorizedCompanyIds) {
+        const [ownedRes, memberRes] = await Promise.all([
+          supabase
+            .from('companies')
+            .select('id')
+            .eq('id', cid)
+            .eq('user_id', user.id)
+            .maybeSingle(),
+          supabase
+            .from('company_memberships')
+            .select('id')
+            .eq('company_id', cid)
+            .eq('user_id', user.id)
+            .maybeSingle(),
+        ]);
+        if (ownedRes.data || memberRes.data) {
+          hasAccess = true;
+          break;
+        }
+      }
+
+      if (!hasAccess) {
         return NextResponse.json(
           { error: 'Sin permisos para descargar este documento firmado.' },
           { status: 403 }

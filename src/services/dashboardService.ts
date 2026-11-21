@@ -353,7 +353,7 @@ export const dashboardService = {
         }
 
         totalToneladas += ton;
-        const esPeligroso = d.peligrosidad === 'peligroso' || d.codigo_ler.includes('*');
+        const esPeligroso = d.peligrosidad === 'peligroso' || String(d.codigo_ler || '').includes('*');
 
         if (esPeligroso) {
           toneladasPeligrosas += ton;

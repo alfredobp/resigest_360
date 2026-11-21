@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
             .from('identification_documents')
             .select(`
                 *,
-                company:companies(*),
+                company:companies!identification_documents_company_id_fkey(*),
                 production_center:production_centers(*)
             `)
             .eq('id', documentId)

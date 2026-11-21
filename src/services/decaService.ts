@@ -444,6 +444,10 @@ export const decaService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
+    if (currentDeca.estado === 'finalizado' || currentDeca.estado === 'sustituido') {
+      throw new Error(`No se puede versionar un DeCA en estado '${currentDeca.estado}'.`);
+    }
+
     // 1. Marcar versión anterior como no vigente y sustituida (RES6-I09 / UXDEV-04)
     const supersedeQuery = supabase
       .from('deca_documents')
@@ -461,6 +465,9 @@ export const decaService = {
       id: undefined, // nuevo id autonumérico
       version: nextVersion,
       is_vigente: true,
+      estado: updatedFields.estado || 'vigente',
+      fecha_finalizacion: undefined,
+      hora_cierre: undefined,
       previous_version_id: currentDeca.id,
       token: newToken,
       created_at: new Date().toISOString(),

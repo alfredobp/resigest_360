@@ -349,7 +349,6 @@ async function getTenantContext() {
           .select('id')
           .eq('company_id', activeCompanyId)
           .eq('user_id', user.id)
-          .eq('activo', true)
           .limit(1);
         if (Array.isArray(membership) && membership.length > 0) {
           companyIds.push(activeCompanyId);
@@ -771,29 +770,31 @@ export const wasteContractService = {
                   ...updatePayload,
                   contract_waste_codes,
                 });
-                changedFieldsList = diff.changedFields;
-                signaturesInvalidated = true;
+                if (diff.hasMaterialChange) {
+                  changedFieldsList = diff.changedFields;
+                  signaturesInvalidated = true;
 
-                // UXDEV-02 / RES6-I02: Archivar la revisión firmada anterior en revision_history antes de invalidar conformidades
-                const archivedRevision = buildContractRevisionRecord(currentContract, changedFieldsList);
-                const prevHistory = Array.isArray(currentContract.revision_history)
-                  ? currentContract.revision_history
-                  : [];
-                updatePayload.revision_history = [...prevHistory, archivedRevision];
+                  // UXDEV-02 / RES6-I02: Archivar la revisión firmada anterior en revision_history antes de invalidar conformidades
+                  const archivedRevision = buildContractRevisionRecord(currentContract, changedFieldsList);
+                  const prevHistory = Array.isArray(currentContract.revision_history)
+                    ? currentContract.revision_history
+                    : [];
+                  updatePayload.revision_history = [...prevHistory, archivedRevision];
 
-                updatePayload.firmado_productor = false;
-                updatePayload.firmado_gestor = false;
-                updatePayload.firma_productor_url = null;
-                updatePayload.firma_gestor_url = null;
-                updatePayload.fecha_firma_productor = null;
-                updatePayload.fecha_firma_gestor = null;
-                updatePayload.documento_url = null; // invalidar enlace al PDF anterior firmado
-                updatePayload.metadata_snapshot = null; // RES6-I02: Invalidar snapshot previo al mutar términos materiales
-                if (updatePayload.estado === undefined || updatePayload.estado === 'vigente') {
-                  updatePayload.estado = 'pendiente_firma';
-                }
-                if (typeof currentContract.version === 'number') {
-                  updatePayload.version = currentContract.version + 1;
+                  updatePayload.firmado_productor = false;
+                  updatePayload.firmado_gestor = false;
+                  updatePayload.firma_productor_url = null;
+                  updatePayload.firma_gestor_url = null;
+                  updatePayload.fecha_firma_productor = null;
+                  updatePayload.fecha_firma_gestor = null;
+                  updatePayload.documento_url = null; // invalidar enlace al PDF anterior firmado
+                  updatePayload.metadata_snapshot = null; // RES6-I02: Invalidar snapshot previo al mutar términos materiales
+                  if (updatePayload.estado === undefined || updatePayload.estado === 'vigente') {
+                    updatePayload.estado = 'pendiente_firma';
+                  }
+                  if (typeof currentContract.version === 'number') {
+                    updatePayload.version = currentContract.version + 1;
+                  }
                 }
               }
             }

@@ -240,9 +240,16 @@ export async function POST(req: NextRequest) {
       if (meta.entityType === 'contract' && (meta.signerRole === 'productor' || meta.signerRole === 'gestor')) {
         const { data: contractCheck } = await supabase
           .from('waste_contracts')
-          .select('id, firmado_productor, firmado_gestor')
+          .select('id, estado, firmado_productor, firmado_gestor')
           .eq('id', meta.entityId)
           .maybeSingle();
+
+        if (contractCheck && (contractCheck.estado === 'cancelado' || contractCheck.estado === 'finalizado')) {
+          return NextResponse.json(
+            { error: `No se puede firmar un contrato en estado '${contractCheck.estado}'.` },
+            { status: 409 }
+          );
+        }
 
         if (
           contractCheck &&

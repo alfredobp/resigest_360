@@ -646,6 +646,12 @@ export const identificationDocumentService = {
       if (signatureUrl) updateData.firma_productor_url = signatureUrl;
       if (signerInfo?.nombre) updateData.nombre_productor = signerInfo.nombre;
       if (signerInfo?.dni) updateData.dni_productor = signerInfo.dni;
+
+      // Si el DI ya estaba tratado y pendiente de firma del productor, promover a completado
+      const currentDoc = await this.getById(id).catch(() => null);
+      if (currentDoc && currentDoc.estado_traslado === 'tratado' && currentDoc.estado === 'pendiente-firma') {
+        updateData.estado = 'completado';
+      }
     } else if (role === 'gestor') {
       updateData.firmado_gestor = true;
       updateData.fecha_firma_gestor = now;
