@@ -272,9 +272,11 @@ function NuevoDocumentoIdentificacionContent() {
                   firma_transportista_url: undefined,
                   peso_destino_kg: undefined,
                   numero_albaran_gestor: undefined,
-                  archivo_justificante_url: undefined,
+                  justificante_recepcion_url: undefined,
+                  ticket_pesada_url: undefined,
                   fecha_documento: new Date().toISOString().split('T')[0],
-                  fecha_inicio_traslado: new Date().toISOString().split('T')[0],
+                  fecha_recogida: new Date().toISOString().split('T')[0],
+                  fecha_entrega: undefined,
                   numero_documento: previewDiNumber,
                 }));
 

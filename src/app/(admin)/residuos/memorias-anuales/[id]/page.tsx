@@ -275,37 +275,25 @@ export default function DetalleMemoriaPage() {
       {/* Resumen */}
       <div className="grid gap-4 md:grid-cols-4">
         <ComponentCard title="Movimientos">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Movimientos</p>
-            <p className="text-2xl font-bold">{memoria.total_movimientos}</p>
-          </div>
+          <p className="text-2xl font-bold">{memoria.total_movimientos}</p>
         </ComponentCard>
 
         <ComponentCard title="Toneladas">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Toneladas</p>
-            <p className="text-2xl font-bold">
-              {(memoria.resumen_ler && memoria.resumen_ler.length > 0
-                ? memoria.resumen_ler.reduce((sum, item) => sum + (Number(item.cantidad_total) || 0), 0)
-                : Number(memoria.total_toneladas) || 0
-              ).toFixed(3)}{' '}
-              t
-            </p>
-          </div>
+          <p className="text-2xl font-bold">
+            {(memoria.resumen_ler && memoria.resumen_ler.length > 0
+              ? memoria.resumen_ler.reduce((sum, item) => sum + (Number(item.cantidad_total) || 0), 0)
+              : Number(memoria.total_toneladas) || 0
+            ).toFixed(3)}{' '}
+            t
+          </p>
         </ComponentCard>
 
         <ComponentCard title="Códigos LER">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Códigos LER</p>
-            <p className="text-2xl font-bold">{memoria.resumen_ler?.length || 0}</p>
-          </div>
+          <p className="text-2xl font-bold">{memoria.resumen_ler?.length || 0}</p>
         </ComponentCard>
 
         <ComponentCard title="Año">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Año</p>
-            <p className="text-2xl font-bold">{memoria.año}</p>
-          </div>
+          <p className="text-2xl font-bold">{memoria.año}</p>
         </ComponentCard>
       </div>
 

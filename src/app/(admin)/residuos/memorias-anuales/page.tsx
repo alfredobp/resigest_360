@@ -198,31 +198,19 @@ export default function MemoriasAnualesPage() {
       {stats && (
         <div className="grid gap-4 md:grid-cols-4">
           <ComponentCard title='Total Memorias'>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Memorias</p>
-              <p className="text-2xl font-bold mt-1">{stats.total}</p>
-            </div>
+            <p className="text-2xl font-bold">{stats.total}</p>
           </ComponentCard>
 
           <ComponentCard title='Completadas'>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Completadas</p>
-              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{stats.por_estado?.completada || 0}</p>
-            </div>
+            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.por_estado?.completada || 0}</p>
           </ComponentCard>
 
           <ComponentCard title='Presentadas'>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Presentadas</p>
-              <p className="text-2xl font-bold text-brand-600 dark:text-brand-400 mt-1">{stats.por_estado?.presentada || 0}</p>
-            </div>
+            <p className="text-2xl font-bold text-brand-600 dark:text-brand-400">{stats.por_estado?.presentada || 0}</p>
           </ComponentCard>
 
           <ComponentCard title='Total Toneladas'>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Toneladas</p>
-              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">{stats.total_toneladas.toFixed(3)} t</p>
-            </div>
+            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.total_toneladas.toFixed(3)} t</p>
           </ComponentCard>
         </div>
       )}
