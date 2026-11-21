@@ -396,6 +396,34 @@ export default function EditarContratoPage() {
     );
   }
 
+  const hasAnySignature = Boolean(
+    contract &&
+      (contract.firmado_productor ||
+        contract.firmado_gestor ||
+        contract.firma_productor_url ||
+        contract.firma_gestor_url)
+  );
+
+  if (hasAnySignature && contract) {
+    return (
+      <>
+        <PageBreadCrumb pageTitle={`Contrato ${contract.numero_contrato || `#${id}`}`} />
+        <div className="max-w-3xl mx-auto space-y-6">
+          <Alert
+            variant="warning"
+            title="Edición bloqueada por firma registrada"
+            message="Este contrato ya cuenta con al menos una firma (gráfica o con certificado digital) y no puede editarse para preservar la integridad legal y la validez de las firmas."
+          />
+          <div>
+            <Button onClick={() => router.push(`/residuos/contratos/${contract.id}`)}>
+              ← Volver al Detalle del Contrato
+            </Button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <PageBreadCrumb pageTitle={`Editar Contrato ${contract?.numero_contrato || `#${id}`}`} />

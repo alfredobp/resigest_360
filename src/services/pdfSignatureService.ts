@@ -9,6 +9,7 @@ import {
   type AutoFirmaSignOptions,
   type SignedDocumentRecord,
   type SignedEntityType,
+  type SignerRole,
 } from '@/lib/validations/digitalSignature';
 
 export interface UploadSignedPdfParams {
@@ -16,6 +17,7 @@ export interface UploadSignedPdfParams {
   entityType: SignedEntityType;
   entityId: string | number;
   entityVersion?: number;
+  signerRole?: SignerRole;
   fileName: string;
   originalSha256Hash?: string;
 }
@@ -25,6 +27,7 @@ export interface SignAndStoreWithAutoFirmaParams {
   entityType: SignedEntityType;
   entityId: string | number;
   entityVersion?: number;
+  signerRole?: SignerRole;
   fileName: string;
   options?: AutoFirmaSignOptions;
 }
@@ -77,6 +80,9 @@ export const pdfSignatureService = {
     formData.append('entityType', params.entityType);
     formData.append('entityId', String(params.entityId));
     formData.append('entityVersion', String(params.entityVersion ?? 1));
+    if (params.signerRole) {
+      formData.append('signerRole', params.signerRole);
+    }
     formData.append('fileName', safeFileName);
     formData.append('signatureProvider', 'autofirma');
 
@@ -120,6 +126,7 @@ export const pdfSignatureService = {
       entityType: params.entityType,
       entityId: params.entityId,
       entityVersion: params.entityVersion,
+      signerRole: params.signerRole,
       fileName: params.fileName,
       originalSha256Hash: originalSha256Hash || undefined,
     });

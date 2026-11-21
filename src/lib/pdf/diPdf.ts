@@ -29,7 +29,15 @@ interface WasteTypeFallback {
   estado?: string;
 }
 
-export async function generateIdentificationDocumentPDF(docData: IdentificationDocument): Promise<jsPDF> {
+export interface DiPdfOptions {
+  /** Prepara las cajas pendientes limpias para co-firma PAdES (sin texto "Pendiente" congelado). */
+  padesMode?: boolean;
+}
+
+export async function generateIdentificationDocumentPDF(
+  docData: IdentificationDocument,
+  options?: DiPdfOptions
+): Promise<jsPDF> {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -364,42 +372,59 @@ export async function generateIdentificationDocumentPDF(docData: IdentificationD
     return [name, dni ? `(${dni})` : null].filter(Boolean).join(' ');
   };
 
+  const padesMode = Boolean(options?.padesMode);
+
   await drawSignatureBlocks(
     doc,
     [
       {
+        roleKey: 'productor',
         roleTitle: 'El Productor / Remitente',
         imageUrl: docData.firma_productor_url,
         isSigned: Boolean(docData.firmado_productor),
+        hidePendingPlaceholder: padesMode,
+        neutralStatus: padesMode,
         statusLabel: docData.firmado_productor
           ? docData.firma_productor_url
             ? 'Firmado en salida'
-            : 'Identificado (sin firma)'
-          : 'Pendiente de firma',
+            : 'Firmado digitalmente (PAdES)'
+          : padesMode
+            ? 'Firma electrónica (PAdES)'
+            : 'Pendiente de firma',
         signerDetails: formatSigner(docData.nombre_productor, docData.dni_productor),
         timestamp: docData.fecha_firma_productor ? formatSafeDateTime(docData.fecha_firma_productor) : undefined,
       },
       {
+        roleKey: 'transportista',
         roleTitle: 'El Transportista',
         imageUrl: docData.firma_transportista_url,
         isSigned: Boolean(docData.firmado_transportista),
+        hidePendingPlaceholder: padesMode,
+        neutralStatus: padesMode,
         statusLabel: docData.firmado_transportista
           ? docData.firma_transportista_url
             ? 'Conforme y firmado en carga'
-            : 'Conforme en carga (sin trazo)'
-          : 'Pendiente de firma',
+            : 'Firmado digitalmente (PAdES)'
+          : padesMode
+            ? 'Firma electrónica (PAdES)'
+            : 'Pendiente de firma',
         signerDetails: formatSigner(docData.nombre_transportista, docData.dni_transportista),
         timestamp: docData.fecha_firma_transportista ? formatSafeDateTime(docData.fecha_firma_transportista) : undefined,
       },
       {
+        roleKey: 'gestor',
         roleTitle: 'El Gestor Destinatario',
         imageUrl: docData.firma_gestor_url,
         isSigned: Boolean(docData.firmado_gestor),
+        hidePendingPlaceholder: padesMode,
+        neutralStatus: padesMode,
         statusLabel: docData.firmado_gestor
           ? docData.firma_gestor_url
             ? 'Recepcionado y firmado'
-            : 'Recepcionado (sin trazo)'
-          : 'Pendiente de recepción',
+            : 'Firmado digitalmente (PAdES)'
+          : padesMode
+            ? 'Firma electrónica (PAdES)'
+            : 'Pendiente de recepción',
         signerDetails: formatSigner(docData.nombre_gestor, docData.dni_gestor),
         timestamp: docData.fecha_firma_gestor ? formatSafeDateTime(docData.fecha_firma_gestor) : undefined,
       },

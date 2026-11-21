@@ -122,6 +122,7 @@ export default function MiEmpresaPage() {
     sira_password: '',
     sira_activo: false,
     holded_api_key: '',
+    firma_electronica_activa: false,
   });
 
   useEffect(() => {
@@ -177,6 +178,7 @@ export default function MiEmpresaPage() {
           sira_password: data.sira_password || '',
           sira_activo: data.sira_activo || false,
           holded_api_key: data.holded_api_key || '',
+          firma_electronica_activa: Boolean(data.firma_electronica_activa),
         });
 
         const [centers, auths] = await Promise.all([
@@ -528,8 +530,8 @@ export default function MiEmpresaPage() {
                 : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
             }`}
           >
-            <span>Integraciones (SIRA y Holded)</span>
-            {(formData.sira_activo || Boolean(formData.holded_api_key?.trim())) && (
+            <span>Integraciones y Firma Digital</span>
+            {(formData.sira_activo || Boolean(formData.holded_api_key?.trim()) || formData.firma_electronica_activa) && (
               <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
                 Activo
               </span>
@@ -1037,6 +1039,50 @@ export default function MiEmpresaPage() {
                       onChange={handleChange}
                       placeholder="Introduce tu API Key de Holded"
                     />
+                  </div>
+                </div>
+              </ComponentCard>
+
+              {/* Firma Electrónica con Certificado Digital (AutoFirma / PAdES) */}
+              <ComponentCard title="Firma Electrónica con Certificado Digital (AutoFirma / PAdES)">
+                <div className="space-y-4">
+                  <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800 text-xs text-gray-600 dark:text-gray-300 leading-relaxed space-y-1.5">
+                    <div className="font-semibold text-gray-900 dark:text-white">
+                      Firma criptográfica oficial PAdES-BES (FNMT, Camerfirma o DNIe)
+                    </div>
+                    <p>
+                      Al activar esta opción se mostrará el bloque de firma electrónica con AutoFirma en Contratos de Tratamiento y Documentos de Identificación (DI), conviviendo con la firma manuscrita actual. El certificado nunca sale del equipo del usuario.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between py-2">
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        Habilitar firma electrónica con AutoFirma
+                      </h4>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Si está desactivado, el bloque de firma con certificado digital permanecerá oculto en tus documentos.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted">Desactivado</span>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          disabled={!canManageCompany}
+                          checked={Boolean(formData.firma_electronica_activa)}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              firma_electronica_activa: e.target.checked,
+                            }))
+                          }
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary peer-disabled:opacity-60" />
+                      </label>
+                      <span className="text-xs font-medium text-foreground">Activado</span>
+                    </div>
                   </div>
                 </div>
               </ComponentCard>

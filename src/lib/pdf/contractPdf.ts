@@ -22,9 +22,15 @@ import {
   type TableRow,
 } from './pdfComponents';
 
+export interface ContractPdfOptions {
+  /** Prepara las cajas pendientes limpias para co-firma PAdES (sin texto "Pendiente" congelado). */
+  padesMode?: boolean;
+}
+
 export async function generateContractPDF(
   contractInput: WasteContract,
-  archivedRevision?: WasteContractRevision
+  archivedRevision?: WasteContractRevision,
+  options?: ContractPdfOptions
 ): Promise<jsPDF> {
   // UXDEV-02 / RES6-I02: Recuperación de revisión custodiada con snapshot congelado
   const contract: WasteContract = archivedRevision
@@ -372,21 +378,37 @@ export async function generateContractPDF(
     (contract.firmado_gestor || Boolean(contract.firma_gestor_url)) &&
     (Boolean(contract.firma_gestor_url) || Boolean(contract.fecha_firma_gestor));
 
+  const padesMode = Boolean(options?.padesMode);
+
   await drawSignatureBlocks(
     doc,
     [
       {
+        roleKey: 'productor',
         roleTitle: 'Por el Productor',
         imageUrl: contract.firma_productor_url,
         isSigned: producerSigned,
-        statusLabel: producerSigned ? 'Firmado digitalmente' : 'Pendiente de firma',
+        hidePendingPlaceholder: padesMode,
+        neutralStatus: padesMode,
+        statusLabel: producerSigned
+          ? 'Firmado digitalmente'
+          : padesMode
+            ? 'Firma electrónica (PAdES)'
+            : 'Pendiente de firma',
         timestamp: contract.fecha_firma_productor ? `Fecha: ${formatSafeDateTime(contract.fecha_firma_productor)}` : undefined,
       },
       {
+        roleKey: 'gestor',
         roleTitle: 'Por el Gestor Autorizado',
         imageUrl: contract.firma_gestor_url,
         isSigned: gestorSigned,
-        statusLabel: gestorSigned ? 'Firmado digitalmente' : 'Pendiente de firma',
+        hidePendingPlaceholder: padesMode,
+        neutralStatus: padesMode,
+        statusLabel: gestorSigned
+          ? 'Firmado digitalmente'
+          : padesMode
+            ? 'Firma electrónica (PAdES)'
+            : 'Pendiente de firma',
         timestamp: contract.fecha_firma_gestor ? `Fecha: ${formatSafeDateTime(contract.fecha_firma_gestor)}` : undefined,
       },
     ],
@@ -402,7 +424,9 @@ export async function generateContractPDF(
 
   const footerText = isFirmado
     ? 'Este documento tiene validez contractual según el RD 553/2020 de traslado de residuos.'
-    : 'Documento provisional / en tramitación sin validez contractual vinculante hasta su formalización por ambas partes.';
+    : padesMode
+      ? 'Documento para formalización electrónica (RD 553/2020). Validez contractual vinculada a las firmas electrónicas incorporadas.'
+      : 'Documento provisional / en tramitación sin validez contractual vinculante hasta su formalización por ambas partes.';
 
   drawPageFooters(doc, { legalText: footerText });
 

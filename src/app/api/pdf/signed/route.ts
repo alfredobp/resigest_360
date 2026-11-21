@@ -192,6 +192,7 @@ export async function POST(req: NextRequest) {
       entityType: formData.get('entityType'),
       entityId: formData.get('entityId'),
       entityVersion: formData.get('entityVersion') ?? 1,
+      signerRole: formData.get('signerRole') ?? undefined,
       fileName: formData.get('fileName') || fileEntry.name || 'documento_firmado.pdf',
       originalSha256Hash: formData.get('originalSha256Hash') ?? undefined,
       signatureProvider: formData.get('signatureProvider') ?? 'autofirma',
@@ -222,6 +223,42 @@ export async function POST(req: NextRequest) {
         { error: 'Entidad no encontrada o sin permisos de escritura en este tenant.' },
         { status: 404 }
       );
+    }
+
+    // Bloqueo estricto: cada rol solo puede firmar una única vez (gráfica o digitalmente)
+    if (meta.signerRole) {
+      if (meta.entityType === 'contract' && (meta.signerRole === 'productor' || meta.signerRole === 'gestor')) {
+        const { data: contractCheck } = await supabase
+          .from('waste_contracts')
+          .select('id, firmado_productor, firmado_gestor')
+          .eq('id', meta.entityId)
+          .maybeSingle();
+
+        if (
+          contractCheck &&
+          ((meta.signerRole === 'productor' && contractCheck.firmado_productor) ||
+            (meta.signerRole === 'gestor' && contractCheck.firmado_gestor))
+        ) {
+          return NextResponse.json(
+            { error: `La parte ${meta.signerRole} ya ha formalizado su firma en este contrato y está bloqueada.` },
+            { status: 409 }
+          );
+        }
+      } else if (meta.entityType === 'di') {
+        const roleField = `firmado_${meta.signerRole}` as 'firmado_productor' | 'firmado_gestor' | 'firmado_transportista';
+        const { data: diCheck } = await supabase
+          .from('identification_documents')
+          .select(`id, ${roleField}`)
+          .eq('id', meta.entityId)
+          .maybeSingle();
+
+        if (diCheck && Boolean((diCheck as Record<string, unknown>)[roleField])) {
+          return NextResponse.json(
+            { error: `La parte ${meta.signerRole} ya ha formalizado su firma en este DI y está bloqueada.` },
+            { status: 409 }
+          );
+        }
+      }
     }
 
     const arrayBuffer = await fileEntry.arrayBuffer();
@@ -295,6 +332,57 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Sincronizar estado de firma en la entidad origen si se indicó rol firmante (best-effort)
+    if (meta.signerRole) {
+      try {
+        if (meta.entityType === 'contract' && (meta.signerRole === 'productor' || meta.signerRole === 'gestor')) {
+          const { data: existingContract } = await supabase
+            .from('waste_contracts')
+            .select('id, estado, firmado_productor, firmado_gestor')
+            .eq('id', meta.entityId)
+            .maybeSingle();
+
+          if (existingContract) {
+            const nextProducer = meta.signerRole === 'productor' ? true : Boolean(existingContract.firmado_productor);
+            const nextGestor = meta.signerRole === 'gestor' ? true : Boolean(existingContract.firmado_gestor);
+            const updatePayload: Record<string, unknown> =
+              meta.signerRole === 'productor'
+                ? { firmado_productor: true, fecha_firma_productor: nowIso }
+                : { firmado_gestor: true, fecha_firma_gestor: nowIso };
+
+            if (nextProducer && nextGestor && (existingContract.estado === 'borrador' || existingContract.estado === 'pendiente_firma')) {
+              updatePayload.estado = 'vigente';
+            } else if ((nextProducer || nextGestor) && existingContract.estado === 'borrador') {
+              updatePayload.estado = 'pendiente_firma';
+            }
+
+            await supabase
+              .from('waste_contracts')
+              .update(updatePayload)
+              .eq('id', meta.entityId);
+          }
+        } else if (meta.entityType === 'di') {
+          const role = meta.signerRole;
+          const diUpdate: Record<string, unknown> = {
+            [`firmado_${role}`]: true,
+            [`fecha_firma_${role}`]: nowIso,
+          };
+          if (inspection.signerCn) {
+            diUpdate[`nombre_${role}`] = inspection.signerCn;
+          }
+          if (inspection.signerNif) {
+            diUpdate[`dni_${role}`] = inspection.signerNif;
+          }
+          await supabase
+            .from('identification_documents')
+            .update(diUpdate)
+            .eq('id', meta.entityId);
+        }
+      } catch (syncErr) {
+        console.warn('No se pudo sincronizar el estado de firma en la entidad:', syncErr);
+      }
+    }
+
     // Pista de auditoría (best-effort)
     try {
       await supabase.from('audit_logs').insert({
@@ -305,6 +393,7 @@ export async function POST(req: NextRequest) {
         accion: 'firmar_pdf_autofirma',
         detalles: {
           signed_document_id: insertedDoc.id,
+          signer_role: meta.signerRole ?? null,
           signature_level: inspection.signatureLevel,
           signature_count: inspection.signatureCount,
           signer_cn: inspection.signerCn,

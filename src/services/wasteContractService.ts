@@ -1299,6 +1299,13 @@ export const wasteContractService = {
         throw new Error('Contrato no encontrado o token inválido');
       }
 
+      if (
+        (role === 'productor' && (contract.firmado_productor || Boolean(contract.firma_productor_url))) ||
+        (role === 'gestor' && (contract.firmado_gestor || Boolean(contract.firma_gestor_url)))
+      ) {
+        throw new Error(`La parte ${role} ya ha formalizado su firma en este contrato y no puede volver a firmarse.`);
+      }
+
     // 2. Procesar la firma (mismo proceso que signContract pero sin auth check)
     const base64Data = signatureBase64.includes(',') ? signatureBase64.split(',')[1] : signatureBase64;
       const byteCharacters = atob(base64Data);

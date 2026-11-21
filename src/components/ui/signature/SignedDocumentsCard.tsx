@@ -12,12 +12,15 @@ import type { SignedDocumentRecord } from '@/lib/validations/digitalSignature';
 interface SignedDocumentsCardProps {
   documents: SignedDocumentRecord[];
   loading?: boolean;
+  /** Si todas las partes ya firmaron, bloquea nuevas firmas y deja solo descarga/custodia. */
+  isFullySigned?: boolean;
   onOpenAutoFirma: (coSignBase?: SignedDocumentRecord | null) => void;
 }
 
 export const SignedDocumentsCard: React.FC<SignedDocumentsCardProps> = ({
   documents,
   loading = false,
+  isFullySigned = false,
   onOpenAutoFirma,
 }) => {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -82,13 +85,20 @@ export const SignedDocumentsCard: React.FC<SignedDocumentsCardProps> = ({
                 {downloadingId === latest.id ? 'Descargando...' : 'Descargar PDF Firmado'}
               </Button>
             )}
-            <Button
-              size="sm"
-              onClick={() => onOpenAutoFirma(latest)}
-            >
-              <FileSignature className="w-4 h-4 mr-1.5" />
-              {latest ? 'Añadir Co-firma (AutoFirma)' : 'Firmar con AutoFirma'}
-            </Button>
+            {!isFullySigned && (
+              <Button
+                size="sm"
+                onClick={() => onOpenAutoFirma(latest)}
+              >
+                <FileSignature className="w-4 h-4 mr-1.5" />
+                {latest ? 'Añadir Co-firma (AutoFirma)' : 'Firmar con AutoFirma'}
+              </Button>
+            )}
+            {isFullySigned && (
+              <Badge color="success" size="sm">
+                ✓ Todas las partes han firmado
+              </Badge>
+            )}
           </div>
         </div>
 

@@ -95,7 +95,20 @@ describe('digitalSignature validations', () => {
 
       expect(slot0).toContain('signaturePositionOnPageLowerLeftX=36');
       expect(slot1).toContain('signaturePositionOnPageLowerLeftX=310');
-      expect(slot2).toContain('signaturePositionOnPageLowerLeftY=72');
+      expect(slot2).toContain('signaturePositionOnPageLowerLeftY=96');
+    });
+
+    it('usa coordenadas exactas de stampBox cuando se proporcionan', () => {
+      const params = buildAutoFirmaExtraParams({
+        includeVisualStamp: true,
+        stampBox: { page: 2, llx: 50, lly: 120, urx: 260, ury: 160 },
+      });
+
+      expect(params).toContain('signaturePage=2');
+      expect(params).toContain('signaturePositionOnPageLowerLeftX=50');
+      expect(params).toContain('signaturePositionOnPageLowerLeftY=120');
+      expect(params).toContain('signaturePositionOnPageUpperRightX=260');
+      expect(params).toContain('signaturePositionOnPageUpperRightY=160');
     });
   });
 

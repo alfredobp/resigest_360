@@ -2,12 +2,36 @@
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
+import { ShieldCheck, PenTool, Download, ExternalLink, Loader2 } from 'lucide-react';
 import wasteContractService from '@/services/wasteContractService';
 import type { WasteContract } from '@/types/wasteManagement';
 import SignaturePad from '@/components/ui/signature/SignaturePad';
 import Alert from '@/components/ui/alert/Alert';
 import ComponentCard from '@/components/common/ComponentCard';
 import Badge from '@/components/ui/badge/Badge';
+import Button from '@/components/ui/button/Button';
+import { generateContractPDF } from '@/lib/pdfUtils';
+import type { JsPDFWithSignatureBoxes } from '@/lib/pdf/pdfComponents';
+import {
+    AUTOFIRMA_DOWNLOAD_URL,
+    AutoFirmaError,
+    arrayBufferToBase64,
+    base64ToPdfBlob,
+    computeSha256Hex,
+    signPdfWithAutoFirma,
+} from '@/lib/signature/autoFirmaClient';
+
+interface PublicSignedDocSummary {
+    id: string;
+    file_name: string;
+    sha256_hash: string;
+    signature_level: string;
+    signature_count: number;
+    signer_cn: string;
+    signer_nif?: string | null;
+    issuer_cn: string;
+    signed_at: string;
+}
 
 function PublicSignatureContent() {
     const params = useParams();
@@ -21,6 +45,13 @@ function PublicSignatureContent() {
     const [success, setSuccess] = useState(false);
     const [selectedRole, setSelectedRole] = useState<'productor' | 'gestor'>('productor');
     const [termsAccepted, setTermsAccepted] = useState(false);
+    const [signatureMethod, setSignatureMethod] = useState<'graphic' | 'digital'>('graphic');
+    const [digitalSignEnabled, setDigitalSignEnabled] = useState(false);
+    const [latestPadesDoc, setLatestPadesDoc] = useState<PublicSignedDocSummary | null>(null);
+    const [digitalSigning, setDigitalSigning] = useState(false);
+    const [digitalError, setDigitalError] = useState<string | null>(null);
+    const [digitalErrorCode, setDigitalErrorCode] = useState<AutoFirmaError['code'] | null>(null);
+    const [includeVisualStamp, setIncludeVisualStamp] = useState(true);
 
     useEffect(() => {
         if (token) {
@@ -43,6 +74,20 @@ function PublicSignatureContent() {
                 } else if (roleParam === 'productor' || roleParam === 'gestor') {
                     setSelectedRole(roleParam);
                 }
+            }
+
+            // Consultar si la empresa tiene habilitada la firma digital (AutoFirma / PAdES)
+            try {
+                const padesRes = await fetch(
+                    `/api/public/sign-contract-pades?token=${encodeURIComponent(token)}`
+                );
+                if (padesRes.ok) {
+                    const padesData = await padesRes.json();
+                    setDigitalSignEnabled(Boolean(padesData.enabled));
+                    setLatestPadesDoc(padesData.latestSignedDocument ?? null);
+                }
+            } catch {
+                setDigitalSignEnabled(false);
             }
         } catch {
             setError('El enlace de firma es inválido o el contrato ya no está disponible.');
@@ -77,6 +122,117 @@ function PublicSignatureContent() {
         }
     };
 
+    const handleDigitalSignWithAutoFirma = async () => {
+        if (!token || !contract || !termsAccepted || isRoleAlreadySigned) return;
+        try {
+            setDigitalSigning(true);
+            setDigitalError(null);
+            setDigitalErrorCode(null);
+
+            const nowIso = new Date().toISOString();
+            const previewContract: WasteContract =
+                selectedRole === 'productor'
+                    ? {
+                        ...contract,
+                        firmado_productor: true,
+                        fecha_firma_productor: contract.fecha_firma_productor || nowIso,
+                        estado: contract.firmado_gestor ? 'vigente' : contract.estado,
+                    }
+                    : {
+                        ...contract,
+                        firmado_gestor: true,
+                        fecha_firma_gestor: contract.fecha_firma_gestor || nowIso,
+                        estado: contract.firmado_productor ? 'vigente' : contract.estado,
+                    };
+
+            const pdfDoc = (await generateContractPDF(previewContract, undefined, {
+                padesMode: true,
+            })) as JsPDFWithSignatureBoxes;
+            const matchedBox = pdfDoc.__signatureBoxes?.find((b) => b.roleKey === selectedRole);
+
+            // Comprobar siempre en servidor el estado más reciente para no perder una firma PAdES previa
+            let activeLatestDoc = latestPadesDoc;
+            if (!activeLatestDoc) {
+                const checkRes = await fetch(
+                    `/api/public/sign-contract-pades?token=${encodeURIComponent(token)}`
+                ).catch(() => null);
+                if (checkRes?.ok) {
+                    const checkData = await checkRes.json().catch(() => ({}));
+                    activeLatestDoc = checkData.latestSignedDocument ?? null;
+                }
+            }
+
+            let pdfBuffer: ArrayBuffer;
+            if (activeLatestDoc) {
+                const prevRes = await fetch(
+                    `/api/public/sign-contract-pades?token=${encodeURIComponent(token)}&download=1`
+                );
+                if (!prevRes.ok) {
+                    throw new Error('No se pudo recuperar el PDF firmado previo para co-firma.');
+                }
+                pdfBuffer = await prevRes.arrayBuffer();
+            } else {
+                pdfBuffer = pdfDoc.output('arraybuffer');
+            }
+
+            const [pdfBase64, originalSha256Hash] = await Promise.all([
+                Promise.resolve(arrayBufferToBase64(pdfBuffer)),
+                computeSha256Hex(pdfBuffer),
+            ]);
+
+            const signedBase64 = await signPdfWithAutoFirma(pdfBase64, {
+                includeVisualStamp,
+                stampBox: matchedBox
+                    ? {
+                        page: matchedBox.page,
+                        llx: matchedBox.llx,
+                        lly: matchedBox.lly,
+                        urx: matchedBox.urx,
+                        ury: matchedBox.ury,
+                    }
+                    : undefined,
+                reason: `Firma de Contrato de Tratamiento (${selectedRole.toUpperCase()}) - RD 553/2020`,
+                isCoSign: Boolean(latestPadesDoc),
+                signatureSlotIndex: latestPadesDoc ? latestPadesDoc.signature_count : 0,
+            });
+
+            const signedBlob = base64ToPdfBlob(signedBase64);
+            const fileName = `contrato_${contract.numero_contrato || contract.id}_firmado.pdf`;
+            const formData = new FormData();
+            formData.append('token', token);
+            formData.append('role', selectedRole);
+            formData.append('file', signedBlob, fileName);
+            formData.append('fileName', fileName);
+            if (originalSha256Hash) {
+                formData.append('originalSha256Hash', originalSha256Hash);
+            }
+
+            const uploadRes = await fetch('/api/public/sign-contract-pades', {
+                method: 'POST',
+                body: formData,
+            });
+            const payload = await uploadRes.json().catch(() => ({}));
+            if (!uploadRes.ok) {
+                throw new Error(payload.error || 'No se pudo verificar y registrar la firma digital.');
+            }
+
+            setLatestPadesDoc(payload.document ?? null);
+            setSuccess(true);
+        } catch (err) {
+            if (err instanceof AutoFirmaError) {
+                setDigitalErrorCode(err.code);
+                setDigitalError(err.message);
+            } else {
+                setDigitalErrorCode('UNKNOWN');
+                setDigitalError(
+                    err instanceof Error ? err.message : 'Error inesperado al firmar con AutoFirma.'
+                );
+            }
+        } finally {
+            setDigitalSigning(false);
+        }
+    };
+
     if (loading && !contract) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -108,9 +264,27 @@ function PublicSignatureContent() {
                         </svg>
                     </div>
                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">¡Firma Formalizada!</h2>
-                    <p className="text-gray-500 dark:text-gray-400 mb-8 text-sm">
+                    <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">
                         Su firma electrónica ha sido vinculada legalmente al contrato #{contract?.numero_contrato || contract?.id}.
                     </p>
+                    {latestPadesDoc && (
+                        <div className="mb-6 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-left text-xs space-y-1.5">
+                            <p className="font-semibold text-emerald-800 dark:text-emerald-300">
+                                Custodia PAdES verificada ({latestPadesDoc.signature_level})
+                            </p>
+                            <p className="text-emerald-900 dark:text-emerald-200">
+                                Titular: <strong>{latestPadesDoc.signer_cn}</strong>
+                                {latestPadesDoc.signer_nif ? ` (${latestPadesDoc.signer_nif})` : ''}
+                            </p>
+                            <a
+                                href={`/api/public/sign-contract-pades?token=${encodeURIComponent(token)}&download=1`}
+                                className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
+                            >
+                                <Download className="w-3.5 h-3.5" />
+                                Descargar copia del PDF firmado
+                            </a>
+                        </div>
+                    )}
                     <div className="border-t border-gray-100 dark:border-gray-700 pt-6">
                         <p className="text-xs text-gray-400 italic">
                             RESIGEST 360 - Plataforma de Trazabilidad y Gestión Ambiental RD 553/2020
@@ -156,6 +330,17 @@ function PublicSignatureContent() {
                             Tanto el Productor como el Gestor Destinatario han suscrito electrónicamente el presente contrato.
                             El documento goza de plena validez jurídica según la Ley 6/2020 y el RD 553/2020.
                         </p>
+                        {latestPadesDoc && (
+                            <div className="pt-2">
+                                <a
+                                    href={`/api/public/sign-contract-pades?token=${encodeURIComponent(token)}&download=1`}
+                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    Descargar PDF Firmado Digitalmente ({latestPadesDoc.signature_level})
+                                </a>
+                            </div>
+                        )}
                     </div>
                 ) : null}
 
@@ -398,23 +583,136 @@ function PublicSignatureContent() {
                                         </label>
                                     </div>
 
-                                    {/* Signature Pad */}
-                                    <div className={`transition-opacity ${termsAccepted ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-                                        <div className="flex items-center justify-between mb-3">
-                                            <h4 className="text-sm font-bold text-foreground">
-                                                Dibuje su firma manuscrita en el recuadro inferior:
-                                            </h4>
-                                            <span className="text-[10px] text-muted uppercase tracking-wider font-semibold">
-                                                Firma electrónica Ley 6/2020
-                                            </span>
-                                        </div>
+                                    {/* Selector de método de firma (solo si la empresa habilitó firma electrónica) */}
+                                    <div className={`space-y-4 transition-opacity ${termsAccepted ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                                        {digitalSignEnabled && (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSignatureMethod('graphic')}
+                                                    className={`p-3.5 rounded-xl border-2 text-left transition-all flex items-start gap-3 ${
+                                                        signatureMethod === 'graphic'
+                                                            ? 'border-primary bg-primary/5 text-primary'
+                                                            : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-gray-300'
+                                                    }`}
+                                                >
+                                                    <PenTool className="w-5 h-5 shrink-0 mt-0.5" />
+                                                    <div>
+                                                        <div className="font-bold text-sm">Firma Gráfica (Manuscrita)</div>
+                                                        <div className="text-[11px] opacity-80">Rúbrica en pantalla (móvil, tablet o PC)</div>
+                                                    </div>
+                                                </button>
 
-                                        <div className="p-2 border-2 border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-900">
-                                            <SignaturePad
-                                                onSave={handleSaveSignature}
-                                                height={240}
-                                            />
-                                        </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSignatureMethod('digital')}
+                                                    className={`p-3.5 rounded-xl border-2 text-left transition-all flex items-start gap-3 ${
+                                                        signatureMethod === 'digital'
+                                                            ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300'
+                                                            : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-gray-300'
+                                                    }`}
+                                                >
+                                                    <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" />
+                                                    <div>
+                                                        <div className="font-bold text-sm">Certificado Digital (AutoFirma)</div>
+                                                        <div className="text-[11px] opacity-80">Firma oficial PAdES con FNMT o DNIe</div>
+                                                    </div>
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {(!digitalSignEnabled || signatureMethod === 'graphic') && (
+                                            <div>
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <h4 className="text-sm font-bold text-foreground">
+                                                        Dibuje su firma manuscrita en el recuadro inferior:
+                                                    </h4>
+                                                    <span className="text-[10px] text-muted uppercase tracking-wider font-semibold">
+                                                        Firma electrónica Ley 6/2020
+                                                    </span>
+                                                </div>
+
+                                                <div className="p-2 border-2 border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-900">
+                                                    <SignaturePad
+                                                        onSave={handleSaveSignature}
+                                                        height={240}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {digitalSignEnabled && signatureMethod === 'digital' && (
+                                            <div className="p-5 rounded-2xl border-2 border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/30 dark:bg-emerald-950/10 space-y-4">
+                                                <div className="space-y-1">
+                                                    <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                                                        {latestPadesDoc
+                                                            ? 'Co-firma con Certificado Digital (AutoFirma)'
+                                                            : 'Firma con Certificado Digital (AutoFirma)'}
+                                                    </h4>
+                                                    <p className="text-xs text-gray-600 dark:text-gray-300">
+                                                        Tu certificado digital nunca sale de tu ordenador. AutoFirma firmará el PDF localmente y ResiGest verificará y custodiará la firma PAdES.
+                                                    </p>
+                                                </div>
+
+                                                {digitalError && (
+                                                    <div className="space-y-2">
+                                                        <Alert variant="error" title="Error en firma digital" message={digitalError} />
+                                                        {(digitalErrorCode === 'NOT_INSTALLED' || digitalErrorCode === 'SCRIPT_LOAD') && (
+                                                            <a
+                                                                href={AUTOFIRMA_DOWNLOAD_URL}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300 underline"
+                                                            >
+                                                                Descargar AutoFirma oficial (firmaelectronica.gob.es)
+                                                                <ExternalLink className="w-3.5 h-3.5" />
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                <label className="flex items-start gap-2 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={includeVisualStamp}
+                                                        onChange={(e) => setIncludeVisualStamp(e.target.checked)}
+                                                        className="mt-0.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                                    />
+                                                    <span className="text-xs text-gray-700 dark:text-gray-300">
+                                                        Estampar sello visual con titular y fecha dentro del recuadro de {selectedRole === 'productor' ? 'Productor' : 'Gestor Autorizado'}.
+                                                    </span>
+                                                </label>
+
+                                                <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                                                    <a
+                                                        href={AUTOFIRMA_DOWNLOAD_URL}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-xs text-gray-500 hover:text-emerald-600 inline-flex items-center gap-1"
+                                                    >
+                                                        ¿No tienes AutoFirma? Descargar aquí
+                                                        <ExternalLink className="w-3 h-3" />
+                                                    </a>
+
+                                                    <Button
+                                                        onClick={handleDigitalSignWithAutoFirma}
+                                                        disabled={digitalSigning || !termsAccepted}
+                                                    >
+                                                        {digitalSigning ? (
+                                                            <>
+                                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                                Firmando en AutoFirma...
+                                                            </>
+                                                        ) : latestPadesDoc ? (
+                                                            'Co-firmar con AutoFirma'
+                                                        ) : (
+                                                            'Firmar con AutoFirma'
+                                                        )}
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </>
                             )}

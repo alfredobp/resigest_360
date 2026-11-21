@@ -10,6 +10,9 @@ export const SIGNED_ENTITY_TYPES = [
 
 export type SignedEntityType = (typeof SIGNED_ENTITY_TYPES)[number];
 
+export const SIGNER_ROLES = ['productor', 'gestor', 'transportista'] as const;
+export type SignerRole = (typeof SIGNER_ROLES)[number];
+
 export const SIGNATURE_PROVIDERS = ['autofirma'] as const;
 export type SignatureProvider = (typeof SIGNATURE_PROVIDERS)[number];
 
@@ -23,6 +26,11 @@ export const signedDocumentUploadSchema = z.object({
     .min(1, 'El identificador de la entidad es obligatorio')
     .max(64, 'Identificador de entidad demasiado largo'),
   entityVersion: z.coerce.number().int().min(1).max(999).default(1),
+  signerRole: z
+    .enum(SIGNER_ROLES)
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => (v ? v : undefined)),
   fileName: z
     .string()
     .trim()
@@ -43,9 +51,20 @@ export const signedDocumentUploadSchema = z.object({
 
 export type SignedDocumentUploadInput = z.infer<typeof signedDocumentUploadSchema>;
 
+export const stampBoxSchema = z.object({
+  page: z.number().int().default(-1),
+  llx: z.number().int().min(0),
+  lly: z.number().int().min(0),
+  urx: z.number().int().min(1),
+  ury: z.number().int().min(1),
+});
+
+export type StampBox = z.infer<typeof stampBoxSchema>;
+
 export const autoFirmaOptionsSchema = z.object({
   includeVisualStamp: z.boolean().default(true),
   stampPage: z.number().int().default(-1), // -1 = última página en AutoFirma
+  stampBox: stampBoxSchema.optional(),
   reason: z.string().trim().max(180).optional(),
   location: z.string().trim().max(120).optional(),
   isCoSign: z.boolean().default(false),
@@ -96,6 +115,7 @@ export function buildAutoFirmaExtraParams(rawOptions?: AutoFirmaSignOptions): st
     'format=PAdES',
     'signatureSubFilter=ETSI.CAdES.detached',
     'certificationLevel=0',
+    'allowSigningCertifiedPdfs=true',
   ];
 
   if (opts.reason) {
@@ -106,23 +126,33 @@ export function buildAutoFirmaExtraParams(rawOptions?: AutoFirmaSignOptions): st
   }
 
   if (opts.includeVisualStamp) {
-    // Desplazamiento horizontal/vertical para que las co-firmas no se pisen entre sí
-    const slot = opts.signatureSlotIndex;
-    const col = slot % 2;
-    const row = Math.floor(slot / 2);
+    if (opts.stampBox) {
+      lines.push(`signaturePage=${opts.stampBox.page}`);
+      lines.push(`signaturePositionOnPageLowerLeftX=${opts.stampBox.llx}`);
+      lines.push(`signaturePositionOnPageLowerLeftY=${opts.stampBox.lly}`);
+      lines.push(`signaturePositionOnPageUpperRightX=${opts.stampBox.urx}`);
+      lines.push(`signaturePositionOnPageUpperRightY=${opts.stampBox.ury}`);
+      lines.push('layer2FontFamily=1');
+      lines.push('layer2FontSize=7');
+    } else {
+      // Fallback seguro por encima del pie legal (nunca pisa el footer)
+      const slot = opts.signatureSlotIndex;
+      const col = slot % 2;
+      const row = Math.floor(slot / 2);
 
-    const llx = col === 0 ? 36 : 310;
-    const urx = col === 0 ? 285 : 559;
-    const lly = 24 + row * 48;
-    const ury = lly + 40;
+      const llx = col === 0 ? 36 : 310;
+      const urx = col === 0 ? 285 : 559;
+      const lly = 48 + row * 48;
+      const ury = lly + 38;
 
-    lines.push(`signaturePage=${opts.stampPage}`);
-    lines.push(`signaturePositionOnPageLowerLeftX=${llx}`);
-    lines.push(`signaturePositionOnPageLowerLeftY=${lly}`);
-    lines.push(`signaturePositionOnPageUpperRightX=${urx}`);
-    lines.push(`signaturePositionOnPageUpperRightY=${ury}`);
-    lines.push('layer2FontFamily=1');
-    lines.push('layer2FontSize=8');
+      lines.push(`signaturePage=${opts.stampPage}`);
+      lines.push(`signaturePositionOnPageLowerLeftX=${llx}`);
+      lines.push(`signaturePositionOnPageLowerLeftY=${lly}`);
+      lines.push(`signaturePositionOnPageUpperRightX=${urx}`);
+      lines.push(`signaturePositionOnPageUpperRightY=${ury}`);
+      lines.push('layer2FontFamily=1');
+      lines.push('layer2FontSize=7');
+    }
     lines.push(
       'layer2Text=Firmado digitalmente por $$SUBJECTCN$$\\nFecha: $$SIGNDATE=dd/MM/yyyy HH:mm:ss$$'
     );

@@ -3,6 +3,10 @@
 -- ResiGest 360 - Multi-Tenancy + RLS estricto
 -- =============================================================================
 
+-- 0. Flag de activación opcional por empresa en Mi Empresa -> Integraciones
+ALTER TABLE public.companies
+  ADD COLUMN IF NOT EXISTS firma_electronica_activa BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- 1. Tabla de custodia inmutable de PDFs firmados digitalmente (PAdES)
 CREATE TABLE IF NOT EXISTS public.signed_documents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

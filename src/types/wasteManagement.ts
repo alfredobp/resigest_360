@@ -242,6 +242,9 @@ export interface Company {
   // Integración Holded
   holded_api_key?: string;
 
+  // Firma electrónica con Certificado Digital (AutoFirma / PAdES)
+  firma_electronica_activa?: boolean;
+
   // Relaciones
   production_centers?: ProductionCenter[];
 }
@@ -334,6 +337,9 @@ export interface CompanyFormData {
 
   // Integración Holded
   holded_api_key?: string;
+
+  // Firma electrónica con Certificado Digital (AutoFirma / PAdES)
+  firma_electronica_activa?: boolean;
 }
 
 // =====================================================

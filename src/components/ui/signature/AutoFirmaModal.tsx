@@ -14,7 +14,20 @@ import pdfSignatureService from '@/services/pdfSignatureService';
 import type {
   SignedDocumentRecord,
   SignedEntityType,
+  SignerRole,
+  StampBox,
 } from '@/lib/validations/digitalSignature';
+
+export interface RoleOption {
+  value: SignerRole;
+  label: string;
+  alreadySigned?: boolean;
+}
+
+export interface GeneratedBasePdf {
+  buffer: ArrayBuffer;
+  stampBox?: StampBox;
+}
 
 export interface AutoFirmaModalProps {
   isOpen: boolean;
@@ -24,8 +37,10 @@ export interface AutoFirmaModalProps {
   entityVersion?: number;
   documentLabel: string;
   defaultFileName: string;
-  /** Genera el PDF base (ArrayBuffer) si es la primera firma. */
-  generateBasePdfBuffer: () => Promise<ArrayBuffer>;
+  /** Roles disponibles para firmar (ej. Productor / Gestor). */
+  availableRoles?: RoleOption[];
+  /** Genera el PDF base (ArrayBuffer + coordenadas exactas de la caja de firma del rol). */
+  generateBasePdfBuffer: (role?: SignerRole) => Promise<ArrayBuffer | GeneratedBasePdf>;
   /** Si existe un PDF firmado previo, permite co-firmarlo incrementalmente. */
   existingSignedDoc?: SignedDocumentRecord | null;
   onSignedSuccess?: (record: SignedDocumentRecord) => void | Promise<void>;
@@ -41,11 +56,13 @@ export const AutoFirmaModal: React.FC<AutoFirmaModalProps> = ({
   entityVersion = 1,
   documentLabel,
   defaultFileName,
+  availableRoles,
   generateBasePdfBuffer,
   existingSignedDoc = null,
   onSignedSuccess,
 }) => {
   const [step, setStep] = useState<ModalStep>('ready');
+  const [selectedRole, setSelectedRole] = useState<SignerRole | undefined>(undefined);
   const [includeVisualStamp, setIncludeVisualStamp] = useState(true);
   const [reason, setReason] = useState('');
   const [location, setLocation] = useState('');
@@ -64,6 +81,12 @@ export const AutoFirmaModal: React.FC<AutoFirmaModalProps> = ({
       setErrorCode(null);
       setSignedRecord(null);
       setStatusMessage('');
+      if (availableRoles && availableRoles.length > 0) {
+        const firstPending = availableRoles.find((r) => !r.alreadySigned);
+        setSelectedRole(firstPending ? firstPending.value : undefined);
+      } else {
+        setSelectedRole(undefined);
+      }
       setReason(
         entityType === 'contract'
           ? 'Firma de Contrato de Tratamiento de Residuos (RD 553/2020)'
@@ -78,13 +101,31 @@ export const AutoFirmaModal: React.FC<AutoFirmaModalProps> = ({
       setErrorMessage(null);
       setErrorCode(null);
 
+      // Calculamos siempre el layout base para obtener las coordenadas exactas de la caja del rol
+      setStatusMessage('Preparando documento y coordenadas de firma...');
+      const generated = await generateBasePdfBuffer(selectedRole);
+      const baseResult: GeneratedBasePdf =
+        generated instanceof ArrayBuffer ? { buffer: generated } : generated;
+      const stampBox: StampBox | undefined = baseResult.stampBox;
+
+      // Comprobar siempre en servidor si ya existe un PDF firmado custodiado para co-firmar
+      // y evitar generar un PDF nuevo que perdería la firma PAdES anterior.
+      let baseSignedDoc = existingSignedDoc;
+      if (!baseSignedDoc) {
+        const latestDocs = await pdfSignatureService
+          .getSignedDocuments(entityType, entityId)
+          .catch(() => []);
+        baseSignedDoc = latestDocs[0] ?? null;
+      }
+
+      const effectiveIsCoSign = Boolean(baseSignedDoc);
       let pdfBuffer: ArrayBuffer;
-      if (isCoSign && existingSignedDoc) {
+
+      if (effectiveIsCoSign && baseSignedDoc) {
         setStatusMessage('Recuperando el PDF firmado custodiado para añadir co-firma...');
-        pdfBuffer = await pdfSignatureService.fetchSignedPdfArrayBuffer(existingSignedDoc.id);
+        pdfBuffer = await pdfSignatureService.fetchSignedPdfArrayBuffer(baseSignedDoc.id);
       } else {
-        setStatusMessage('Generando PDF oficial determinista...');
-        pdfBuffer = await generateBasePdfBuffer();
+        pdfBuffer = baseResult.buffer;
       }
 
       setStatusMessage(
@@ -100,13 +141,15 @@ export const AutoFirmaModal: React.FC<AutoFirmaModalProps> = ({
         entityType,
         entityId,
         entityVersion,
+        signerRole: selectedRole,
         fileName,
         options: {
           includeVisualStamp,
+          stampBox,
           reason: reason.trim() || undefined,
           location: location.trim() || undefined,
-          isCoSign,
-          signatureSlotIndex: existingSignedDoc ? existingSignedDoc.signature_count : 0,
+          isCoSign: effectiveIsCoSign,
+          signatureSlotIndex: baseSignedDoc ? baseSignedDoc.signature_count : 0,
         },
       });
 
@@ -212,6 +255,45 @@ export const AutoFirmaModal: React.FC<AutoFirmaModalProps> = ({
             </div>
 
             <div className="space-y-3">
+              {availableRoles && availableRoles.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    ¿En calidad de qué parte firmas?
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {availableRoles.map((roleOpt) => {
+                      const isSelected = selectedRole === roleOpt.value;
+                      const isLocked = Boolean(roleOpt.alreadySigned);
+                      return (
+                        <button
+                          key={roleOpt.value}
+                          type="button"
+                          disabled={isLocked}
+                          onClick={() => setSelectedRole(roleOpt.value)}
+                          className={`px-3 py-2 rounded-lg border text-left text-xs transition-colors ${
+                            isLocked
+                              ? 'border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 opacity-75 cursor-not-allowed'
+                              : isSelected
+                                ? 'border-brand-600 bg-brand-50/70 text-brand-700 dark:bg-brand-950/40 dark:border-brand-400 dark:text-brand-300 font-semibold'
+                                : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/60'
+                          }`}
+                        >
+                          <div>{roleOpt.label}</div>
+                          {isLocked && (
+                            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-normal">
+                              ✓ Firmado (bloqueado)
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                    El sello de AutoFirma se estampará dentro de su recuadro correspondiente y actualizará el estado de firma del documento.
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Motivo de la firma (opcional)
@@ -262,7 +344,10 @@ export const AutoFirmaModal: React.FC<AutoFirmaModalProps> = ({
                 <Button variant="outline" onClick={onClose}>
                   Cancelar
                 </Button>
-                <Button onClick={handleStartSign}>
+                <Button
+                  onClick={handleStartSign}
+                  disabled={Boolean(availableRoles && availableRoles.length > 0 && !selectedRole)}
+                >
                   {isCoSign ? 'Co-firmar con AutoFirma' : 'Firmar con AutoFirma'}
                 </Button>
               </div>

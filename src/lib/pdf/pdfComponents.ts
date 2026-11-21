@@ -668,13 +668,31 @@ export function drawDataTable(
 // =============================================================================
 
 export interface SignatureBlockData {
+  roleKey?: 'productor' | 'gestor' | 'transportista';
   roleTitle: string;
   imageUrl?: string | null;
   statusLabel: string;
   isSigned: boolean;
+  hidePendingPlaceholder?: boolean;
+  neutralStatus?: boolean;
   signerDetails?: string;
   timestamp?: string;
 }
+
+export interface PdfSignatureBoxCoords {
+  roleKey?: 'productor' | 'gestor' | 'transportista';
+  page: number;
+  llx: number;
+  lly: number;
+  urx: number;
+  ury: number;
+}
+
+export type JsPDFWithSignatureBoxes = jsPDF & {
+  __signatureBoxes?: PdfSignatureBoxCoords[];
+};
+
+const MM_TO_PT = 72 / 25.4;
 
 export async function drawSignatureBlocks(
   doc: jsPDF,
@@ -682,6 +700,7 @@ export async function drawSignatureBlocks(
   yPos: number
 ): Promise<number> {
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const marginX = PDF_LAYOUT.marginX;
   const gap = 4.5;
   const count = Math.max(blocks.length, 1);
@@ -689,10 +708,23 @@ export async function drawSignatureBlocks(
   const cardH = 34;
 
   const safeY = ensurePageSpace(doc, yPos, cardH + 6);
+  const currentPage =
+    typeof doc.getNumberOfPages === 'function' ? doc.getNumberOfPages() : 1;
+  const computedBoxes: PdfSignatureBoxCoords[] = [];
 
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
     const x = marginX + i * (cardW + gap);
+
+    // Coordenadas PDF (origen abajo-izquierda, en puntos) del área interior de rúbrica/sello
+    computedBoxes.push({
+      roleKey: block.roleKey,
+      page: currentPage,
+      llx: Math.round((x + 2.5) * MM_TO_PT),
+      urx: Math.round((x + cardW - 2.5) * MM_TO_PT),
+      lly: Math.round((pageHeight - (safeY + 19.8)) * MM_TO_PT),
+      ury: Math.round((pageHeight - (safeY + 6.0)) * MM_TO_PT),
+    });
 
     setFill(doc, PDF_COLORS.surfaceMuted);
     setDraw(doc, PDF_COLORS.border);
@@ -716,7 +748,7 @@ export async function drawSignatureBlocks(
           console.warn('No se pudo renderizar la imagen de firma en el PDF:', e);
         }
       }
-    } else if (!block.isSigned) {
+    } else if (!block.isSigned && !block.hidePendingPlaceholder) {
       setText(doc, PDF_COLORS.inkSubtle);
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(6.8);
@@ -729,7 +761,14 @@ export async function drawSignatureBlocks(
     doc.line(x + 3.5, sigLineY, x + cardW - 3.5, sigLineY);
 
     // Estado de firma
-    setText(doc, block.isSigned ? PDF_COLORS.brandPrimary : PDF_COLORS.warning);
+    setText(
+      doc,
+      block.isSigned
+        ? PDF_COLORS.brandPrimary
+        : block.neutralStatus
+          ? PDF_COLORS.inkMuted
+          : PDF_COLORS.warning
+    );
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.1);
     doc.text(fitText(doc, block.statusLabel, cardW - 6), x + 3, sigLineY + 4.2);
@@ -750,6 +789,8 @@ export async function drawSignatureBlocks(
       doc.text(fitText(doc, block.timestamp, cardW - 6), x + 3, sigLineY + (block.signerDetails ? 11.4 : 8));
     }
   }
+
+  (doc as JsPDFWithSignatureBoxes).__signatureBoxes = computedBoxes;
 
   return safeY + cardH + 4;
 }

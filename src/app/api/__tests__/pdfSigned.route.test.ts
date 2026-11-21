@@ -222,6 +222,176 @@ describe('/api/pdf/signed & /api/pdf/signed/[id]', () => {
       expect(auditInsert).toHaveBeenCalledTimes(1);
     });
 
+    it('sincroniza estado de firma en waste_contracts y en identification_documents cuando llega signerRole', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
+      mockStorageUpload.mockResolvedValue({ error: null });
+
+      const contractUpdateEq = jest.fn().mockResolvedValue({ error: null });
+      const contractUpdate = jest.fn(() => ({ eq: contractUpdateEq }));
+      const diUpdateEq = jest.fn().mockResolvedValue({ error: null });
+      const diUpdate = jest.fn(() => ({ eq: diUpdateEq }));
+
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return { select: jest.fn().mockReturnThis(), eq: jest.fn().mockResolvedValue({ data: [{ id: 10 }] }) };
+        }
+        if (table === 'company_memberships') {
+          return { select: jest.fn().mockReturnThis(), eq: jest.fn().mockResolvedValue({ data: [] }) };
+        }
+        if (table === 'waste_contracts') {
+          return {
+            ...makeChain({
+              data: { id: 42, user_id: 'u1', company_id: 10, estado: 'pendiente_firma', firmado_productor: true, firmado_gestor: false },
+              error: null,
+            }),
+            update: contractUpdate,
+          };
+        }
+        if (table === 'identification_documents') {
+          return {
+            ...makeChain({ data: { id: 10, user_id: 'u1', company_id: 10 }, error: null }),
+            update: diUpdate,
+          };
+        }
+        if (table === 'signed_documents') {
+          return makeChain({
+            data: { id: 'sig-uuid-2', signer_cn: 'ALFREDO', sha256_hash: 'a'.repeat(64) },
+            error: null,
+          });
+        }
+        if (table === 'audit_logs') {
+          return { insert: jest.fn().mockResolvedValue({ error: null }) };
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      (inspectSignedPdf as jest.Mock).mockReturnValue({
+        sha256Hash: 'a'.repeat(64),
+        fileSizeBytes: 512,
+        signatureCount: 1,
+        signatureLevel: 'PAdES-BES',
+        signerCn: 'ALFREDO',
+        signerNif: '12345678Z',
+        issuerCn: 'AC FNMT',
+        certificateSerial: '01AB',
+        certificateValidFrom: null,
+        certificateValidTo: null,
+      });
+
+      // 1) Contrato firmado como gestor -> pasa a vigente
+      const contractForm = new FormData();
+      contractForm.append('file', new File(['%PDF-1.4'], 'c_42.pdf', { type: 'application/pdf' }));
+      contractForm.append('entityType', 'contract');
+      contractForm.append('entityId', '42');
+      contractForm.append('signerRole', 'gestor');
+      contractForm.append('fileName', 'c_42.pdf');
+
+      const resContract = await uploadSignedPOST({ formData: async () => contractForm } as unknown as NextRequest);
+      expect(resContract.status).toBe(201);
+      expect(contractUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ firmado_gestor: true, estado: 'vigente' })
+      );
+
+      // 2) DI firmado como productor -> actualiza firmado_productor y datos del titular
+      const diForm = new FormData();
+      diForm.append('file', new File(['%PDF-1.4'], 'di_10.pdf', { type: 'application/pdf' }));
+      diForm.append('entityType', 'di');
+      diForm.append('entityId', '10');
+      diForm.append('signerRole', 'productor');
+      diForm.append('fileName', 'di_10.pdf');
+
+      const resDi = await uploadSignedPOST({ formData: async () => diForm } as unknown as NextRequest);
+      expect(resDi.status).toBe(201);
+      expect(diUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          firmado_productor: true,
+          nombre_productor: 'ALFREDO',
+          dni_productor: '12345678Z',
+        })
+      );
+
+      // 3) Contrato en borrador firmado solo por productor -> pasa a pendiente_firma
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return { select: jest.fn().mockReturnThis(), eq: jest.fn().mockResolvedValue({ data: [{ id: 10 }] }) };
+        }
+        if (table === 'company_memberships') {
+          return { select: jest.fn().mockReturnThis(), eq: jest.fn().mockResolvedValue({ data: [] }) };
+        }
+        if (table === 'waste_contracts') {
+          return {
+            ...makeChain({
+              data: { id: 43, user_id: 'u1', company_id: 10, estado: 'borrador', firmado_productor: false, firmado_gestor: false },
+              error: null,
+            }),
+            update: contractUpdate,
+          };
+        }
+        if (table === 'signed_documents') {
+          return makeChain({
+            data: { id: 'sig-uuid-3', signer_cn: 'ALFREDO', sha256_hash: 'a'.repeat(64) },
+            error: null,
+          });
+        }
+        if (table === 'audit_logs') {
+          return { insert: jest.fn().mockResolvedValue({ error: null }) };
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      const draftContractForm = new FormData();
+      draftContractForm.append('file', new File(['%PDF-1.4'], 'c_43.pdf', { type: 'application/pdf' }));
+      draftContractForm.append('entityType', 'contract');
+      draftContractForm.append('entityId', '43');
+      draftContractForm.append('signerRole', 'productor');
+      draftContractForm.append('fileName', 'c_43.pdf');
+
+      const resDraft = await uploadSignedPOST({ formData: async () => draftContractForm } as unknown as NextRequest);
+      expect(resDraft.status).toBe(201);
+      expect(contractUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ firmado_productor: true, estado: 'pendiente_firma' })
+      );
+
+      // 4) Bloqueo 409 Conflict si el rol ya había firmado (contrato o DI)
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return { select: jest.fn().mockReturnThis(), eq: jest.fn().mockResolvedValue({ data: [{ id: 10 }] }) };
+        }
+        if (table === 'company_memberships') {
+          return { select: jest.fn().mockReturnThis(), eq: jest.fn().mockResolvedValue({ data: [] }) };
+        }
+        if (table === 'waste_contracts') {
+          return makeChain({
+            data: { id: 42, user_id: 'u1', company_id: 10, firmado_productor: true, firmado_gestor: true },
+            error: null,
+          });
+        }
+        if (table === 'identification_documents') {
+          return makeChain({
+            data: { id: 10, user_id: 'u1', company_id: 10, firmado_productor: true },
+            error: null,
+          });
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      const dupContractForm = new FormData();
+      dupContractForm.append('file', new File(['%PDF-1.4'], 'c_42.pdf', { type: 'application/pdf' }));
+      dupContractForm.append('entityType', 'contract');
+      dupContractForm.append('entityId', '42');
+      dupContractForm.append('signerRole', 'gestor');
+      dupContractForm.append('fileName', 'c_42.pdf');
+      expect((await uploadSignedPOST({ formData: async () => dupContractForm } as unknown as NextRequest)).status).toBe(409);
+
+      const dupDiForm = new FormData();
+      dupDiForm.append('file', new File(['%PDF-1.4'], 'di_10.pdf', { type: 'application/pdf' }));
+      dupDiForm.append('entityType', 'di');
+      dupDiForm.append('entityId', '10');
+      dupDiForm.append('signerRole', 'productor');
+      dupDiForm.append('fileName', 'di_10.pdf');
+      expect((await uploadSignedPOST({ formData: async () => dupDiForm } as unknown as NextRequest)).status).toBe(409);
+    });
+
     it('devuelve 400 si falta archivo o metadatos Zod inválidos', async () => {
       mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
       const emptyForm = new FormData();

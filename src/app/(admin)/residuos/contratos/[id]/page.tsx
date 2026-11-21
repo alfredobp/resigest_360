@@ -9,13 +9,15 @@ import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
+import { useTenant } from '@/context/TenantContext';
 import wasteContractService, { getContractEffectiveStatus, validateContractActivation } from '@/services/wasteContractService';
 import type { WasteContract } from '@/types/wasteManagement';
 import SignatureModal from '@/components/ui/signature/SignatureModal';
 import AutoFirmaModal from '@/components/ui/signature/AutoFirmaModal';
 import SignedDocumentsCard from '@/components/ui/signature/SignedDocumentsCard';
 import pdfSignatureService from '@/services/pdfSignatureService';
-import type { SignedDocumentRecord } from '@/lib/validations/digitalSignature';
+import type { SignedDocumentRecord, SignerRole } from '@/lib/validations/digitalSignature';
+import type { JsPDFWithSignatureBoxes } from '@/lib/pdf/pdfComponents';
 import { generateContractPDF } from '@/lib/pdfUtils';
 
 const STATUS_COLORS = {
@@ -40,6 +42,8 @@ export default function ContractDetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = params?.id as string;
+  const { activeCompany } = useTenant();
+  const isDigitalSignatureEnabled = Boolean(activeCompany?.firma_electronica_activa);
 
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
@@ -88,15 +92,59 @@ export default function ContractDetailPage() {
     }
   };
 
-  const generateContractPdfBuffer = async (): Promise<ArrayBuffer> => {
+  const generateContractPdfBuffer = async (role?: SignerRole) => {
     if (!contract) throw new Error('Contrato no cargado');
     let contractToPrint = contract;
     if (!contractToPrint.contract_waste_codes || contractToPrint.contract_waste_codes.length === 0) {
       const full = await wasteContractService.getById(contract.id);
       if (full) contractToPrint = full;
     }
-    const doc = await generateContractPDF(contractToPrint);
-    return doc.output('arraybuffer');
+
+    // Marcar en la vista previa del PDF que el rol elegido está siendo firmado digitalmente
+    // para evitar el texto contradictorio "Pendiente de firma" debajo del sello PAdES.
+    const nowIso = new Date().toISOString();
+    const previewContract: WasteContract =
+      role === 'productor'
+        ? {
+            ...contractToPrint,
+            firmado_productor: true,
+            fecha_firma_productor: contractToPrint.fecha_firma_productor || nowIso,
+            estado:
+              contractToPrint.firmado_gestor && contractToPrint.estado !== 'cancelado'
+                ? 'vigente'
+                : contractToPrint.estado,
+          }
+        : role === 'gestor'
+          ? {
+              ...contractToPrint,
+              firmado_gestor: true,
+              fecha_firma_gestor: contractToPrint.fecha_firma_gestor || nowIso,
+              estado:
+                contractToPrint.firmado_productor && contractToPrint.estado !== 'cancelado'
+                  ? 'vigente'
+                  : contractToPrint.estado,
+            }
+          : contractToPrint;
+
+    const doc = (await generateContractPDF(previewContract, undefined, {
+      padesMode: true,
+    })) as JsPDFWithSignatureBoxes;
+    const matchedBox = role
+      ? doc.__signatureBoxes?.find((b) => b.roleKey === role)
+      : undefined;
+
+    return {
+      buffer: doc.output('arraybuffer'),
+      stampBox: matchedBox
+        ? {
+            page: matchedBox.page,
+            llx: matchedBox.llx,
+            lly: matchedBox.lly,
+            urx: matchedBox.urx,
+            ury: matchedBox.ury,
+          }
+        : undefined,
+    };
   };
 
   const handleDelete = () => {
@@ -160,6 +208,19 @@ export default function ContractDetailPage() {
       setDownloading(true);
       setError(null);
       setDownloadSuccess(null);
+
+      // Si existe un PDF firmado electrónicamente custodiado, servir siempre ese archivo inmutable
+      if (signedDocuments.length > 0) {
+        await pdfSignatureService.downloadSignedDocument(
+          signedDocuments[0].id,
+          signedDocuments[0].file_name
+        );
+        setDownloadSuccess('PDF firmado custodiado (PAdES) descargado con éxito.');
+        toast.success('PDF firmado custodiado (PAdES) descargado con éxito.');
+        setTimeout(() => setDownloadSuccess(null), 4000);
+        return;
+      }
+
       let contractToPrint = contract;
       if (!contractToPrint.contract_waste_codes || contractToPrint.contract_waste_codes.length === 0) {
         const full = await wasteContractService.getById(contract.id);
@@ -642,9 +703,18 @@ export default function ContractDetailPage() {
                     className="max-h-28 object-contain bg-white rounded shadow-sm p-2"
                   />
                   <span className="text-[11px] text-gray-500 mt-3 italic">
-                    Firmado el: {contract.fecha_firma_productor ? formatDate(contract.fecha_firma_productor) : '-'}
+                    Firmado gráficamente el: {contract.fecha_firma_productor ? formatDate(contract.fecha_firma_productor) : '-'}
                   </span>
                 </>
+              ) : contract.firmado_productor ? (
+                <div className="w-full py-4 px-3 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-center space-y-1">
+                  <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                    ✓ Firmado con Certificado Digital (PAdES)
+                  </p>
+                  <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400 italic">
+                    Firmado el: {contract.fecha_firma_productor ? formatDate(contract.fecha_firma_productor) : '-'}
+                  </p>
+                </div>
               ) : (
                 <p className="text-xs text-muted py-6 text-center">
                   Pendiente de firma del productor para la Revisión v{contract.version || 1}.
@@ -669,9 +739,18 @@ export default function ContractDetailPage() {
                     className="max-h-28 object-contain bg-white rounded shadow-sm p-2"
                   />
                   <span className="text-[11px] text-gray-500 mt-3 italic">
-                    Firmado el: {contract.fecha_firma_gestor ? formatDate(contract.fecha_firma_gestor) : '-'}
+                    Firmado gráficamente el: {contract.fecha_firma_gestor ? formatDate(contract.fecha_firma_gestor) : '-'}
                   </span>
                 </>
+              ) : contract.firmado_gestor ? (
+                <div className="w-full py-4 px-3 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-center space-y-1">
+                  <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                    ✓ Firmado con Certificado Digital (PAdES)
+                  </p>
+                  <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400 italic">
+                    Firmado el: {contract.fecha_firma_gestor ? formatDate(contract.fecha_firma_gestor) : '-'}
+                  </p>
+                </div>
               ) : (
                 <p className="text-xs text-muted py-6 text-center">
                   Pendiente de firma del gestor para la Revisión v{contract.version || 1}.
@@ -740,96 +819,120 @@ export default function ContractDetailPage() {
 
         {/* Acciones */}
         <ComponentCard title="Acciones">
-          <div className="flex flex-wrap gap-3">
-            {contract.estado === 'borrador' && (() => {
-              const activation = validateContractActivation(contract);
-              return (
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+          {(() => {
+            const isProducerSigned = Boolean(contract.firmado_productor || contract.firma_productor_url);
+            const isGestorSigned = Boolean(contract.firmado_gestor || contract.firma_gestor_url);
+            const hasAnySignature = isProducerSigned || isGestorSigned || signedDocuments.length > 0;
+            const isFullySigned = isProducerSigned && isGestorSigned;
+
+            return (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-3">
+                  {contract.estado === 'borrador' && (() => {
+                    const activation = validateContractActivation(contract);
+                    return (
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                        <Button
+                          onClick={() => handleChangeStatus('vigente')}
+                          disabled={!activation.valid}
+                        >
+                          Activar Contrato
+                        </Button>
+                        {!activation.valid && (
+                          <span className="text-xs text-amber-600 dark:text-amber-400 italic">
+                            (Requiere completar los 6 puntos del checklist superior)
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {contract.estado === 'vigente' && (
+                    <>
+                      <Button variant="outline" onClick={() => setStatusToConfirm('finalizado')}>
+                        Finalizar Contrato
+                      </Button>
+                      <Button variant="outline" onClick={() => setStatusToConfirm('cancelado')}>
+                        Cancelar Contrato
+                      </Button>
+                    </>
+                  )}
+
+                  {(contract.estado === 'finalizado' || contract.estado === 'cancelado') && (
+                    <Button variant="outline" onClick={() => handleChangeStatus('borrador')}>
+                      Volver a Borrador
+                    </Button>
+                  )}
+
                   <Button
-                    onClick={() => handleChangeStatus('vigente')}
-                    disabled={!activation.valid}
+                    variant="outline"
+                    onClick={() => router.push(`/residuos/contratos/${contract.id}/editar`)}
+                    disabled={hasAnySignature}
                   >
-                    Activar Contrato
+                    Editar Contrato
                   </Button>
-                  {!activation.valid && (
-                    <span className="text-xs text-amber-600 dark:text-amber-400 italic">
-                      (Requiere completar los 6 puntos del checklist superior)
-                    </span>
+
+                  <Button
+                    variant="outline"
+                    onClick={handleDelete}
+                    disabled={hasAnySignature}
+                  >
+                    Eliminar Contrato
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={handleDownloadPDF}
+                    disabled={downloading}
+                  >
+                    {downloading ? 'Generando PDF...' : 'Descargar PDF'}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={handleCopyPublicLink}
+                    disabled={isFullySigned}
+                    className="text-primary hover:bg-primary/5"
+                  >
+                    Copiar Enlace Público
+                  </Button>
+
+                  {!isProducerSigned && (
+                    <Button onClick={() => handleOpenSignature('productor')}>
+                      Firmar como Productor
+                    </Button>
+                  )}
+
+                  {!isGestorSigned && (
+                    <Button onClick={() => handleOpenSignature('gestor')}>
+                      Firmar como Gestor
+                    </Button>
                   )}
                 </div>
-              );
-            })()}
 
-            {contract.estado === 'vigente' && (
-              <>
-                <Button variant="outline" onClick={() => setStatusToConfirm('finalizado')}>
-                  Finalizar Contrato
-                </Button>
-                <Button variant="outline" onClick={() => setStatusToConfirm('cancelado')}>
-                  Cancelar Contrato
-                </Button>
-              </>
-            )}
-
-            {(contract.estado === 'finalizado' || contract.estado === 'cancelado') && (
-              <Button variant="outline" onClick={() => handleChangeStatus('borrador')}>
-                Volver a Borrador
-              </Button>
-            )}
-
-            <Button
-              variant="outline"
-              onClick={() => router.push(`/residuos/contratos/${contract.id}/editar`)}
-            >
-              Editar Contrato
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={handleDelete}
-            >
-              Eliminar Contrato
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={handleDownloadPDF}
-              disabled={downloading}
-            >
-              {downloading ? 'Generando PDF...' : 'Descargar PDF'}
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={handleCopyPublicLink}
-              className="text-primary hover:bg-primary/5"
-            >
-              Copiar Enlace Público
-            </Button>
-
-            {!contract.firma_productor_url && (
-              <Button onClick={() => handleOpenSignature('productor')}>
-                Firmar como Productor
-              </Button>
-            )}
-
-            {!contract.firma_gestor_url && (
-              <Button onClick={() => handleOpenSignature('gestor')}>
-                Firmar como Gestor
-              </Button>
-            )}
-          </div>
+                {hasAnySignature && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+                    * Edición y eliminación bloqueadas para preservar la integridad de las firmas registradas.
+                    {isFullySigned ? ' Todas las partes han formalizado el contrato.' : ''}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
         </ComponentCard>
 
         {/* Firma Electrónica con Certificado Digital (AutoFirma / PAdES) */}
-        <SignedDocumentsCard
-          documents={signedDocuments}
-          loading={loadingSignedDocs}
-          onOpenAutoFirma={(baseDoc) => {
-            setCoSignBaseDoc(baseDoc ?? null);
-            setIsAutoFirmaOpen(true);
-          }}
-        />
+        {isDigitalSignatureEnabled && (
+          <SignedDocumentsCard
+            documents={signedDocuments}
+            loading={loadingSignedDocs}
+            isFullySigned={Boolean(contract.firmado_productor && contract.firmado_gestor)}
+            onOpenAutoFirma={(baseDoc) => {
+              setCoSignBaseDoc(baseDoc ?? null);
+              setIsAutoFirmaOpen(true);
+            }}
+          />
+        )}
 
         {/* Fechas de Sistema */}
         <ComponentCard title="Información del Sistema">
@@ -854,21 +957,27 @@ export default function ContractDetailPage() {
         description="Al pulsar en 'Confirmar Firma' se guardará su firma digital en el documento."
       />
 
-      <AutoFirmaModal
-        isOpen={isAutoFirmaOpen}
-        onClose={() => setIsAutoFirmaOpen(false)}
-        entityType="contract"
-        entityId={contract.id}
-        entityVersion={contract.version || 1}
-        documentLabel={`Contrato ${contract.numero_contrato || `#${contract.id}`} (v${contract.version || 1})`}
-        defaultFileName={`contrato_${contract.numero_contrato || contract.id}.pdf`}
-        generateBasePdfBuffer={generateContractPdfBuffer}
-        existingSignedDoc={coSignBaseDoc}
-        onSignedSuccess={async () => {
-          toast.success('Contrato firmado electrónicamente con AutoFirma y custodiado.');
-          await loadSignedDocuments(contract.id);
-        }}
-      />
+      {isDigitalSignatureEnabled && (
+        <AutoFirmaModal
+          isOpen={isAutoFirmaOpen}
+          onClose={() => setIsAutoFirmaOpen(false)}
+          entityType="contract"
+          entityId={contract.id}
+          entityVersion={contract.version || 1}
+          documentLabel={`Contrato ${contract.numero_contrato || `#${contract.id}`} (v${contract.version || 1})`}
+          defaultFileName={`contrato_${contract.numero_contrato || contract.id}.pdf`}
+          availableRoles={[
+            { value: 'productor', label: 'Productor', alreadySigned: Boolean(contract.firmado_productor) },
+            { value: 'gestor', label: 'Gestor Autorizado', alreadySigned: Boolean(contract.firmado_gestor) },
+          ]}
+          generateBasePdfBuffer={generateContractPdfBuffer}
+          existingSignedDoc={coSignBaseDoc}
+          onSignedSuccess={async () => {
+            toast.success('Contrato firmado electrónicamente con AutoFirma y custodiado.');
+            await Promise.all([loadContract(), loadSignedDocuments(contract.id)]);
+          }}
+        />
+      )}
 
       <ConfirmModal
         isOpen={statusToConfirm !== null}

@@ -28,7 +28,8 @@ import SignatureModal from '@/components/ui/signature/SignatureModal';
 import AutoFirmaModal from '@/components/ui/signature/AutoFirmaModal';
 import SignedDocumentsCard from '@/components/ui/signature/SignedDocumentsCard';
 import pdfSignatureService from '@/services/pdfSignatureService';
-import type { SignedDocumentRecord } from '@/lib/validations/digitalSignature';
+import type { SignedDocumentRecord, SignerRole } from '@/lib/validations/digitalSignature';
+import type { JsPDFWithSignatureBoxes } from '@/lib/pdf/pdfComponents';
 import type {
   IdentificationDocument,
   Company,
@@ -256,10 +257,49 @@ export default function DetalleDocumentoIdentificacionPage() {
     }
   };
 
-  const generateDiPdfBuffer = async (): Promise<ArrayBuffer> => {
+  const generateDiPdfBuffer = async (role?: SignerRole) => {
     if (!document) throw new Error('Documento de Identificación no cargado');
-    const doc = await generateIdentificationDocumentPDF(document);
-    return doc.output('arraybuffer');
+    const nowIso = new Date().toISOString();
+    const previewDoc: IdentificationDocument =
+      role === 'productor'
+        ? {
+            ...document,
+            firmado_productor: true,
+            fecha_firma_productor: document.fecha_firma_productor || nowIso,
+          }
+        : role === 'transportista'
+          ? {
+              ...document,
+              firmado_transportista: true,
+              fecha_firma_transportista: document.fecha_firma_transportista || nowIso,
+            }
+          : role === 'gestor'
+            ? {
+                ...document,
+                firmado_gestor: true,
+                fecha_firma_gestor: document.fecha_firma_gestor || nowIso,
+              }
+            : document;
+
+    const doc = (await generateIdentificationDocumentPDF(previewDoc, {
+      padesMode: true,
+    })) as JsPDFWithSignatureBoxes;
+    const matchedBox = role
+      ? doc.__signatureBoxes?.find((b) => b.roleKey === role)
+      : undefined;
+
+    return {
+      buffer: doc.output('arraybuffer'),
+      stampBox: matchedBox
+        ? {
+            page: matchedBox.page,
+            llx: matchedBox.llx,
+            lly: matchedBox.lly,
+            urx: matchedBox.urx,
+            ury: matchedBox.ury,
+          }
+        : undefined,
+    };
   };
 
   const handleDownloadPDF = async () => {
@@ -267,6 +307,19 @@ export default function DetalleDocumentoIdentificacionPage() {
     try {
       setDownloading(true);
       setError(null);
+
+      // Si existe un PDF firmado electrónicamente custodiado, servir siempre ese archivo inmutable
+      if (signedDocuments.length > 0) {
+        await pdfSignatureService.downloadSignedDocument(
+          signedDocuments[0].id,
+          signedDocuments[0].file_name
+        );
+        setSuccess('PDF firmado custodiado (PAdES) descargado correctamente.');
+        toast.success('PDF firmado custodiado (PAdES) descargado correctamente.');
+        setTimeout(() => setSuccess(null), 4000);
+        return;
+      }
+
       const doc = await generateIdentificationDocumentPDF(document);
       doc.save(`DI_${document.numero_documento}.pdf`);
       setSuccess('PDF oficial generado y descargado correctamente.');
@@ -1111,7 +1164,11 @@ export default function DetalleDocumentoIdentificacionPage() {
                 {document.firmado_productor ? (
                   <div className="space-y-1">
                     <Badge color="success">
-                      {document.firma_productor_url ? '✓ Firmado en Salida' : '✓ Identificado (Sin firma gráfica)'}
+                      {document.firma_productor_url
+                        ? '✓ Firmado en Salida'
+                        : signedDocuments.length > 0
+                          ? '✓ Firmado digitalmente (PAdES)'
+                          : '✓ Identificado (Sin firma gráfica)'}
                     </Badge>
                     {document.firma_productor_url && (
                       <div className="mt-2 bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 flex justify-center">
@@ -1128,7 +1185,7 @@ export default function DetalleDocumentoIdentificacionPage() {
                       </p>
                     )}
                     <p className="text-[10px] text-muted mt-1">{formatDateTime(document.fecha_firma_productor)}</p>
-                    {!document.firma_productor_url && (
+                    {!document.firma_productor_url && signedDocuments.length === 0 && (
                       <div className="pt-2 space-y-1.5">
                         {!isTransportistaOnly && (
                           <Button
@@ -1184,7 +1241,11 @@ export default function DetalleDocumentoIdentificacionPage() {
                 {document.firmado_transportista ? (
                   <div className="space-y-1">
                     <Badge color="success">
-                      {document.firma_transportista_url ? '✓ Conforme y Firmado en Carga' : '✓ Conforme en Carga (Sin trazo de firma)'}
+                      {document.firma_transportista_url
+                        ? '✓ Conforme y Firmado en Carga'
+                        : signedDocuments.length > 0
+                          ? '✓ Firmado digitalmente (PAdES)'
+                          : '✓ Conforme en Carga (Sin trazo de firma)'}
                     </Badge>
                     {document.firma_transportista_url && (
                       <div className="mt-2 bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 flex justify-center">
@@ -1201,7 +1262,7 @@ export default function DetalleDocumentoIdentificacionPage() {
                       </p>
                     )}
                     <p className="text-[10px] text-muted mt-1">{formatDateTime(document.fecha_firma_transportista)}</p>
-                    {!document.firma_transportista_url && (
+                    {!document.firma_transportista_url && signedDocuments.length === 0 && (
                       <div className="pt-2 space-y-1.5">
                         <Button
                           size="sm"
@@ -1253,7 +1314,11 @@ export default function DetalleDocumentoIdentificacionPage() {
                 {document.firmado_gestor ? (
                   <div className="space-y-1">
                     <Badge color="success">
-                      {document.firma_gestor_url ? '✓ Recepcionado y Firmado' : '✓ Recepcionado y Pesado (Sin trazo de firma)'}
+                      {document.firma_gestor_url
+                        ? '✓ Recepcionado y Firmado'
+                        : signedDocuments.length > 0
+                          ? '✓ Firmado digitalmente (PAdES)'
+                          : '✓ Recepcionado y Pesado (Sin trazo de firma)'}
                     </Badge>
                     {document.firma_gestor_url && (
                       <div className="mt-2 bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 flex justify-center">
@@ -1270,7 +1335,7 @@ export default function DetalleDocumentoIdentificacionPage() {
                       </p>
                     )}
                     <p className="text-[10px] text-muted mt-1">{formatDateTime(document.fecha_firma_gestor)}</p>
-                    {!document.firma_gestor_url && (
+                    {!document.firma_gestor_url && signedDocuments.length === 0 && (
                       <div className="pt-2 space-y-1.5">
                         {!isTransportistaOnly && (
                           <Button
@@ -1400,8 +1465,12 @@ export default function DetalleDocumentoIdentificacionPage() {
                 {sendingSira ? 'Enviando a SIRA...' : 'Enviar a SIRA'}
               </Button>
 
-              {/* Eliminar (solo en borrador) */}
-              {(!document.estado_traslado || document.estado_traslado === 'borrador') && (
+              {/* Eliminar (solo en borrador y sin firmas registradas) */}
+              {(!document.estado_traslado || document.estado_traslado === 'borrador') &&
+                !document.firmado_productor &&
+                !document.firmado_transportista &&
+                !document.firmado_gestor &&
+                signedDocuments.length === 0 && (
                 <Button variant="outline" onClick={handleDelete} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20">
                   Eliminar DI
                 </Button>
@@ -1417,14 +1486,21 @@ export default function DetalleDocumentoIdentificacionPage() {
         </ComponentCard>
 
         {/* FIRMA ELECTRÓNICA CON CERTIFICADO DIGITAL (AUTOFIRMA / PAdES) */}
-        <SignedDocumentsCard
-          documents={signedDocuments}
-          loading={loadingSignedDocs}
-          onOpenAutoFirma={(baseDoc) => {
-            setCoSignBaseDoc(baseDoc ?? null);
-            setIsAutoFirmaOpen(true);
-          }}
-        />
+        {Boolean(myCompany?.firma_electronica_activa) && (
+          <SignedDocumentsCard
+            documents={signedDocuments}
+            loading={loadingSignedDocs}
+            isFullySigned={Boolean(
+              document.firmado_productor &&
+                document.firmado_transportista &&
+                document.firmado_gestor
+            )}
+            onOpenAutoFirma={(baseDoc) => {
+              setCoSignBaseDoc(baseDoc ?? null);
+              setIsAutoFirmaOpen(true);
+            }}
+          />
+        )}
 
         {/* PANEL TELEMÁTICO SIRA / E3L */}
         <ComponentCard title="Integración Telemática Oficial (SIRA / e3l - Junta de Andalucía)">
@@ -2214,21 +2290,28 @@ export default function DetalleDocumentoIdentificacionPage() {
         description="Dibuje su firma en el recuadro para validar la conformidad y registrarla en el documento oficial."
       />
 
-      <AutoFirmaModal
-        isOpen={isAutoFirmaOpen}
-        onClose={() => setIsAutoFirmaOpen(false)}
-        entityType="di"
-        entityId={document.id}
-        entityVersion={1}
-        documentLabel={`Documento de Identificación ${document.numero_documento || `#${document.id}`}`}
-        defaultFileName={`DI_${document.numero_documento || document.id}.pdf`}
-        generateBasePdfBuffer={generateDiPdfBuffer}
-        existingSignedDoc={coSignBaseDoc}
-        onSignedSuccess={async () => {
-          toast.success('DI firmado electrónicamente con AutoFirma y custodiado.');
-          await loadSignedDocuments(document.id);
-        }}
-      />
+      {Boolean(myCompany?.firma_electronica_activa) && (
+        <AutoFirmaModal
+          isOpen={isAutoFirmaOpen}
+          onClose={() => setIsAutoFirmaOpen(false)}
+          entityType="di"
+          entityId={document.id}
+          entityVersion={1}
+          documentLabel={`Documento de Identificación ${document.numero_documento || `#${document.id}`}`}
+          defaultFileName={`DI_${document.numero_documento || document.id}.pdf`}
+          availableRoles={[
+            { value: 'productor', label: 'Productor', alreadySigned: Boolean(document.firmado_productor) },
+            { value: 'transportista', label: 'Transportista', alreadySigned: Boolean(document.firmado_transportista) },
+            { value: 'gestor', label: 'Gestor', alreadySigned: Boolean(document.firmado_gestor) },
+          ]}
+          generateBasePdfBuffer={generateDiPdfBuffer}
+          existingSignedDoc={coSignBaseDoc}
+          onSignedSuccess={async () => {
+            toast.success('DI firmado electrónicamente con AutoFirma y custodiado.');
+            await Promise.all([loadData(), loadSignedDocuments(document.id)]);
+          }}
+        />
+      )}
 
       <ConfirmModal
         isOpen={isDeleteModalOpen}

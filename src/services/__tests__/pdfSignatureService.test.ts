@@ -81,6 +81,7 @@ describe('pdfSignatureService', () => {
       entityType: 'contract',
       entityId: 42,
       entityVersion: 1,
+      signerRole: 'productor',
       fileName: 'contrato_42.pdf',
       options: { includeVisualStamp: true },
     });
