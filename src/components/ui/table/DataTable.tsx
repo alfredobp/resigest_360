@@ -155,7 +155,7 @@ export function DataTable<T extends Record<string, any>>({
       {/* Contenedor de la tabla responsiva */}
       <div className="overflow-x-auto">
         <table className={`w-full text-left text-xs border-collapse ${tableClassName}`}>
-          <thead className="bg-gray-50/80 dark:bg-gray-900/60 border-b border-gray-200/80 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-semibold tracking-wider uppercase text-[11px] select-none">
+          <thead className="bg-gray-50/80 dark:bg-gray-900/60 border-b border-gray-200/80 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-semibold tracking-wide uppercase text-[10.5px] select-none">
             <tr>
               {columns.map((column, colIdx) => {
                 const colId = column.id || String(column.accessorKey || colIdx);
@@ -167,13 +167,12 @@ export function DataTable<T extends Record<string, any>>({
                     key={colId}
                     scope="col"
                     onClick={() => handleSort(column, colId)}
-                    className={`py-3 px-3 transition-colors ${
-                      isSortable
+                    className={`py-2.5 px-2.5 transition-colors ${isSortable
                         ? 'cursor-pointer hover:bg-gray-100/70 dark:hover:bg-gray-800'
                         : ''
-                    } ${column.headerClassName || ''}`}
+                      } ${column.headerClassName || ''}`}
                   >
-                    <div className="inline-flex items-center gap-1.5">
+                    <div className="inline-flex items-center gap-1">
                       <span>{column.header}</span>
                       {isSortable && (
                         <span className="text-gray-400">
@@ -221,8 +220,8 @@ export function DataTable<T extends Record<string, any>>({
                 const rowKey = keyExtractor
                   ? keyExtractor(row, rowIdx)
                   : row.id !== undefined
-                  ? String(row.id)
-                  : rowIdx;
+                    ? String(row.id)
+                    : rowIdx;
 
                 return (
                   <tr
@@ -234,23 +233,23 @@ export function DataTable<T extends Record<string, any>>({
                       const rawVal = column.accessorFn
                         ? column.accessorFn(row)
                         : column.accessorKey
-                        ? row[column.accessorKey]
-                        : null;
+                          ? row[column.accessorKey]
+                          : null;
 
                       return (
                         <td
                           key={colId}
-                          className={`py-2.5 px-3 align-middle ${column.className || ''}`}
+                          className={`py-2 px-2.5 align-middle ${column.className || ''}`}
                         >
                           {column.cell
                             ? column.cell({
-                                row,
-                                value: rawVal,
-                                index: (currentPage - 1) * pageSize + rowIdx,
-                              })
+                              row,
+                              value: rawVal,
+                              index: (currentPage - 1) * pageSize + rowIdx,
+                            })
                             : rawVal !== null && rawVal !== undefined
-                            ? String(rawVal)
-                            : '-'}
+                              ? String(rawVal)
+                              : '-'}
                         </td>
                       );
                     })}

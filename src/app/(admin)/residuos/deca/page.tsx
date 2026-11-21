@@ -460,17 +460,17 @@ export default function DecaManagementPage() {
       {/* Tabla de Documentos DeCA */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
-            <thead className="bg-slate-50 dark:bg-slate-800/60 text-xs uppercase font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+          <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+            <thead className="bg-slate-50 dark:bg-slate-800/60 text-[10.5px] uppercase font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
               <tr>
-                <th className="py-3.5 px-4">Nº DeCA / Versión</th>
-                <th className="py-3.5 px-4">Fecha Transporte</th>
-                <th className="py-3.5 px-4">Matrícula / Conductor</th>
-                <th className="py-3.5 px-4">Cargador Contractual</th>
-                <th className="py-3.5 px-4">Transportista</th>
-                <th className="py-3.5 px-4">Mercancía / DI</th>
-                <th className="py-3.5 px-4">Estado</th>
-                <th className="py-3.5 px-4 text-right">Acciones</th>
+                <th className="py-2.5 px-2.5">Nº DeCA</th>
+                <th className="py-2.5 px-2.5">Fecha</th>
+                <th className="py-2.5 px-2.5">Matrícula</th>
+                <th className="py-2.5 px-2.5">Cargador</th>
+                <th className="py-2.5 px-2.5">Transportista</th>
+                <th className="py-2.5 px-2.5">Mercancía / DI</th>
+                <th className="py-2.5 px-2.5">Estado</th>
+                <th className="py-2.5 px-2.5 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -491,10 +491,10 @@ export default function DecaManagementPage() {
               ) : (
                 filteredDocs.map((doc) => (
                   <tr key={doc.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                    <td className="py-3.5 px-4">
-                      <div className="font-mono font-bold text-slate-900 dark:text-white">{doc.numero_deca}</div>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded">
+                    <td className="py-2.5 px-2.5">
+                      <div className="font-mono font-bold text-slate-900 dark:text-white truncate max-w-[130px]" title={doc.numero_deca}>{doc.numero_deca}</div>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className="text-[10.5px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded">
                           v{doc.version}
                         </span>
                         {!doc.is_vigente && (
@@ -503,55 +503,55 @@ export default function DecaManagementPage() {
                       </div>
                     </td>
 
-                    <td className="py-3.5 px-4 text-xs">
+                    <td className="py-2.5 px-2.5 text-xs whitespace-nowrap">
                       <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-medium">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                        <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         {new Date(doc.fecha_transporte).toLocaleDateString('es-ES')}
                       </div>
                       {doc.hora_salida && <div className="text-slate-400 text-[11px]">{doc.hora_salida}</div>}
                     </td>
 
-                    <td className="py-3.5 px-4">
+                    <td className="py-2.5 px-2.5">
                       <div className="font-mono font-semibold text-slate-900 dark:text-white">
                         {doc.matricula_tractora}
                       </div>
                       {doc.matricula_remolque && (
-                        <div className="text-[11px] font-mono text-slate-400">R: {doc.matricula_remolque}</div>
+                        <div className="text-[10.5px] font-mono text-slate-400">R: {doc.matricula_remolque}</div>
                       )}
-                      <div className="text-xs text-slate-500 truncate max-w-[120px]">
+                      <div className="text-[11px] text-slate-500 truncate max-w-[100px]" title={doc.conductor_nombre || 'No asignado'}>
                         {doc.conductor_nombre || 'No asignado'}
                       </div>
                     </td>
 
-                    <td className="py-3.5 px-4">
-                      <div className="font-medium text-slate-900 dark:text-white truncate max-w-[150px]">
+                    <td className="py-2.5 px-2.5">
+                      <div className="font-medium text-slate-900 dark:text-white truncate max-w-[125px]" title={doc.cargador_razon_social}>
                         {doc.cargador_razon_social}
                       </div>
-                      <div className="text-xs text-slate-400 font-mono">{doc.cargador_nif}</div>
+                      <div className="text-[11px] text-slate-400 font-mono">{doc.cargador_nif}</div>
                     </td>
 
-                    <td className="py-3.5 px-4">
-                      <div className="text-slate-800 dark:text-slate-200 truncate max-w-[140px]">
+                    <td className="py-2.5 px-2.5">
+                      <div className="text-slate-800 dark:text-slate-200 truncate max-w-[120px]" title={doc.transportista_razon_social}>
                         {doc.transportista_razon_social}
                       </div>
-                      <div className="text-xs text-slate-400">{doc.transportista_nif}</div>
+                      <div className="text-[11px] text-slate-400">{doc.transportista_nif}</div>
                     </td>
 
-                    <td className="py-3.5 px-4">
-                      <div className="text-xs text-slate-800 dark:text-slate-200 font-medium truncate max-w-[150px]">
+                    <td className="py-2.5 px-2.5">
+                      <div className="text-xs text-slate-800 dark:text-slate-200 font-medium truncate max-w-[125px]" title={doc.naturaleza_mercancia}>
                         {doc.naturaleza_mercancia}
                       </div>
-                      <div className="text-xs text-slate-400">
+                      <div className="text-[11px] text-slate-400">
                         {doc.peso_kg ? `${doc.peso_kg.toLocaleString('es-ES')} kg` : doc.magnitud_alternativa}
                       </div>
                       {doc.numero_di && (
-                        <span className="inline-block text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">
+                        <span className="block truncate max-w-[125px] text-[10px] text-emerald-600 dark:text-emerald-400 font-mono" title={`DI: ${doc.numero_di}`}>
                           DI: {doc.numero_di}
                         </span>
                       )}
                     </td>
 
-                    <td className="py-3.5 px-4">
+                    <td className="py-2.5 px-2.5 whitespace-nowrap">
                       {(() => {
                         const baseNum = (doc.numero_deca || '').replace(/-v\d+$/, '').trim();
                         const isLatestInFamily = !documents.some(
@@ -562,7 +562,7 @@ export default function DecaManagementPage() {
 
                         if (!isLatestInFamily || doc.is_vigente === false || doc.estado === 'sustituido') {
                           return (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                               SUSTITUIDA
                             </span>
                           );
@@ -570,7 +570,7 @@ export default function DecaManagementPage() {
 
                         return (
                           <span
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold ${
                               doc.estado === 'vigente'
                                 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
                                 : doc.estado === 'finalizado'
@@ -584,7 +584,7 @@ export default function DecaManagementPage() {
                       })()}
                     </td>
 
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-2.5 px-2.5 text-right whitespace-nowrap">
                       {(() => {
                         const baseNum = (doc.numero_deca || '').replace(/-v\d+$/, '').trim();
                         const isLatestInFamily = !documents.some(

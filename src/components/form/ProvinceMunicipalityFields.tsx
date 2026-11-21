@@ -333,11 +333,6 @@ export const ProvinceMunicipalityFields: React.FC<ProvinceMunicipalityFieldsProp
         <Label htmlFor={muniInputId} required={municipioRequired} className="mb-0">
           {municipioLabel}
         </Label>
-        {currentProvValue && (
-          <span className="text-[11px] text-brand-700 dark:text-brand-400 font-medium">
-            {rawMunicipalities.length} en {currentProvValue}
-          </span>
-        )}
       </div>
 
       <div className="relative">

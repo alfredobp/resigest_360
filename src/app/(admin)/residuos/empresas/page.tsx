@@ -205,8 +205,8 @@ function EmpresasContent() {
         )}
 
         {/* Filtros por Rol y Buscador */}
-        <ComponentCard title="Filtros y Búsqueda">
-          <div className="space-y-4">
+        <div className="rounded-2xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-white/[0.03]">
+          <div className="space-y-3">
             <div className="flex flex-wrap gap-2">
               <Button
                 variant={selectedRole === 'all' ? 'primary' : 'outline'}
@@ -261,7 +261,7 @@ function EmpresasContent() {
               />
             </div>
           </div>
-        </ComponentCard>
+        </div>
 
         {/* Lista de Empresas */}
         {filteredCompanies.length === 0 ? (

@@ -237,18 +237,21 @@ export default function DocumentosIdentificacionPage() {
       header: 'Nº DI / Estado',
       sortable: true,
       accessorFn: (doc) => `${doc.numero_documento || ''} ${doc.estado_traslado || ''}`,
-      className: 'whitespace-nowrap',
+      className: 'max-w-[185px]',
       cell: ({ row }) => {
         const tracking = getTrackingStatusMeta(row);
         const hasNoContract = row.estado_traslado && row.estado_traslado !== 'borrador' && !row.contract_id && !row.contrato_externo_referencia;
 
         return (
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-foreground font-mono">
-                DI {row.numero_documento}
-              </span>
-              <Badge color={tracking.badgeColor}>
+            <div
+              className="font-semibold text-foreground font-mono text-[11.5px] truncate"
+              title={`DI ${row.numero_documento}`}
+            >
+              DI {row.numero_documento}
+            </div>
+            <div>
+              <Badge color={tracking.badgeColor} size="sm">
                 {tracking.label}
               </Badge>
             </div>
@@ -273,8 +276,14 @@ export default function DocumentosIdentificacionPage() {
       accessorKey: 'fecha_documento',
       className: 'whitespace-nowrap',
       cell: ({ row }) => (
-        <span className="text-muted text-xs">
-          {formatDate(row.fecha_documento)}
+        <span className="text-muted text-[11.5px]" title={formatDate(row.fecha_documento)}>
+          {row.fecha_documento
+            ? new Date(row.fecha_documento).toLocaleDateString('es-ES', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+              })
+            : '-'}
         </span>
       ),
     },
@@ -283,17 +292,17 @@ export default function DocumentosIdentificacionPage() {
       header: 'Residuo (LER)',
       sortable: true,
       accessorFn: (doc) => `${doc.codigo_ler || ''} ${doc.descripcion_residuo || ''}`,
-      className: 'max-w-[220px]',
+      className: 'max-w-[155px]',
       cell: ({ row }) => {
         const isPeligroso = row.peligrosidad === 'peligroso';
         return (
           <div>
-            <div className="flex items-center gap-1.5">
-              <span className={`font-mono font-bold ${isPeligroso ? 'text-amber-700 dark:text-amber-400' : 'text-gray-800 dark:text-gray-200'}`}>
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className={`font-mono font-bold text-[11.5px] ${isPeligroso ? 'text-amber-700 dark:text-amber-400' : 'text-gray-800 dark:text-gray-200'}`}>
                 {row.codigo_ler}
               </span>
-              <span className={`text-[10px] px-1 rounded font-semibold ${isPeligroso ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}>
-                {isPeligroso ? 'Peligroso' : 'No Peligroso'}
+              <span className={`text-[9.5px] px-1 rounded font-semibold ${isPeligroso ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}>
+                {isPeligroso ? 'Peligroso' : 'No Pelig.'}
               </span>
             </div>
             {row.descripcion_residuo && (
@@ -310,9 +319,9 @@ export default function DocumentosIdentificacionPage() {
       header: 'Centro Origen',
       sortable: true,
       accessorFn: (doc) => doc.production_center?.nombre || '',
-      className: 'max-w-[160px]',
+      className: 'max-w-[115px]',
       cell: ({ row }) => (
-        <span className="text-xs text-foreground truncate block" title={row.production_center?.nombre || '-'}>
+        <span className="text-[11.5px] text-foreground truncate block" title={row.production_center?.nombre || '-'}>
           {row.production_center?.nombre || '-'}
         </span>
       ),
@@ -322,14 +331,14 @@ export default function DocumentosIdentificacionPage() {
       header: 'Gestor Destino',
       sortable: true,
       accessorKey: 'gestor_razon_social',
-      className: 'max-w-[180px]',
+      className: 'max-w-[135px]',
       cell: ({ row }) => (
         <div className="truncate" title={row.gestor_razon_social}>
-          <span className="text-xs font-medium text-foreground block truncate">
+          <span className="text-[11.5px] font-medium text-foreground block truncate">
             {row.gestor_razon_social}
           </span>
           {row.gestor_cif && (
-            <span className="text-[10.5px] text-muted font-mono">
+            <span className="text-[10px] text-muted font-mono">
               NIF: {row.gestor_cif}
             </span>
           )}
@@ -338,20 +347,20 @@ export default function DocumentosIdentificacionPage() {
     },
     {
       id: 'pesada',
-      header: 'Pesada (Origen / Destino)',
+      header: 'Pesada',
       sortable: true,
       accessorFn: (doc) => doc.peso_origen_kg || doc.cantidad || 0,
       className: 'whitespace-nowrap',
       cell: ({ row }) => {
         const pesoOrigen = row.peso_origen_kg || (row.unidad === 'toneladas' ? row.cantidad * 1000 : row.cantidad) || 0;
         return (
-          <div className="text-xs">
+          <div className="text-[11px]">
             <div>
-              <span className="text-muted">Origen: </span>
+              <span className="text-muted">Orig: </span>
               <strong className="font-mono text-foreground">{pesoOrigen.toLocaleString('es-ES')} kg</strong>
             </div>
-            <div className="text-[11px] mt-0.5">
-              <span className="text-muted">Báscula: </span>
+            <div className="mt-0.5">
+              <span className="text-muted">Básc: </span>
               {row.peso_destino_kg ? (
                 <strong className="font-mono text-foreground">{row.peso_destino_kg.toLocaleString('es-ES')} kg</strong>
               ) : (
@@ -366,14 +375,14 @@ export default function DocumentosIdentificacionPage() {
       id: 'acciones',
       header: 'Acciones',
       headerClassName: 'text-right',
-      className: 'text-right whitespace-nowrap',
+      className: 'text-right',
       cell: ({ row }) => (
-        <div className="inline-flex items-center gap-1.5 justify-end">
+        <div className="inline-flex flex-wrap items-center gap-1 justify-end">
           <Button
             variant="outline"
             size="sm"
             onClick={() => router.push(`/residuos/documentos-identificacion/${row.id}`)}
-            className="text-[11px] py-1 px-2.5 h-auto"
+            className="text-[11px] py-1 px-2 h-auto"
           >
             Ver
           </Button>
@@ -384,7 +393,7 @@ export default function DocumentosIdentificacionPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => router.push(`/residuos/documentos-identificacion/nuevo?duplicate_from=${row.id}`)}
-                className="text-[11px] py-1 px-2.5 h-auto text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                className="text-[11px] py-1 px-2 h-auto text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
               >
                 <Copy className="w-3 h-3 mr-1" />
                 Repetir
@@ -398,7 +407,7 @@ export default function DocumentosIdentificacionPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => handleOpenDecaModal(row)}
-                className="text-[11px] py-1 px-2.5 h-auto bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-100"
+                className="text-[11px] py-1 px-2 h-auto bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-100"
               >
                 <FilePlus className="w-3 h-3 mr-1" />
                 DeCA
@@ -413,7 +422,7 @@ export default function DocumentosIdentificacionPage() {
                 size="sm"
                 onClick={() => handleSendToSira(row.id)}
                 disabled={!myCompany?.sira_usuario || !myCompany?.sira_password}
-                className={`text-[11px] py-1 px-2 h-auto ${!myCompany?.sira_usuario || !myCompany?.sira_password ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`text-[11px] py-1 px-1.5 h-auto ${!myCompany?.sira_usuario || !myCompany?.sira_password ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 SIRA
               </Button>
@@ -426,7 +435,7 @@ export default function DocumentosIdentificacionPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => handleDelete(row.id)}
-                className="text-[11px] py-1 px-2 h-auto text-red-600 hover:text-red-700 border-red-200 dark:border-red-800"
+                className="text-[11px] py-1 px-1.5 h-auto text-red-600 hover:text-red-700 border-red-200 dark:border-red-800"
               >
                 Eliminar
               </Button>

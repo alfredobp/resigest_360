@@ -349,17 +349,17 @@ export default function ArchivoCronologicoPage() {
       header: 'Residuo (LER)',
       sortable: true,
       accessorFn: (row) => `${row.codigo_ler} ${row.descripcion_residuo}`,
-      className: 'max-w-[220px]',
+      className: 'max-w-[140px]',
       cell: ({ row }) => {
         const isPeligroso = row.peligrosidad === 'peligroso';
         return (
           <div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <span className={`font-mono font-bold ${isPeligroso ? 'text-amber-700 dark:text-amber-400' : 'text-gray-800 dark:text-gray-200'}`}>
                 {row.codigo_ler}
               </span>
               {isPeligroso && (
-                <span className="text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-1 rounded font-semibold">
+                <span className="text-[9.5px] bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-1 rounded font-semibold">
                   HP
                 </span>
               )}
@@ -391,43 +391,44 @@ export default function ArchivoCronologicoPage() {
     },
     {
       id: 'origen',
-      header: 'Origen / Productor',
+      header: 'Origen',
       sortable: true,
       accessorKey: 'origen_razon_social',
-      className: 'max-w-[160px]',
+      className: 'max-w-[115px]',
       cell: ({ row }) => (
         <div>
           <div className="font-medium text-gray-800 dark:text-gray-200 truncate" title={row.origen_razon_social || '-'}>
             {row.origen_razon_social || '-'}
           </div>
-          <div className="text-gray-400 text-[10.5px] truncate">
-            NIF: {row.origen_nif || '-'} {row.origen_nima ? `| NIMA: ${row.origen_nima}` : ''}
+          <div className="text-gray-400 text-[10px] truncate" title={`NIF: ${row.origen_nif || '-'}${row.origen_nima ? ` | NIMA: ${row.origen_nima}` : ''}`}>
+            {row.origen_nif || '-'}
           </div>
         </div>
       ),
     },
     {
       id: 'destino',
-      header: 'Destino / Gestor',
+      header: 'Destino',
       sortable: true,
       accessorKey: 'destino_razon_social',
-      className: 'max-w-[160px]',
+      className: 'max-w-[115px]',
       cell: ({ row }) => (
         <div>
           <div className="font-medium text-gray-800 dark:text-gray-200 truncate" title={row.destino_razon_social || '-'}>
             {row.destino_razon_social || '-'}
           </div>
-          <div className="text-gray-400 text-[10.5px] truncate">
-            {row.destino_autorizacion ? `Aut: ${row.destino_autorizacion}` : `NIF: ${row.destino_nif || '-'}`}
+          <div className="text-gray-400 text-[10px] truncate" title={row.destino_autorizacion ? `Aut: ${row.destino_autorizacion}` : `NIF: ${row.destino_nif || '-'}`}>
+            {row.destino_autorizacion ? `Aut: ${row.destino_autorizacion}` : (row.destino_nif || '-')}
           </div>
         </div>
       ),
     },
     {
       id: 'tratamiento',
-      header: 'Trat. (R/D)',
+      header: 'R/D',
       sortable: true,
       accessorKey: 'operacion_rd',
+      className: 'whitespace-nowrap',
       cell: ({ row }) => (
         <span className="font-mono font-medium text-primary">
           {row.operacion_rd || '-'}
@@ -436,17 +437,19 @@ export default function ArchivoCronologicoPage() {
     },
     {
       id: 'referencia',
-      header: 'Ref. Documental',
+      header: 'Ref. Doc.',
       accessorKey: 'numero_documento_referencia',
+      className: 'max-w-[110px]',
       cell: ({ row }) => row.identification_document_id ? (
         <Link
           href={`/residuos/documentos-identificacion/${row.identification_document_id}`}
-          className="inline-flex items-center gap-1 text-primary hover:underline font-mono text-[11px]"
+          className="block truncate text-primary hover:underline font-mono text-[11px]"
+          title={row.numero_documento_referencia || `DI #${row.identification_document_id}`}
         >
           {row.numero_documento_referencia || `DI #${row.identification_document_id}`} →
         </Link>
       ) : (
-        <span className="text-gray-600 dark:text-gray-400 font-mono text-[11px]">
+        <span className="block truncate text-gray-600 dark:text-gray-400 font-mono text-[11px]" title={row.numero_documento_referencia || 'Asiento Directo'}>
           {row.numero_documento_referencia || 'Asiento Directo'}
         </span>
       ),

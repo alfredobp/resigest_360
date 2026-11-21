@@ -220,7 +220,7 @@ export default function ContratosPage() {
         )}
 
         {/* Filtros */}
-        <ComponentCard title="Filtros">
+        <div className="rounded-2xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-white/[0.03]">
           <div className="flex flex-wrap gap-2">
             <Button
               variant={filterStatus === 'all' ? 'primary' : 'outline'}
@@ -258,7 +258,7 @@ export default function ContratosPage() {
               Finalizados ({contracts.filter(c => c.estado === 'finalizado').length})
             </Button>
           </div>
-        </ComponentCard>
+        </div>
 
         {/* Lista de Contratos */}
         {filteredContracts.length === 0 ? (

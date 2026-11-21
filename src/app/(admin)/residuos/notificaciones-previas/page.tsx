@@ -161,8 +161,8 @@ export default function NotificacionesPreviasPage() {
         {error && <Alert variant="error" title="Error" message={error} />}
 
         {/* Filtros */}
-        <ComponentCard title="Filtros y Búsqueda">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="rounded-2xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-white/[0.03]">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium mb-1">Buscar por NT, LER o Empresa</label>
               <Input
@@ -190,7 +190,7 @@ export default function NotificacionesPreviasPage() {
               </select>
             </div>
           </div>
-        </ComponentCard>
+        </div>
 
         {/* Listado */}
         <ComponentCard title={`Notificaciones Registradas (${filteredNotifications.length})`}>
@@ -213,17 +213,17 @@ export default function NotificacionesPreviasPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-muted/50 border-b border-border text-xs uppercase font-medium text-muted">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/50 border-b border-border text-[10.5px] uppercase font-medium text-muted">
                   <tr>
-                    <th className="px-4 py-3">Número NT</th>
-                    <th className="px-4 py-3">Productor / Origen</th>
-                    <th className="px-4 py-3">Gestor / Destino</th>
-                    <th className="px-4 py-3">Residuo (LER)</th>
-                    <th className="px-4 py-3">Cantidad Est.</th>
-                    <th className="px-4 py-3">Vigencia</th>
-                    <th className="px-4 py-3">Estado</th>
-                    <th className="px-4 py-3 text-right">Acciones</th>
+                    <th className="px-2.5 py-2.5">Nº NT</th>
+                    <th className="px-2.5 py-2.5">Productor</th>
+                    <th className="px-2.5 py-2.5">Gestor</th>
+                    <th className="px-2.5 py-2.5">Residuo (LER)</th>
+                    <th className="px-2.5 py-2.5">Cantidad</th>
+                    <th className="px-2.5 py-2.5">Vigencia</th>
+                    <th className="px-2.5 py-2.5">Estado</th>
+                    <th className="px-2.5 py-2.5 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -231,43 +231,45 @@ export default function NotificacionesPreviasPage() {
                     const isAccepted = nt.estado === 'aceptada';
                     return (
                       <tr key={nt.id} className="hover:bg-muted/20 transition-colors">
-                        <td className="px-4 py-3 font-mono font-medium text-foreground">
-                          {nt.numero_notificacion || `NT-ID-${nt.id}`}
+                        <td className="px-2.5 py-2.5 font-mono font-medium text-foreground max-w-[130px]">
+                          <div className="truncate" title={nt.numero_notificacion || `NT-ID-${nt.id}`}>
+                            {nt.numero_notificacion || `NT-ID-${nt.id}`}
+                          </div>
                           {nt.sira_id && (
-                            <span className={`block text-[11px] font-sans font-semibold ${
+                            <span className={`block truncate text-[10.5px] font-sans font-semibold ${
                               nt.sira_id.includes('TEST') || nt.sira_id.includes('SIM')
                                 ? 'text-amber-600 dark:text-amber-400'
                                 : 'text-green-600 dark:text-green-400'
-                            }`}>
-                              {nt.sira_id.includes('TEST') || nt.sira_id.includes('SIM') ? '🔬 Simulación: ' : 'SIRA: '}
+                            }`} title={nt.sira_id}>
+                              {nt.sira_id.includes('TEST') || nt.sira_id.includes('SIM') ? '🔬 Sim: ' : 'SIRA: '}
                               {nt.sira_id}
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-foreground">{nt.productor_razon_social}</div>
-                          <div className="text-xs text-muted">{nt.productor_cif}</div>
+                        <td className="px-2.5 py-2.5 max-w-[130px]">
+                          <div className="font-medium text-foreground truncate" title={nt.productor_razon_social}>{nt.productor_razon_social}</div>
+                          <div className="text-[11px] text-muted">{nt.productor_cif}</div>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-foreground">{nt.gestor_razon_social}</div>
-                          <div className="text-xs text-muted">{nt.gestor_cif}</div>
+                        <td className="px-2.5 py-2.5 max-w-[130px]">
+                          <div className="font-medium text-foreground truncate" title={nt.gestor_razon_social}>{nt.gestor_razon_social}</div>
+                          <div className="text-[11px] text-muted">{nt.gestor_cif}</div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-2.5 py-2.5 max-w-[135px]">
                           <div className="font-mono text-foreground font-semibold">{nt.codigo_ler}</div>
-                          <div className="text-xs text-muted line-clamp-1">{nt.descripcion_residuo || 'S/D'}</div>
+                          <div className="text-[11px] text-muted truncate" title={nt.descripcion_residuo || 'S/D'}>{nt.descripcion_residuo || 'S/D'}</div>
                         </td>
-                        <td className="px-4 py-3 font-medium text-foreground">
+                        <td className="px-2.5 py-2.5 font-medium text-foreground whitespace-nowrap">
                           {Number(nt.cantidad_estimada_kg).toLocaleString()} kg
                         </td>
-                        <td className="px-4 py-3 text-xs text-muted whitespace-nowrap">
-                          {nt.fecha_inicio ? `${nt.fecha_inicio} a ` : ''}
-                          <span className="font-medium text-foreground">{nt.fecha_fin}</span>
+                        <td className="px-2.5 py-2.5 text-[11px] text-muted whitespace-nowrap">
+                          {nt.fecha_inicio && <div>{nt.fecha_inicio}</div>}
+                          <div className="font-medium text-foreground">{nt.fecha_fin}</div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-2.5 py-2.5 whitespace-nowrap">
                           {getStatusBadge(nt.estado)}
                         </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                        <td className="px-2.5 py-2.5 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
                             <Button
                               variant="outline"
                               size="sm"

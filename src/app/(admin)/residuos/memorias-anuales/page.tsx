@@ -313,31 +313,31 @@ export default function MemoriasAnualesPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className="w-full divide-y divide-gray-200 text-xs">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 py-2.5 text-left text-[10.5px] font-medium text-gray-500 uppercase tracking-wide">
                     Número
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 py-2.5 text-left text-[10.5px] font-medium text-gray-500 uppercase tracking-wide">
                     Año
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 py-2.5 text-left text-[10.5px] font-medium text-gray-500 uppercase tracking-wide">
                     Tipo
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 py-2.5 text-left text-[10.5px] font-medium text-gray-500 uppercase tracking-wide">
                     Empresa
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Movimientos
+                  <th className="px-3 py-2.5 text-left text-[10.5px] font-medium text-gray-500 uppercase tracking-wide">
+                    Mov.
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 py-2.5 text-left text-[10.5px] font-medium text-gray-500 uppercase tracking-wide">
                     Toneladas
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 py-2.5 text-left text-[10.5px] font-medium text-gray-500 uppercase tracking-wide">
                     Estado
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 py-2.5 text-right text-[10.5px] font-medium text-gray-500 uppercase tracking-wide">
                     Acciones
                   </th>
                 </tr>
@@ -345,34 +345,34 @@ export default function MemoriasAnualesPage() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredMemorias.map((memoria) => (
                   <tr key={memoria.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-3 py-2.5 whitespace-nowrap font-medium text-gray-900">
                       {memoria.numero_memoria}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2.5 whitespace-nowrap text-gray-500">
                       {memoria.año}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2.5 whitespace-nowrap text-gray-500">
                       {getTipoLabel(memoria.tipo_memoria)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
+                    <td className="px-3 py-2.5 max-w-[180px]">
+                      <div className="font-medium text-gray-900 truncate" title={memoria.nombre_empresa}>
                         {memoria.nombre_empresa}
                       </div>
-                      <div className="text-sm text-primary font-medium">
+                      <div className="text-primary font-medium truncate" title={memoria.production_center?.nombre || 'General'}>
                         {memoria.production_center?.nombre || 'General'}
                       </div>
-                      <div className="text-sm text-gray-500">{memoria.nif_empresa}</div>
+                      <div className="text-[11px] text-gray-500">{memoria.nif_empresa}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2.5 whitespace-nowrap text-gray-500">
                       {memoria.total_movimientos}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-2.5 whitespace-nowrap text-gray-500">
                       {memoria.total_toneladas.toFixed(2)} t
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 py-2.5 whitespace-nowrap">
                       {getEstadoBadge(memoria.estado)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <td className="px-3 py-2.5 whitespace-nowrap text-right font-medium">
                       <div className="flex items-center justify-end gap-1.5">
                         <Button
                           variant="outline"
