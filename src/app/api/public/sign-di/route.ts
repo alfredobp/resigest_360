@@ -1,16 +1,26 @@
 import { NextResponse } from 'next/server';
 import { rateLimit, clientIp } from '@/lib/rateLimit';
+import { verifyRoleLink } from '@/lib/signature/roleLinkHmac';
 import identificationDocumentService from '@/services/identificationDocumentService';
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
+    const roleParam = searchParams.get('role');
+    const sigParam = searchParams.get('sig');
 
     if (!token || typeof token !== 'string') {
       return NextResponse.json(
         { error: 'Token de firma no proporcionado o inválido.' },
         { status: 400 }
+      );
+    }
+
+    if (sigParam && (!roleParam || !verifyRoleLink(token.trim(), roleParam, sigParam))) {
+      return NextResponse.json(
+        { error: 'La firma de verificación del rol en el enlace no es válida.' },
+        { status: 403 }
       );
     }
 
@@ -76,7 +86,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Cuerpo de solicitud inválido.' }, { status: 400 });
     }
 
-    const { token, role, signatureBase64, signerName, signerDni } = body;
+    const { token, role, roleSig, signatureBase64, signerName, signerDni } = body;
 
     if (!token || typeof token !== 'string') {
       return NextResponse.json({ error: 'Token de firma no proporcionado o inválido.' }, { status: 400 });
@@ -86,6 +96,13 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Rol de firmante no válido. Debe ser 'productor', 'transportista' o 'gestor'." },
         { status: 400 }
+      );
+    }
+
+    if (typeof roleSig === 'string' && roleSig.trim() && !verifyRoleLink(token.trim(), role, roleSig.trim())) {
+      return NextResponse.json(
+        { error: 'Este enlace de firma está acotado criptográficamente a otro rol.' },
+        { status: 403 }
       );
     }
 

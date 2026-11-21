@@ -34,6 +34,7 @@ function PublicDISignatureContent() {
   const searchParams = useSearchParams();
   const token = params?.token as string;
   const roleParam = searchParams?.get('role') as SigningRole | null;
+  const sigParam = searchParams?.get('sig') || '';
 
   const isValidRoleParam =
     roleParam === 'productor' || roleParam === 'transportista' || roleParam === 'gestor';
@@ -79,7 +80,12 @@ function PublicDISignatureContent() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/public/sign-di?token=${encodeURIComponent(token)}`);
+      const query = new URLSearchParams({ token });
+      if (roleParam && sigParam) {
+        query.set('role', roleParam);
+        query.set('sig', sigParam);
+      }
+      const res = await fetch(`/api/public/sign-di?${query.toString()}`);
       const result = await res.json().catch(() => null);
 
       if (!res.ok || !result?.success || !result?.document) {

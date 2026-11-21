@@ -244,9 +244,11 @@ export default function TransportistasPage() {
                             <p className="mt-1 text-xs text-slate-500">
                                 Registra tus transportistas habituales para usarlos en tus documentos de identificación.
                             </p>
-                            <Button size="sm" className="mt-3" onClick={handleAddNew}>
-                                + Añadir Primer Transportista
-                            </Button>
+                            {canWrite && (
+                                <Button size="sm" className="mt-3" onClick={handleAddNew}>
+                                    + Añadir Primer Transportista
+                                </Button>
+                            )}
                         </div>
                     }
                 />

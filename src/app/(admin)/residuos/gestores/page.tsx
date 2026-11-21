@@ -202,9 +202,11 @@ export default function GestoresPage() {
                             <p className="mt-1 text-xs text-slate-500">
                                 Registra tus gestores habituales para usarlos en contratos y documentos de identificación.
                             </p>
-                            <Button size="sm" className="mt-3" onClick={handleAddNew}>
-                                + Añadir Primer Gestor
-                            </Button>
+                            {canWrite && (
+                                <Button size="sm" className="mt-3" onClick={handleAddNew}>
+                                    + Añadir Primer Gestor
+                                </Button>
+                            )}
                         </div>
                     }
                 />

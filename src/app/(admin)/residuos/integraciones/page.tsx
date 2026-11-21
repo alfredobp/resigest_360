@@ -162,6 +162,8 @@ export default function IntegracionesAuditoriaPage() {
               <div className="flex items-center gap-2 pt-1">
                 {holdedStatus === 'connected' ? (
                   <Badge color="success" size="md">Conectado</Badge>
+                ) : holdedStatus === 'checking' ? (
+                  <Badge color="info" size="md">Comprobando...</Badge>
                 ) : holdedStatus === 'not_configured' ? (
                   <Badge color="warning" size="md">Sin Configurar</Badge>
                 ) : (
@@ -314,8 +316,10 @@ export default function IntegracionesAuditoriaPage() {
                               >
                                 {sub.identification_document.numero_documento}
                               </Link>
-                            ) : (
+                            ) : sub.identification_document_id ? (
                               <span className="font-mono">DI #{sub.identification_document_id}</span>
+                            ) : (
+                              <span className="font-mono text-muted">Notificación Previa (NT)</span>
                             )}
                           </td>
                           <td className="px-4 py-3">

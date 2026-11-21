@@ -553,6 +553,13 @@ function NuevoDocumentoIdentificacionContent() {
 
       // Validación de Autorización Ambiental en Destino (Bloque 2)
       if (destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler) {
+        if (destAuthScope.isAuthorized === false) {
+          setError(
+            `Autorización caducada: El gestor seleccionado (${formData.gestor_razon_social || 'destino'}) no dispone de una autorización ambiental vigente.`
+          );
+          window.scrollTo(0, 0);
+          return;
+        }
         const allowedOps = destAuthScope.authorizedLers[formData.codigo_ler];
         if (!allowedOps) {
           setError(
@@ -563,8 +570,10 @@ function NuevoDocumentoIdentificacionContent() {
         }
 
         if (formData.operacion_tratamiento) {
-          const cleanOp = formData.operacion_tratamiento.toUpperCase().trim();
-          if (!allowedOps.includes(cleanOp)) {
+          const normOp = (v: string) => v.trim().toUpperCase().replace(/^([RD])(\d)$/, '$10$2');
+          const cleanOp = normOp(formData.operacion_tratamiento);
+          const normalizedAllowed = allowedOps.map(normOp);
+          if (!normalizedAllowed.includes(cleanOp)) {
             setError(
               `Operación no autorizada: La operación "${formData.operacion_tratamiento}" no está permitida para el LER ${formData.codigo_ler} en la autorización ambiental del destino (Operaciones autorizadas: ${allowedOps.join(', ')}).`
             );
@@ -713,7 +722,6 @@ function NuevoDocumentoIdentificacionContent() {
             <ComponentCard title="Datos del Documento">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="numero_documento" className="block text-sm font-medium mb-2">Número de Documento</label>
                   <label htmlFor="numero_documento" className="block text-sm font-medium mb-2">Número de Documento (Automático E3L)</label>
                   <Input
                     id="numero_documento"

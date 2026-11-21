@@ -3,6 +3,7 @@
  */
 import { GET, POST } from '../public/sign-di/route';
 import identificationDocumentService from '@/services/identificationDocumentService';
+import { signRoleLink } from '@/lib/signature/roleLinkHmac';
 
 jest.mock('@/services/identificationDocumentService', () => ({
   __esModule: true,
@@ -175,6 +176,21 @@ describe('/api/public/sign-di', () => {
         body: JSON.stringify({ token: 'tok-dup', role: 'transportista', signatureBase64: 'data:image/png;base64,123', signerName: 'Pedro' }),
       }));
       expect(resDup.status).toBe(409);
+
+      // Enlace con firma HMAC de rol manipulada devuelve 403
+      const validTranspSig = signRoleLink('tok-hmac', 'transportista');
+      const resTamperedRole = await POST(req('http://localhost/api/public/sign-di', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: 'tok-hmac',
+          role: 'gestor',
+          roleSig: validTranspSig,
+          signatureBase64: 'data:image/png;base64,123',
+          signerName: 'Suplantador',
+        }),
+      }));
+      expect(resTamperedRole.status).toBe(403);
     });
 
     it('devuelve 200 al registrar correctamente la firma', async () => {

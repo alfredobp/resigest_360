@@ -9,6 +9,7 @@ import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
+import { useTenant } from '@/context/TenantContext';
 import { priorNotificationService } from '@/services/priorNotificationService';
 import { resolvePlatformForNT } from '@/services/siraService';
 import identificationDocumentService from '@/services/identificationDocumentService';
@@ -21,6 +22,7 @@ interface PageProps {
 
 export default function DetalleNotificacionPreviaPage({ params }: PageProps) {
   const router = useRouter();
+  const { canWrite } = useTenant();
   const { id } = use(params);
   const notificationId = Number(id);
 
@@ -206,40 +208,42 @@ export default function DetalleNotificacionPreviaPage({ params }: PageProps) {
               <ArrowLeft className="w-4 h-4" /> Volver
             </Button>
 
-            {!isAccepted && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleSendToSira(true)}
-                  disabled={actionLoading}
-                  className="flex items-center gap-1.5"
-                >
-                  <ShieldCheck className="w-4 h-4 text-blue-500" />
-                  Pre-validar
-                </Button>
+              { canWrite && !isAccepted && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSendToSira(true)}
+                    disabled={actionLoading}
+                    className="flex items-center gap-1.5"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-blue-500" />
+                    Pre-validar
+                  </Button>
 
-                <Button
-                  size="sm"
-                  onClick={() => setShowSendModal(true)}
-                  disabled={actionLoading}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5"
-                >
-                  <Send className="w-4 h-4" />
-                  Presentar a {resolvePlatformForNT(notification).shortLabel}
-                </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => setShowSendModal(true)}
+                    disabled={actionLoading}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5"
+                  >
+                    <Send className="w-4 h-4" />
+                    Presentar a {resolvePlatformForNT(notification).shortLabel}
+                  </Button>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowDeleteModal(true)}
-                  disabled={actionLoading}
-                  className="text-red-500 hover:text-red-700"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </>
-            )}
+                  {(notification.estado === 'borrador' || notification.estado === 'rechazada') && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowDeleteModal(true)}
+                      disabled={actionLoading}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </>
+              )}
 
             <Button
               variant="outline"
