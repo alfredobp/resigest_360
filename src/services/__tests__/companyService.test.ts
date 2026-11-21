@@ -757,5 +757,39 @@ describe('companyService - Gestión de Empresas y Directorio', () => {
       companyService.setActiveCompanyId(null);
       (companyService.getUserCompany as any).mockRestore?.();
     });
+
+    it('debe proteger credenciales enmascaradas y sincronizar tipo_empresa al actualizar roles', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+      const capturedUpdate = jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            select: jest.fn().mockReturnValue({
+              single: jest.fn().mockResolvedValue({
+                data: { id: 10, razon_social: 'Empresa Test', tipo_empresa: 'transportista', roles: ['transportista'] },
+                error: null,
+              }),
+            }),
+          }),
+        }),
+      });
+      mockSupabase.from.mockReturnValue({ update: capturedUpdate });
+
+      await companyService.update(10, {
+        razon_social: 'Empresa Test',
+        sira_password: '••••••••',
+        holded_api_key: '••••1234',
+        roles: ['cliente', 'transportista'],
+      });
+
+      const payloadSent = capturedUpdate.mock.calls[0][0];
+      expect(payloadSent.sira_password).toBeUndefined();
+      expect(payloadSent.holded_api_key).toBeUndefined();
+      expect(payloadSent.tipo_empresa).toBe('transportista');
+    });
+
+    it('search debe lanzar error si no hay usuario autenticado', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
+      await expect(companyService.search('test')).rejects.toThrow('Usuario no autenticado');
+    });
   });
 });

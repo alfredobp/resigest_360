@@ -68,7 +68,7 @@ const PROVINCIAS_POR_CP: Record<string, string> = {
 
 export default function MiEmpresaPage() {
   const router = useRouter();
-  const { refreshTenant, canManageCompany, canWrite, isPlatformAdmin, membershipRole } = useTenant();
+  const { refreshTenant, canManageCompany, canWrite, isPlatformAdmin, membershipRole, activeCompanyId, tenant } = useTenant();
   const [activeTab, setActiveTab] = useState<ActiveTab>('identidad');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -128,7 +128,7 @@ export default function MiEmpresaPage() {
 
   useEffect(() => {
     loadCompany();
-  }, []);
+  }, [activeCompanyId]);
 
   const loadCompany = async () => {
     try {
@@ -1117,7 +1117,7 @@ export default function MiEmpresaPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push('/residuos/contratos')}
+                onClick={() => router.push(tenant?.homePath || '/app')}
                 disabled={saving}
               >
                 Volver

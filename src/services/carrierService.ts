@@ -100,7 +100,10 @@ export const carrierService = {
             console.error('Error al obtener transportistas de carriers:', error);
         }
 
-        const list: Carrier[] = (data as Carrier[]) || [];
+        const list: Carrier[] = ((data as Carrier[]) || []).map((c) => ({
+            ...c,
+            source: 'carriers' as const,
+        }));
 
         // Integrar empresas con rol 'transportista' del Directorio Unificado
         try {
@@ -145,6 +148,8 @@ export const carrierService = {
                                 created_at: comp.created_at,
                                 updated_at: comp.updated_at,
                                 holded_contact_id: comp.holded_contact_id,
+                                source: 'companies' as const,
+                                company_id: comp.id,
                             });
                             if (normCif) existingCifs.add(normCif);
                         }
@@ -247,7 +252,8 @@ export const carrierService = {
                     await supabase
                         .from('carriers')
                         .update({ holded_contact_id: holdedContact.id })
-                        .eq('id', data.id);
+                        .eq('id', data.id)
+                        .eq('user_id', userData.user.id);
 
                     data.holded_contact_id = holdedContact.id;
                 }
@@ -262,10 +268,75 @@ export const carrierService = {
     /**
      * Actualizar transportista
      */
-    async update(id: number, carrierData: Partial<CarrierFormData>): Promise<Carrier> {
+    async update(
+        id: number,
+        carrierData: Partial<CarrierFormData>,
+        options?: { source?: 'carriers' | 'treatment_managers' | 'companies'; companyId?: number }
+    ): Promise<Carrier> {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
             throw new Error('Usuario no autenticado');
+        }
+
+        // Si el transportista procede del Directorio Unificado (companies), actualizar en companies
+        if (options?.source === 'companies') {
+            const targetCompanyId = options.companyId ?? id;
+            const currentComp = await companyService.getById(targetCompanyId).catch(() => null);
+            const currentEnriched = currentComp ? enrichCarrierWithFleet(currentComp as unknown as Carrier) : null;
+            const { flota_vehiculos, flota_conductores, ...restCarrierData } = carrierData;
+
+            const fieldMap: Array<[keyof typeof restCarrierData, string]> = [
+                ['razon_social', 'razon_social'],
+                ['cif', 'cif'],
+                ['nima', 'nima'],
+                ['numero_autorizacion', 'numero_autorizacion'],
+                ['matricula', 'matricula'],
+                ['direccion', 'domicilio_social'],
+                ['codigo_postal', 'codigo_postal_social'],
+                ['municipio', 'municipio_social'],
+                ['provincia', 'provincia_social'],
+                ['telefono', 'telefono'],
+                ['email', 'email'],
+                ['persona_contacto', 'persona_contacto'],
+            ];
+
+            const companyPayload: Record<string, any> = {};
+            for (const [srcKey, dstKey] of fieldMap) {
+                if (restCarrierData[srcKey] !== undefined) {
+                    companyPayload[dstKey] = restCarrierData[srcKey];
+                }
+            }
+
+            if (flota_vehiculos !== undefined || flota_conductores !== undefined || restCarrierData.notas !== undefined) {
+                const currentVehicles = flota_vehiculos ?? currentEnriched?.flota_vehiculos ?? [];
+                const currentDrivers = flota_conductores ?? currentEnriched?.flota_conductores ?? [];
+                const baseNotes = restCarrierData.notas ?? currentComp?.notas ?? '';
+                companyPayload.notas = serializeFleetToNotes(baseNotes, currentVehicles, currentDrivers);
+            }
+
+            const updatedComp = await companyService.update(targetCompanyId, companyPayload);
+            return enrichCarrierWithFleet({
+                id,
+                user_id: updatedComp.user_id,
+                razon_social: updatedComp.razon_social,
+                cif: updatedComp.cif,
+                nima: updatedComp.nima,
+                numero_autorizacion: updatedComp.numero_autorizacion,
+                matricula: updatedComp.matricula,
+                direccion: updatedComp.domicilio_social,
+                codigo_postal: updatedComp.codigo_postal_social,
+                municipio: updatedComp.municipio_social,
+                provincia: updatedComp.provincia_social,
+                telefono: updatedComp.telefono,
+                email: updatedComp.email,
+                persona_contacto: updatedComp.persona_contacto,
+                notas: updatedComp.notas,
+                activo: updatedComp.activo ?? true,
+                created_at: updatedComp.created_at,
+                updated_at: updatedComp.updated_at,
+                source: 'companies',
+                company_id: updatedComp.id,
+            });
         }
 
         const currentData = await this.getById(id);
@@ -426,10 +497,18 @@ export const carrierService = {
     /**
      * Eliminar transportista permanentemente
      */
-    async delete(id: number): Promise<void> {
+    async delete(
+        id: number,
+        options?: { source?: 'carriers' | 'treatment_managers' | 'companies'; companyId?: number }
+    ): Promise<void> {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
             throw new Error('Usuario no autenticado');
+        }
+
+        if (options?.source === 'companies') {
+            await companyService.delete(options.companyId ?? id);
+            return;
         }
 
         const { error } = await supabase

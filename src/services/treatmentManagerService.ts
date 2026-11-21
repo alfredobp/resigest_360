@@ -179,7 +179,7 @@ export const treatmentManagerService = {
                         .from('treatment_managers')
                         .update({ holded_contact_id: holdedContact.id })
                         .eq('id', data.id)
-                        .eq('user_id', user.id);
+                        .eq('user_id', userData.user.id);
 
                     data.holded_contact_id = holdedContact.id;
                 }
@@ -197,7 +197,7 @@ export const treatmentManagerService = {
     async update(
         id: number,
         managerData: Partial<TreatmentManagerFormData>,
-        options?: { source?: 'treatment_managers' | 'companies'; companyId?: number }
+        options?: { source?: 'carriers' | 'treatment_managers' | 'companies'; companyId?: number }
     ): Promise<TreatmentManager> {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
@@ -322,7 +322,7 @@ export const treatmentManagerService = {
      */
     async delete(
         id: number,
-        options?: { source?: 'treatment_managers' | 'companies'; companyId?: number }
+        options?: { source?: 'carriers' | 'treatment_managers' | 'companies'; companyId?: number }
     ): Promise<void> {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {

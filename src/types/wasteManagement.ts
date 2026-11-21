@@ -39,7 +39,7 @@ export interface TreatmentManager {
   holded_contact_id?: string;
 
   // Origen en el directorio unificado (evita colisión FK en waste_contracts)
-  source?: 'treatment_managers' | 'companies';
+  source?: 'carriers' | 'treatment_managers' | 'companies';
   company_id?: number;
 }
 
@@ -117,7 +117,7 @@ export interface Carrier {
   holded_contact_id?: string;
 
   // Origen en el directorio unificado (evita colisión FK en waste_contracts)
-  source?: 'treatment_managers' | 'companies';
+  source?: 'carriers' | 'treatment_managers' | 'companies';
   company_id?: number;
 }
 

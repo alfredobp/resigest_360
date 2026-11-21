@@ -19,6 +19,9 @@ jest.mock('../holdedService', () => ({
 
 const mockCompanyService = {
   getUserCompany: jest.fn(),
+  getById: jest.fn(),
+  update: jest.fn(),
+  delete: jest.fn(),
 };
 jest.mock('../companyService', () => ({
   companyService: mockCompanyService,
@@ -211,7 +214,9 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
       const insertMock = jest.fn().mockReturnValue({ select: selectInsertMock });
 
       const updateHoldedMock = jest.fn().mockReturnValue({
-        eq: jest.fn().mockResolvedValue({ error: null }),
+        eq: jest.fn().mockReturnValue({
+          eq: jest.fn().mockResolvedValue({ error: null }),
+        }),
       });
 
       mockSupabase.from.mockImplementation((table: string) => {
@@ -342,6 +347,72 @@ describe('carrierService - Gestión de Transportistas e Integración', () => {
       expect(result).toEqual(expect.objectContaining(updatedCarrier));
       expect(consoleErrorSpy).toHaveBeenCalled();
       consoleErrorSpy.mockRestore();
+    });
+
+    it('debe actualizar flota y eliminar en companyService cuando source es companies', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-1' } },
+      });
+      mockCompanyService.getById.mockResolvedValue({
+        id: 88,
+        razon_social: 'Trans Unificado S.L.',
+        cif: 'B88888888',
+        notas: 'Notas previas',
+      });
+      mockCompanyService.update.mockResolvedValue({
+        id: 88,
+        user_id: 'user-1',
+        razon_social: 'Trans Unificado S.L.',
+        cif: 'B88888888',
+        matricula: '9999ZZZ',
+        domicilio_social: 'Av Transporte 1',
+        notas: 'Notas previas',
+        activo: true,
+        created_at: '2026-01-01',
+        updated_at: '2026-01-02',
+      });
+      mockCompanyService.delete.mockResolvedValue(undefined);
+
+      const updated = await carrierService.update(
+        200,
+        {
+          razon_social: 'Trans Unificado S.L.',
+          cif: 'B88888888',
+          nima: '4100000088',
+          numero_autorizacion: 'T-88',
+          matricula: '9999ZZZ',
+          direccion: 'Av Transporte 1',
+          codigo_postal: '41001',
+          municipio: 'Sevilla',
+          provincia: 'Sevilla',
+          telefono: '600000088',
+          email: 'trans@uni.es',
+          persona_contacto: 'Ana',
+          flota_vehiculos: [{ id: 'v1', matricula: '9999ZZZ', tipo: 'Rígido', activo: true }],
+          flota_conductores: [{ id: 'd1', nombre: 'Luis', activo: true }],
+        },
+        { source: 'companies', companyId: 88 }
+      );
+
+      expect(mockCompanyService.update).toHaveBeenCalledWith(
+        88,
+        expect.objectContaining({
+          razon_social: 'Trans Unificado S.L.',
+          domicilio_social: 'Av Transporte 1',
+          notas: expect.stringContaining('9999ZZZ'),
+        })
+      );
+      expect(updated.source).toBe('companies');
+      expect(updated.company_id).toBe(88);
+
+      await carrierService.delete(200, { source: 'companies', companyId: 88 });
+      expect(mockCompanyService.delete).toHaveBeenCalledWith(88);
+
+      // Actualización parcial sin companyId explícito y solo notas (ejercita fallback de flota)
+      mockCompanyService.getById.mockRejectedValueOnce(new Error('not found'));
+      await carrierService.update(88, { notas: 'Solo notas' }, { source: 'companies' });
+      await carrierService.delete(88, { source: 'companies' });
+      expect(mockCompanyService.delete).toHaveBeenCalledWith(88);
     });
   });
 

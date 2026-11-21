@@ -161,7 +161,10 @@ export default function CarrierModal({
         try {
             setSaving(true);
             if (carrier) {
-                await carrierService.update(carrier.id, formData);
+                await carrierService.update(carrier.id, formData, {
+                    source: carrier.source,
+                    companyId: carrier.company_id,
+                });
             } else {
                 await carrierService.create(formData);
             }

@@ -6,6 +6,7 @@ import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { createClient } from "@/lib/supabase/client";
 import { companyService } from "@/services/companyService";
 import adminPlatformService from "@/services/adminPlatformService";
+import { useTenant } from "@/context/TenantContext";
 import { useRouter } from "next/navigation";
 
 interface UserProfile {
@@ -18,6 +19,7 @@ interface UserProfile {
 }
 
 export default function UserDropdown() {
+  const { activeCompanyId } = useTenant();
   const [isOpen, setIsOpen] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -103,7 +105,7 @@ export default function UserDropdown() {
     return () => {
       window.removeEventListener("company-logo-updated", handleLogoUpdate);
     };
-  }, []);
+  }, [activeCompanyId]);
 
   function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
     e.stopPropagation();

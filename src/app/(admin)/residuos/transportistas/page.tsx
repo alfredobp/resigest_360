@@ -8,24 +8,26 @@ import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
 import { DataTable, type ColumnDef } from '@/components/ui/table';
 import { toast } from '@/context/ToastContext';
+import { useTenant } from '@/context/TenantContext';
 import carrierService from '@/services/carrierService';
 import type { Carrier } from '@/types/wasteManagement';
 import CarrierModal from '@/components/residuos/CarrierModal';
 import CarrierFleetModal from '@/components/residuos/CarrierFleetModal';
 
 export default function TransportistasPage() {
+    const { activeCompanyId, canWrite, hasModule } = useTenant();
     const [loading, setLoading] = useState(true);
     const [carriers, setCarriers] = useState<Carrier[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [showModal, setShowModal] = useState(false);
     const [selectedCarrier, setSelectedCarrier] = useState<Carrier | undefined>(undefined);
-    const [carrierToDelete, setCarrierToDelete] = useState<number | null>(null);
+    const [carrierToDelete, setCarrierToDelete] = useState<Carrier | null>(null);
     const [showFleetModal, setShowFleetModal] = useState(false);
     const [fleetCarrier, setFleetCarrier] = useState<Carrier | undefined>(undefined);
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [activeCompanyId]);
 
     const loadData = async () => {
         try {
@@ -54,16 +56,19 @@ export default function TransportistasPage() {
         setShowModal(true);
     };
 
-    const handleDelete = (id: number) => {
-        setCarrierToDelete(id);
+    const handleDelete = (carrier: Carrier) => {
+        setCarrierToDelete(carrier);
     };
 
     const confirmDelete = async () => {
         if (carrierToDelete === null) return;
 
         try {
-            await carrierService.delete(carrierToDelete);
-            setCarriers((prev) => prev.filter((c) => c.id !== carrierToDelete));
+            await carrierService.delete(carrierToDelete.id, {
+                source: carrierToDelete.source,
+                companyId: carrierToDelete.company_id,
+            });
+            setCarriers((prev) => prev.filter((c) => c.id !== carrierToDelete.id));
             toast.success('Transportista eliminado correctamente.');
         } catch (err: any) {
             toast.error(`Error al eliminar transportista: ${err.message}`);
@@ -144,30 +149,36 @@ export default function TransportistasPage() {
                 className: 'text-right',
                 cell: ({ row }) => (
                     <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleManageFleet(row)}
-                            className="text-sky-700 border-sky-200 dark:text-sky-400 dark:border-sky-900 hover:bg-sky-50 dark:hover:bg-sky-950/40"
-                        >
-                            Flota
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleEdit(row)}>
-                            Editar
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDelete(row.id)}
-                            className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
-                        >
-                            Eliminar
-                        </Button>
+                        {canWrite ? (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleManageFleet(row)}
+                                    className="text-sky-700 border-sky-200 dark:text-sky-400 dark:border-sky-900 hover:bg-sky-50 dark:hover:bg-sky-950/40"
+                                >
+                                    Flota
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => handleEdit(row)}>
+                                    Editar
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleDelete(row)}
+                                    className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                                >
+                                    Eliminar
+                                </Button>
+                            </>
+                        ) : (
+                            <span className="text-xs text-slate-400">Solo lectura</span>
+                        )}
                     </div>
                 ),
             },
         ],
-        []
+        [canWrite]
     );
 
     if (loading) {
@@ -196,12 +207,14 @@ export default function TransportistasPage() {
                             Ahora puedes gestionar transportistas, gestores y productores bajo un mismo CIF sin duplicados.
                         </p>
                     </div>
-                    <Link
-                        href="/residuos/empresas?rol=transportista"
-                        className="inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition shadow-sm whitespace-nowrap"
-                    >
-                        Ver en Directorio Unificado →
-                    </Link>
+                    {hasModule('empresas') && (
+                        <Link
+                            href="/residuos/empresas?rol=transportista"
+                            className="inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition shadow-sm whitespace-nowrap"
+                        >
+                            Ver en Directorio Unificado →
+                        </Link>
+                    )}
                 </div>
 
                 {/* Header */}
@@ -209,9 +222,11 @@ export default function TransportistasPage() {
                     <h2 className="text-2xl font-bold text-foreground">
                         Mis Transportistas
                     </h2>
-                    <Button onClick={handleAddNew}>
-                        + Nuevo Transportista
-                    </Button>
+                    {canWrite && (
+                        <Button onClick={handleAddNew}>
+                            + Nuevo Transportista
+                        </Button>
+                    )}
                 </div>
 
                 {error && (

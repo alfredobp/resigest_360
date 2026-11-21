@@ -8,21 +8,23 @@ import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
 import { DataTable, type ColumnDef } from '@/components/ui/table';
 import { toast } from '@/context/ToastContext';
+import { useTenant } from '@/context/TenantContext';
 import treatmentManagerService from '@/services/treatmentManagerService';
 import type { TreatmentManager } from '@/types/wasteManagement';
 import GestorModal from '@/components/residuos/GestorModal';
 
 export default function GestoresPage() {
+    const { activeCompanyId, canWrite } = useTenant();
     const [loading, setLoading] = useState(true);
     const [gestores, setGestores] = useState<TreatmentManager[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [showModal, setShowModal] = useState(false);
     const [selectedGestor, setSelectedGestor] = useState<TreatmentManager | undefined>(undefined);
-    const [gestorToDelete, setGestorToDelete] = useState<number | null>(null);
+    const [gestorToDelete, setGestorToDelete] = useState<TreatmentManager | null>(null);
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [activeCompanyId]);
 
     const loadData = async () => {
         try {
@@ -46,16 +48,19 @@ export default function GestoresPage() {
         setShowModal(true);
     };
 
-    const handleDelete = (id: number) => {
-        setGestorToDelete(id);
+    const handleDelete = (gestor: TreatmentManager) => {
+        setGestorToDelete(gestor);
     };
 
     const confirmDelete = async () => {
         if (gestorToDelete === null) return;
 
         try {
-            await treatmentManagerService.delete(gestorToDelete);
-            setGestores((prev) => prev.filter((g) => g.id !== gestorToDelete));
+            await treatmentManagerService.delete(gestorToDelete.id, {
+                source: gestorToDelete.source,
+                companyId: gestorToDelete.company_id,
+            });
+            setGestores((prev) => prev.filter((g) => g.id !== gestorToDelete.id));
             toast.success('Gestor eliminado correctamente.');
         } catch (err: any) {
             toast.error(`Error al eliminar gestor: ${err.message}`);
@@ -112,22 +117,28 @@ export default function GestoresPage() {
                 className: 'text-right',
                 cell: ({ row }) => (
                     <div className="inline-flex items-center justify-end gap-1.5">
-                        <Button variant="outline" size="sm" onClick={() => handleEdit(row)}>
-                            Editar
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDelete(row.id)}
-                            className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
-                        >
-                            Eliminar
-                        </Button>
+                        {canWrite ? (
+                            <>
+                                <Button variant="outline" size="sm" onClick={() => handleEdit(row)}>
+                                    Editar
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleDelete(row)}
+                                    className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                                >
+                                    Eliminar
+                                </Button>
+                            </>
+                        ) : (
+                            <span className="text-xs text-slate-400">Solo lectura</span>
+                        )}
                     </div>
                 ),
             },
         ],
-        []
+        [canWrite]
     );
 
     if (loading) {
@@ -169,9 +180,11 @@ export default function GestoresPage() {
                     <h2 className="text-2xl font-bold text-foreground">
                         Mis Gestores de Tratamiento
                     </h2>
-                    <Button onClick={handleAddNew}>
-                        + Nuevo Gestor
-                    </Button>
+                    {canWrite && (
+                        <Button onClick={handleAddNew}>
+                            + Nuevo Gestor
+                        </Button>
+                    )}
                 </div>
 
                 {error && (

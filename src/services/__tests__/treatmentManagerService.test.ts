@@ -19,6 +19,8 @@ jest.mock('../holdedService', () => ({
 
 const mockCompanyService = {
   getUserCompany: jest.fn(),
+  update: jest.fn(),
+  delete: jest.fn(),
 };
 jest.mock('../companyService', () => ({
   companyService: mockCompanyService,
@@ -205,7 +207,9 @@ describe('treatmentManagerService - Gestores de Tratamiento Autorizados', () => 
       const insertMock = jest.fn().mockReturnValue({ select: selectInsertMock });
 
       const updateHoldedMock = jest.fn().mockReturnValue({
-        eq: jest.fn().mockResolvedValue({ error: null }),
+        eq: jest.fn().mockReturnValue({
+          eq: jest.fn().mockResolvedValue({ error: null }),
+        }),
       });
 
       mockSupabase.from.mockImplementation((table: string) => {
@@ -307,6 +311,40 @@ describe('treatmentManagerService - Gestores de Tratamiento Autorizados', () => 
         'holded_key_tm'
       );
       expect(result).toEqual(updatedManager);
+    });
+
+    it('update y delete deben redirigir a companyService cuando source es companies', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-tm-1' } },
+      });
+      mockCompanyService.update.mockResolvedValue({
+        id: 77,
+        user_id: 'user-tm-1',
+        razon_social: 'Gestor Unificado S.L.',
+        nombre_comercial: 'Gestor Uni',
+        cif: 'B77777777',
+        domicilio_social: 'Calle Uno',
+        activo: true,
+        created_at: '2026-01-01',
+        updated_at: '2026-01-02',
+      });
+      mockCompanyService.delete.mockResolvedValue(undefined);
+
+      const updated = await treatmentManagerService.update(
+        100,
+        { nombre: 'Gestor Uni', razon_social: 'Gestor Unificado S.L.', direccion: 'Calle Uno' },
+        { source: 'companies', companyId: 77 }
+      );
+
+      expect(mockCompanyService.update).toHaveBeenCalledWith(
+        77,
+        expect.objectContaining({ nombre_comercial: 'Gestor Uni', domicilio_social: 'Calle Uno' })
+      );
+      expect(updated.source).toBe('companies');
+      expect(updated.company_id).toBe(77);
+
+      await treatmentManagerService.delete(100, { source: 'companies', companyId: 77 });
+      expect(mockCompanyService.delete).toHaveBeenCalledWith(77);
     });
 
     it('update debe tolerar fallos en Holded y lanzar error si falla Supabase', async () => {

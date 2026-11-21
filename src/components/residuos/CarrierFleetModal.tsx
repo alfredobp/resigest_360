@@ -122,10 +122,17 @@ export default function CarrierFleetModal({
     if (!carrier) return;
     try {
       setSaving(true);
-      await carrierService.update(carrier.id, {
-        flota_vehiculos: vehicles,
-        flota_conductores: drivers,
-      });
+      await carrierService.update(
+        carrier.id,
+        {
+          flota_vehiculos: vehicles,
+          flota_conductores: drivers,
+        },
+        {
+          source: carrier.source,
+          companyId: carrier.company_id,
+        }
+      );
       toast.success('Flota de medios y conductores actualizada correctamente.');
       onSuccess();
       onClose();

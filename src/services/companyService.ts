@@ -497,7 +497,13 @@ export const companyService = {
       normalizedUpdate.roles.length > 0 &&
       !normalizedUpdate.tipo_empresa
     ) {
-      normalizedUpdate.tipo_empresa = normalizedUpdate.roles[0];
+      const validTypes = ['productor', 'gestor', 'transportista', 'negociante', 'agente'] as const;
+      const matchedType = normalizedUpdate.roles.find((r): r is (typeof validTypes)[number] =>
+        (validTypes as readonly string[]).includes(r)
+      );
+      if (matchedType) {
+        normalizedUpdate.tipo_empresa = matchedType;
+      }
     }
 
     if (normalizedUpdate.cif !== undefined) {

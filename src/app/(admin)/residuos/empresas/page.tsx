@@ -9,6 +9,7 @@ import Alert from '@/components/ui/alert/Alert';
 import { Modal, ConfirmModal } from '@/components/ui/modal';
 import { DataTable, type ColumnDef } from '@/components/ui/table';
 import { toast } from '@/context/ToastContext';
+import { useTenant } from '@/context/TenantContext';
 import EmpresaModal from '@/components/residuos/EmpresaModal';
 import AutorizacionModal from '@/components/residuos/AutorizacionModal';
 import companyService from '@/services/companyService';
@@ -27,6 +28,7 @@ const ROLE_BADGE_CONFIG: Record<CompanyRole, { label: string; color: 'primary' |
 
 function EmpresasContent() {
   const searchParams = useSearchParams();
+  const { activeCompanyId, canWrite } = useTenant();
   const initialRole = searchParams.get('rol') || 'all';
 
   const [loading, setLoading] = useState(true);
@@ -61,7 +63,7 @@ function EmpresasContent() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activeCompanyId]);
 
   const loadData = async () => {
     try {
@@ -262,7 +264,7 @@ function EmpresasContent() {
                   Autorizaciones
                 </Button>
               )}
-              {!row.is_my_company && (
+              {canWrite && !row.is_my_company && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -277,8 +279,7 @@ function EmpresasContent() {
         },
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [authorizations]
+    [authorizations, canWrite]
   );
 
   const searchCompaniesFilter = (c: Company, term: string) => {
@@ -330,14 +331,16 @@ function EmpresasContent() {
               Gestión unificada de gestores, transportistas, productores, clientes y proveedores sin duplicidades de CIF.
             </p>
           </div>
-          <Button
-            onClick={() => {
-              setEditingCompany(null);
-              setIsModalOpen(true);
-            }}
-          >
-            + Nueva Empresa / Contacto
-          </Button>
+          {canWrite && (
+            <Button
+              onClick={() => {
+                setEditingCompany(null);
+                setIsModalOpen(true);
+              }}
+            >
+              + Nueva Empresa / Contacto
+            </Button>
+          )}
         </div>
 
         {error && (
@@ -392,6 +395,20 @@ function EmpresasContent() {
               onClick={() => setSelectedRole('proveedor')}
             >
               Proveedores ({companies.filter(c => getCompanyRoles(c).includes('proveedor')).length})
+            </Button>
+            <Button
+              variant={selectedRole === 'negociante' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => setSelectedRole('negociante')}
+            >
+              Negociantes ({companies.filter(c => getCompanyRoles(c).includes('negociante')).length})
+            </Button>
+            <Button
+              variant={selectedRole === 'agente' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => setSelectedRole('agente')}
+            >
+              Agentes ({companies.filter(c => getCompanyRoles(c).includes('agente')).length})
             </Button>
           </div>
         </div>
