@@ -70,9 +70,9 @@ export const PROFILE_DEFINITIONS: Record<OperationalProfile, ProfileDefinition> 
   },
   baterias: {
     id: 'baterias',
-    label: 'Gestor / Logística de Baterías y RAEE',
-    shortLabel: 'Baterías / RAEE',
-    description: 'Trazabilidad de baterías y RAEE, contratos, DI, DeCA, archivo cronológico y memorias anuales.',
+    label: 'Gestor de Residuos',
+    shortLabel: 'Gestor',
+    description: 'Supervisión de contratos, traslados (DI), DeCA, archivo cronológico y memorias anuales.',
     defaultCompanyType: 'gestor',
     defaultRoles: ['gestor'],
     defaultModules: ['empresas', 'contratos', 'di', 'deca', 'archivo_cronologico', 'memorias_anuales'],

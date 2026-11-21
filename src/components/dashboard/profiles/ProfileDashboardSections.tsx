@@ -30,10 +30,10 @@ export function getDashboardHeaderConfig(profile: OperationalProfile): ProfileHe
       };
     case 'baterias':
       return {
-        title: 'Panel de Gestor de Baterías y RAEE',
-        badge: 'Baterías / RAEE',
+        title: 'Centro de Control de Gestor',
+        badge: 'Gestor',
         subtitle:
-          'Trazabilidad de residuos eléctricos y acumuladores, contratos, entregas, archivo cronológico y memorias anuales.',
+          'Supervisión de contratos, traslados, entregas, archivo cronológico y memorias anuales conforme a la Ley 7/2022 y RD 553/2020.',
       };
     case 'gestor_rp':
       return {
