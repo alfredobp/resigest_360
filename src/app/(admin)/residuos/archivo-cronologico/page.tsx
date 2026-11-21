@@ -59,10 +59,10 @@ function formatDateTime(fechaStr?: string | null, createdAtStr?: string | null):
     datePart = isNaN(d.getTime())
       ? ''
       : d.toLocaleDateString('es-ES', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        });
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
   }
 
   let timePart = '';
@@ -680,11 +680,10 @@ export default function ArchivoCronologicoPage() {
         <button
           type="button"
           onClick={() => setActiveTab('consolidado')}
-          className={`pb-3 px-1 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 ${
-            activeTab === 'consolidado'
+          className={`pb-3 px-1 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 ${activeTab === 'consolidado'
               ? 'border-primary text-primary dark:text-white'
               : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-          }`}
+            }`}
         >
           <span>Libro Cronológico Consolidado (Art. 64)</span>
           <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-bold">
@@ -695,11 +694,10 @@ export default function ArchivoCronologicoPage() {
         <button
           type="button"
           onClick={() => setActiveTab('pendientes')}
-          className={`pb-3 px-1 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 ${
-            activeTab === 'pendientes'
+          className={`pb-3 px-1 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 ${activeTab === 'pendientes'
               ? 'border-brand-500 text-brand-600 dark:text-brand-400'
               : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-          }`}
+            }`}
         >
           <span>Traslados en Curso / Pendientes de Justificante</span>
           {pendingDispatches.length > 0 && (
@@ -771,9 +769,12 @@ export default function ArchivoCronologicoPage() {
                         {d.transportista_razon_social || '-'}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400">
-                          EN TRÁNSITO
-                        </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${d.estado_traslado === 'recepcionado'
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400'
+                              : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400'
+                            }`}>
+                            {d.estado_traslado === 'recepcionado' ? 'RECEPCIONADO' : 'EN TRÁNSITO'}
+                          </span>
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         <Link
@@ -1040,21 +1041,21 @@ export default function ArchivoCronologicoPage() {
                     setFormData(prev =>
                       prev.tipo_operacion === 'entrada_recepcion'
                         ? {
-                            ...prev,
-                            origen_tipo: 'tercero_productor',
-                            origen_razon_social: val,
-                            destino_tipo: 'propio',
-                            destino_razon_social: prev.destino_razon_social || ownName,
-                            destino_nif: prev.destino_nif || ownCif,
-                          }
+                          ...prev,
+                          origen_tipo: 'tercero_productor',
+                          origen_razon_social: val,
+                          destino_tipo: 'propio',
+                          destino_razon_social: prev.destino_razon_social || ownName,
+                          destino_nif: prev.destino_nif || ownCif,
+                        }
                         : {
-                            ...prev,
-                            origen_tipo: 'propio',
-                            origen_razon_social: prev.origen_razon_social || ownName,
-                            origen_nif: prev.origen_nif || ownCif,
-                            destino_tipo: 'tercero_gestor',
-                            destino_razon_social: val,
-                          }
+                          ...prev,
+                          origen_tipo: 'propio',
+                          origen_razon_social: prev.origen_razon_social || ownName,
+                          origen_nif: prev.origen_nif || ownCif,
+                          destino_tipo: 'tercero_gestor',
+                          destino_razon_social: val,
+                        }
                     );
                   }}
                   className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"

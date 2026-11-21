@@ -260,7 +260,7 @@ export async function createChronologicalEntry(
   const numero_asiento = await getNextChronologicalAsientoNumber(supabase, user.id, year, 1);
 
   // RES6-I11: Resolver destino_nima si no viene explícito pero existe production_center_id
-  let destino_nima = data.destino_nima || null;
+  let destino_nima = normalizedData.destino_nima || null;
   if (!destino_nima && data.production_center_id) {
     try {
       const pcTable: any = supabase.from('production_centers');
@@ -315,10 +315,10 @@ export async function deleteChronologicalEntry(id: number): Promise<boolean> {
 
   const lookupBuilder: any = supabase.from('chronological_registry');
   if (typeof lookupBuilder?.select === 'function') {
-    const { data } = await lookupBuilder
+    const lookupQuery = lookupBuilder
       .select('fecha, numero_asiento, codigo_ler, company_id')
-      .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('id', id);
+    const { data } = await applyTenantScope(lookupQuery, user.id)
       .maybeSingle();
     existing = data || null;
 
@@ -334,11 +334,12 @@ export async function deleteChronologicalEntry(id: number): Promise<boolean> {
     }
   }
 
-  const { error } = await supabase
+  const deleteQuery = supabase
     .from('chronological_registry')
     .delete()
-    .eq('id', id)
-    .eq('user_id', user.id);
+    .eq('id', id);
+
+  const { error } = await applyTenantScope(deleteQuery, user.id);
 
   if (error) {
     console.error('Error al eliminar asiento cronológico:', error);
@@ -380,7 +381,12 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
   const rawCantidad = Number(di.cantidad) || 0;
   const isTonnesOrM3 = !di.unidad || di.unidad === 'toneladas' || di.unidad === 'm3';
   const cantidadEnKg = isTonnesOrM3 ? rawCantidad * 1000 : rawCantidad;
-  const cantidadKg = Number(di.peso_destino_kg) || Number(di.peso_origen_kg) || cantidadEnKg;
+  const grossCantidadKg = Number(di.peso_destino_kg) || Number(di.peso_origen_kg) || cantidadEnKg;
+  const rejectedKg =
+    di.estado_traslado === 'rechazado_parcial' && Number(di.cantidad_rechazada_kg) > 0
+      ? Number(di.cantidad_rechazada_kg)
+      : 0;
+  const cantidadKg = Math.max(0, grossCantidadKg - rejectedKg);
 
   // Detectar si la empresa actual actúa como Gestor Receptora o Productor
   let isGestor = false;
@@ -392,9 +398,12 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
       .maybeSingle();
 
     if (userComp) {
-      isGestor =
-        userComp.tipo_empresa === 'gestor' ||
-        (Boolean(userComp.cif) && Boolean(di.gestor_cif) && userComp.cif.trim().toUpperCase() === di.gestor_cif.trim().toUpperCase());
+      const compCif = userComp.cif?.trim().toUpperCase() || '';
+      const gestorCif = di.gestor_cif?.trim().toUpperCase() || '';
+      const prodCif = di.productor_cif?.trim().toUpperCase() || '';
+      const matchesGestorCif = Boolean(compCif && gestorCif && compCif === gestorCif);
+      const matchesOnlyProducerCif = Boolean(compCif && prodCif && compCif === prodCif && !matchesGestorCif);
+      isGestor = matchesGestorCif || (userComp.tipo_empresa === 'gestor' && !matchesOnlyProducerCif);
     }
   }
 
@@ -822,24 +831,28 @@ export async function getPendingDispatches(filters?: {
     throw error;
   }
 
-  let items: PendingDispatch[] = (data || []).map((d: any) => ({
-    id: d.id,
-    numero_documento: d.numero_documento,
-    fecha_documento: d.fecha_documento,
-    fecha_inicio_traslado: d.fecha_inicio_traslado,
-    codigo_ler: d.codigo_ler,
-    descripcion_residuo: d.descripcion_residuo,
-    peligrosidad: d.peligrosidad,
-    cantidad_kg: Number(d.peso_origen_kg || d.cantidad || d.cantidad_kg || 0),
-    productor_razon_social: d.productor_razon_social,
-    productor_cif: d.productor_cif,
-    gestor_razon_social: d.gestor_razon_social,
-    gestor_cif: d.gestor_cif,
-    transportista_razon_social: d.transportista_razon_social,
-    estado_traslado: d.estado_traslado,
-    production_center_id: d.production_center_id,
-    notas: d.notas,
-  }));
+  let items: PendingDispatch[] = (data || []).map((d: any) => {
+    const rawQty = Number(d.cantidad || d.cantidad_kg || 0);
+    const fallbackKg = d.unidad === 'toneladas' || d.unidad === 'm3' ? rawQty * 1000 : rawQty;
+    return {
+      id: d.id,
+      numero_documento: d.numero_documento,
+      fecha_documento: d.fecha_documento,
+      fecha_inicio_traslado: d.fecha_salida || d.fecha_inicio_traslado || d.fecha_documento,
+      codigo_ler: d.codigo_ler,
+      descripcion_residuo: d.descripcion_residuo,
+      peligrosidad: d.peligrosidad,
+      cantidad_kg: Number(d.peso_origen_kg || fallbackKg || 0),
+      productor_razon_social: d.productor_razon_social,
+      productor_cif: d.productor_cif,
+      gestor_razon_social: d.gestor_razon_social,
+      gestor_cif: d.gestor_cif,
+      transportista_razon_social: d.transportista_razon_social,
+      estado_traslado: d.estado_traslado,
+      production_center_id: d.production_center_id,
+      notas: d.notas,
+    };
+  });
 
   if (filters?.año) {
     items = items.filter(i => {

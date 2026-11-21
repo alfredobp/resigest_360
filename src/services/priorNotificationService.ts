@@ -270,14 +270,15 @@ export const priorNotificationService = {
     const { numero_notificacion: _immutableNtNumber, ...mutableData } = notificationData;
     void _immutableNtNumber;
 
-    const { data, error } = await supabase
+    const updateQuery = supabase
       .from('prior_notifications')
       .update({
         ...mutableData,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('id', id);
+
+    const { data, error } = await applyTenantScope(updateQuery, user.id)
       .select()
       .single();
 
@@ -295,16 +296,24 @@ export const priorNotificationService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
-    const { error } = await supabase
+    const existing = await this.getById(id).catch(() => null);
+    if (existing && existing.estado && !['borrador', 'rechazada'].includes(existing.estado)) {
+      throw new Error(
+        `No se puede eliminar una Notificación Previa en estado '${existing.estado}' (solo borrador o rechazada).`
+      );
+    }
+
+    const deleteQuery = supabase
       .from('prior_notifications')
       .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id);
 
-    if (error) {
-      throw new Error(`Error al eliminar Notificación Previa: ${error.message}`);
-    }
-  },
+  const { error } = await applyTenantScope(deleteQuery, user.id);
+
+  if(error) {
+    throw new Error(`Error al eliminar Notificación Previa: ${error.message}`);
+  }
+},
 
   /**
    * Formatea un número oficial de NT
@@ -313,46 +322,46 @@ export const priorNotificationService = {
     return formatNTCode(rawCode, nima, ntId);
   },
 
-  /**
-   * Valida los requisitos de la NT antes de transmitir a SIRA
-   */
-  validateForE3L(nt: Partial<PriorNotification>): E3LNTValidationResult {
-    return validateNTForE3L(nt);
-  },
+    /**
+     * Valida los requisitos de la NT antes de transmitir a SIRA
+     */
+    validateForE3L(nt: Partial<PriorNotification>): E3LNTValidationResult {
+  return validateNTForE3L(nt);
+},
 
-  /**
-   * Genera el XML E3L <wasteNT> conforme a e3l-waste.xsd
-   */
-  generateNTXml(nt: Partial<PriorNotification>): string {
-    const clean = (val: any) => (val ? siraService.escapeXml(String(val)).trim() : '');
-    const isDanger = nt.peligrosidad === 'peligroso' || String(nt.codigo_ler || '').includes('*');
-    const cleanLer = normalizeLerCode(nt.codigo_ler || '');
-    const cleanOp = normalizeOperation(nt.operacion_tratamiento || 'R13');
+/**
+ * Genera el XML E3L <wasteNT> conforme a e3l-waste.xsd
+ */
+generateNTXml(nt: Partial<PriorNotification>): string {
+  const clean = (val: any) => (val ? siraService.escapeXml(String(val)).trim() : '');
+  const isDanger = nt.peligrosidad === 'peligroso' || String(nt.codigo_ler || '').includes('*');
+  const cleanLer = normalizeLerCode(nt.codigo_ler || '');
+  const cleanOp = normalizeOperation(nt.operacion_tratamiento || 'R13');
 
-    const date = new Date();
-    const fallbackDate = date.toISOString().split('T')[0];
-    const rawNotifDate = nt.fecha_notificacion ? String(nt.fecha_notificacion).split('T')[0] : '';
-    const formattedDate = /^\d{4}-\d{2}-\d{2}$/.test(rawNotifDate) ? rawNotifDate : fallbackDate;
-    const ntYear = formattedDate.slice(0, 4);
-    const startDate = nt.fecha_inicio ? String(nt.fecha_inicio).split('T')[0] : formattedDate;
-    const endDate = nt.fecha_fin ? String(nt.fecha_fin).split('T')[0] : `${date.getFullYear() + 1}-12-31`;
+  const date = new Date();
+  const fallbackDate = date.toISOString().split('T')[0];
+  const rawNotifDate = nt.fecha_notificacion ? String(nt.fecha_notificacion).split('T')[0] : '';
+  const formattedDate = /^\d{4}-\d{2}-\d{2}$/.test(rawNotifDate) ? rawNotifDate : fallbackDate;
+  const ntYear = formattedDate.slice(0, 4);
+  const startDate = nt.fecha_inicio ? String(nt.fecha_inicio).split('T')[0] : formattedDate;
+  const endDate = nt.fecha_fin ? String(nt.fecha_fin).split('T')[0] : `${date.getFullYear() + 1}-12-31`;
 
-    const buildAddressXml = (
-      rawAddress: string | undefined,
-      rawCp: string | undefined,
-      rawMuni: string | undefined,
-      rawProv: string | undefined,
-      indent = '                '
-    ) => {
-      const provName = clean(rawProv || 'Cádiz');
-      const provCode = getProvinceCodeByName(rawProv || 'Cádiz');
-      const muniName = clean(rawMuni) || (provCode === '11' ? 'Puerto Real' : 'Municipio');
-      const muniCode = siraService.getMunicipalityCode(provCode, muniName);
-      const address = clean(rawAddress) || 'Sin dirección';
-      const cp = clean(rawCp);
-      const cpLine = /^\d{5}$/.test(cp) ? `\n${indent}    <CP>${cp}</CP>` : '';
-      const caCode = getCACodeByProvince(provCode);
-      return `${indent}<spanishAddress>
+  const buildAddressXml = (
+    rawAddress: string | undefined,
+    rawCp: string | undefined,
+    rawMuni: string | undefined,
+    rawProv: string | undefined,
+    indent = '                '
+  ) => {
+    const provName = clean(rawProv || 'Cádiz');
+    const provCode = getProvinceCodeByName(rawProv || 'Cádiz');
+    const muniName = clean(rawMuni) || (provCode === '11' ? 'Puerto Real' : 'Municipio');
+    const muniCode = siraService.getMunicipalityCode(provCode, muniName);
+    const address = clean(rawAddress) || 'Sin dirección';
+    const cp = clean(rawCp);
+    const cpLine = /^\d{5}$/.test(cp) ? `\n${indent}    <CP>${cp}</CP>` : '';
+    const caCode = getCACodeByProvince(provCode);
+    return `${indent}<spanishAddress>
 ${indent}    <vial vialCode="009" vialDescription="Calle"/>
 ${indent}    <address>${address}</address>${cpLine}
 ${indent}    <municipality municipalityCode="${muniCode}" municipalityName="${muniName}"/>
@@ -360,60 +369,60 @@ ${indent}    <province provinceCode="${provCode}" provinceName="${provName}"/>
 ${indent}    <CA CACode="${caCode}"/>
 ${indent}    <country countryCode="724"/>
 ${indent}</spanishAddress>`;
-    };
+  };
 
-    const buildContactXml = (rawPhone: string | undefined, rawEmail: string | undefined, indent = '            ') => {
-      const phone = clean(rawPhone).replace(/\D/g, '').slice(0, 13);
-      const email = clean(rawEmail);
-      const safeEmail = email.includes('@') ? email.slice(0, 50) : '';
-      // EsirAugiasPR4.xsd (SIRA live): <centerContact>, <phone> y <mail> tienen minOccurs="1"
-      return `\n${indent}<centerContact>\n${indent}    <phone>${phone}</phone>\n${indent}    <mail>${safeEmail}</mail>\n${indent}</centerContact>`;
-    };
+  const buildContactXml = (rawPhone: string | undefined, rawEmail: string | undefined, indent = '            ') => {
+    const phone = clean(rawPhone).replace(/\D/g, '').slice(0, 13);
+    const email = clean(rawEmail);
+    const safeEmail = email.includes('@') ? email.slice(0, 50) : '';
+    // EsirAugiasPR4.xsd (SIRA live): <centerContact>, <phone> y <mail> tienen minOccurs="1"
+    return `\n${indent}<centerContact>\n${indent}    <phone>${phone}</phone>\n${indent}    <mail>${safeEmail}</mail>\n${indent}</centerContact>`;
+  };
 
-    const opProvCode = getProvinceCodeByName(nt.operador_provincia || 'Cádiz');
-    const opNima = formatNima(nt.operador_nima, opProvCode);
-    const prodProvCode = getProvinceCodeByName(nt.productor_provincia || 'Cádiz');
-    const prodNima = formatNima(nt.productor_nima, prodProvCode);
-    const gestProvCode = getProvinceCodeByName(nt.gestor_provincia || 'Cádiz');
-    const gestNima = formatNima(nt.gestor_nima, gestProvCode);
+  const opProvCode = getProvinceCodeByName(nt.operador_provincia || 'Cádiz');
+  const opNima = formatNima(nt.operador_nima, opProvCode);
+  const prodProvCode = getProvinceCodeByName(nt.productor_provincia || 'Cádiz');
+  const prodNima = formatNima(nt.productor_nima, prodProvCode);
+  const gestProvCode = getProvinceCodeByName(nt.gestor_provincia || 'Cádiz');
+  const gestNima = formatNima(nt.gestor_nima, gestProvCode);
 
-    const rawWeight = Number(nt.cantidad_estimada_kg || 1000);
-    const cleanQuantity = (!isNaN(rawWeight) && rawWeight > 0 ? rawWeight : 1000).toFixed(3);
+  const rawWeight = Number(nt.cantidad_estimada_kg || 1000);
+  const cleanQuantity = (!isNaN(rawWeight) && rawWeight > 0 ? rawWeight : 1000).toFixed(3);
 
-    const residueTypeAttr = isDanger
-      ? 'xsi:type="wassup:dangerousResidueType"'
-      : 'xsi:type="wassup:noDangerousResidueType"';
-    const residueTablesType = isDanger
-      ? 'xsi:type="wassup:tablesDangerousType"'
-      : 'xsi:type="wassup:tablesNoDangerousType"';
-    const hpBlock = isDanger
-      ? `\n            <table5>${normalizeHpCode(nt.caracteristica_peligrosidad || '')}</table5>`
-      : '';
+  const residueTypeAttr = isDanger
+    ? 'xsi:type="wassup:dangerousResidueType"'
+    : 'xsi:type="wassup:noDangerousResidueType"';
+  const residueTablesType = isDanger
+    ? 'xsi:type="wassup:tablesDangerousType"'
+    : 'xsi:type="wassup:tablesNoDangerousType"';
+  const hpBlock = isDanger
+    ? `\n            <table5>${normalizeHpCode(nt.caracteristica_peligrosidad || '')}</table5>`
+    : '';
 
-    const ntCode = formatNTCode(nt.numero_notificacion, prodNima, nt.id);
+  const ntCode = formatNTCode(nt.numero_notificacion, prodNima, nt.id);
 
-    const xmlnsWassup = 'xmlns:wassup="e3l://eterproject.org/3.0/wasteSupport"';
-    const xmlnsCommon = 'xmlns:common="e3l://eterproject.org/3.0/common"';
-    const xmlnsXsi = 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"';
+  const xmlnsWassup = 'xmlns:wassup="e3l://eterproject.org/3.0/wasteSupport"';
+  const xmlnsCommon = 'xmlns:common="e3l://eterproject.org/3.0/common"';
+  const xmlnsXsi = 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"';
 
-    const isIndividual = nt.tipo_notificacion === 'individual' || nt.tipo_notificacion === 'puntual';
-    const isRegional = !nt.tipo_traslado || nt.tipo_traslado === 'autonomico';
-    const frequency = clean(nt.frecuencia) || (isIndividual ? 'Puntual' : 'Periodica');
+  const isIndividual = nt.tipo_notificacion === 'individual' || nt.tipo_notificacion === 'puntual';
+  const isRegional = !nt.tipo_traslado || nt.tipo_traslado === 'autonomico';
+  const frequency = clean(nt.frecuencia) || (isIndividual ? 'Puntual' : 'Periodica');
 
-    const opBase = cleanOp.slice(0, 3);
-    const isIntermediateOp = ['R12', 'R13', 'D13', 'D14', 'D15'].includes(opBase);
-    const hasFinalDestination =
-      isIntermediateOp &&
-      Boolean(nt.destino_posterior_razon_social || nt.destino_posterior_nima || nt.destino_posterior_cif);
+  const opBase = cleanOp.slice(0, 3);
+  const isIntermediateOp = ['R12', 'R13', 'D13', 'D14', 'D15'].includes(opBase);
+  const hasFinalDestination =
+    isIntermediateOp &&
+    Boolean(nt.destino_posterior_razon_social || nt.destino_posterior_nima || nt.destino_posterior_cif);
 
-    let finalAdresseeBlock = '';
-    if (hasFinalDestination) {
-      const finalProvCode = getProvinceCodeByName(nt.gestor_provincia || 'Cádiz');
-      const finalNima = formatNima(nt.destino_posterior_nima, finalProvCode);
-      const finalOp = normalizeOperation(nt.destino_posterior_operacion_rd || 'R04').slice(0, 3);
-      const finalCif = clean(nt.destino_posterior_cif);
-      const finalName = clean(nt.destino_posterior_razon_social);
-      finalAdresseeBlock = `
+  let finalAdresseeBlock = '';
+  if (hasFinalDestination) {
+    const finalProvCode = getProvinceCodeByName(nt.gestor_provincia || 'Cádiz');
+    const finalNima = formatNima(nt.destino_posterior_nima, finalProvCode);
+    const finalOp = normalizeOperation(nt.destino_posterior_operacion_rd || 'R04').slice(0, 3);
+    const finalCif = clean(nt.destino_posterior_cif);
+    const finalName = clean(nt.destino_posterior_razon_social);
+    finalAdresseeBlock = `
 
     <!-- 5. Tratamiento posterior (operación intermedia) -->
     <NTFinalAdresseeData>
@@ -443,9 +452,9 @@ ${buildAuthorizationIdXml(undefined, finalNima, '                    ')}
         </AdresseeData>
         <Operation>${finalOp}</Operation>
     </NTFinalAdresseeData>`;
-    }
+  }
 
-    return `
+  return `
 <wasteNT 
     ${xmlnsWassup}
     ${xmlnsCommon}
@@ -555,25 +564,25 @@ ${buildAuthorizationIdXml(nt.gestor_numero_autorizacion, gestNima, '            
     </NTTransportedResidues>${finalAdresseeBlock}
 
 </wasteNT>`.trim();
-  },
+},
 
   /**
    * Enviar Notificación Previa a SIRA (Junta de Andalucía)
    */
-  async sendToSira(notificationId: number, validateOnly = false): Promise<{ success: boolean; message: string; siraId?: string; platform?: string; platformName?: string }> {
-    try {
-      const response = await fetch('/api/residuos/sira/enviar-nt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notificationId, validateOnly }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || result.message || 'Error al conectar con SIRA');
-      return result;
-    } catch (error: any) {
-      console.error('SIRA NT Service Error:', error);
-      throw error;
-    }
-  },
+  async sendToSira(notificationId: number, validateOnly = false): Promise < { success: boolean; message: string; siraId?: string; platform?: string; platformName?: string } > {
+  try {
+    const response = await fetch('/api/residuos/sira/enviar-nt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notificationId, validateOnly }),
+    });
+    const result = await response.json();
+    if(!response.ok) throw new Error(result.error || result.message || 'Error al conectar con SIRA');
+    return result;
+  } catch(error: any) {
+    console.error('SIRA NT Service Error:', error);
+    throw error;
+  }
+},
 };
 

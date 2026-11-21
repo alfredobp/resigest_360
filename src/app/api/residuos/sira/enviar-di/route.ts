@@ -80,24 +80,13 @@ export async function POST(req: NextRequest) {
                 sira_usuario = myCompany.sira_usuario.trim();
                 sira_password = myCompany.sira_password.trim();
                 console.info(`ℹ️ Utilizando credenciales SIRA de la empresa principal del usuario (${myCompany.razon_social})`);
-            } else {
-                // Fallback adicional: Cualquier otra empresa activa del usuario con credenciales
-                const { data: anyCompany } = await supabase
-                    .from('companies')
-                    .select('id, razon_social, sira_usuario, sira_password')
-                    .eq('user_id', user.id)
-                    .eq('activo', true)
-                    .not('sira_usuario', 'is', null)
-                    .neq('sira_usuario', '')
-                    .limit(1)
-                    .maybeSingle();
-
-                if (anyCompany?.sira_usuario && anyCompany?.sira_password) {
-                    sira_usuario = anyCompany.sira_usuario.trim();
-                    sira_password = anyCompany.sira_password.trim();
-                    console.info(`ℹ️ Utilizando credenciales SIRA de empresa vinculada (${anyCompany.razon_social})`);
-                }
             }
+        }
+
+        if (doc.estado === 'cancelado') {
+            return NextResponse.json({
+                error: 'No se puede enviar a SIRA/e-SIR un Documento de Identificación cancelado.'
+            }, { status: 400 });
         }
 
         console.info(`🔐 Intentando envío SIRA para DI ${doc.numero_documento}`);
@@ -141,7 +130,34 @@ export async function POST(req: NextRequest) {
    </soapenv:Body>
 </soapenv:Envelope>`.trim();
 
-        // 5. Registrar intento inicial en sira_submissions
+        // 5. Resolver plataforma automáticamente ANTES de insertar en sira_submissions
+        const platformInfo =
+            typeof siraService.resolvePlatformForDI === 'function'
+                ? siraService.resolvePlatformForDI(doc)
+                : {
+                    platform: 'sira' as const,
+                    code: 'SIRA',
+                    name: 'SIRA (Junta de Andalucía)',
+                    shortLabel: 'SIRA',
+                    endpointUrl:
+                        typeof siraService.getSiraEndpointUrl === 'function'
+                            ? siraService.getSiraEndpointUrl()
+                            : 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones',
+                    supported: true,
+                    provinceCode: '00',
+                    caCode: '01',
+                    reason: 'Default SIRA',
+                };
+
+        if (!platformInfo.supported || !platformInfo.endpointUrl) {
+            return NextResponse.json({
+                error: `La comunidad autónoma detectada opera mediante ${platformInfo.name}, que no dispone de envío SOAP directo todavía. Puedes descargar el XML E3L para subirlo manualmente.`,
+                platform: platformInfo.code,
+                platformName: platformInfo.name,
+            }, { status: 422 });
+        }
+
+        // 6. Registrar intento inicial en sira_submissions
         try {
             const { data: subData } = await supabase
                 .from('sira_submissions')
@@ -180,33 +196,6 @@ export async function POST(req: NextRequest) {
             }
         }
         // ------------------------------------------------
-
-        // 6. Resolver plataforma automáticamente según ubicación del centro (Andalucía -> SIRA, resto -> e-SIR)
-        const platformInfo =
-            typeof siraService.resolvePlatformForDI === 'function'
-                ? siraService.resolvePlatformForDI(doc)
-                : {
-                    platform: 'sira' as const,
-                    code: 'SIRA',
-                    name: 'SIRA (Junta de Andalucía)',
-                    shortLabel: 'SIRA',
-                    endpointUrl:
-                        typeof siraService.getSiraEndpointUrl === 'function'
-                            ? siraService.getSiraEndpointUrl()
-                            : 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones',
-                    supported: true,
-                    provinceCode: '00',
-                    caCode: '01',
-                    reason: 'Default SIRA',
-                };
-
-        if (!platformInfo.supported || !platformInfo.endpointUrl) {
-            return NextResponse.json({
-                error: `La comunidad autónoma detectada opera mediante ${platformInfo.name}, que no dispone de envío SOAP directo todavía. Puedes descargar el XML E3L para subirlo manualmente.`,
-                platform: platformInfo.code,
-                platformName: platformInfo.name,
-            }, { status: 422 });
-        }
 
         const siraUrl = platformInfo.endpointUrl;
         const authHeader = `Basic ${Buffer.from(`${sira_usuario}:${sira_password}`).toString('base64')}`;
@@ -333,10 +322,11 @@ export async function POST(req: NextRequest) {
             ? `\n[${platformInfo.code} Modo Prueba] XML E3L validado correctamente. ID: ${siraId}`
             : `\n[${platformInfo.code}] Enviado con éxito. ID: ${siraId}`;
 
+        const nextEstado = doc.estado === 'completado' ? 'completado' : 'pendiente-firma';
         await supabase
             .from('identification_documents')
             .update({
-                estado: 'pendiente-firma',
+                estado: nextEstado,
                 notas: `${doc.notas || ''}${successNote}`
             })
             .eq('id', documentId)

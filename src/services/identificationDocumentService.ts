@@ -823,6 +823,13 @@ export const identificationDocumentService = {
     const { data: { user } } = await supabase.auth.getUser();
     const doc = await this.getById(id);
 
+    if (doc.estado === 'cancelado') {
+      throw new Error('No se puede iniciar el traslado de un DI cancelado.');
+    }
+    if (doc.estado_traslado && doc.estado_traslado !== 'borrador') {
+      throw new Error(`No se puede iniciar el traslado: el DI ya se encuentra en estado '${doc.estado_traslado}'.`);
+    }
+
     const effectiveContractId = payload.contract_id || doc.contract_id;
     const extRef = (payload.contrato_externo_referencia || doc.contrato_externo_referencia || '').trim();
     const extEvidence = (payload.contrato_externo_evidencia_url || doc.contrato_externo_evidencia_url || '').trim();
@@ -947,6 +954,13 @@ export const identificationDocumentService = {
     const doc = await this.getById(id);
     await assertActorAllowedForDIAction(doc, 'reception', userCompany);
 
+    if (doc.estado === 'cancelado') {
+      throw new Error('No se puede recepcionar un DI cancelado.');
+    }
+    if (doc.estado_traslado && !['en_transito', 'recepcionado'].includes(doc.estado_traslado)) {
+      throw new Error(`No se puede registrar la recepción: el DI se encuentra en estado '${doc.estado_traslado}' (debe estar en tránsito o recepcionado).`);
+    }
+
     const { signatureBase64, causa_discrepancia, justificacion_discrepancia, ...rest } = payload;
     let firma_gestor_url = payload.firma_gestor_url;
 
@@ -992,31 +1006,31 @@ export const identificationDocumentService = {
       ...justificationFields,
     });
 
-    if (nuevoEstadoTraslado === 'aceptado') {
-      try {
-        await syncEntryFromDI(updated);
-      } catch (e) {
-        console.warn('Advertencia: no se pudo sincronizar automáticamente con el archivo cronológico:', e);
+      if (nuevoEstadoTraslado === 'aceptado' || nuevoEstadoTraslado === 'rechazado_parcial') {
+        try {
+          await syncEntryFromDI(updated);
+        } catch (e) {
+          console.warn('Advertencia: no se pudo sincronizar automáticamente con el archivo cronológico:', e);
+        }
       }
-    }
 
-    await auditService.logAction({
-      company_id: updated.company_id,
-      entidad: 'di',
-      entidad_id: id,
-      accion: 'recepcionar_pesada',
-      detalles: {
-        estado_traslado: nuevoEstadoTraslado,
-        peso_origen_kg: pesoOrigen,
-        peso_destino_kg: pesoDestino,
-        diferencia_peso_kg: updated.diferencia_peso_kg,
-        porcentaje_discrepancia: updated.porcentaje_discrepancia,
-        fecha_llegada_destino: fechaLlegadaIso,
-      },
-    });
+      await auditService.logAction({
+        company_id: updated.company_id,
+        entidad: 'di',
+        entidad_id: id,
+        accion: 'recepcionar_pesada',
+        detalles: {
+          estado_traslado: nuevoEstadoTraslado,
+          peso_origen_kg: pesoOrigen,
+          peso_destino_kg: pesoDestino,
+          diferencia_peso_kg: updated.diferencia_peso_kg,
+          porcentaje_discrepancia: updated.porcentaje_discrepancia,
+          fecha_llegada_destino: fechaLlegadaIso,
+        },
+      });
 
-    return updated;
-  },
+      return updated;
+    },
 
   /**
    * 2b. Registrar Justificante de Recepción de Gestor Externo (Flujo Productor Simplificado - RES6-I05)
@@ -1024,16 +1038,34 @@ export const identificationDocumentService = {
    * sin arrogarse la autocertificación de tratamiento como gestor.
    */
   async recordExternalReceptionProof(
-    id: number,
-    payload: RecordExternalReceptionPayload
-  ): Promise<IdentificationDocument> {
+      id: number,
+      payload: RecordExternalReceptionPayload
+    ): Promise < IdentificationDocument > {
+      const userCompany = await companyService.getUserCompany().catch(() => null);
+      if(isCallerTransportistaOnly(userCompany)) {
+      throw new Error('Permiso denegado: El transportista no puede registrar justificantes de recepción en destino.');
+    }
+
     const doc = await this.getById(id);
-    const pesoOrigen = doc.peso_origen_kg || doc.cantidad || 0;
+    if (doc.estado === 'cancelado') {
+      throw new Error('No se puede registrar justificante de recepción en un DI cancelado.');
+    }
+    if (doc.estado_traslado && !['en_transito', 'recepcionado'].includes(doc.estado_traslado)) {
+      throw new Error(`No se puede registrar justificante de recepción: el DI se encuentra en estado '${doc.estado_traslado}'.`);
+    }
+
+    const pesoOrigen = resolveOriginWeightKg(doc);
     const pesoDestino = payload.peso_destino_kg;
     const diferencia = pesoDestino - pesoOrigen;
     const porcentaje = pesoOrigen > 0 ? (diferencia / pesoOrigen) * 100 : 0;
     const fechaLlegadaIso = normalizeLocalDateTimeToIso(payload.fecha_llegada_destino);
     const docEvidenciaUrl = payload.justificante_recepcion_url || payload.ticket_pesada_url || '';
+
+    const resultadoRecepcion: 'aceptado' | 'rechazado_parcial' | 'rechazado_total' =
+      (payload as any).resultado_recepcion === 'rechazado_parcial' ||
+        (payload as any).resultado_recepcion === 'rechazado_total'
+        ? (payload as any).resultado_recepcion
+        : 'aceptado';
 
     let justificationFields: Partial<IdentificationDocument> = {};
     if (isWeightDiscrepancy(pesoOrigen, pesoDestino) && (payload.causa_discrepancia || payload.justificacion_discrepancia?.trim())) {
@@ -1056,48 +1088,57 @@ export const identificationDocumentService = {
       numero_albaran_gestor: payload.numero_albaran_gestor || doc.numero_albaran_gestor,
       ticket_pesada_url: docEvidenciaUrl || doc.ticket_pesada_url,
       justificante_recepcion_url: docEvidenciaUrl || doc.justificante_recepcion_url,
-      resultado_recepcion: 'aceptado',
-      estado_traslado: 'aceptado',
+      resultado_recepcion: resultadoRecepcion,
+      cantidad_rechazada_kg: (payload as any).cantidad_rechazada_kg,
+      estado_traslado: resultadoRecepcion,
       notas: doc.notas ? `${doc.notas}\n${notaJustificante}` : notaJustificante,
       ...justificationFields,
     });
 
-    try {
-      await syncEntryFromDI(updated);
-    } catch {
-      // Ignorar fallo de sincronización en recepción externa
-    }
+      if (resultadoRecepcion !== 'rechazado_total') {
+        try {
+          await syncEntryFromDI(updated);
+        } catch {
+          // Ignorar fallo de sincronización en recepción externa
+        }
+      }
 
-    await auditService.logAction({
-      company_id: updated.company_id,
-      entidad: 'di',
-      entidad_id: id,
-      accion: 'recepcionar_pesada',
-      detalles: {
-        tipo: 'justificante_recepcion_externo',
-        registrado_por: 'productor',
-        peso_origen_kg: pesoOrigen,
-        peso_destino_kg: pesoDestino,
-        diferencia_peso_kg: updated.diferencia_peso_kg,
-        numero_albaran_gestor: payload.numero_albaran_gestor,
-        evidencia_url: docEvidenciaUrl,
-        fecha_llegada_destino: fechaLlegadaIso,
-      },
-    });
+      await auditService.logAction({
+        company_id: updated.company_id,
+        entidad: 'di',
+        entidad_id: id,
+        accion: 'recepcionar_pesada',
+        detalles: {
+          tipo: 'justificante_recepcion_externo',
+          registrado_por: 'productor',
+          peso_origen_kg: pesoOrigen,
+          peso_destino_kg: pesoDestino,
+          diferencia_peso_kg: updated.diferencia_peso_kg,
+          numero_albaran_gestor: payload.numero_albaran_gestor,
+          evidencia_url: docEvidenciaUrl,
+          fecha_llegada_destino: fechaLlegadaIso,
+        },
+      });
 
-    return updated;
-  },
+      return updated;
+    },
 
   /**
    * 3. Registrar Incidencia o Rechazo (exclusivo Gestor)
    */
-  async recordIncident(id: number, payload: RecordIncidentPayload): Promise<IdentificationDocument> {
-    // A04-06: Verificación de actor en el servidor
-    const userCompany = await companyService.getUserCompany().catch(() => null);
-    if (isCallerTransportistaOnly(userCompany)) {
+  async recordIncident(id: number, payload: RecordIncidentPayload): Promise < IdentificationDocument > {
+      // A04-06: Verificación de actor en el servidor
+      const userCompany = await companyService.getUserCompany().catch(() => null);
+      if(isCallerTransportistaOnly(userCompany)) {
       throw new Error('Permiso denegado: El transportista no puede registrar incidencias o rechazos de recepción en destino.');
     }
-    await assertActorAllowedForDIAction(null, 'incident', userCompany);
+    const existingDoc = await this.getById(id).catch(() => null);
+    if (existingDoc) {
+      if (existingDoc.estado === 'cancelado' || existingDoc.estado_traslado === 'tratado') {
+        throw new Error(`No se puede registrar incidencia sobre un DI en estado '${existingDoc.estado_traslado || existingDoc.estado}'.`);
+      }
+    }
+    await assertActorAllowedForDIAction(existingDoc, 'incident', userCompany);
 
     const updated = await this.update(id, {
       tipo_incidencia: payload.tipo_incidencia,
@@ -1138,6 +1179,18 @@ export const identificationDocumentService = {
     const { data: { user } } = await supabase.auth.getUser();
     const doc = await this.getById(id);
     await assertActorAllowedForDIAction(doc, 'treatment', userCompany);
+
+    if (doc.estado === 'cancelado') {
+      throw new Error('No se puede certificar tratamiento de un DI cancelado.');
+    }
+    if (
+      doc.estado_traslado &&
+      ['borrador', 'en_transito', 'rechazado_total'].includes(doc.estado_traslado)
+    ) {
+      throw new Error(
+        `No se puede certificar tratamiento: el DI se encuentra en estado '${doc.estado_traslado}' (debe estar aceptado o con rechazo parcial).`
+      );
+    }
 
     const executedOp = normalizeOperationCode(payload.operacion_tratamiento);
 
@@ -1275,6 +1328,11 @@ export const identificationDocumentService = {
    * Editable mientras el DI no esté cerrado; en estado 'tratado' solo puede añadirse si no existía.
    */
   async justifyDiscrepancy(id: number, payload: JustifyDiscrepancyPayload): Promise<IdentificationDocument> {
+    const userCompany = await companyService.getUserCompany().catch(() => null);
+    if (isCallerTransportistaOnly(userCompany)) {
+      throw new Error('Permiso denegado: El transportista no puede justificar discrepancias de báscula.');
+    }
+
     // getById filtra por user_id del tenant autenticado
     const doc = await this.getById(id);
     const meta = getTrackingStatusMeta(doc);

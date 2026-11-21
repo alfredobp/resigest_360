@@ -79,21 +79,6 @@ export async function POST(req: NextRequest) {
       if (myCompany?.sira_usuario && myCompany?.sira_password) {
         sira_usuario = myCompany.sira_usuario.trim();
         sira_password = myCompany.sira_password.trim();
-      } else {
-        const { data: anyCompany } = await supabase
-          .from('companies')
-          .select('id, razon_social, sira_usuario, sira_password')
-          .eq('user_id', user.id)
-          .eq('activo', true)
-          .not('sira_usuario', 'is', null)
-          .neq('sira_usuario', '')
-          .limit(1)
-          .maybeSingle();
-
-        if (anyCompany?.sira_usuario && anyCompany?.sira_password) {
-          sira_usuario = anyCompany.sira_usuario.trim();
-          sira_password = anyCompany.sira_password.trim();
-        }
       }
     }
 
@@ -109,19 +94,19 @@ export async function POST(req: NextRequest) {
       typeof siraService.resolvePlatformForNT === 'function'
         ? siraService.resolvePlatformForNT(nt)
         : {
-            platform: 'sira' as const,
-            code: 'SIRA',
-            name: 'SIRA (Junta de Andalucía)',
-            shortLabel: 'SIRA',
-            endpointUrl:
-              typeof siraService.getSiraEndpointUrl === 'function'
-                ? siraService.getSiraEndpointUrl()
-                : 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones',
-            supported: true,
-            provinceCode: '00',
-            caCode: '01',
-            reason: 'Default SIRA',
-          };
+          platform: 'sira' as const,
+          code: 'SIRA',
+          name: 'SIRA (Junta de Andalucía)',
+          shortLabel: 'SIRA',
+          endpointUrl:
+            typeof siraService.getSiraEndpointUrl === 'function'
+              ? siraService.getSiraEndpointUrl()
+              : 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones',
+          supported: true,
+          provinceCode: '00',
+          caCode: '01',
+          reason: 'Default SIRA',
+        };
 
     if (!platformInfo.supported || !platformInfo.endpointUrl) {
       return NextResponse.json({
@@ -237,26 +222,26 @@ export async function POST(req: NextRequest) {
       typeof siraService.parseSiraResponse === 'function'
         ? siraService.parseSiraResponse(responseText)
         : (() => {
-            const hasFault = /<([a-zA-Z0-9_-]+:)?Fault\b/i.test(responseText);
-            const hasResultWrong = /<resultWrong\b/i.test(responseText);
-            const okMatch = responseText.match(/<resultOK\b([^>]*?)\/?>/i);
-            const hasResultRight = /<resultRight\b/i.test(responseText);
-            const legacyId = responseText.match(/<IdSira>(.*?)<\/IdSira>/)?.[1] || null;
-            const code = okMatch?.[1]?.match(/code=["']([A-Za-z0-9_-]+)["']/i)?.[1] || null;
-            const ok = !hasFault && !hasResultWrong && (Boolean(okMatch) || hasResultRight || Boolean(legacyId));
-            return {
-              ok,
-              hasFault,
-              hasResultWrong,
-              hasResultOK: Boolean(okMatch),
-              hasResultWarning: false,
-              siraId: legacyId || (ok ? (code ? `SIRA-OK-${code}` : 'VALIDADO') : null),
-              code,
-              description: null,
-              detailValue: null,
-              warnings: [] as string[],
-            };
-          })();
+          const hasFault = /<([a-zA-Z0-9_-]+:)?Fault\b/i.test(responseText);
+          const hasResultWrong = /<resultWrong\b/i.test(responseText);
+          const okMatch = responseText.match(/<resultOK\b([^>]*?)\/?>/i);
+          const hasResultRight = /<resultRight\b/i.test(responseText);
+          const legacyId = responseText.match(/<IdSira>(.*?)<\/IdSira>/)?.[1] || null;
+          const code = okMatch?.[1]?.match(/code=["']([A-Za-z0-9_-]+)["']/i)?.[1] || null;
+          const ok = !hasFault && !hasResultWrong && (Boolean(okMatch) || hasResultRight || Boolean(legacyId));
+          return {
+            ok,
+            hasFault,
+            hasResultWrong,
+            hasResultOK: Boolean(okMatch),
+            hasResultWarning: false,
+            siraId: legacyId || (ok ? (code ? `SIRA-OK-${code}` : 'VALIDADO') : null),
+            code,
+            description: null,
+            detailValue: null,
+            warnings: [] as string[],
+          };
+        })();
 
     const extractedSiraId = parsedResponse.siraId;
     const allowTestCensus =
@@ -280,10 +265,11 @@ export async function POST(req: NextRequest) {
         } catch { /* best-effort */ }
       }
 
+      const preservedEstado = nt.estado === 'aceptada' ? 'aceptada' : 'rechazada';
       await supabase
         .from('prior_notifications')
         .update({
-          estado: 'rechazada',
+          estado: preservedEstado,
           sira_error_detalles: errorMessage,
           updated_at: new Date().toISOString(),
         })

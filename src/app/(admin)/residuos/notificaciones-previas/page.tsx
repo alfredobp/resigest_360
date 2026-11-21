@@ -113,6 +113,7 @@ export default function NotificacionesPreviasPage() {
     switch (estado) {
       case 'aceptada':
         return <Badge variant="light" color="success">Aceptada (e-SIR / SIRA)</Badge>;
+      case 'validada_sira':
       case 'validada':
         return <Badge variant="light" color="info">Pre-validada</Badge>;
       case 'enviada_sira':
@@ -184,7 +185,7 @@ export default function NotificacionesPreviasPage() {
               >
                 <option value="all">Todos los estados</option>
                 <option value="borrador">Borrador</option>
-                <option value="validada">Pre-validada</option>
+                <option value="validada_sira">Pre-validada</option>
                 <option value="enviada_sira">Enviada SIRA</option>
                 <option value="aceptada">Aceptada</option>
                 <option value="rechazada">Rechazada</option>
@@ -238,11 +239,10 @@ export default function NotificacionesPreviasPage() {
                             {nt.numero_notificacion || `NT-ID-${nt.id}`}
                           </div>
                           {nt.sira_id && (
-                            <span className={`block truncate text-[10.5px] font-sans font-semibold ${
-                              nt.sira_id.includes('TEST') || nt.sira_id.includes('SIM')
+                            <span className={`block truncate text-[10.5px] font-sans font-semibold ${nt.sira_id.includes('TEST') || nt.sira_id.includes('SIM')
                                 ? 'text-amber-600 dark:text-amber-400'
                                 : 'text-green-600 dark:text-green-400'
-                            }`} title={nt.sira_id}>
+                              }`} title={nt.sira_id}>
                               {nt.sira_id.includes('TEST') || nt.sira_id.includes('SIM') ? 'Sim: ' : 'SIRA: '}
                               {nt.sira_id}
                             </span>

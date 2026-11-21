@@ -719,7 +719,7 @@ const isDestinationDCSPhase = (doc: any): boolean => {
     doc.dcs_phase === 'T' ||
     DESTINATION_TRANSFER_STATES.has(String(doc.estado_traslado || '')) ||
     Boolean(doc.resultado_recepcion) ||
-    Boolean(doc.fecha_recepcion) ||
+    Boolean(doc.fecha_recepcion || doc.fecha_llegada_destino) ||
     Number(doc.peso_destino_kg) > 0
   );
 };
@@ -795,14 +795,18 @@ const generateResidueBlock = (doc: any): string => {
         : formattedWeight;
     const acceptanceCode = isRejected ? '04' : '03';
     const acceptanceDate = String(
+      doc.fecha_llegada_destino ||
       doc.fecha_recepcion ||
       doc.fecha_tratamiento ||
+      doc.fecha_salida ||
       doc.fecha_recogida ||
       doc.fecha_documento ||
       new Date().toISOString().split('T')[0]
     ).split('T')[0];
     const deliveryDate = String(
+      doc.fecha_salida ||
       doc.fecha_recogida ||
+      doc.fecha_llegada_destino ||
       doc.fecha_recepcion ||
       doc.fecha_documento ||
       acceptanceDate
@@ -1120,12 +1124,13 @@ export const siraService = {
     const dcsCode = formatDCSCode(cleanDocNum, provNima, doc.id);
     const dcsPhase = doc.dcs_phase || (isDestinationDCSPhase(doc) ? 'D' : 'R');
     const rawEndDate =
-      isDestinationDCSPhase(doc) && (doc.fecha_tratamiento || doc.fecha_recepcion)
-        ? String(doc.fecha_tratamiento || doc.fecha_recepcion).split('T')[0]
-        : '';
+      isDestinationDCSPhase(doc) && (doc.fecha_tratamiento || doc.fecha_llegada_destino || doc.fecha_recepcion)
+      ? String(doc.fecha_tratamiento || doc.fecha_llegada_destino || doc.fecha_recepcion).split('T')[0]
+      : '';
     const endDateAttr = /^\d{4}-\d{2}-\d{2}$/.test(rawEndDate)
       ? `\n    DCSEndDate="${rawEndDate}"`
       : '';
+    const startDate = String(doc.fecha_salida || doc.fecha_recogida || dcsDate).split('T')[0];
 
     return `
 <wasteDCS 
@@ -1136,7 +1141,7 @@ export const siraService = {
     DCSPhase="${dcsPhase}"
     DCSYear="${dcsYear}"
     DCSDate="${dcsDate}"
-    DCSStartDate="${doc.fecha_recogida || dcsDate}"${endDateAttr}
+    DCSStartDate="${startDate}"${endDateAttr}
     DCSRegional="${isInterautonomico ? 'N' : 'S'}"
     DCSSendtoOriginOrDestinationAuthority="${isInterautonomico ? 'S' : 'N'}">
 

@@ -129,6 +129,7 @@ export default function DetalleNotificacionPreviaPage({ params }: PageProps) {
     switch (estado) {
       case 'aceptada':
         return <Badge variant="light" color="success">Aceptada en SIRA</Badge>;
+      case 'validada_sira':
       case 'validada':
         return <Badge variant="light" color="info">Pre-validada</Badge>;
       case 'enviada_sira':
@@ -356,13 +357,15 @@ export default function DetalleNotificacionPreviaPage({ params }: PageProps) {
             <p className="text-xs text-muted">
               Cada DI amparado bajo esta NT incluye automáticamente su código en la etiqueta &lt;DCSNT&gt;.
             </p>
-            <Button
-              size="sm"
-              onClick={() => router.push(`/residuos/documentos-identificacion/nuevo?ntId=${notification.id}`)}
-              className="flex items-center gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" /> Crear DI con esta NT
-            </Button>
+            {notification.estado === 'aceptada' && (
+              <Button
+                size="sm"
+                onClick={() => router.push(`/residuos/documentos-identificacion/nuevo?ntId=${notification.id}`)}
+                className="flex items-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" /> Crear DI con esta NT
+              </Button>
+            )}
           </div>
 
           {linkedDIs.length === 0 ? (
