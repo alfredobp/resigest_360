@@ -440,6 +440,14 @@ function NuevoDocumentoIdentificacionContent() {
     };
 
     const handleContractChange = (contractId: string) => {
+      if (!contractId) {
+        setFormData(prev => ({
+          ...prev,
+          contract_id: undefined,
+        }));
+        return;
+      }
+
       const contract = contracts.find(c => c.id === parseInt(contractId));
       if (!contract) return;
 
@@ -450,6 +458,7 @@ function NuevoDocumentoIdentificacionContent() {
         setFormData(prev => ({
           ...prev,
           contract_id: contract.id,
+          gestor_company_id: contract.gestor_company_id || tm.company_id || undefined,
           gestor_razon_social: tm.razon_social,
           gestor_cif: tm.cif,
           gestor_nima: tm.nima || '',
@@ -476,6 +485,7 @@ function NuevoDocumentoIdentificacionContent() {
         setFormData(prev => ({
           ...prev,
           contract_id: contract.id,
+          gestor_company_id: contract.gestor_company_id || gc.id,
           gestor_razon_social: gc.razon_social,
           gestor_cif: gc.cif,
           gestor_nima: gc.nima || '',
@@ -601,6 +611,26 @@ function NuevoDocumentoIdentificacionContent() {
             window.scrollTo(0, 0);
             return;
           }
+        }
+      }
+
+      // Validar coherencia entre contrato seleccionado y gestor destinatario (Art. 5 RD 553/2020)
+      if (formData.contract_id) {
+        const linkedContract = contracts.find((c) => c.id === formData.contract_id);
+        const contractGestorCif = (
+          linkedContract?.treatment_manager?.cif ||
+          linkedContract?.gestor_company?.cif ||
+          ''
+        )
+          .trim()
+          .toUpperCase();
+        const formGestorCif = (formData.gestor_cif || '').trim().toUpperCase();
+        if (contractGestorCif && formGestorCif && contractGestorCif !== formGestorCif) {
+          setError(
+            `Incoherencia contractual: El contrato ${linkedContract?.numero_contrato || `#${formData.contract_id}`} corresponde al gestor con CIF ${contractGestorCif}, no a ${formGestorCif}. Desvincula el contrato o selecciona el contrato del gestor correspondiente.`
+          );
+          window.scrollTo(0, 0);
+          return;
         }
       }
 
@@ -889,6 +919,119 @@ function NuevoDocumentoIdentificacionContent() {
                     placeholder="Selecciona un contrato"
                   />
 
+                  {(() => {
+                    const selectedContract = formData.contract_id
+                      ? contracts.find((c) => c.id === formData.contract_id)
+                      : undefined;
+                    if (!selectedContract) return null;
+
+                    const coveredItems: Array<{
+                      ler: string;
+                      descripcion?: string;
+                      operacion?: string;
+                    }> =
+                      selectedContract.contract_waste_codes && selectedContract.contract_waste_codes.length > 0
+                        ? selectedContract.contract_waste_codes.map((wc) => ({
+                            ler: wc.codigo_ler.trim(),
+                            descripcion: wc.descripcion_ler || undefined,
+                            operacion: wc.operacion_tratamiento || undefined,
+                          }))
+                        : (selectedContract.codigos_ler || []).map((ler, idx) => ({
+                            ler: ler.trim(),
+                            operacion:
+                              selectedContract.operaciones_tratamiento?.[idx] ||
+                              selectedContract.operaciones_tratamiento?.[0] ||
+                              undefined,
+                          }));
+
+                    const currentLer = (formData.codigo_ler || '').trim();
+                    const isCurrentLerUncovered =
+                      Boolean(currentLer) &&
+                      coveredItems.length > 0 &&
+                      !coveredItems.some((item) => item.ler === currentLer);
+
+                    return (
+                      <div className="mt-3 p-3 rounded-xl bg-brand-50/50 dark:bg-brand-950/20 border border-brand-200 dark:border-brand-900/50 space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <span className="font-semibold text-brand-900 dark:text-brand-200">
+                            Residuos contemplados en el contrato {selectedContract.numero_contrato || `#${selectedContract.id}`}
+                          </span>
+                          {selectedContract.fecha_fin && (
+                            <span className="text-[11px] text-brand-700 dark:text-brand-400">
+                              Vigente hasta: <span className="font-mono font-semibold">{selectedContract.fecha_fin.split('T')[0]}</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {coveredItems.length > 0 ? (
+                          <>
+                            <p className="text-[11px] text-brand-700 dark:text-brand-400">
+                              Pulsa sobre un código LER para autorrellenar el residuo y su operación en el DI:
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {coveredItems.map((item, idx) => {
+                                const isSelected = currentLer === item.ler;
+                                const isPeligroso = item.ler.includes('*');
+                                return (
+                                  <button
+                                    key={`${item.ler}-${idx}`}
+                                    type="button"
+                                    title={item.descripcion || `Aplicar LER ${item.ler}`}
+                                    onClick={() => {
+                                      const matchedWt = wasteTypes.find((w) => w.codigo_ler.trim() === item.ler);
+                                      setFormData((prev) => ({
+                                        ...prev,
+                                        codigo_ler: item.ler,
+                                        descripcion_residuo:
+                                          item.descripcion || matchedWt?.descripcion || prev.descripcion_residuo || '',
+                                        peligrosidad:
+                                          isPeligroso || matchedWt?.categoria === 'peligroso'
+                                            ? 'peligroso'
+                                            : 'no-peligroso',
+                                        waste_type_id: matchedWt?.id ?? prev.waste_type_id,
+                                        operacion_tratamiento: item.operacion || prev.operacion_tratamiento,
+                                      }));
+                                    }}
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-mono transition ${
+                                      isSelected
+                                        ? 'bg-brand-600 text-white border-brand-600 font-semibold shadow-xs'
+                                        : isPeligroso
+                                          ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800 hover:border-amber-400'
+                                          : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-brand-400'
+                                    }`}
+                                  >
+                                    <span>{item.ler}</span>
+                                    {item.operacion && (
+                                      <span
+                                        className={`text-[10px] px-1 rounded ${
+                                          isSelected
+                                            ? 'bg-white/20 text-white'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                                        }`}
+                                      >
+                                        {item.operacion}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                            Este contrato no tiene códigos LER específicos registrados en su matriz; podrás indicar el LER manualmente.
+                          </p>
+                        )}
+
+                        {isCurrentLerUncovered && (
+                          <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200 font-medium">
+                            Atención: el código LER <span className="font-mono font-bold">{currentLer}</span> no figura entre los residuos contemplados por este contrato y bloqueará el inicio del traslado.
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {contracts.length === 0 && (
                     <div className="mt-3 p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 space-y-1.5">
                       <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-semibold text-xs">
@@ -1042,6 +1185,23 @@ function NuevoDocumentoIdentificacionContent() {
                   <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200 dark:border-emerald-900/40 text-xs text-emerald-800 dark:text-emerald-300">
                     ✓ El gestor destinatario receptor es <span className="font-semibold">{myCompany?.razon_social}</span>. Los datos se han completado con la ficha de tu empresa.
                   </div>
+                ) : formData.contract_id ? (
+                  <div className="p-3 bg-brand-50/60 dark:bg-brand-950/20 rounded-xl border border-brand-200 dark:border-brand-900/40 text-xs text-brand-900 dark:text-brand-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <span>
+                      ✓ Gestor vinculado al contrato{' '}
+                      <span className="font-mono font-semibold">
+                        {contracts.find((c) => c.id === formData.contract_id)?.numero_contrato || `#${formData.contract_id}`}
+                      </span>
+                      . Para elegir un gestor distinto, desvincula primero el contrato de referencia.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleContractChange('')}
+                      className="text-xs font-semibold text-brand-700 dark:text-brand-300 underline hover:no-underline shrink-0 self-start sm:self-center"
+                    >
+                      Desvincular contrato
+                    </button>
+                  </div>
                 ) : (
                   <div>
                     <label htmlFor="internal_gestor_select" className="block text-sm font-medium mb-2">Mis Gestores</label>
@@ -1068,7 +1228,7 @@ function NuevoDocumentoIdentificacionContent() {
                       type="text"
                       value={formData.gestor_razon_social || ''}
                       onChange={(e) => setFormData({ ...formData, gestor_razon_social: e.target.value })}
-                      disabled={expeditionRole === 'gestor'}
+                      disabled={expeditionRole === 'gestor' || Boolean(formData.contract_id)}
                       required
                     />
                   </div>
@@ -1080,7 +1240,7 @@ function NuevoDocumentoIdentificacionContent() {
                       type="text"
                       value={formData.gestor_cif || ''}
                       onChange={(e) => setFormData({ ...formData, gestor_cif: e.target.value })}
-                      disabled={expeditionRole === 'gestor'}
+                      disabled={expeditionRole === 'gestor' || Boolean(formData.contract_id)}
                       required
                       error={!!validationErrors.gestor_cif}
                       hint={validationErrors.gestor_cif}
