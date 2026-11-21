@@ -29,9 +29,11 @@ import DatePicker from '@/components/form/date-picker';
 import LerSelector from '@/components/residuos/LerSelector';
 import { getProvinceByPostalCode } from '@/lib/validations/spainLocations';
 import { PHYSICAL_CONTAINER_CATALOG } from '@/lib/validations/normativeCompliance';
+import { useTenant } from '@/context/TenantContext';
 
 function NuevoDocumentoIdentificacionContent() {
   const router = useRouter();
+  const { activeCompanyId } = useTenant();
   const searchParams = useSearchParams();
   const forcedPerspectiva = searchParams.get('perspectiva') || searchParams.get('sentido');
   const [loading, setLoading] = useState(true);
@@ -73,7 +75,7 @@ function NuevoDocumentoIdentificacionContent() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activeCompanyId]);
 
   const loadData = async () => {
     try {
@@ -97,7 +99,7 @@ function NuevoDocumentoIdentificacionContent() {
 
       // Cargar centros de producción
       const centers = await productionCenterService.getByCompanyId(company.id);
-      setProductionCenters(centers);
+      setProductionCenters(centers.filter((c) => c.company_id === company.id));
 
       // Pre-rellenar según el rol inicial
       const defaultDir = company.domicilio_instalacion || company.domicilio_social || '';
@@ -161,9 +163,18 @@ function NuevoDocumentoIdentificacionContent() {
         companyService.getAllContacts(),
         priorNotificationService.getAll().catch(() => []),
       ]);
-      setInternalGestores(internalData);
+      const myNormCif = company.cif?.toUpperCase().trim();
+      setInternalGestores(
+        internalData.filter(
+          (g) => g.company_id !== company.id && (!myNormCif || g.cif?.toUpperCase().trim() !== myNormCif)
+        )
+      );
       setInternalCarriers(internalCarriersData);
-      setAllContacts(contactsData);
+      setAllContacts(
+        contactsData.filter(
+          (c) => c.id !== company.id && (!myNormCif || c.cif?.toUpperCase().trim() !== myNormCif)
+        )
+      );
       const acceptedNts = (ntsData || []).filter((n) => n.estado === 'aceptada');
       setPriorNotifications(acceptedNts);
 

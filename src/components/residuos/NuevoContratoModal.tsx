@@ -104,6 +104,11 @@ export default function NuevoContratoModal({
 
   useEffect(() => {
     if (isOpen) {
+      setFormData((prev) => ({
+        ...prev,
+        company_id: myCompany.id,
+        producer_center_id: prev.company_id === myCompany.id ? prev.producer_center_id : undefined,
+      }));
       loadGestores();
       loadWasteTypes();
       loadProducerCenters();
@@ -122,7 +127,7 @@ export default function NuevoContratoModal({
 const loadProducerCenters = async () => {
   try {
     const centers = await productionCenterService.getByCompanyId(myCompany.id);
-    setProducerCenters(centers);
+    setProducerCenters(centers.filter((c) => c.company_id === myCompany.id));
   } catch (e) {
     console.error('Error cargando centros del productor:', e);
   }
@@ -143,8 +148,17 @@ const loadGestores = async () => {
       companyService.getByType('gestor'),
       treatmentManagerService.getAll(),
     ]);
-    setGestores(gestoresData);
-    setInternalGestores(internalData);
+    const myNormCif = myCompany.cif?.toUpperCase().trim();
+    setGestores(
+      gestoresData.filter(
+        (g) => g.id !== myCompany.id && (!myNormCif || g.cif?.toUpperCase().trim() !== myNormCif)
+      )
+    );
+    setInternalGestores(
+      internalData.filter(
+        (ig) => ig.company_id !== myCompany.id && (!myNormCif || ig.cif?.toUpperCase().trim() !== myNormCif)
+      )
+    );
   } catch (err: any) {
     setError(err.message);
   }
@@ -152,12 +166,13 @@ const loadGestores = async () => {
 
 useEffect(() => {
   if (formData.gestor_company_id) {
+    const targetGestorId = formData.gestor_company_id;
     productionCenterService
-      .getByCompanyId(formData.gestor_company_id)
-      .then(setGestorCenters)
+      .getByCompanyId(targetGestorId)
+      .then((centers) => setGestorCenters(centers.filter((c) => c.company_id === targetGestorId)))
       .catch(console.error);
     authorizationService
-      .getAuthorizedScope(formData.gestor_company_id, formData.gestor_center_id, formData.fecha_inicio)
+      .getAuthorizedScope(targetGestorId, formData.gestor_center_id, formData.fecha_inicio)
       .then(setDestAuthScope)
       .catch(console.error);
   } else {
@@ -312,6 +327,8 @@ const handleClose = () => {
   setFormData({
     company_id: myCompany.id,
     gestor_company_id: undefined,
+    producer_center_id: undefined,
+    gestor_center_id: undefined,
     numero_contrato: '',
     fecha_contrato: new Date().toISOString().split('T')[0],
     fecha_inicio: '',

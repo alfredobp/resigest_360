@@ -10,6 +10,7 @@ import Input from '@/components/form/input/InputField';
 import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFields';
 import TextArea from '@/components/form/input/TextArea';
 import { toast } from '@/context/ToastContext';
+import { useTenant } from '@/context/TenantContext';
 import { priorNotificationService } from '@/services/priorNotificationService';
 import documentSequenceService from '@/services/documentSequenceService';
 import companyService from '@/services/companyService';
@@ -21,6 +22,7 @@ import { ArrowLeft, Save, Send } from 'lucide-react';
 
 export default function NuevaNotificacionPreviaPage() {
   const router = useRouter();
+  const { activeCompanyId } = useTenant();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +57,7 @@ export default function NuevaNotificacionPreviaPage() {
 
   useEffect(() => {
     loadInitialData();
-  }, []);
+  }, [activeCompanyId]);
 
   const loadInitialData = async () => {
     try {
@@ -74,8 +76,13 @@ export default function NuevaNotificacionPreviaPage() {
         wasteTypeService.getAll().catch(() => []),
       ]);
 
-      setProductionCenters(centers);
-      setManagers(managersList);
+      const myNormCif = company.cif?.toUpperCase().trim();
+      setProductionCenters(centers.filter((c) => c.company_id === company.id));
+      setManagers(
+        managersList.filter(
+          (m) => m.company_id !== company.id && (!myNormCif || m.cif?.toUpperCase().trim() !== myNormCif)
+        )
+      );
       setWasteTypes(wastes);
 
       // Previsualizar próximo código NT consecutivo E3L (se asigna atómicamente en BD al guardar)

@@ -84,9 +84,14 @@ export default function NuevoContratoPage() {
         .catch(() => wasteContractService.generateContractNumber(company.id, company.cif));
       setFormData((prev) => ({ ...prev, numero_contrato: numeroContrato }));
 
-      // Cargar lista de gestores disponibles
+      // Cargar lista de gestores disponibles (excluyendo la propia empresa)
       const gestoresData = await companyService.getByType('gestor');
-      setGestores(gestoresData);
+      const myNormCif = company.cif?.toUpperCase().trim();
+      setGestores(
+        gestoresData.filter(
+          (g) => g.id !== company.id && (!myNormCif || g.cif?.toUpperCase().trim() !== myNormCif)
+        )
+      );
     } catch (err: any) {
       setError(err.message);
     } finally {

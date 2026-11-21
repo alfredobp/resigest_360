@@ -121,8 +121,9 @@ export default function EditarContratoPage() {
   // Cargar centros del productor cuando cambie formData.company_id
   useEffect(() => {
     if (formData.company_id) {
-      productionCenterService.getByCompanyId(formData.company_id)
-        .then(setProducerCenters)
+      const targetCompanyId = formData.company_id;
+      productionCenterService.getByCompanyId(targetCompanyId)
+        .then((centers) => setProducerCenters(centers.filter((c) => c.company_id === targetCompanyId)))
         .catch((err) => console.error('Error al cargar centros del productor:', err));
     }
   }, [formData.company_id]);
@@ -132,7 +133,7 @@ export default function EditarContratoPage() {
     const gestorId = formData.gestor_company_id;
     if (gestorId) {
       productionCenterService.getByCompanyId(gestorId)
-        .then(setGestorCenters)
+        .then((centers) => setGestorCenters(centers.filter((c) => c.company_id === gestorId)))
         .catch((err) => console.error('Error al cargar centros del gestor:', err));
 
       authorizationService.getAuthorizedScope(gestorId)
@@ -159,11 +160,22 @@ export default function EditarContratoPage() {
         wasteTypeService.getAll().catch(() => []),
       ]);
 
+      const producerCompanyId = contractData?.company_id;
+      const producerNormCif = contractData?.company?.cif?.toUpperCase().trim();
       const gestorCompanies = allCompanies.filter(
-        c => c.tipo_empresa === 'gestor' || (c.roles && c.roles.includes('gestor'))
+        c =>
+          (c.tipo_empresa === 'gestor' || (c.roles && c.roles.includes('gestor'))) &&
+          c.id !== producerCompanyId &&
+          (!producerNormCif || c.cif?.toUpperCase().trim() !== producerNormCif)
       );
       setGestores(gestorCompanies);
-      setInternalGestores(legacyGestores);
+      setInternalGestores(
+        legacyGestores.filter(
+          (ig) =>
+            ig.company_id !== producerCompanyId &&
+            (!producerNormCif || ig.cif?.toUpperCase().trim() !== producerNormCif)
+        )
+      );
       setWasteTypes(wastes);
 
       if (contractData) {
