@@ -284,7 +284,13 @@ export default function DetalleMemoriaPage() {
         <ComponentCard title="Toneladas">
           <div>
             <p className="text-sm font-medium text-muted-foreground">Toneladas</p>
-            <p className="text-2xl font-bold">{memoria.total_toneladas.toFixed(2)}</p>
+            <p className="text-2xl font-bold">
+              {(memoria.resumen_ler && memoria.resumen_ler.length > 0
+                ? memoria.resumen_ler.reduce((sum, item) => sum + (Number(item.cantidad_total) || 0), 0)
+                : Number(memoria.total_toneladas) || 0
+              ).toFixed(3)}{' '}
+              t
+            </p>
           </div>
         </ComponentCard>
 
@@ -367,7 +373,7 @@ export default function DetalleMemoriaPage() {
                         <td className="px-4 py-3 text-sm font-medium">{item.codigo_ler}</td>
                         <td className="px-4 py-3 text-sm">{item.descripcion}</td>
                         <td className="px-4 py-3 text-sm text-right">{item.numero_movimientos}</td>
-                        <td className="px-4 py-3 text-sm text-right">{item.cantidad_total.toFixed(2)} t</td>
+                        <td className="px-4 py-3 text-sm text-right">{(Number(item.cantidad_total) || 0).toFixed(3)} t</td>
                       </tr>
                     ))}
                   </tbody>

@@ -711,7 +711,14 @@ export async function getStats(año?: number): Promise<{
     stats.por_tipo[memoria.tipo_memoria as TipoMemoria] = (stats.por_tipo[memoria.tipo_memoria as TipoMemoria] || 0) + 1;
 
     // Sumar toneladas
-    stats.total_toneladas += memoria.total_toneladas || 0;
+    const effectiveTonnes =
+      Array.isArray(memoria.resumen_ler) && memoria.resumen_ler.length > 0
+        ? (memoria.resumen_ler as ResumenLER[]).reduce(
+            (sum: number, item: ResumenLER) => sum + (Number(item.cantidad_total) || 0),
+            0
+          )
+        : Number(memoria.total_toneladas) || 0;
+    stats.total_toneladas += effectiveTonnes;
   });
 
   return stats;

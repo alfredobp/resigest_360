@@ -221,7 +221,7 @@ export default function MemoriasAnualesPage() {
           <ComponentCard title='Total Toneladas'>
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Toneladas</p>
-              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">{stats.total_toneladas.toFixed(2)} t</p>
+              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">{stats.total_toneladas.toFixed(3)} t</p>
             </div>
           </ComponentCard>
         </div>
@@ -367,7 +367,11 @@ export default function MemoriasAnualesPage() {
                       {memoria.total_movimientos}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-gray-500">
-                      {memoria.total_toneladas.toFixed(2)} t
+                      {(memoria.resumen_ler && memoria.resumen_ler.length > 0
+                        ? memoria.resumen_ler.reduce((sum, item) => sum + (Number(item.cantidad_total) || 0), 0)
+                        : Number(memoria.total_toneladas) || 0
+                      ).toFixed(3)}{' '}
+                      t
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       {getEstadoBadge(memoria.estado)}

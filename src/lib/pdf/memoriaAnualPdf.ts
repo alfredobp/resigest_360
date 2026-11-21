@@ -66,6 +66,14 @@ export async function generateMemoriaAnualPDF(memoria: MemoriaAnual): Promise<js
     22
   );
 
+  const resumen = memoria.resumen_ler || [];
+  // Priorizar la suma exacta de resumen_ler (precisión de 3 decimales / kg) para evitar
+  // discrepancias si total_toneladas en BD fue redondeado a 2 decimales (ej. 0.002 t -> 0.00 t).
+  const effectiveTotalTonnes =
+    resumen.length > 0
+      ? resumen.reduce((sum, item) => sum + (Number(item.cantidad_total) || 0), 0)
+      : Number(memoria.total_toneladas) || 0;
+
   // --- KPIs RESUMEN ---
   yPos = drawKpiCards(
     doc,
@@ -79,7 +87,7 @@ export async function generateMemoriaAnualPDF(memoria: MemoriaAnual): Promise<js
       },
       {
         label: 'Total Residuos Gestionados',
-        value: `${(memoria.total_toneladas || 0).toFixed(3)} t`,
+        value: `${effectiveTotalTonnes.toFixed(3)} t`,
         subtext: 'Peso total acumulado (toneladas)',
         accentColor: PDF_COLORS.inkPrimary,
         valueColor: PDF_COLORS.brandDark,
@@ -91,7 +99,6 @@ export async function generateMemoriaAnualPDF(memoria: MemoriaAnual): Promise<js
   // --- 2. RESUMEN POR CÓDIGO LER ---
   yPos = drawSectionHeader(doc, '2. Balance Anual por Código LER', yPos);
 
-  const resumen = memoria.resumen_ler || [];
   if (resumen.length === 0) {
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(8.2);
@@ -116,7 +123,7 @@ export async function generateMemoriaAnualPDF(memoria: MemoriaAnual): Promise<js
           },
           { text: item.descripcion || 'Sin descripción', color: PDF_COLORS.inkSecondary },
           { text: String(item.numero_movimientos) },
-          { text: `${(item.cantidad_total || 0).toFixed(3)} t`, bold: true },
+          { text: `${(Number(item.cantidad_total) || 0).toFixed(3)} t`, bold: true },
         ],
       };
     });
@@ -125,9 +132,9 @@ export async function generateMemoriaAnualPDF(memoria: MemoriaAnual): Promise<js
       isSummary: true,
       cells: [
         { text: 'TOTAL', bold: true },
-        { text: `${resumen.length} códigos LER declarados`, bold: true },
+        { text: `${resumen.length} ${resumen.length === 1 ? 'código LER declarado' : 'códigos LER declarados'}`, bold: true },
         { text: String(memoria.total_movimientos || 0), bold: true },
-        { text: `${(memoria.total_toneladas || 0).toFixed(3)} t`, bold: true },
+        { text: `${effectiveTotalTonnes.toFixed(3)} t`, bold: true },
       ],
     });
 
