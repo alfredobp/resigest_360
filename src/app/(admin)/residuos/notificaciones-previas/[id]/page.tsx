@@ -184,7 +184,7 @@ export default function DetalleNotificacionPreviaPage({ params }: PageProps) {
               <div className="flex items-center gap-2 mt-1">
                 {notification.sira_id.includes('TEST') || notification.sira_id.includes('SIM') ? (
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                    🔬 Simulación / Ensayo Técnico: {notification.sira_id}
+                    Simulación / Ensayo Técnico: {notification.sira_id}
                   </span>
                 ) : (
                   <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">

@@ -114,27 +114,27 @@ export function DataTable<T extends Record<string, any>>({
 
   return (
     <div
-      className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/80 overflow-hidden ${className}`}
+      className={`bg-white dark:bg-[#111827] rounded-[10px] shadow-[0_1px_2px_rgba(15,23,42,0.04)] border border-slate-200 dark:border-slate-800 overflow-hidden ${className}`}
     >
       {/* Barra de herramientas superior: Buscador + Acciones */}
       {(searchable || toolbarActions) && (
-        <div className="p-3.5 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-700/80 bg-gray-50/40 dark:bg-gray-900/20">
+        <div className="px-3.5 py-2.5 sm:px-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40">
           {searchable ? (
             <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="w-full text-xs pl-9 pr-8 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                className="w-full h-9 text-xs pl-8 pr-8 py-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/15 focus:border-brand-500 transition-colors"
               />
               {searchTerm && (
                 <button
                   type="button"
                   onClick={() => setSearchTerm('')}
                   aria-label="Limpiar búsqueda"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -154,8 +154,8 @@ export function DataTable<T extends Record<string, any>>({
 
       {/* Contenedor de la tabla responsiva */}
       <div className="overflow-x-auto">
-        <table className={`w-full text-left text-xs border-collapse ${tableClassName}`}>
-          <thead className="bg-gray-50/80 dark:bg-gray-900/60 border-b border-gray-200/80 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-semibold tracking-wide uppercase text-[10.5px] select-none">
+        <table className={`w-full text-left text-[12.5px] border-collapse ${tableClassName}`}>
+          <thead className="bg-slate-50 dark:bg-slate-900/70 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold tracking-wider uppercase text-[10.5px] select-none">
             <tr>
               {columns.map((column, colIdx) => {
                 const colId = column.id || String(column.accessorKey || colIdx);

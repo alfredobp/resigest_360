@@ -243,7 +243,7 @@ export default function NotificacionesPreviasPage() {
                                 ? 'text-amber-600 dark:text-amber-400'
                                 : 'text-green-600 dark:text-green-400'
                             }`} title={nt.sira_id}>
-                              {nt.sira_id.includes('TEST') || nt.sira_id.includes('SIM') ? '🔬 Sim: ' : 'SIRA: '}
+                              {nt.sira_id.includes('TEST') || nt.sira_id.includes('SIM') ? 'Sim: ' : 'SIRA: '}
                               {nt.sira_id}
                             </span>
                           )}

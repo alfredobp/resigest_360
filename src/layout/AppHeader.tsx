@@ -43,11 +43,11 @@ const AppHeader: React.FC = () => {
   }, []);
 
   return (
-    <header className="sticky top-0 flex w-full bg-white border-gray-200 z-30 dark:border-gray-800 dark:bg-gray-900 lg:border-b">
+    <header className="sticky top-0 flex w-full bg-white/85 backdrop-blur-md border-slate-200 z-30 dark:border-slate-800/90 dark:bg-[#0d1321]/85 lg:border-b">
       <div className="flex flex-col items-center justify-between grow lg:flex-row lg:px-6">
-        <div className="flex items-center justify-between w-full gap-2 px-3 py-3 border-b border-gray-200 dark:border-gray-800 sm:gap-4 lg:justify-normal lg:border-b-0 lg:px-0 lg:py-4">
+        <div className="flex items-center justify-between w-full gap-2 px-3 py-2.5 border-b border-slate-200 dark:border-slate-800 sm:gap-3 lg:justify-normal lg:border-b-0 lg:px-0 lg:h-14">
           <button
-            className="items-center justify-center w-10 h-10 text-gray-500 border-gray-200 rounded-lg dark:border-gray-800 lg:flex dark:text-gray-400 lg:h-11 lg:w-11 lg:border"
+            className="items-center justify-center w-9 h-9 text-slate-500 border-slate-200 rounded-md hover:bg-slate-100/80 hover:text-slate-900 dark:border-slate-800 lg:flex dark:text-slate-400 dark:hover:bg-white/[0.05] dark:hover:text-slate-100 lg:border transition-colors"
             onClick={handleToggle}
             aria-label="Alternar barra lateral"
           >
@@ -151,8 +151,8 @@ const AppHeader: React.FC = () => {
               <input
                 type="text"
                 readOnly
-                placeholder="Buscar o escribir un comando..."
-                className="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-200 bg-transparent py-2.5 pl-12 pr-14 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 group-hover:border-brand-300 dark:border-gray-800 dark:bg-gray-900 dark:bg-white/[0.03] dark:text-white/90 dark:placeholder:text-white/30 dark:group-hover:border-brand-800 xl:w-[430px] cursor-pointer"
+                placeholder="Buscar DI, código LER, NIMA o comando..."
+                className="h-9 w-full rounded-md border border-slate-200 bg-slate-50/70 py-1.5 pl-10 pr-14 text-[13px] text-slate-800 placeholder:text-slate-400 group-hover:border-brand-400 group-hover:bg-white dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:group-hover:border-brand-700 xl:w-[360px] cursor-pointer transition-colors"
               />
 
               <button
@@ -161,10 +161,10 @@ const AppHeader: React.FC = () => {
                   e.stopPropagation();
                   setCommandPaletteOpen(true);
                 }}
-                className="absolute right-2.5 top-1/2 inline-flex -translate-y-1/2 items-center gap-0.5 rounded-lg border border-gray-200 bg-gray-50 px-[7px] py-[4.5px] text-xs -tracking-[0.2px] text-gray-500 group-hover:border-brand-300 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-400 dark:group-hover:border-brand-800 transition-colors"
+                className="absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center gap-0.5 rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10.5px] text-slate-500 group-hover:border-brand-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:group-hover:border-brand-700 transition-colors"
               >
-                <span> ⌘ </span>
-                <span> K </span>
+                <span>⌘</span>
+                <span>K</span>
               </button>
             </div>
           </div>

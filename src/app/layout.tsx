@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Outfit } from 'next/font/google';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 
 import { SidebarProvider } from '@/context/SidebarContext';
@@ -8,8 +8,16 @@ import { ToastProvider } from '@/context/ToastContext';
 import { SandboxProvider } from '@/context/SandboxContext';
 import { TenantProvider } from '@/context/TenantContext';
 
-const outfit = Outfit({
+const inter = Inter({
   subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -33,8 +41,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
-      <body className={`${outfit.className} dark:bg-gray-900`}>
+    <html lang="es" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+      <body className={`${inter.className} antialiased bg-slate-50 text-slate-900 dark:bg-[#090d16] dark:text-slate-100`}>
         <ThemeProvider>
           <ToastProvider>
             <TenantProvider>

@@ -90,7 +90,7 @@ export default function TransportistasPage() {
                 <div className="p-4 rounded-xl border border-brand-200 bg-brand-50/60 dark:bg-brand-950/20 dark:border-brand-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
                     <div>
                         <h4 className="font-semibold text-brand-900 dark:text-brand-300 text-sm flex items-center gap-1.5">
-                            <span>✨</span> Nuevo Directorio Unificado de Empresas
+                            Nuevo Directorio Unificado de Empresas
                         </h4>
                         <p className="text-xs text-brand-700 dark:text-brand-400 mt-0.5">
                             Ahora puedes gestionar transportistas, gestores y productores bajo un mismo CIF sin duplicados.

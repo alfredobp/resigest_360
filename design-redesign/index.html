@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="es" class="is-hub" data-variant="industrial" data-mode="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ResiGest 360 — Estudio de Rediseño UI (3 Opciones × 12 Pantallas)</title>
+  <link rel="stylesheet" href="assets/styles.css" />
+  <style>
+    body { overflow: hidden; height: 100vh; display: flex; flex-direction: column; background: #0b1120; color: #f8fafc; font-family: 'Inter', sans-serif; }
+    .hub-bar {
+      height: 58px;
+      background: #0f172a;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      gap: 14px;
+      flex-shrink: 0;
+    }
+    .hub-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 14.5px; letter-spacing: -0.02em; }
+    .hub-pill { font-size: 10.5px; background: rgba(16,185,129,0.16); color: #34d399; padding: 2px 8px; border-radius: 999px; font-weight: 700; }
+
+    .variant-picker {
+      display: flex;
+      align-items: center;
+      background: #1e293b;
+      padding: 4px;
+      border-radius: 10px;
+      gap: 4px;
+    }
+    .v-btn {
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      padding: 6px 12px;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .v-btn:hover { color: #fff; }
+    .v-btn.active { background: #10b981; color: #022c22; box-shadow: 0 2px 10px rgba(16,185,129,0.35); }
+    .v-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.7; }
+
+    .hub-controls { display: flex; align-items: center; gap: 8px; }
+    .ctrl-btn {
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .ctrl-btn:hover { border-color: #10b981; color: #fff; }
+    .ctrl-btn.active { background: #065f46; border-color: #10b981; color: #ecfdf5; }
+
+    .hub-body { flex: 1; display: flex; min-height: 0; }
+    .hub-sidebar {
+      width: 268px;
+      background: #0f172a;
+      border-right: 1px solid #1e293b;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 14px 10px;
+      gap: 14px;
+      flex-shrink: 0;
+    }
+    .hub-group-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      padding: 0 10px;
+      margin-bottom: 4px;
+    }
+    .screen-btn {
+      width: 100%;
+      text-align: left;
+      border: none;
+      background: transparent;
+      color: #cbd5e1;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12.5px;
+      font-weight: 500;
+      transition: all 0.14s;
+    }
+    .screen-btn:hover { background: rgba(255,255,255,0.06); color: #fff; }
+    .screen-btn.active { background: rgba(16,185,129,0.16); color: #34d399; font-weight: 700; }
+    .screen-route { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: #64748b; }
+    .screen-btn.active .screen-route { color: #6ee7b7; }
+
+    .option-info-box {
+      margin-top: auto;
+      background: #111c33;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: #94a3b8;
+    }
+    .option-info-box strong { color: #f8fafc; display: block; margin-bottom: 4px; font-size: 12px; }
+
+    .hub-stage {
+      flex: 1;
+      background: #070b14;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 14px;
+      overflow: hidden;
+    }
+    .iframe-frame {
+      width: 100%;
+      height: 100%;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      background: #ffffff;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+      transition: width 0.25s ease;
+    }
+    .iframe-frame.tablet { width: 860px; max-width: 100%; }
+    .iframe-frame.mobile { width: 410px; max-width: 100%; }
+  </style>
+</head>
+<body>
+  <header class="hub-bar">
+    <div class="hub-brand">
+      <div class="brand-mark">R3</div>
+      <div>
+        ResiGest <span>360</span>
+        <span class="hub-pill">Rediseño UI Studio</span>
+      </div>
+    </div>
+
+    <div class="variant-picker" role="group" aria-label="Seleccionar opción de diseño">
+      <button class="v-btn active" data-hub-variant="industrial">
+        <span class="v-dot"></span> Opción 1 · Precisión Industrial
+      </button>
+      <button class="v-btn" data-hub-variant="bento">
+        <span class="v-dot"></span> Opción 2 · Eco-Bento Moderno
+      </button>
+      <button class="v-btn" data-hub-variant="erp">
+        <span class="v-dot"></span> Opción 3 · Alta Densidad ERP
+      </button>
+    </div>
+
+    <div class="hub-controls">
+      <button class="ctrl-btn active" data-vp="desktop" title="Vista Escritorio">🖥 Desktop</button>
+      <button class="ctrl-btn" data-vp="tablet" title="Vista Tablet">📱 Tablet</button>
+      <button class="ctrl-btn" data-vp="mobile" title="Vista Móvil">📲 Móvil</button>
+      <button class="ctrl-btn" id="hubModeBtn">🌙 Oscuro</button>
+      <a class="ctrl-btn" id="openStandaloneBtn" href="screens/dashboard.html" target="_blank">↗ Abrir sola</a>
+    </div>
+  </header>
+
+  <div class="hub-body">
+    <aside class="hub-sidebar">
+      <div>
+        <div class="hub-group-title">1. Operativa Principal</div>
+        <button class="screen-btn active" data-screen="screens/dashboard.html">
+          <span>Dashboard Ejecutivo</span><span class="screen-route">/app</span>
+        </button>
+        <button class="screen-btn" data-screen="screens/documentos-identificacion.html">
+          <span>Documentos DI</span><span class="screen-route">/di</span>
+        </button>
+        <button class="screen-btn" data-screen="screens/notificaciones-previas.html">
+          <span>Notificaciones NT</span><span class="screen-route">/nt</span>
+        </button>
+        <button class="screen-btn" data-screen="screens/contratos.html">
+          <span>Contratos Tratamiento</span><span class="screen-route">/contratos</span>
+        </button>
+        <button class="screen-btn" data-screen="screens/operaciones.html">
+          <span>Operaciones Comerciales</span><span class="screen-route">/operaciones</span>
+        </button>
+      </div>
+
+      <div>
+        <div class="hub-group-title">2. Normativa y Registros</div>
+        <button class="screen-btn" data-screen="screens/archivo-cronologico.html">
+          <span>Archivo Cronológico</span><span class="screen-route">/cronologico</span>
+        </button>
+        <button class="screen-btn" data-screen="screens/memorias-anuales.html">
+          <span>Memorias Anuales</span><span class="screen-route">/memorias</span>
+        </button>
+        <button class="screen-btn" data-screen="screens/deca.html">
+          <span>Control DeCA</span><span class="screen-route">/deca</span>
+        </button>
+      </div>
+
+      <div>
+        <div class="hub-group-title">3. Actores e Integraciones</div>
+        <button class="screen-btn" data-screen="screens/empresas-actores.html">
+          <span>Empresas, Gestores y Flota</span><span class="screen-route">/actores</span>
+        </button>
+        <button class="screen-btn" data-screen="screens/integraciones.html">
+          <span>Integraciones SIRA & Audit</span><span class="screen-route">/integraciones</span>
+        </button>
+      </div>
+
+      <div>
+        <div class="hub-group-title">4. Móvil, Firma y Acceso</div>
+        <button class="screen-btn" data-screen="screens/vista-conductor.html">
+          <span>Vista Conductor & Firma</span><span class="screen-route">/transporte</span>
+        </button>
+        <button class="screen-btn" data-screen="screens/landing-auth.html">
+          <span>Landing, Login & Onboarding</span><span class="screen-route">/ · /signin</span>
+        </button>
+      </div>
+
+      <div class="option-info-box" id="optionInfoBox">
+        <strong>Opción 1: Precisión Industrial</strong>
+        Estilo Linear/Vercel. Bordes 1px nítidos, tipografía Inter + JetBrains Mono, esmeralda quirúrgico para estados críticos y máxima legibilidad sin ruido visual.
+      </div>
+    </aside>
+
+    <main class="hub-stage">
+      <iframe id="previewFrame" class="iframe-frame" src="screens/dashboard.html?v=industrial&m=light" title="Vista previa de pantalla"></iframe>
+    </main>
+  </div>
+
+  <script>
+    const OPTION_DESC = {
+      industrial: {
+        title: 'Opción 1: Precisión Industrial',
+        text: 'Estilo Linear/Vercel. Bordes 1px nítidos, tipografía Inter + JetBrains Mono, esmeralda quirúrgico para estados críticos y máxima legibilidad sin ruido visual.'
+      },
+      bento: {
+        title: 'Opción 2: Eco-Bento Moderno',
+        text: 'Tarjetas Bento amplias (20px), tipografía Outfit, acentos degradados esmeralda/teal y jerarquía visual amable ideal para demos comerciales y gerencia.'
+      },
+      erp: {
+        title: 'Opción 3: Alta Densidad ERP',
+        text: 'Sidebar oscura compacta, tablas densas con zebra striping y máximo aprovechamiento horizontal para operadores que gestionan cientos de DIs al día.'
+      }
+    };
+
+    let state = {
+      screen: 'screens/dashboard.html',
+      variant: 'industrial',
+      mode: 'light',
+      vp: 'desktop'
+    };
+
+    const frame = document.getElementById('previewFrame');
+    const infoBox = document.getElementById('optionInfoBox');
+    const modeBtn = document.getElementById('hubModeBtn');
+    const standaloneBtn = document.getElementById('openStandaloneBtn');
+
+    function syncFrameTheme() {
+      try {
+        frame.contentWindow.postMessage({
+          type: 'RESIGEST_THEME_CHANGE',
+          variant: state.variant,
+          mode: state.mode
+        }, '*');
+      } catch (_) {}
+      standaloneBtn.href = `${state.screen}?v=${state.variant}&m=${state.mode}`;
+      const info = OPTION_DESC[state.variant];
+      infoBox.innerHTML = `<strong>${info.title}</strong>${info.text}`;
+      modeBtn.textContent = state.mode === 'dark' ? '☀️ Claro' : '🌙 Oscuro';
+    }
+
+    document.querySelectorAll('[data-hub-variant]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.variant = btn.getAttribute('data-hub-variant');
+        document.querySelectorAll('[data-hub-variant]').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        syncFrameTheme();
+      });
+    });
+
+    document.querySelectorAll('[data-screen]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.screen = btn.getAttribute('data-screen');
+        document.querySelectorAll('[data-screen]').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        frame.src = `${state.screen}?v=${state.variant}&m=${state.mode}`;
+        syncFrameTheme();
+      });
+    });
+
+    document.querySelectorAll('[data-vp]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.vp = btn.getAttribute('data-vp');
+        document.querySelectorAll('[data-vp]').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        frame.classList.remove('tablet', 'mobile');
+        if (state.vp !== 'desktop') frame.classList.add(state.vp);
+      });
+    });
+
+    modeBtn.addEventListener('click', () => {
+      state.mode = state.mode === 'light' ? 'dark' : 'light';
+      syncFrameTheme();
+    });
+
+    frame.addEventListener('load', syncFrameTheme);
+  </script>
+</body>
+</html>
+

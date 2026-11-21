@@ -257,12 +257,12 @@ export default function DocumentosIdentificacionPage() {
             </div>
             {tracking.hasDiscrepancy && (
               <div className="text-[10px] font-bold text-amber-700 dark:text-amber-400">
-                ⚠️ Discrepancia: {(row.diferencia_peso_kg || 0) > 0 ? '+' : ''}{row.diferencia_peso_kg} kg
+                Discrepancia: {(row.diferencia_peso_kg || 0) > 0 ? '+' : ''}{row.diferencia_peso_kg} kg
               </div>
             )}
             {hasNoContract && (
               <div className="text-[10px] font-bold text-red-600 dark:text-red-400">
-                ⚠️ Sin contrato acreditado
+                Sin contrato acreditado
               </div>
             )}
           </div>
@@ -562,7 +562,7 @@ export default function DocumentosIdentificacionPage() {
                 onClick={() => setFilterStatus('sin_contrato')}
                 className={filterStatus === 'sin_contrato' ? '!bg-red-600' : 'text-red-600 border-red-200 dark:border-red-900'}
               >
-                ⚠️ Sin Contrato ({documents.filter(d => d.estado_traslado && d.estado_traslado !== 'borrador' && !d.contract_id && !d.contrato_externo_referencia).length})
+                Sin Contrato ({documents.filter(d => d.estado_traslado && d.estado_traslado !== 'borrador' && !d.contract_id && !d.contrato_externo_referencia).length})
               </Button>
             )}
           </div>
@@ -691,12 +691,12 @@ export default function DocumentosIdentificacionPage() {
                             </Badge>
                             {tracking.hasDiscrepancy && (
                               <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30">
-                                ⚠️ Discrepancia Báscula: {(doc.diferencia_peso_kg || 0) > 0 ? '+' : ''}{doc.diferencia_peso_kg} kg
+                                Discrepancia Báscula: {(doc.diferencia_peso_kg || 0) > 0 ? '+' : ''}{doc.diferencia_peso_kg} kg
                               </span>
                             )}
                             {doc.estado_traslado && doc.estado_traslado !== 'borrador' && !doc.contract_id && !doc.contrato_externo_referencia && (
                               <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30">
-                                ⚠️ Sin contrato acreditado (Art. 5)
+                                Sin contrato acreditado (Art. 5)
                               </span>
                             )}
                           </div>
@@ -921,7 +921,7 @@ export default function DocumentosIdentificacionPage() {
               )}
 
               <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/20 rounded-xl p-3 text-xs text-emerald-800 dark:text-emerald-300">
-                ✅ <strong>Datos precargados del DI:</strong> Transportista ({decaModalDoc.transportista_razon_social || 'N/A'}), Origen ({decaModalDoc.productor_municipio}), Destino ({decaModalDoc.gestor_municipio}), Residuo y Peso ({decaModalDoc.cantidad} {decaModalDoc.unidad}).
+                <strong>Datos precargados del DI:</strong> Transportista ({decaModalDoc.transportista_razon_social || 'N/A'}), Origen ({decaModalDoc.productor_municipio}), Destino ({decaModalDoc.gestor_municipio}), Residuo y Peso ({decaModalDoc.cantidad} {decaModalDoc.unidad}).
               </div>
 
               {/* Cargador Contractual */}

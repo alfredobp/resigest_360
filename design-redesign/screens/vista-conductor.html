@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es" data-variant="industrial" data-mode="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vista Conductor y Firma Pública — ResiGest 360</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+  <style>
+    .phones-stage {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(330px, 380px));
+      justify-content: center;
+      gap: 28px;
+      padding: 10px 0 24px;
+    }
+    .phone-frame {
+      background: var(--bg-surface);
+      border: 6px solid #1e293b;
+      border-radius: 34px;
+      overflow: hidden;
+      box-shadow: 0 22px 50px rgba(15, 23, 42, 0.22);
+      display: flex;
+      flex-direction: column;
+    }
+    .phone-notch {
+      height: 28px;
+      background: #0f172a;
+      color: #cbd5e1;
+      font-size: 11px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+    }
+    .phone-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: var(--bg-app);
+      flex: 1;
+    }
+    .sig-pad {
+      height: 110px;
+      border: 2px dashed var(--border-strong);
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+      display: grid;
+      place-items: center;
+      position: relative;
+    }
+  </style>
+</head>
+<body data-nav="conductor">
+  <div class="app-shell">
+    <aside id="app-sidebar"></aside>
+    <div class="app-main">
+      <header id="app-topbar"></header>
+      <main class="content">
+        <div class="page-header">
+          <div>
+            <div class="page-title-row">
+              <h1 class="page-title">Experiencia Móvil: Conductor &amp; Firma Pública</h1>
+              <span class="badge badge-info">PWA Mobile-First · Sin Registro</span>
+            </div>
+            <p class="page-subtitle">Rediseño táctil de alto contraste para uso en cabina, báscula e inspecciones en carretera (botones grandes y cero fricción).</p>
+          </div>
+        </div>
+
+        <section class="phones-stage">
+          <!-- Phone 1: Vista Conductor /transporte -->
+          <div class="phone-frame">
+            <div class="phone-notch">
+              <span>09:45</span>
+              <span>ResiGest Transporte</span>
+              <span>5G 🔋</span>
+            </div>
+            <div class="phone-body">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                  <div style="font-size:11px; color:var(--text-muted); font-weight:700;">RUTA ACTIVA · 4892-LMX</div>
+                  <div style="font-size:16px; font-weight:800;">Hola, Carlos Martínez</div>
+                </div>
+                <span class="badge badge-success">En Ruta</span>
+              </div>
+
+              <div class="card card-featured" style="padding:14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span class="mono" style="font-size:12px; font-weight:700;">DI-2026-0842</span>
+                  <span style="font-size:11px; opacity:0.9;">DECA-0419</span>
+                </div>
+                <div style="font-size:15px; font-weight:800; margin:6px 0 2px;">Alcobendas ➔ Valdemoro</div>
+                <div style="font-size:12px; opacity:0.85;">LER 17 04 05 · Chatarra férrica · 14,2 t</div>
+                <div style="margin-top:12px; display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                  <button class="btn btn-sm" style="background:#fff; color:#065f46; padding:9px;">📱 Mostrar QR DeCA</button>
+                  <button class="btn btn-sm" style="background:rgba(255,255,255,0.18); color:#fff; padding:9px;">🗺 Navegar GPS</button>
+                </div>
+              </div>
+
+              <div class="card" style="padding:14px; display:flex; flex-direction:column; gap:8px;">
+                <div style="font-weight:700; font-size:12.5px;">Acciones de Entrega en Planta</div>
+                <button class="btn btn-primary" style="width:100%; padding:11px;">✓ Confirmar Llegada a Báscula</button>
+                <button class="btn btn-outline" style="width:100%; padding:10px;">📷 Adjuntar Ticket de Pesada</button>
+                <button class="btn btn-outline" style="width:100%; padding:10px;">📄 Abrir PDF Oficial DI</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Phone 2: Firma Pública /public/sign-di/[token] -->
+          <div class="phone-frame">
+            <div class="phone-notch">
+              <span>09:46</span>
+              <span>Firma Digital Oficial</span>
+              <span>🔒 SSL</span>
+            </div>
+            <div class="phone-body">
+              <div style="text-align:center; padding:4px 0;">
+                <span class="badge badge-success">Enlace Verificado · RD 553/2020</span>
+                <div style="font-size:16px; font-weight:800; margin-top:6px;">Firma de Recepción DI</div>
+                <div class="mono cell-sub">DI-2026-0842 · Eco-Valorizaciones</div>
+              </div>
+
+              <div class="card" style="padding:12px; font-size:12px; display:grid; gap:6px;">
+                <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">Residuo</span><strong>LER 17 04 05 (No Pel.)</strong></div>
+                <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">Peso Báscula</span><strong style="color:var(--brand)">14.200 kg (+1,4% OK)</strong></div>
+                <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">Operación</span><strong>R04 · Valorización</strong></div>
+              </div>
+
+              <div>
+                <label class="cell-sub" style="margin-bottom:4px;">Nombre y DNI del Receptor</label>
+                <input class="input" style="width:100%" value="Ana Belén Torres · 51209834K" />
+              </div>
+
+              <div>
+                <label class="cell-sub" style="margin-bottom:4px;">Trazo de Firma Biométrica</label>
+                <div class="sig-pad">
+                  <svg width="200" height="58" viewBox="0 0 200 58" fill="none">
+                    <path d="M18 42 C32 10, 48 12, 46 38 C45 48, 62 18, 76 28 C88 36, 98 16, 118 26 C132 33, 152 20, 182 28" stroke="#059669" stroke-width="2.6" stroke-linecap="round"/>
+                  </svg>
+                </div>
+              </div>
+
+              <button class="btn btn-primary" style="width:100%; padding:12px; font-size:13.5px;">✍️ Firmar y Cerrar Traslado</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="../assets/app.js"></script>
+  <script src="../assets/shell.js"></script>
+</body>
+</html>
+

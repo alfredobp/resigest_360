@@ -718,7 +718,7 @@ export default function DetalleDocumentoIdentificacionPage() {
           <div className="p-4 rounded-2xl border border-red-300 dark:border-red-800 bg-red-50/80 dark:bg-red-950/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="space-y-1">
               <h4 className="text-sm font-bold text-red-800 dark:text-red-300 flex items-center gap-2">
-                <span>⚠️</span> Incidencia Normativa: Traslado sin contrato acreditado (Art. 5 RD 553/2020)
+                Incidencia Normativa: Traslado sin contrato acreditado (Art. 5 RD 553/2020)
               </h4>
               <p className="text-xs text-red-700 dark:text-red-400">
                 Este Documento de Identificación no tiene un Contrato de Tratamiento vinculado ni una referencia de contrato externo acreditada. Regularízalo vinculando un contrato vigente o acreditando su referencia externa.
@@ -877,7 +877,7 @@ export default function DetalleDocumentoIdentificacionPage() {
                       </span>
                     </div>
                     <p className="text-[11px] mt-1">
-                      {tracking.hasDiscrepancy ? '⚠️ Desviación superior al margen de control interno (5% o 200 kg)' : '✓ Dentro de márgenes de control interno'}
+                      {tracking.hasDiscrepancy ? 'Desviación superior al margen de control interno (5% o 200 kg)' : 'Dentro de márgenes de control interno'}
                     </p>
                   </div>
                 ) : (
@@ -1119,7 +1119,7 @@ export default function DetalleDocumentoIdentificacionPage() {
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 dark:text-red-400">
-                      ⚠️ Sin contrato vinculado ni referencia acreditada
+                      Sin contrato vinculado ni referencia acreditada
                     </span>
                   )}
                   <button
@@ -1513,7 +1513,7 @@ export default function DetalleDocumentoIdentificacionPage() {
                     siraSubmissions[0].estado === 'aceptado' ? (
                       <Badge color="success" size="md">✓ Aceptado en SIRA</Badge>
                     ) : siraSubmissions[0].estado === 'rechazado' ? (
-                      <Badge color="error" size="md">✗ Rechazado por SIRA</Badge>
+                      <Badge color="error" size="md">Rechazado por SIRA</Badge>
                     ) : (
                       <Badge color="info" size="md">Enviado / En Proceso</Badge>
                     )
@@ -1884,9 +1884,9 @@ export default function DetalleDocumentoIdentificacionPage() {
                   onChange={(e) => setReceptionForm({ ...receptionForm, resultado_recepcion: e.target.value as ResultadoRecepcion })}
                   className="w-full text-xs font-semibold rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary h-10"
                 >
-                  <option value="aceptado">✅ Aceptado Conforme</option>
-                  <option value="rechazado_parcial">⚠️ Aceptado Parcial (Rechazo de parte)</option>
-                  <option value="rechazado_total">❌ Rechazo Total (Devolución a origen)</option>
+                  <option value="aceptado">Aceptado Conforme</option>
+                  <option value="rechazado_parcial">Aceptado Parcial (Rechazo de parte)</option>
+                  <option value="rechazado_total">Rechazo Total (Devolución a origen)</option>
                 </select>
               </div>
             </div>

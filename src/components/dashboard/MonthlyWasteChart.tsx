@@ -13,9 +13,9 @@ interface MonthlyWasteChartProps {
 
 export default function MonthlyWasteChart({ data }: MonthlyWasteChartProps) {
     const options: ApexOptions = {
-        colors: ["#10B981"], // Emerald-500
+        colors: ["#059669"], // Brand Emerald-600
         chart: {
-            fontFamily: "Outfit, sans-serif",
+            fontFamily: "Inter, -apple-system, sans-serif",
             type: "bar",
             height: 250,
             toolbar: {
@@ -25,8 +25,8 @@ export default function MonthlyWasteChart({ data }: MonthlyWasteChartProps) {
         plotOptions: {
             bar: {
                 horizontal: false,
-                columnWidth: "45%",
-                borderRadius: 6,
+                columnWidth: "42%",
+                borderRadius: 4,
                 borderRadiusApplication: "end",
             },
         },
@@ -61,12 +61,12 @@ export default function MonthlyWasteChart({ data }: MonthlyWasteChartProps) {
     ];
 
     return (
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6">
-            <div className="mb-5">
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+        <div className="rounded-[10px] border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] p-4 dark:border-slate-800 dark:bg-[#111827] sm:p-5">
+            <div className="mb-4 pb-3 border-b border-slate-200/80 dark:border-slate-800">
+                <h3 className="text-[13.5px] font-semibold tracking-tight text-slate-900 dark:text-slate-100">
                     Producción de Residuos
                 </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Total mensual en toneladas</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Total mensual en toneladas</p>
             </div>
 
             <div className="max-w-full overflow-x-auto">

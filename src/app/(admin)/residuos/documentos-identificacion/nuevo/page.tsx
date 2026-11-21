@@ -811,10 +811,10 @@ function NuevoDocumentoIdentificacionContent() {
                   <label htmlFor="origin_selector" className="block text-sm font-medium mb-2">Origen del Residuo (Instalación / Centro) *</label>
                   <Select
                     options={[
-                      { value: 'principal', label: `🏢 Sede / Instalación Principal (${myCompany?.razon_social || 'Mi Empresa'})` },
+                      { value: 'principal', label: `Sede / Instalación Principal (${myCompany?.razon_social || 'Mi Empresa'})` },
                       ...productionCenters.map(pc => ({
                         value: pc.id.toString(),
-                        label: `📍 ${pc.nombre} (${pc.nima})`,
+                        label: `${pc.nombre} (${pc.nima})`,
                       })),
                     ]}
                     value={selectedOrigin}
@@ -833,7 +833,7 @@ function NuevoDocumentoIdentificacionContent() {
                 <div>
                   <label className="block text-sm font-medium mb-2">Destino de Recepción</label>
                   <div className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/40 text-xs text-foreground">
-                    🏢 Recepciona: <span className="font-semibold">{myCompany?.razon_social}</span> (NIMA: {myCompany?.nima || 'S/D'})
+                    Recepciona: <span className="font-semibold">{myCompany?.razon_social}</span> (NIMA: {myCompany?.nima || 'S/D'})
                   </div>
                 </div>
               )}
@@ -858,7 +858,7 @@ function NuevoDocumentoIdentificacionContent() {
                 {contracts.length === 0 && (
                   <div className="mt-3 p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 space-y-1.5">
                     <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-semibold text-xs">
-                      <span>⚠️ Cobertura Contractual Requerida (Art. 5 RD 553/2020)</span>
+                      <span>Cobertura Contractual Requerida (Art. 5 RD 553/2020)</span>
                     </div>
                     <p className="text-[11px] text-amber-700 dark:text-amber-400">
                       No dispone de contratos vigentes registrados con gestores de destino. Puede preparar este borrador de traslado, pero no podrá iniciar la expedición oficial hasta formalizar un contrato de tratamiento.
@@ -1145,7 +1145,7 @@ function NuevoDocumentoIdentificacionContent() {
                       <div key={auth.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                         <div>
                           <p className="text-xs font-bold text-brand-950 dark:text-brand-200 flex items-center gap-1.5">
-                            <span>📜</span> Autorización Ambiental: {auth.numero_autorizacion} — {auth.titulo}
+                            Autorización Ambiental: {auth.numero_autorizacion} — {auth.titulo}
                           </p>
                           <p className="text-xs text-brand-700 dark:text-brand-400 mt-0.5">
                             Emisor: {auth.organismo_emisor || 'Comunidad Autónoma'} | Vigencia:{' '}
@@ -1333,12 +1333,12 @@ function NuevoDocumentoIdentificacionContent() {
                 {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler && (
                   destAuthScope.authorizedLers[formData.codigo_ler] ? (
                     <p className="mt-1.5 text-xs text-green-700 dark:text-green-400 font-medium flex items-center gap-1">
-                      <span>✅</span> LER Autorizado en destino (Operaciones:{' '}
+                      LER Autorizado en destino (Operaciones:{' '}
                       <strong>{destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}</strong>)
                     </p>
                   ) : (
                     <p className="mt-1.5 text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
-                      <span>🚫</span> <strong>No Autorizado en Destino:</strong> Este residuo no figura en las autorizaciones ambientales del gestor seleccionado.
+                      <strong>No Autorizado en Destino:</strong> Este residuo no figura en las autorizaciones ambientales del gestor seleccionado.
                     </p>
                   )
                 )}
@@ -1360,7 +1360,7 @@ function NuevoDocumentoIdentificacionContent() {
                 />
                 {isHazardousLocked && (
                   <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
-                    <span>⚠️</span> Clasificado obligatoriamente como <strong>Peligroso</strong> según LER con asterisco (*) (RD 553/2020).
+                    Clasificado obligatoriamente como <strong>Peligroso</strong> según LER con asterisco (*) (RD 553/2020).
                   </p>
                 )}
               </div>
@@ -1402,7 +1402,7 @@ function NuevoDocumentoIdentificacionContent() {
                 {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler && destAuthScope.authorizedLers[formData.codigo_ler] && (
                   formData.operacion_tratamiento && !destAuthScope.authorizedLers[formData.codigo_ler].includes(formData.operacion_tratamiento.toUpperCase().trim()) ? (
                     <p className="mt-1.5 text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
-                      <span>⚠️</span> Operación no autorizada (Permitidas: {destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}).
+                      Operación no autorizada (Permitidas: {destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}).
                     </p>
                   ) : (
                     <p className="mt-1 text-xs text-muted">

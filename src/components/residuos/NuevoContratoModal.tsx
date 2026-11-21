@@ -471,10 +471,10 @@ return (
                 }
                 className="h-10 w-full rounded-lg border border-stroke bg-white dark:bg-dark px-3 text-sm shadow-xs focus:border-primary"
               >
-                <option value="">🏢 Sede / Instalación Principal</option>
+                <option value="">Sede / Instalación Principal</option>
                 {producerCenters.map((center) => (
                   <option key={center.id} value={center.id}>
-                    📍 {center.nombre} ({center.municipio || 'S/D'}) - NIMA: {center.nima}
+                    {center.nombre} ({center.municipio || 'S/D'}) - NIMA: {center.nima}
                   </option>
                 ))}
               </select>
@@ -590,10 +590,10 @@ return (
               }
               className="h-10 w-full rounded-lg border border-stroke bg-white dark:bg-dark px-3 text-sm shadow-xs focus:border-primary"
             >
-              <option value="">🏢 Sede / Planta Principal del Gestor</option>
+              <option value="">Sede / Planta Principal del Gestor</option>
               {gestorCenters.map((center) => (
                 <option key={center.id} value={center.id}>
-                  📍 {center.nombre} ({center.municipio || 'S/D'}) - NIMA: {center.nima}
+                  {center.nombre} ({center.municipio || 'S/D'}) - NIMA: {center.nima}
                 </option>
               ))}
             </select>
@@ -603,7 +603,7 @@ return (
         {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && (
           <div className="p-3 bg-brand-50/70 dark:bg-brand-950/20 border border-brand-200 dark:border-brand-800 rounded-xl">
             <p className="text-xs font-bold text-brand-950 dark:text-brand-200 flex items-center gap-1.5">
-              <span>📜</span> Autorización Ambiental Vigente: {destAuthScope.authorizations[0].numero_autorizacion}
+              Autorización Ambiental Vigente: {destAuthScope.authorizations[0].numero_autorizacion}
             </p>
             <p className="text-xs text-brand-700 dark:text-brand-400 mt-0.5">
               {destAuthScope.authorizations[0].titulo} — Vigencia: {destAuthScope.authorizations[0].es_indefinida ? 'Indefinida' : destAuthScope.authorizations[0].fecha_vencimiento}
@@ -683,7 +683,7 @@ return (
         <div className="flex justify-between items-center">
           <div>
             <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <span>🎯</span> Residuos Cubiertos por el Contrato (Matriz LER y Operaciones)
+              Residuos Cubiertos por el Contrato (Matriz LER y Operaciones)
             </h3>
             <p className="text-xs text-muted">
               Define los códigos LER autorizados, la operación de tratamiento (R o D) y las condiciones económicas.

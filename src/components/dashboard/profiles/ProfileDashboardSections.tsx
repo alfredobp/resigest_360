@@ -579,8 +579,8 @@ export function ProfileShortcutsCard({
   const visibleShortcuts = ALL_SHORTCUTS.filter((s) => !s.module || hasModule(s.module)).slice(0, 5);
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6 space-y-3">
-      <h3 className="text-sm font-bold text-gray-900 dark:text-white pb-2 border-b border-gray-100 dark:border-gray-800">
+    <div className="rounded-[10px] border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] p-4 dark:border-slate-800 dark:bg-[#111827] sm:p-5 space-y-2">
+      <h3 className="text-[13.5px] font-semibold tracking-tight text-slate-900 dark:text-slate-100 pb-2.5 border-b border-slate-200/80 dark:border-slate-800">
         Accesos Directos a Módulos Activos
       </h3>
 
@@ -588,10 +588,10 @@ export function ProfileShortcutsCard({
         <Link
           key={item.href}
           href={item.href}
-          className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-semibold text-gray-800 dark:text-gray-200 group"
+          className="px-3 py-2.5 bg-slate-50/80 dark:bg-slate-900/60 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 rounded-md flex items-center justify-between hover:bg-slate-100/70 dark:hover:bg-slate-800/80 transition-colors text-xs font-semibold text-slate-700 hover:text-slate-900 dark:text-slate-200 group"
         >
           <span>{item.label}</span>
-          <span className="text-gray-400 group-hover:text-brand-500 transition-colors">→</span>
+          <span className="text-slate-400 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">→</span>
         </Link>
       ))}
     </div>

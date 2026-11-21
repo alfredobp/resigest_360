@@ -453,13 +453,13 @@ export default function PlatformAdminPage() {
                       <td className="px-4 py-4">
                         <div className="flex items-center justify-center gap-2">
                           <span title="Centros registrados" className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-mono text-[11px]">
-                            🏭 {c.centers_count || 0}
+                            Centros: {c.centers_count || 0}
                           </span>
                           <span title="Documentos de identificación" className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-mono text-[11px]">
-                            📄 {c.dis_count || 0}
+                            DIs: {c.dis_count || 0}
                           </span>
                           <span title="Contratos de tratamiento" className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-mono text-[11px]">
-                            📝 {c.contracts_count || 0}
+                            Contratos: {c.contracts_count || 0}
                           </span>
                         </div>
                       </td>

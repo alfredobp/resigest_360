@@ -268,7 +268,7 @@ export default function NuevaNotificacionPreviaPage() {
               onClick={handleFillTestData}
               className="flex items-center gap-1.5"
             >
-              🧪 Rellenar Datos de Prueba
+              Rellenar Datos de Prueba
             </Button>
             <Button
               variant="outline"

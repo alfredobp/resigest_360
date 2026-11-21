@@ -23,6 +23,7 @@ import {
 } from "../icons/index";
 import Logo from "@/components/common/Logo";
 import adminPlatformService from "@/services/adminPlatformService";
+import dashboardService from "@/services/dashboardService";
 import { useSandbox } from "@/context/SandboxContext";
 import { useTenant } from "@/context/TenantContext";
 import { PROFILE_DEFINITIONS } from "@/lib/profiles/moduleCatalog";
@@ -170,8 +171,76 @@ const othersItems: NavItem[] = [
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const { isPathVisible, profile, profileLabel } = useSandbox();
-  const { canAccessRoute, perfilOperativo, activeCompany, isPlatformAdmin, loading: tenantLoading } = useTenant();
+  const { canAccessRoute, perfilOperativo, activeCompany, activeCompanyId, isPlatformAdmin, canViewCommercial, loading: tenantLoading } = useTenant();
   const pathname = usePathname();
+
+  const [navBadges, setNavBadges] = useState<
+    Record<string, { count: number; tone: "alert" | "neutral"; title: string }>
+  >({});
+
+  useEffect(() => {
+    if (tenantLoading) return;
+    let cancelled = false;
+    const scopedCompanyId = isPlatformAdmin && !activeCompanyId ? null : activeCompanyId;
+
+    dashboardService
+      .getExecutiveOverview({
+        companyId: scopedCompanyId,
+        includeCommercial: canViewCommercial,
+      })
+      .then((overview) => {
+        if (cancelled) return;
+        const next: Record<string, { count: number; tone: "alert" | "neutral"; title: string }> = {};
+
+        const diCritical =
+          overview.alertas.disDiscrepanciaCount +
+          overview.alertas.disSinContratoCount +
+          overview.alertas.disTratamientoNoAutorizadoCount;
+        const diTotal = overview.alertas.disEnTransitoCount + diCritical;
+        if (diTotal > 0) {
+          next["/residuos/documentos-identificacion"] = {
+            count: diTotal,
+            tone: "alert",
+            title: `${overview.alertas.disEnTransitoCount} en tránsito, ${diCritical} incidencias críticas`,
+          };
+        }
+
+        const contractsTotal =
+          overview.alertas.contratosCaducadosCount + overview.alertas.contratosPorVencerCount;
+        if (contractsTotal > 0) {
+          next["/residuos/contratos"] = {
+            count: contractsTotal,
+            tone: overview.alertas.contratosCaducadosCount > 0 ? "alert" : "neutral",
+            title: `${overview.alertas.contratosCaducadosCount} caducados, ${overview.alertas.contratosPorVencerCount} próximos a vencer`,
+          };
+        }
+
+        if (overview.comercial.operacionesAbiertas > 0) {
+          next["/residuos/operaciones"] = {
+            count: overview.comercial.operacionesAbiertas,
+            tone: "neutral",
+            title: `${overview.comercial.operacionesAbiertas} operaciones comerciales abiertas`,
+          };
+        }
+
+        if (overview.alertas.autorizacionesPorVencerCount > 0) {
+          next["/residuos/gestores"] = {
+            count: overview.alertas.autorizacionesPorVencerCount,
+            tone: "neutral",
+            title: `${overview.alertas.autorizacionesPorVencerCount} autorizaciones próximas a vencer`,
+          };
+        }
+
+        setNavBadges(next);
+      })
+      .catch(() => {
+        // Silenciar si aún no hay sesión o datos disponibles
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantLoading, activeCompanyId, isPlatformAdmin, canViewCommercial, pathname]);
 
   const checkMenuPathVisible = useCallback(
     (path?: string): boolean => {
@@ -204,7 +273,7 @@ const AppSidebar: React.FC = () => {
     });
 
     return (
-      <ul className="flex flex-col gap-4">
+      <ul className="flex flex-col gap-1">
         {filteredList.map((nav, index) => (
           <li key={nav.name}>
             {nav.subItems ? (
@@ -240,25 +309,48 @@ const AppSidebar: React.FC = () => {
                 )}
               </button>
             ) : (
-              nav.path && (
-                <Link
-                  href={nav.path}
-                  className={`menu-item group ${isActive(nav.path) ? "menu-item-active" : "menu-item-inactive"
-                    }`}
-                >
-                  <span
-                    className={`${isActive(nav.path)
-                      ? "menu-item-icon-active"
-                      : "menu-item-icon-inactive"
+              nav.path && (() => {
+                const badge = navBadges[nav.path];
+                const isCollapsed = !isExpanded && !isHovered && !isMobileOpen;
+                return (
+                  <Link
+                    href={nav.path}
+                    title={badge ? `${nav.name} (${badge.title})` : nav.name}
+                    className={`menu-item group ${isActive(nav.path) ? "menu-item-active" : "menu-item-inactive"
                       }`}
                   >
-                    {nav.icon}
-                  </span>
-                  {(isExpanded || isHovered || isMobileOpen) && (
-                    <span className="menu-item-text">{nav.name}</span>
-                  )}
-                </Link>
-              )
+                    <span
+                      className={`relative ${isActive(nav.path)
+                        ? "menu-item-icon-active"
+                        : "menu-item-icon-inactive"
+                        }`}
+                    >
+                      {nav.icon}
+                      {isCollapsed && badge && (
+                        <span
+                          className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-white dark:ring-[#0d1321] ${
+                            badge.tone === "alert" ? "bg-red-500" : "bg-slate-400"
+                          }`}
+                        />
+                      )}
+                    </span>
+                    {!isCollapsed && (
+                      <span className="menu-item-text truncate">{nav.name}</span>
+                    )}
+                    {!isCollapsed && badge && (
+                      <span
+                        className={`ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold tabular-nums leading-none ${
+                          badge.tone === "alert"
+                            ? "bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-400"
+                            : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                        }`}
+                      >
+                        {badge.count > 99 ? "99+" : badge.count}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })()
             )}
             {nav.subItems && (isExpanded || isHovered || isMobileOpen) && (
               <div
@@ -390,12 +482,12 @@ const AppSidebar: React.FC = () => {
 
   return (
     <aside
-      className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 
+      className={`fixed mt-14 flex flex-col lg:mt-0 top-0 px-3 left-0 bg-white dark:bg-[#0d1321] border-r border-slate-200 dark:border-slate-800/90 text-slate-900 h-screen transition-all duration-200 ease-in-out z-50
         ${isExpanded || isMobileOpen
-          ? "w-[290px]"
+          ? "w-[252px]"
           : isHovered
-            ? "w-[290px]"
-            : "w-[90px]"
+            ? "w-[252px]"
+            : "w-[76px]"
         }
         ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
         lg:translate-x-0`}
@@ -403,29 +495,29 @@ const AppSidebar: React.FC = () => {
       onMouseLeave={() => setIsHovered(false)}
     >
       <div
-        className={`py-4 flex  ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
+        className={`h-14 flex items-center border-b border-slate-200/80 dark:border-slate-800/80 mb-3 ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start px-1"
           }`}
       >
         <Link href="/app">
           {isExpanded || isHovered || isMobileOpen ? (
-            <Logo width={231} height={99} />
+            <Logo width={168} height={46} />
           ) : (
-            <LogoReduced width={60} height={60} />
+            <LogoReduced width={38} height={38} />
           )}
         </Link>
       </div>
-      <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
+      <div className="flex flex-col overflow-y-auto duration-200 ease-linear no-scrollbar">
         <nav className="mb-6">
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
             <div>
               <h2
-                className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${!isExpanded && !isHovered
+                className={`mb-2 px-2.5 text-[10.5px] font-semibold uppercase tracking-wider flex leading-[18px] text-slate-400 dark:text-slate-500 ${!isExpanded && !isHovered
                   ? "lg:justify-center"
                   : "justify-start"
                   }`}
               >
                 {isExpanded || isHovered || isMobileOpen ? (
-                  "Menú"
+                  "Navegación"
                 ) : (
                   <HorizontaLDots />
                 )}
@@ -434,9 +526,9 @@ const AppSidebar: React.FC = () => {
             </div>
 
             {isAdmin && (
-              <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80">
                 <h2
-                  className={`mb-4 text-xs uppercase flex leading-[20px] font-bold text-primary ${!isExpanded && !isHovered
+                  className={`mb-2 px-2.5 text-[10.5px] uppercase tracking-wider flex leading-[18px] font-semibold text-brand-600 dark:text-brand-400 ${!isExpanded && !isHovered
                     ? "lg:justify-center"
                     : "justify-start"
                     }`}
@@ -454,12 +546,12 @@ const AppSidebar: React.FC = () => {
             {/* Indicador de perfil real activo o Sandbox admin */}
             {isPlatformAdmin && profile !== 'all' ? (
               (isExpanded || isHovered || isMobileOpen) && (
-                <div className="mt-2 p-3 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs">
-                  <div className="flex items-center gap-1.5 font-bold text-blue-700 dark:text-blue-300">
-                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                <div className="mt-2 p-2.5 bg-sky-50/80 dark:bg-sky-950/30 border border-sky-200/80 dark:border-sky-900/50 rounded-lg text-xs">
+                  <div className="flex items-center gap-1.5 font-semibold text-sky-700 dark:text-sky-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
                     <span>Sandbox: {profileLabel}</span>
                   </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                     Simulación visual en modo administrador.
                   </p>
                 </div>
@@ -467,8 +559,8 @@ const AppSidebar: React.FC = () => {
             ) : (
               activeCompany &&
               (isExpanded || isHovered || isMobileOpen) && (
-                <div className="mt-2 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl text-xs">
-                  <div className="flex items-center justify-between gap-2 font-semibold text-slate-800 dark:text-slate-200">
+                <div className="mt-2 p-2.5 bg-slate-50 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-800 rounded-lg text-xs">
+                  <div className="flex items-center justify-between gap-2 font-semibold text-slate-800 dark:text-slate-100">
                     <span className="truncate">{activeCompany.nombre_comercial || activeCompany.razon_social}</span>
                   </div>
                   <p className="text-[11px] text-brand-600 dark:text-brand-400 font-medium mt-0.5">

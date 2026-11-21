@@ -239,7 +239,7 @@ export default function AutorizacionModal({
       {/* Header */}
       <div className="pb-4 mb-4 border-b border-gray-100 dark:border-gray-800">
         <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-          <span>📜</span>
+          
           {authorizationToEdit ? 'Editar Autorización Ambiental' : 'Nueva Autorización Ambiental'}
         </h3>
         <p className="text-xs text-muted mt-1">
@@ -281,10 +281,10 @@ export default function AutorizacionModal({
                 value={selectedCenterId || ''}
                 onChange={(e) => setSelectedCenterId(e.target.value ? Number(e.target.value) : null)}
               >
-                <option value="">🏢 Todas las instalaciones (Autorización general)</option>
+                <option value="">Todas las instalaciones (Autorización general)</option>
                 {centers.map((c) => (
                   <option key={c.id} value={c.id}>
-                    📍 {c.nombre} ({c.municipio || 'S/D'}) - NIMA: {c.nima}
+                    {c.nombre} ({c.municipio || 'S/D'}) - NIMA: {c.nima}
                   </option>
                 ))}
               </select>
@@ -365,7 +365,7 @@ export default function AutorizacionModal({
             <div className="flex justify-between items-center mb-3">
               <div>
                 <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                  <span>🎯</span> Matriz de Residuos y Operaciones Autorizadas
+                  Matriz de Residuos y Operaciones Autorizadas
                 </h4>
                 <p className="text-xs text-muted">
                   Define los códigos LER y las operaciones autorizadas (R o D) en destino para validar los traslados y contratos.

@@ -266,7 +266,7 @@ function PublicDISignatureContent() {
           {isValidRoleParam && (
             <div className="mb-3 p-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-xs text-blue-800 dark:text-blue-300 flex items-center justify-between">
               <span>
-                🔒 <strong>Enlace acotado:</strong> este enlace autoriza exclusivamente la firma en calidad de{' '}
+                <strong>Enlace acotado:</strong> este enlace autoriza exclusivamente la firma en calidad de{' '}
                 <strong>{ROLE_META[selectedRole].label}</strong>.
               </span>
             </div>

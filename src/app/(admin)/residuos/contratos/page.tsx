@@ -328,7 +328,7 @@ export default function ContratosPage() {
                               </p>
                             ) : (
                               <p className="text-amber-600 dark:text-amber-400 font-medium">
-                                ⚠️ Sin gestor asignado
+                                Sin gestor asignado
                               </p>
                             )}
 

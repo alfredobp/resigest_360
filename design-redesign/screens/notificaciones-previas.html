@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es" data-variant="industrial" data-mode="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notificaciones Previas (NT) — ResiGest 360</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body data-nav="nt">
+  <div class="app-shell">
+    <aside id="app-sidebar"></aside>
+    <div class="app-main">
+      <header id="app-topbar"></header>
+      <main class="content">
+        <div class="page-header">
+          <div>
+            <div class="page-title-row">
+              <h1 class="page-title">Notificaciones Previas de Traslado (NT)</h1>
+              <span class="badge badge-warning">Art. 31 Ley 7/2022 · Plazo 10 días</span>
+            </div>
+            <p class="page-subtitle">Control de notificaciones obligatorias para residuos peligrosos y eliminación (D1–D15), con seguimiento de cupo autorizado.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline">📡 Sincronizar eSIR / SIRA</button>
+            <button class="btn btn-primary">+ Nueva Notificación NT</button>
+          </div>
+        </div>
+
+        <section class="grid grid-4">
+          <div class="card kpi-card">
+            <span class="kpi-label">NT Vigentes</span>
+            <div class="kpi-value" style="color:var(--brand)">18</div>
+            <span class="kpi-sub">Habilitadas para emitir DIs</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label">En Plazo de 10 Días</span>
+            <div class="kpi-value" style="color:var(--info)">3</div>
+            <span class="kpi-sub">Esperando silencio administrativo</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label">Cupo &gt;80% Consumido</span>
+            <div class="kpi-value" style="color:var(--warning)">2</div>
+            <span class="kpi-sub">Recomendado ampliar NT</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label">Próximas a Caducar</span>
+            <div class="kpi-value" style="color:var(--danger)">1</div>
+            <span class="kpi-sub">Vence en 14 días</span>
+          </div>
+        </section>
+
+        <section class="toolbar">
+          <div class="toolbar-group">
+            <input type="text" class="input" style="width:260px" placeholder="Buscar código NT, LER peligroso o productor..." data-table-search="ntTable" />
+            <select class="select">
+              <option>Todas las CCAA</option>
+              <option>Comunidad de Madrid</option>
+              <option>Andalucía (SIRA)</option>
+              <option>Cataluña (SDR)</option>
+            </select>
+          </div>
+          <div class="tabs">
+            <button class="tab-btn active">Todas (24)</button>
+            <button class="tab-btn">Vigentes (18)</button>
+            <button class="tab-btn">En Espera (3)</button>
+            <button class="tab-btn">Agotadas (3)</button>
+          </div>
+        </section>
+
+        <section class="table-wrap">
+          <table class="data-table" id="ntTable">
+            <thead>
+              <tr>
+                <th>Código NT Oficial</th>
+                <th>Productor ➔ Gestor</th>
+                <th>LER &amp; Peligrosidad</th>
+                <th>Consumo de Cupo (t)</th>
+                <th>Vigencia</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="mono cell-main">NT-28-2026-00412</span><span class="cell-sub">Multiple (3 años)</span></td>
+                <td><span class="cell-main">Talleres Centrales Madrid</span><span class="cell-sub">➔ Gestor Aceites Sur S.A.</span></td>
+                <td><span class="mono badge badge-warning badge-plain">13 02 05* · HP5</span></td>
+                <td style="min-width:170px;">
+                  <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;">
+                    <strong>42,8 / 50,0 t</strong><span style="color:var(--warning); font-weight:700">86%</span>
+                  </div>
+                  <div class="progress-track"><div class="progress-fill warn" style="width:86%"></div></div>
+                </td>
+                <td>01/01/2026 – 31/12/2028</td>
+                <td><span class="badge badge-success">Autorizada</span></td>
+                <td><button class="btn btn-soft btn-sm">Crear DI</button></td>
+              </tr>
+              <tr>
+                <td><span class="mono cell-main">NT-41-2026-00988</span><span class="cell-sub">SIRA Andalucía</span></td>
+                <td><span class="cell-main">Química del Sur S.A.</span><span class="cell-sub">➔ Eco-Valorizaciones Ibéricas</span></td>
+                <td><span class="mono badge badge-warning badge-plain">15 01 10* · HP14</span></td>
+                <td style="min-width:170px;">
+                  <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;">
+                    <strong>12,0 / 40,0 t</strong><span>30%</span>
+                  </div>
+                  <div class="progress-track"><div class="progress-fill" style="width:30%"></div></div>
+                </td>
+                <td>15/03/2026 – 15/03/2029</td>
+                <td><span class="badge badge-success">Autorizada</span></td>
+                <td><button class="btn btn-soft btn-sm">Crear DI</button></td>
+              </tr>
+              <tr>
+                <td><span class="mono cell-main">NT-28-2026-00501</span><span class="cell-sub">Presentada 17/11/2026</span></td>
+                <td><span class="cell-main">Industrias Metalúrgicas Norte</span><span class="cell-sub">➔ Depósito Seguridad D05</span></td>
+                <td><span class="mono badge badge-danger badge-plain">12 01 09* · HP7</span></td>
+                <td style="min-width:170px;">
+                  <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;">
+                    <strong>0,0 / 25,0 t</strong><span>0%</span>
+                  </div>
+                  <div class="progress-track"><div class="progress-fill info" style="width:5%"></div></div>
+                </td>
+                <td>Inicio previsto: 27/11/2026</td>
+                <td><span class="badge badge-info">Faltan 6 días</span></td>
+                <td><button class="btn btn-outline btn-sm">Ver XML</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="../assets/app.js"></script>
+  <script src="../assets/shell.js"></script>
+</body>
+</html>
+

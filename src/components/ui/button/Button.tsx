@@ -23,24 +23,24 @@ const Button: React.FC<ButtonProps> = ({
   disabled = false,
   type = "button",
 }) => {
-  // Size Classes
+  // Size Classes (Precisión Industrial)
   const sizeClasses = {
-    sm: "px-4 py-3 text-sm",
-    md: "px-5 py-3.5 text-sm",
+    sm: "px-3 py-1.5 text-xs",
+    md: "px-4 py-2 text-[13px]",
   };
 
   // Variant Classes
   const variantClasses = {
     primary:
-      "bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600 disabled:bg-brand-300",
+      "bg-brand-500 text-white border border-brand-600/20 shadow-[0_1px_2px_rgba(5,150,105,0.22)] hover:bg-brand-600 active:translate-y-[0.5px] disabled:bg-brand-300",
     outline:
-      "bg-white text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/[0.03] dark:hover:text-gray-300",
+      "bg-white text-slate-700 border border-slate-200 shadow-[0_1px_2px_rgba(15,23,42,0.03)] hover:bg-slate-50 hover:border-slate-300 hover:text-slate-900 dark:bg-[#111827] dark:text-slate-300 dark:border-slate-700/90 dark:hover:bg-slate-800/80 dark:hover:text-white",
   };
 
   return (
     <button
       type={type}
-      className={`inline-flex items-center justify-center font-medium gap-2 rounded-lg transition ${className} ${
+      className={`inline-flex items-center justify-center font-semibold gap-1.5 rounded-md transition-all ${className} ${
         sizeClasses[size]
       } ${variantClasses[variant]} ${
         disabled ? "cursor-not-allowed opacity-50" : ""

@@ -267,7 +267,7 @@ function EmpresasContent() {
         {filteredCompanies.length === 0 ? (
           <ComponentCard title="Directorio">
             <div className="text-center py-12">
-              <div className="text-4xl mb-3">🏢</div>
+              
               <h3 className="text-lg font-medium text-foreground">No se encontraron empresas</h3>
               <p className="mt-2 text-sm text-muted">
                 {searchQuery
@@ -399,7 +399,6 @@ function EmpresasContent() {
                             }}
                             className="inline-flex items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors py-1 px-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/60"
                           >
-                            <span className="text-sm">📜</span>
                             <span className="font-semibold">
                               Autorizaciones Ambientales ({companyAuths.length})
                             </span>
@@ -484,7 +483,7 @@ function EmpresasContent() {
                                             <Badge color="primary" size="sm">Vence: {auth.fecha_vencimiento}</Badge>
                                           )}
                                           <span className="inline-flex items-center text-[11px] font-semibold text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/60 px-2 py-0.5 rounded-full border border-brand-200 dark:border-brand-800">
-                                            🔖 {numLers} {numLers === 1 ? 'código LER autorizado' : 'códigos LER autorizados'}
+                                            {numLers} {numLers === 1 ? 'código LER autorizado' : 'códigos LER autorizados'}
                                           </span>
                                         </div>
 

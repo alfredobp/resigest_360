@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es" data-variant="industrial" data-mode="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Operaciones Comerciales — ResiGest 360</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body data-nav="operaciones">
+  <div class="app-shell">
+    <aside id="app-sidebar"></aside>
+    <div class="app-main">
+      <header id="app-topbar"></header>
+      <main class="content">
+        <div class="page-header">
+          <div>
+            <div class="page-title-row">
+              <h1 class="page-title">Operaciones Comerciales</h1>
+              <span class="badge badge-purple">Negociante · Chatarrería</span>
+            </div>
+            <p class="page-subtitle">Desacoplamiento de flujos físicos y financieros con cálculo de margen bruto por tonelada en tiempo real.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline">⬇ Excel Contable</button>
+            <button class="btn btn-soft">⚖️ Entrada Báscula Multimaterial</button>
+            <button class="btn btn-primary">+ Nueva Operación</button>
+          </div>
+        </div>
+
+        <section class="grid grid-4">
+          <div class="card kpi-card card-featured">
+            <span class="kpi-label">Facturación Venta (2026)</span>
+            <div class="kpi-value">142.850 €</div>
+            <span class="kpi-sub">68 operaciones registradas</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label">Costes Compra + Porte</span>
+            <div class="kpi-value">103.690 €</div>
+            <span class="kpi-sub">Material 88.200 € · Logística 15.490 €</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label">Margen Bruto Neto</span>
+            <div class="kpi-value" style="color:var(--brand)">39.160 €</div>
+            <span class="kpi-sub"><span class="trend-up">27,4%</span> rentabilidad media</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label">Margen Medio / Tonelada</span>
+            <div class="kpi-value">38,20 €<span style="font-size:13px; color:var(--text-muted)">/t</span></div>
+            <span class="kpi-sub">Objetivo anual: 35,00 €/t</span>
+          </div>
+        </section>
+
+        <section class="toolbar">
+          <div class="toolbar-group">
+            <input type="text" class="input" style="width:260px" placeholder="Buscar operación, cliente, proveedor o LER..." data-table-search="opsTable" />
+            <select class="select">
+              <option>Ejercicio: 2026</option>
+              <option>Ejercicio: 2025</option>
+            </select>
+            <select class="select">
+              <option>Estado: Todas</option>
+              <option>Abierta</option>
+              <option>En Tránsito</option>
+              <option>Completada</option>
+              <option>Liquidada</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <span class="badge badge-success badge-plain">Sincronizado con Holded ERP</span>
+          </div>
+        </section>
+
+        <section class="table-wrap">
+          <table class="data-table" id="opsTable">
+            <thead>
+              <tr>
+                <th>Expediente</th>
+                <th>Proveedor ➔ Comprador</th>
+                <th>Material / LER</th>
+                <th>Peso</th>
+                <th>Compra + Porte</th>
+                <th>Venta</th>
+                <th>Margen</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="mono cell-main">OP-2026-0148</span><span class="cell-sub">DI-2026-0842</span></td>
+                <td><span class="cell-main">Metalúrgicas del Norte</span><span class="cell-sub">➔ Acerías del Cantábrico S.A.</span></td>
+                <td><span class="mono cell-main">17 04 05</span><span class="cell-sub">Chatarra E3</span></td>
+                <td><strong>14,20 t</strong></td>
+                <td>3.976 €</td>
+                <td><strong>4.828 €</strong></td>
+                <td><span class="trend-up">+852 €</span><span class="cell-sub">60,0 €/t (17,6%)</span></td>
+                <td><span class="badge badge-info">En Tránsito</span></td>
+              </tr>
+              <tr>
+                <td><span class="mono cell-main">OP-2026-0147</span><span class="cell-sub">Báscula #4412</span></td>
+                <td><span class="cell-main">Desguaces Centro S.L.</span><span class="cell-sub">➔ Fundición Aluminio Sur</span></td>
+                <td><span class="mono cell-main">17 04 02</span><span class="cell-sub">Aluminio perfil</span></td>
+                <td><strong>6,85 t</strong></td>
+                <td>8.905 €</td>
+                <td><strong>10.960 €</strong></td>
+                <td><span class="trend-up">+2.055 €</span><span class="cell-sub">300,0 €/t (18,8%)</span></td>
+                <td><span class="badge badge-success">Liquidada</span></td>
+              </tr>
+              <tr>
+                <td><span class="mono cell-main">OP-2026-0146</span><span class="cell-sub">DI-2026-0840</span></td>
+                <td><span class="cell-main">Logística Levante S.L.</span><span class="cell-sub">➔ Reciclados Plásticos Med.</span></td>
+                <td><span class="mono cell-main">15 01 02</span><span class="cell-sub">PEAD Balas</span></td>
+                <td><strong>8,90 t</strong></td>
+                <td>1.691 €</td>
+                <td><strong>2.403 €</strong></td>
+                <td><span class="trend-up">+712 €</span><span class="cell-sub">80,0 €/t (29,6%)</span></td>
+                <td><span class="badge badge-warning">Completada</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="../assets/app.js"></script>
+  <script src="../assets/shell.js"></script>
+</body>
+</html>
+
