@@ -204,7 +204,7 @@ export default function NuevoContratoPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           {/* Datos del Contrato */}
           <ComponentCard title="Datos del Contrato">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

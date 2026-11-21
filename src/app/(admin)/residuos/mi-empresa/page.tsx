@@ -559,7 +559,7 @@ export default function MiEmpresaPage() {
           )}
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           {/* =========================================================
               PESTAÑA 1: DATOS FISCALES Y CONTACTO
           ========================================================= */}
@@ -1305,7 +1305,7 @@ export default function MiEmpresaPage() {
 
             {showCenterForm && (
               <ComponentCard title="Agregar Nuevo Centro de Producción" className="mb-6">
-                <form onSubmit={handleAddCenter} className="space-y-4">
+                <form onSubmit={handleAddCenter} className="space-y-4" noValidate>
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
                     <div className="sm:col-span-8">
                       <label className="block text-sm font-medium mb-1">Nombre del Centro *</label>

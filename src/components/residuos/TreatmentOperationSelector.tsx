@@ -16,6 +16,7 @@ interface TreatmentOperationSelectorProps {
   authorizedOps?: string[] | null;
   disabled?: boolean;
   error?: boolean;
+  hint?: string;
   compact?: boolean;
   showHint?: boolean;
 }
@@ -30,6 +31,7 @@ export default function TreatmentOperationSelector({
   authorizedOps,
   disabled = false,
   error = false,
+  hint,
   compact = false,
   showHint = true,
 }: TreatmentOperationSelectorProps) {
@@ -60,9 +62,12 @@ export default function TreatmentOperationSelector({
         name={name}
         value={normalizedValue}
         disabled={disabled}
+        aria-invalid={error ? 'true' : undefined}
         onChange={(e) => onChange(e.target.value)}
-        className={`${compact ? 'h-10 px-2.5' : 'h-11 px-3.5'} w-full rounded-lg border bg-white dark:bg-dark text-sm shadow-xs focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 disabled:opacity-60 ${
-          error ? 'border-error-500' : 'border-stroke dark:border-strokedark'
+        className={`${compact ? 'h-10 px-2.5' : 'h-11 px-3.5'} w-full rounded-lg border text-sm shadow-xs focus:outline-none focus:ring-2 disabled:opacity-60 ${
+          error
+            ? 'bg-error-50/30 text-error-900 border-error-500 ring-1 ring-error-500/50 focus:border-error-500 focus:ring-error-500/20 dark:bg-error-950/30 dark:text-error-300 dark:border-error-500'
+            : 'bg-white dark:bg-dark border-stroke dark:border-strokedark focus:border-primary focus:ring-primary/10'
         }`}
       >
         <option value="">Selecciona operación R/D...</option>
@@ -123,6 +128,10 @@ export default function TreatmentOperationSelector({
           ))}
         </optgroup>
       </select>
+
+      {hint && error && (
+        <p className="mt-1.5 text-xs text-error-500 font-medium">{hint}</p>
+      )}
 
       {showHint && (
         <div className="mt-1 space-y-0.5">

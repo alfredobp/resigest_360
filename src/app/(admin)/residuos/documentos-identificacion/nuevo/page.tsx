@@ -30,6 +30,7 @@ import LerSelector from '@/components/residuos/LerSelector';
 import TreatmentOperationSelector from '@/components/residuos/TreatmentOperationSelector';
 import { getProvinceByPostalCode } from '@/lib/validations/spainLocations';
 import { PHYSICAL_CONTAINER_CATALOG } from '@/lib/validations/normativeCompliance';
+import { scrollToFirstError } from '@/lib/validations/formValidation';
 import { useTenant } from '@/context/TenantContext';
 
 function NuevoDocumentoIdentificacionContent() {
@@ -578,8 +579,7 @@ function NuevoDocumentoIdentificacionContent() {
 
         setValidationErrors(formattedErrors);
         setError(`Error de validación: ${firstErrorMessage}`);
-        // Hacemos scroll arriba si hay error
-        window.scrollTo(0, 0);
+        scrollToFirstError(formattedErrors);
         return;
       }
 
@@ -811,6 +811,8 @@ function NuevoDocumentoIdentificacionContent() {
                     type="date"
                     value={formData.fecha_documento}
                     onChange={(e) => setFormData({ ...formData, fecha_documento: e.target.value })}
+                    error={!!validationErrors.fecha_documento}
+                    hint={validationErrors.fecha_documento}
                     required
                   />
                 </div>
@@ -1245,6 +1247,8 @@ function NuevoDocumentoIdentificacionContent() {
                       value={formData.gestor_razon_social || ''}
                       onChange={(e) => setFormData({ ...formData, gestor_razon_social: e.target.value })}
                       disabled={expeditionRole === 'gestor' || Boolean(formData.contract_id)}
+                      error={!!validationErrors.gestor_razon_social}
+                      hint={validationErrors.gestor_razon_social}
                       required
                     />
                   </div>
@@ -1271,6 +1275,8 @@ function NuevoDocumentoIdentificacionContent() {
                       value={formData.gestor_nima || ''}
                       onChange={(e) => setFormData({ ...formData, gestor_nima: e.target.value })}
                       disabled={expeditionRole === 'gestor'}
+                      error={!!validationErrors.gestor_nima}
+                      hint={validationErrors.gestor_nima}
                     />
                   </div>
 
@@ -1282,6 +1288,8 @@ function NuevoDocumentoIdentificacionContent() {
                       value={formData.gestor_numero_autorizacion || ''}
                       onChange={(e) => setFormData({ ...formData, gestor_numero_autorizacion: e.target.value })}
                       disabled={expeditionRole === 'gestor'}
+                      error={!!validationErrors.gestor_numero_autorizacion}
+                      hint={validationErrors.gestor_numero_autorizacion}
                     />
                   </div>
 
@@ -1578,10 +1586,13 @@ function NuevoDocumentoIdentificacionContent() {
                 <div className="md:col-span-2">
                   <label htmlFor="descripcion_residuo" className="block text-sm font-medium mb-2">Descripción del Residuo *</label>
                   <TextArea
+                    id="descripcion_residuo"
                     value={formData.descripcion_residuo || ''}
                     onChange={(value) => setFormData({ ...formData, descripcion_residuo: value })}
                     rows={2}
                     placeholder="Describe el tipo de residuo..."
+                    error={!!validationErrors.descripcion_residuo}
+                    hint={validationErrors.descripcion_residuo}
                   />
                 </div>
 
@@ -1607,6 +1618,8 @@ function NuevoDocumentoIdentificacionContent() {
                     value={formData.operacion_tratamiento || ''}
                     onChange={(val) => setFormData({ ...formData, operacion_tratamiento: val })}
                     codigoLer={formData.codigo_ler}
+                    error={!!validationErrors.operacion_tratamiento}
+                    hint={validationErrors.operacion_tratamiento}
                     contractOps={(() => {
                       const sc = formData.contract_id
                         ? contracts.find((c) => c.id === formData.contract_id)
@@ -1767,6 +1780,8 @@ function NuevoDocumentoIdentificacionContent() {
                     id="fecha_entrega"
                     defaultDate={formData.fecha_entrega || ''}
                     minDate={formData.fecha_recogida || undefined}
+                    error={!!validationErrors.fecha_entrega}
+                    hint={validationErrors.fecha_entrega}
                     onChange={(_dates, dateStr) => {
                       const nextEntrega = dateStr || '';
                       if (
@@ -1789,11 +1804,6 @@ function NuevoDocumentoIdentificacionContent() {
                       });
                     }}
                   />
-                  {validationErrors.fecha_entrega && (
-                    <p className="mt-1.5 text-xs text-error-500 font-medium">
-                      {validationErrors.fecha_entrega}
-                    </p>
-                  )}
                 </div>
               </div>
             </ComponentCard>

@@ -847,7 +847,7 @@ export default function ArchivoCronologicoPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSaveEntry} className="space-y-4">
+          <form onSubmit={handleSaveEntry} className="space-y-4" noValidate>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Fecha */}
               <div>

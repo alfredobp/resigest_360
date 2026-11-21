@@ -170,7 +170,7 @@ export default function NuevaMemoriaPage() {
       />
 
       {/* Formulario */}
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <ComponentCard title="Detalles de la Memoria Anual">
           <div className="space-y-6">
             {/* Datos de la Empresa */}

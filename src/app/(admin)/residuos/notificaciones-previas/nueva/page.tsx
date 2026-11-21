@@ -291,7 +291,7 @@ export default function NuevaNotificacionPreviaPage() {
           <Alert variant="error" title="Atención" message={error} />
         )}
 
-        <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
+        <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6" noValidate>
           {/* 1. Datos Generales de la NT */}
           <ComponentCard title="1. Datos Generales de la Notificación">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

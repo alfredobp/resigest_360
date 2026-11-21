@@ -209,7 +209,7 @@ export default function NuevaOperacionComercialPage() {
 
       {error && <Alert variant="error" title="Atención" message={error} />}
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6" noValidate>
         {/* Columna Principal: Formularios */}
         <div className="lg:col-span-2 space-y-6">
           {/* Bloque 1: Datos de Operación y Residuo */}
