@@ -298,6 +298,57 @@ describe('priorNotificationService', () => {
       expect(xml).not.toContain('<table5>');
       expect(xml).toContain('<table2>R12</table2>');
       expect(xml).toContain('<process operationIdProcessCode="R1201"/>');
+      expect(xml).toContain('<CA CACode="01"/>');
+      expect(xml).toContain('<country countryCode="724"/>');
+      expect(xml).toContain('<authorizationIdEffects>No disponible</authorizationIdEffects>');
+      expect(xml).not.toContain('<CP></CP>');
+    });
+
+    it('genera <NTFinalAdresseeData>, NTYear desde fecha_notificacion y NTSendtoDestinationAuthority="S" en traslados interautonómicos', () => {
+      const xml = priorNotificationService.generateNTXml({
+        id: 55,
+        fecha_notificacion: '2025-11-01',
+        fecha_inicio: '2025-11-15',
+        fecha_fin: '2026-11-15',
+        tipo_traslado: 'interautonomico',
+        operador_cif: 'B11223344',
+        operador_razon_social: 'Operador S.L.',
+        operador_nima: '4100000001',
+        operador_provincia: 'Sevilla',
+        operador_municipio: 'Sevilla',
+        operador_codigo_postal: '41001',
+        operador_telefono: '954000111',
+        operador_email: 'op@test.es',
+        productor_cif: 'A12345678',
+        productor_razon_social: 'Productor S.A.',
+        productor_nima: '4100000002',
+        productor_provincia: 'Sevilla',
+        productor_email: 'solo@sin-telefono.es',
+        gestor_cif: 'B87654321',
+        gestor_razon_social: 'Gestor Intermedio S.L.',
+        gestor_nima: '2800000003',
+        gestor_provincia: 'Madrid',
+        gestor_municipio: 'Madrid',
+        gestor_codigo_postal: '28001',
+        codigo_ler: '150101',
+        peligrosidad: 'no-peligroso',
+        operacion_tratamiento: 'R13',
+        cantidad_estimada_kg: 1500,
+        destino_posterior_cif: 'B99887766',
+        destino_posterior_razon_social: 'Planta Final S.A.',
+        destino_posterior_nima: '2800000004',
+        destino_posterior_operacion_rd: 'R03',
+      });
+
+      expect(xml).toContain('NTYear="2025"');
+      expect(xml).toContain('NTDate="2025-11-01"');
+      expect(xml).toContain('NTRegional="N"');
+      expect(xml).toContain('NTSendtoDestinationAuthority="S"');
+      expect(xml).toContain('<phone>954000111</phone>');
+      expect(xml).toContain('<mail>solo@sin-telefono.es</mail>');
+      expect(xml).toContain('<NTFinalAdresseeData>');
+      expect(xml).toContain('<reasonName>Planta Final S.A.</reasonName>');
+      expect(xml).toContain('<Operation>R03</Operation>');
     });
   });
 

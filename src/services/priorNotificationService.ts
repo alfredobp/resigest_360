@@ -3,7 +3,9 @@ import { applyTenantScope } from './tenantContextService';
 import { buildNTCode, resolveDocumentYear } from './documentSequenceService';
 import type { PriorNotification } from '@/types/wasteManagement';
 import {
+  buildAuthorizationIdXml,
   formatNima,
+  getCACodeByProvince,
   getProvinceCodeByName,
   siraService,
 } from './siraService';
@@ -328,38 +330,52 @@ export const priorNotificationService = {
     const cleanOp = normalizeOperation(nt.operacion_tratamiento || 'R13');
 
     const date = new Date();
-    const formattedDate = nt.fecha_notificacion || date.toISOString().split('T')[0];
-    const startDate = nt.fecha_inicio || formattedDate;
-    const endDate = nt.fecha_fin || `${new Date().getFullYear() + 1}-12-31`;
+    const fallbackDate = date.toISOString().split('T')[0];
+    const rawNotifDate = nt.fecha_notificacion ? String(nt.fecha_notificacion).split('T')[0] : '';
+    const formattedDate = /^\d{4}-\d{2}-\d{2}$/.test(rawNotifDate) ? rawNotifDate : fallbackDate;
+    const ntYear = formattedDate.slice(0, 4);
+    const startDate = nt.fecha_inicio ? String(nt.fecha_inicio).split('T')[0] : formattedDate;
+    const endDate = nt.fecha_fin ? String(nt.fecha_fin).split('T')[0] : `${date.getFullYear() + 1}-12-31`;
+
+    const buildAddressXml = (
+      rawAddress: string | undefined,
+      rawCp: string | undefined,
+      rawMuni: string | undefined,
+      rawProv: string | undefined,
+      indent = '                '
+    ) => {
+      const provName = clean(rawProv || 'Cádiz');
+      const provCode = getProvinceCodeByName(rawProv || 'Cádiz');
+      const muniName = clean(rawMuni) || (provCode === '11' ? 'Puerto Real' : 'Municipio');
+      const muniCode = siraService.getMunicipalityCode(provCode, muniName);
+      const address = clean(rawAddress) || 'Sin dirección';
+      const cp = clean(rawCp);
+      const cpLine = /^\d{5}$/.test(cp) ? `\n${indent}    <CP>${cp}</CP>` : '';
+      const caCode = getCACodeByProvince(provCode);
+      return `${indent}<spanishAddress>
+${indent}    <vial vialCode="009" vialDescription="Calle"/>
+${indent}    <address>${address}</address>${cpLine}
+${indent}    <municipality municipalityCode="${muniCode}" municipalityName="${muniName}"/>
+${indent}    <province provinceCode="${provCode}" provinceName="${provName}"/>
+${indent}    <CA CACode="${caCode}"/>
+${indent}    <country countryCode="724"/>
+${indent}</spanishAddress>`;
+    };
+
+    const buildContactXml = (rawPhone: string | undefined, rawEmail: string | undefined, indent = '            ') => {
+      const phone = clean(rawPhone).replace(/\D/g, '').slice(0, 13);
+      const email = clean(rawEmail);
+      const safeEmail = email.includes('@') ? email.slice(0, 50) : '';
+      // EsirAugiasPR4.xsd (SIRA live): <centerContact>, <phone> y <mail> tienen minOccurs="1"
+      return `\n${indent}<centerContact>\n${indent}    <phone>${phone}</phone>\n${indent}    <mail>${safeEmail}</mail>\n${indent}</centerContact>`;
+    };
 
     const opProvCode = getProvinceCodeByName(nt.operador_provincia || 'Cádiz');
     const opNima = formatNima(nt.operador_nima, opProvCode);
-    const opMuniName = clean(nt.operador_municipio) || (opProvCode === '11' ? 'Puerto Real' : '');
-    const opMuniCode = opMuniName ? siraService.getMunicipalityCode(opProvCode, opMuniName) : '';
-    const opAddress = clean(nt.operador_direccion);
-    const opCp = clean(nt.operador_codigo_postal);
-    const opPhone = clean(nt.operador_telefono).replace(/\D/g, '');
-    const opEmail = clean(nt.operador_email);
-
     const prodProvCode = getProvinceCodeByName(nt.productor_provincia || 'Cádiz');
     const prodNima = formatNima(nt.productor_nima, prodProvCode);
-    const prodMuniName = clean(nt.productor_municipio) || (prodProvCode === '11' ? 'Puerto Real' : '');
-    const prodMuniCode = prodMuniName ? siraService.getMunicipalityCode(prodProvCode, prodMuniName) : '';
-    const prodAddress = clean(nt.productor_direccion);
-    const prodCp = clean(nt.productor_codigo_postal);
-    const prodPhone = clean(nt.productor_telefono).replace(/\D/g, '');
-    const prodEmail = clean(nt.productor_email);
-
     const gestProvCode = getProvinceCodeByName(nt.gestor_provincia || 'Cádiz');
     const gestNima = formatNima(nt.gestor_nima, gestProvCode);
-    const gestMuniName = clean(nt.gestor_municipio) || (gestProvCode === '11' ? 'Puerto Real' : '');
-    const gestMuniCode = gestMuniName ? siraService.getMunicipalityCode(gestProvCode, gestMuniName) : '';
-    const gestAddress = clean(nt.gestor_direccion);
-    const gestCp = clean(nt.gestor_codigo_postal);
-    const gestPhone = clean(nt.gestor_telefono).replace(/\D/g, '');
-    const gestEmail = clean(nt.gestor_email);
-    const rawGestAuth = clean(nt.gestor_numero_autorizacion);
-    const gestAuth = rawGestAuth && rawGestAuth !== gestNima ? rawGestAuth : '';
 
     const rawWeight = Number(nt.cantidad_estimada_kg || 1000);
     const cleanQuantity = (!isNaN(rawWeight) && rawWeight > 0 ? rawWeight : 1000).toFixed(3);
@@ -384,20 +400,65 @@ export const priorNotificationService = {
     const isRegional = !nt.tipo_traslado || nt.tipo_traslado === 'autonomico';
     const frequency = clean(nt.frecuencia) || (isIndividual ? 'Puntual' : 'Periodica');
 
+    const opBase = cleanOp.slice(0, 3);
+    const isIntermediateOp = ['R12', 'R13', 'D13', 'D14', 'D15'].includes(opBase);
+    const hasFinalDestination =
+      isIntermediateOp &&
+      Boolean(nt.destino_posterior_razon_social || nt.destino_posterior_nima || nt.destino_posterior_cif);
+
+    let finalAdresseeBlock = '';
+    if (hasFinalDestination) {
+      const finalProvCode = getProvinceCodeByName(nt.gestor_provincia || 'Cádiz');
+      const finalNima = formatNima(nt.destino_posterior_nima, finalProvCode);
+      const finalOp = normalizeOperation(nt.destino_posterior_operacion_rd || 'R04').slice(0, 3);
+      const finalCif = clean(nt.destino_posterior_cif);
+      const finalName = clean(nt.destino_posterior_razon_social);
+      finalAdresseeBlock = `
+
+    <!-- 5. Tratamiento posterior (operación intermedia) -->
+    <NTFinalAdresseeData>
+        <AdresseeData>${finalCif ? `
+            <entityId>
+                <nationalId>${finalCif}</nationalId>
+            </entityId>` : ''}
+            <entityFJ entityFJCode="J" />${finalName ? `
+            <entityName>
+                <reason>
+                    <reasonName>${finalName}</reasonName>
+                    <reasonAssociation associationCode="99" associationDescription="Otra"/>
+                </reason>
+            </entityName>` : ''}
+            <entityCenter>
+                <centerID centerCode="${finalNima}" />
+                <centerEconomicActivity>S/D</centerEconomicActivity>
+                <centerAddress>
+${buildAddressXml(nt.gestor_direccion, nt.gestor_codigo_postal, nt.gestor_municipio, nt.gestor_provincia, '                    ')}
+                </centerAddress>${buildContactXml(nt.gestor_telefono, nt.gestor_email, '                ')}
+                <wasteCenterAuthorization>
+${buildAuthorizationIdXml(undefined, finalNima, '                    ')}
+                    <authorizationCode>${isDanger ? 'G01' : 'G04'}</authorizationCode>
+                </wasteCenterAuthorization>
+            </entityCenter>
+            <wasteManagerType managerTypeCode="${isDanger ? 'G01' : 'G04'}"/>
+        </AdresseeData>
+        <Operation>${finalOp}</Operation>
+    </NTFinalAdresseeData>`;
+    }
+
     return `
 <wasteNT 
     ${xmlnsWassup}
     ${xmlnsCommon}
     ${xmlnsXsi}
     NTCode="${ntCode}"
-    NTYear="${date.getFullYear()}"
+    NTYear="${ntYear}"
     NTDate="${formattedDate}"
     NTStartDate="${startDate}"
     NTEndDate="${endDate}"
     NTFrequency="${frequency}"
     NTIndividual="${isIndividual ? 'S' : 'N'}"
     NTRegional="${isRegional ? 'S' : 'N'}"
-    NTSendtoDestinationAuthority="N">
+    NTSendtoDestinationAuthority="${isRegional ? 'N' : 'S'}">
 
     <!-- 1. Operador del Traslado -->
     <NTTransferOperatorData>
@@ -415,17 +476,10 @@ export const priorNotificationService = {
             <centerID centerCode="${opNima}" />
             <centerEconomicActivity>S/D</centerEconomicActivity>
             <centerAddress>
-                <spanishAddress>
-                    <vial vialCode="009" vialDescription="Calle"/>
-                    <address>${opAddress}</address>
-                    <CP>${opCp}</CP>
-                    <municipality municipalityCode="${opMuniCode}" municipalityName="${opMuniName}"/>
-                    <province provinceCode="${opProvCode}" provinceName="${clean(nt.operador_provincia || 'Cádiz')}"/>
-                </spanishAddress>
-            </centerAddress>${(opPhone || opEmail) ? `
-            <centerContact>${opPhone ? `\n                <phone>${opPhone}</phone>` : ''}${opEmail ? `\n                <mail>${opEmail}</mail>` : ''}
-            </centerContact>` : ''}
+${buildAddressXml(nt.operador_direccion, nt.operador_codigo_postal, nt.operador_municipio, nt.operador_provincia)}
+            </centerAddress>${buildContactXml(nt.operador_telefono, nt.operador_email)}
             <wasteCenterAuthorization>
+${buildAuthorizationIdXml((nt as any).operador_numero_autorizacion, opNima, '                ')}
                 <authorizationCode>${isDanger ? 'P01' : 'P03'}</authorizationCode>
             </wasteCenterAuthorization>
         </entityCenter>
@@ -448,17 +502,10 @@ export const priorNotificationService = {
             <centerID centerCode="${prodNima}" />
             <centerEconomicActivity>S/D</centerEconomicActivity>
             <centerAddress>
-                <spanishAddress>
-                    <vial vialCode="009" vialDescription="Calle"/>
-                    <address>${prodAddress}</address>
-                    <CP>${prodCp}</CP>
-                    <municipality municipalityCode="${prodMuniCode}" municipalityName="${prodMuniName}"/>
-                    <province provinceCode="${prodProvCode}" provinceName="${clean(nt.productor_provincia || 'Cádiz')}"/>
-                </spanishAddress>
-            </centerAddress>${(prodPhone || prodEmail) ? `
-            <centerContact>${prodPhone ? `\n                <phone>${prodPhone}</phone>` : ''}${prodEmail ? `\n                <mail>${prodEmail}</mail>` : ''}
-            </centerContact>` : ''}
+${buildAddressXml(nt.productor_direccion, nt.productor_codigo_postal, nt.productor_municipio, nt.productor_provincia)}
+            </centerAddress>${buildContactXml(nt.productor_telefono, nt.productor_email)}
             <wasteCenterAuthorization>
+${buildAuthorizationIdXml((nt as any).productor_numero_autorizacion, prodNima, '                ')}
                 <authorizationCode>${isDanger ? 'P01' : 'P03'}</authorizationCode>
             </wasteCenterAuthorization>
         </entityCenter>
@@ -481,20 +528,10 @@ export const priorNotificationService = {
             <centerID centerCode="${gestNima}" />
             <centerEconomicActivity>S/D</centerEconomicActivity>
             <centerAddress>
-                <spanishAddress>
-                    <vial vialCode="009" vialDescription="Calle"/>
-                    <address>${gestAddress}</address>
-                    <CP>${gestCp}</CP>
-                    <municipality municipalityCode="${gestMuniCode}" municipalityName="${gestMuniName}"/>
-                    <province provinceCode="${gestProvCode}" provinceName="${clean(nt.gestor_provincia || 'Cádiz')}"/>
-                </spanishAddress>
-            </centerAddress>${(gestPhone || gestEmail) ? `
-            <centerContact>${gestPhone ? `\n                <phone>${gestPhone}</phone>` : ''}${gestEmail ? `\n                <mail>${gestEmail}</mail>` : ''}
-            </centerContact>` : ''}
-            <wasteCenterAuthorization>${gestAuth ? `
-                <authorizationId>
-                    <authorizationIdFree>${gestAuth}</authorizationIdFree>
-                </authorizationId>` : ''}
+${buildAddressXml(nt.gestor_direccion, nt.gestor_codigo_postal, nt.gestor_municipio, nt.gestor_provincia)}
+            </centerAddress>${buildContactXml(nt.gestor_telefono, nt.gestor_email)}
+            <wasteCenterAuthorization>
+${buildAuthorizationIdXml(nt.gestor_numero_autorizacion, gestNima, '                ')}
                 <authorizationCode>${isDanger ? 'G01' : 'G04'}</authorizationCode>
             </wasteCenterAuthorization>
         </entityCenter>
@@ -515,7 +552,7 @@ export const priorNotificationService = {
         <NTOtherResidueData>
             <NTResidueQuantity>${cleanQuantity}</NTResidueQuantity>
         </NTOtherResidueData>
-    </NTTransportedResidues>
+    </NTTransportedResidues>${finalAdresseeBlock}
 
 </wasteNT>`.trim();
   },

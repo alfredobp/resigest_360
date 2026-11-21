@@ -90,6 +90,15 @@ export const siraValidationSchema = z.object({
 });
 
 /**
+ * Detecta cualquier SOAP Fault independientemente del prefijo de namespace
+ * (p. ej. <soapenv:Fault>, <ns2:Fault>, <S:Fault>, <SOAP-ENV:Fault>, <Fault>).
+ */
+export function hasSiraSoapFault(responseText: string): boolean {
+    if (!responseText) return false;
+    return /<([a-zA-Z0-9_-]+:)?Fault\b/i.test(responseText);
+}
+
+/**
  * Determina si la respuesta XML de SIRA pasó al 100% la validación de esquema XSD (E3L v3.3)
  * y únicamente contiene avisos/errores censales de RPGR en entorno de pruebas:
  * - JA000002: NIMA de prueba no inscrito/autorizado en el censo real de la Junta.
@@ -98,7 +107,7 @@ export const siraValidationSchema = z.object({
 export function isSiraTestModeCensusOnlyError(responseText: string): boolean {
     if (!responseText) return false;
     if (
-        responseText.includes('<soapenv:Fault>') ||
+        hasSiraSoapFault(responseText) ||
         responseText.includes('SAXParseException') ||
         responseText.includes('cvc-') ||
         responseText.includes('JA000026')

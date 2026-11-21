@@ -105,6 +105,35 @@ export async function POST(req: NextRequest) {
 
     // 4. Generar el XML E3L <wasteNT>
     const e3lXml = priorNotificationService.generateNTXml(nt);
+    const siraUrl =
+      typeof siraService.getSiraEndpointUrl === 'function'
+        ? siraService.getSiraEndpointUrl()
+        : 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones';
+
+    // Perfil de Integración SIRA (págs. 7, 18-19): validateWasteNT es exclusivo de e-SIR (MITECO),
+    // no está habilitado para Empresas Externas en SIRA. Si se solicita validateOnly contra SIRA,
+    // se completa la validación local E3L sin invocar una operación sin permisos.
+    const isSiraExternalEndpoint = siraUrl.includes('juntadeandalucia.es');
+    if (validateOnly && isSiraExternalEndpoint && process.env.SIRA_ALLOW_REMOTE_VALIDATE_NT !== 'true') {
+      await supabase
+        .from('prior_notifications')
+        .update({
+          estado: 'validada_sira',
+          sira_error_detalles: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', notificationId)
+        .eq('user_id', nt.user_id || user.id);
+
+      return NextResponse.json({
+        success: true,
+        validationMode: 'local_e3l',
+        message: 'Notificación Previa validada con éxito (validación estructural E3L local; SIRA Empresas Externas solo expone sendWasteNT)',
+        siraId: 'VALIDADO-E3L',
+        warnings: validation.warnings,
+      });
+    }
+
     const operation = validateOnly ? 'validateWasteNT' : 'sendWasteNT';
 
     // 5. Construir SOAP Envelope
@@ -153,8 +182,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 7. Enviar petición HTTP al Web Service de SIRA
-    const siraUrl = 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones';
+    // 7. Enviar petición HTTP al Web Service de SIRA / e-SIR
     const authHeader = `Basic ${Buffer.from(`${sira_usuario}:${sira_password}`).toString('base64')}`;
 
     const siraResponse = await fetch(siraUrl, {
@@ -179,16 +207,39 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 8. Procesar respuesta
-    const hasFault = responseText.includes('<soapenv:Fault>') || responseText.includes('<resultWrong');
-    const matchId = responseText.match(/<IdSira>(.*?)<\/IdSira>/);
-    const extractedSiraId = matchId ? matchId[1] : null;
+    // 8. Procesar respuesta conforme a Contrato OTI (<resultOK>, <resultWarning>, <resultWrong>, SOAP Fault)
+    const parsedResponse =
+      typeof siraService.parseSiraResponse === 'function'
+        ? siraService.parseSiraResponse(responseText)
+        : (() => {
+            const hasFault = /<([a-zA-Z0-9_-]+:)?Fault\b/i.test(responseText);
+            const hasResultWrong = /<resultWrong\b/i.test(responseText);
+            const okMatch = responseText.match(/<resultOK\b([^>]*?)\/?>/i);
+            const hasResultRight = /<resultRight\b/i.test(responseText);
+            const legacyId = responseText.match(/<IdSira>(.*?)<\/IdSira>/)?.[1] || null;
+            const code = okMatch?.[1]?.match(/code=["']([A-Za-z0-9_-]+)["']/i)?.[1] || null;
+            const ok = !hasFault && !hasResultWrong && (Boolean(okMatch) || hasResultRight || Boolean(legacyId));
+            return {
+              ok,
+              hasFault,
+              hasResultWrong,
+              hasResultOK: Boolean(okMatch),
+              hasResultWarning: false,
+              siraId: legacyId || (ok ? (code ? `SIRA-OK-${code}` : 'VALIDADO') : null),
+              code,
+              description: null,
+              detailValue: null,
+              warnings: [] as string[],
+            };
+          })();
+
+    const extractedSiraId = parsedResponse.siraId;
     const allowTestCensus =
       process.env.SIRA_ALLOW_TEST_CENSUS === 'true' ||
       (process.env.NODE_ENV !== 'production' && process.env.SIRA_ALLOW_TEST_CENSUS !== 'false');
     const isTestModeCensusPass = allowTestCensus && siraResponse.ok && isSiraTestModeCensusOnlyError(responseText);
 
-    if (!siraResponse.ok || (!isTestModeCensusPass && (hasFault || (!validateOnly && !extractedSiraId)))) {
+    if (!siraResponse.ok || (!isTestModeCensusPass && !parsedResponse.ok)) {
       const errorMessage = siraService.extractSiraError(responseText);
 
       if (submissionId) {

@@ -266,6 +266,130 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       expect(partialXml).toContain('DCSPhase="D"');
       expect(partialXml).toContain('<DCSRealQuantity>750.000</DCSRealQuantity>');
       expect(partialXml).toContain('<DCSAcceptance>03</DCSAcceptance>');
+      expect(partialXml).toContain('DCSEndDate="2026-11-14"');
+      expect(partialXml).toContain('DCSDate="2026-11-10"');
+      expect(partialXml).toContain('DCSYear="2026"');
+    });
+
+    it('cumple OTI SIRA: incluye <CA>, <country>, <authorizationId> obligatorio, omite <centerContact> sin teléfono y soporta fase C', () => {
+      const xml = siraService.generateDIXml({
+        numero_documento: 'DI-OTI-001',
+        fecha_documento: '2026-08-15',
+        dcs_phase: 'C',
+        cantidad_devuelta_kg: 300,
+        fecha_confirmacion_devolucion: '2026-08-20',
+        productor_cif: 'B12345678',
+        productor_razon_social: 'Prod OTI',
+        productor_nima: '4100000001',
+        productor_provincia: 'Sevilla',
+        productor_municipio: 'Sevilla',
+        productor_codigo_postal: '41001',
+        productor_email: 'solo-email@sin-telefono.es',
+        gestor_cif: 'B87654321',
+        gestor_razon_social: 'Gestor OTI',
+        gestor_nima: '2800000002',
+        gestor_numero_autorizacion: '13G01000000000123',
+        gestor_provincia: 'Madrid',
+        gestor_municipio: 'Madrid',
+        gestor_codigo_postal: '28001',
+        gestor_telefono: '+34 91 123 45 67 89 00',
+        gestor_email: 'gestor@oti.es',
+        transportista_cif: 'B55443322',
+        transportista_razon_social: 'Trans OTI',
+        transportista_nima: '4100000003',
+        transportista_direccion: 'Avda Transporte 1',
+        transportista_provincia: 'Sevilla',
+        transportista_municipio: 'Sevilla',
+        transportista_codigo_postal: '41002',
+        codigo_ler: '15 01 01',
+        peligrosidad: 'no-peligroso',
+        operacion_tratamiento: 'R13',
+        cantidad: 500,
+      });
+
+      expect(xml).toContain('<CA CACode="01"/>');
+      expect(xml).toContain('<CA CACode="13"/>');
+      expect(xml).toContain('<country countryCode="724"/>');
+      expect(xml).toContain('<authorizationIdNumber>13G01000000000123</authorizationIdNumber>');
+      expect(xml).toContain('<authorizationIdEffects>No disponible</authorizationIdEffects>');
+      expect(xml).toContain('<phone></phone>');
+      expect(xml).toContain('<mail>solo-email@sin-telefono.es</mail>');
+      expect(xml).toContain('<phone>3491123456789</phone>');
+      expect(xml).toContain('<mail>gestor@oti.es</mail>');
+      expect(xml).toContain('DCSPhase="C"');
+      expect(xml).toContain('<DCSReturnedConfirmationData>');
+      expect(xml).toContain('<DCSReturnedQuantity>300.000</DCSReturnedQuantity>');
+      expect(xml).toContain('<DCSReturnedConfirmationDate>2026-08-20</DCSReturnedConfirmationDate>');
+    });
+  });
+
+  describe('parseSiraResponse y getSiraEndpointUrl (Contrato OTI)', () => {
+    const prevWsUrl = process.env.SIRA_WS_URL;
+    const prevSiraEnv = process.env.SIRA_ENV;
+
+    afterEach(() => {
+      if (prevWsUrl !== undefined) process.env.SIRA_WS_URL = prevWsUrl;
+      else delete process.env.SIRA_WS_URL;
+      if (prevSiraEnv !== undefined) process.env.SIRA_ENV = prevSiraEnv;
+      else delete process.env.SIRA_ENV;
+    });
+
+    it('resuelve URL por defecto, por SIRA_ENV=esir y por SIRA_WS_URL', () => {
+      delete process.env.SIRA_WS_URL;
+      delete process.env.SIRA_ENV;
+      expect(siraService.getSiraEndpointUrl()).toContain('juntadeandalucia.es');
+
+      process.env.SIRA_ENV = 'esir';
+      expect(siraService.getSiraEndpointUrl()).toContain('esir.miteco.gob.es');
+
+      process.env.SIRA_WS_URL = 'https://custom-sira.test/ws';
+      expect(siraService.getSiraEndpointUrl()).toBe('https://custom-sira.test/ws');
+    });
+
+    it('parsea correctamente <resultOK code="03"> oficial del Contrato OTI', () => {
+      const xml = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:esir="e3l://esir2014">
+        <soapenv:Body>
+          <esir:sendWasteDCSResponse>
+            <return xmlns="http://ws.apache.org/ns/synapse">
+              <result>
+                <resultOK code="03" description="El mensaje se ha enviado correctamente">
+                  <detailValue>El mensaje se ha enviado correctamente para ser procesado</detailValue>
+                </resultOK>
+              </result>
+            </return>
+          </esir:sendWasteDCSResponse>
+        </soapenv:Body>
+      </soapenv:Envelope>`;
+
+      const parsed = siraService.parseSiraResponse(xml);
+      expect(parsed.ok).toBe(true);
+      expect(parsed.hasResultOK).toBe(true);
+      expect(parsed.code).toBe('03');
+      expect(parsed.siraId).toBe('SIRA-OK-03');
+      expect(parsed.detailValue).toBe('El mensaje se ha enviado correctamente para ser procesado');
+    });
+
+    it('parsea <resultWarning>, <ns2:Fault> y respuestas vacías', () => {
+      const warnXml = `<result><resultWarning code="02" description="Aviso menor"/></result>`;
+      const parsedWarn = siraService.parseSiraResponse(warnXml);
+      expect(parsedWarn.ok).toBe(true);
+      expect(parsedWarn.hasResultWarning).toBe(true);
+      expect(parsedWarn.warnings).toEqual(['02: Aviso menor']);
+
+      const faultXml = `<S:Envelope><S:Body><ns2:Fault><faultstring>Error</faultstring></ns2:Fault></S:Body></S:Envelope>`;
+      const parsedFault = siraService.parseSiraResponse(faultXml);
+      expect(parsedFault.ok).toBe(false);
+      expect(parsedFault.hasFault).toBe(true);
+
+      expect(siraService.parseSiraResponse('').ok).toBe(false);
+    });
+
+    it('expone helpers getCACodeByProvince y buildAuthorizationIdXml', () => {
+      expect(siraService.getCACodeByProvince('41')).toBe('01');
+      expect(siraService.getCACodeByProvince('28')).toBe('13');
+      expect(siraService.getCACodeByProvince('99')).toBe('01');
+      expect(siraService.buildAuthorizationIdXml('AN-123')).toContain('<authorizationIdFree>AN-123</authorizationIdFree>');
+      expect(siraService.buildAuthorizationIdXml('')).toContain('<authorizationIdEffects>No disponible</authorizationIdEffects>');
     });
   });
 

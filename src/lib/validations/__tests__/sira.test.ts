@@ -1,4 +1,4 @@
-import { siraValidationSchema, isSiraTestModeCensusOnlyError } from '../sira';
+import { siraValidationSchema, isSiraTestModeCensusOnlyError, hasSiraSoapFault } from '../sira';
 
 describe('siraValidationSchema - Validaciones normativas SIRA', () => {
   const validBasePayload = {
@@ -356,14 +356,27 @@ describe('isSiraTestModeCensusOnlyError', () => {
     expect(isSiraTestModeCensusOnlyError(xmlSax)).toBe(false);
   });
 
-  it('devuelve false si hay SOAP Fault, códigos ajenos como JA000018, sin resultWrong o cadena vacía', () => {
+  it('devuelve false si hay SOAP Fault (cualquier prefijo), códigos ajenos como JA000018, sin resultWrong o cadena vacía', () => {
     expect(
       isSiraTestModeCensusOnlyError('<soapenv:Fault><resultWrong code="JA000002"/></soapenv:Fault>')
+    ).toBe(false);
+    expect(
+      isSiraTestModeCensusOnlyError('<ns2:Fault xmlns:ns2="http://schemas.xmlsoap.org/soap/envelope/"><resultWrong code="JA000002"/></ns2:Fault>')
     ).toBe(false);
     expect(
       isSiraTestModeCensusOnlyError('<resultWrong code="JA000002"/><resultWrong code="JA000018"/>')
     ).toBe(false);
     expect(isSiraTestModeCensusOnlyError('<IdSira>OK-1</IdSira>')).toBe(false);
     expect(isSiraTestModeCensusOnlyError('')).toBe(false);
+  });
+});
+
+describe('hasSiraSoapFault', () => {
+  it('detecta cualquier SOAP Fault independientemente del prefijo', () => {
+    expect(hasSiraSoapFault('<ns2:Fault><faultstring>Error</faultstring></ns2:Fault>')).toBe(true);
+    expect(hasSiraSoapFault('<soapenv:Fault></soapenv:Fault>')).toBe(true);
+    expect(hasSiraSoapFault('<Fault></Fault>')).toBe(true);
+    expect(hasSiraSoapFault('<resultOK code="03"/>')).toBe(false);
+    expect(hasSiraSoapFault('')).toBe(false);
   });
 });

@@ -200,7 +200,7 @@ describe('POST /api/residuos/sira/enviar-nt', () => {
     expect(mockNtUpdateEq).toHaveBeenCalled();
   });
 
-  it('valida con éxito en modo validateOnly sin guardar fecha_presentacion', async () => {
+  it('valida con éxito en modo validateOnly localmente cuando apunta a SIRA Empresas Externas (sin invocar validateWasteNT remoto)', async () => {
     mockNtSingle.mockResolvedValue({
       data: {
         id: 10,
@@ -210,24 +210,44 @@ describe('POST /api/residuos/sira/enviar-nt', () => {
       error: null,
     });
 
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      text: async () => `
-        <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
-          <SOAP-ENV:Body>
-            <validateWasteNTResponse xmlns="e3l://esir2014">
-              <return><result><resultRight/></result></return>
-            </validateWasteNTResponse>
-          </SOAP-ENV:Body>
-        </SOAP-ENV:Envelope>
-      `,
-    });
+    const fetchSpy = jest.fn();
+    global.fetch = fetchSpy as any;
 
     const res = await POST(makeReq({ notificationId: 10, validateOnly: true }));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
+    expect(body.validationMode).toBe('local_e3l');
     expect(body.message).toContain('validada con éxito');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('acepta respuesta oficial OTI con <resultOK code="03"> al enviar NT a SIRA', async () => {
+    mockNtSingle.mockResolvedValue({
+      data: {
+        id: 11,
+        company_id: 1,
+        numero_notificacion: 'NT10110000000120260000011',
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:esir="e3l://esir2014">' +
+        '<soapenv:Body><esir:sendWasteNTResponse><return xmlns="http://ws.apache.org/ns/synapse"><result>' +
+        '<resultOK code="03" description="El mensaje se ha enviado correctamente">' +
+        '<detailValue>El mensaje se ha enviado correctamente para ser procesado</detailValue>' +
+        '</resultOK></result></return></esir:sendWasteNTResponse></soapenv:Body></soapenv:Envelope>',
+    });
+
+    const res = await POST(makeReq({ notificationId: 11 }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.siraId).toBe('SIRA-OK-03');
   });
 
   it('maneja rechazo de SIRA con código de error legible', async () => {

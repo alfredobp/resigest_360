@@ -92,9 +92,9 @@ describe('POST /api/residuos/sira/enviar-di', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.spyOn(console, 'info').mockImplementation(() => {});
-    jest.spyOn(console, 'warn').mockImplementation(() => {});
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'info').mockImplementation(() => { });
+    jest.spyOn(console, 'warn').mockImplementation(() => { });
+    jest.spyOn(console, 'error').mockImplementation(() => { });
 
     mockGetUser.mockResolvedValue({ data: { user: { id: 'u-sira-1' } }, error: null });
     mockSubSingle.mockResolvedValue({ data: { id: 500 }, error: null });
@@ -382,6 +382,37 @@ describe('POST /api/residuos/sira/enviar-di', () => {
         delete process.env.SIRA_ALLOW_TEST_CENSUS;
       }
     }
+  });
+
+  it('acepta respuesta oficial OTI con <resultOK code="03"> sin necesidad de <IdSira>', async () => {
+    mockDocSingle.mockResolvedValue({
+      data: {
+        id: 16,
+        company_id: 2,
+        numero_documento: 'DI-2026-OTI',
+        productor_razon_social: 'Prod S.L.',
+        notas: '',
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:esir="e3l://esir2014">' +
+        '<soapenv:Body><esir:sendWasteDCSResponse><return xmlns="http://ws.apache.org/ns/synapse"><result>' +
+        '<resultOK code="03" description="El mensaje se ha enviado correctamente">' +
+        '<detailValue>El mensaje se ha enviado correctamente para ser procesado</detailValue>' +
+        '</resultOK></result></return></esir:sendWasteDCSResponse></soapenv:Body></soapenv:Envelope>',
+    }) as any;
+
+    const res = await POST(makeReq({ documentId: 16 }));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.siraId).toBe('SIRA-OK-03');
   });
 
   it('devuelve 400 si el DI no supera la validación estructural E3L previa', async () => {

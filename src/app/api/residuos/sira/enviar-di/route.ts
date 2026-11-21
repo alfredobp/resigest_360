@@ -181,8 +181,11 @@ export async function POST(req: NextRequest) {
         }
         // ------------------------------------------------
 
-        // 6. Realizar la petición al Web Service de la Junta
-        const siraUrl = 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones';
+        // 6. Realizar la petición al Web Service de la Junta / e-SIR
+        const siraUrl =
+            typeof siraService.getSiraEndpointUrl === 'function'
+                ? siraService.getSiraEndpointUrl()
+                : 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones';
         const authHeader = `Basic ${Buffer.from(`${sira_usuario}:${sira_password}`).toString('base64')}`;
 
         const siraResponse = await fetch(siraUrl, {
@@ -210,16 +213,38 @@ export async function POST(req: NextRequest) {
         }
         // ------------------------------------
 
-        // 7. Procesar respuesta y buscar errores dentro del XML
-        const hasFault = responseText.includes('<soapenv:Fault>') || responseText.includes('<resultWrong');
-        const matchId = responseText.match(/<IdSira>(.*?)<\/IdSira>/);
-        const extractedSiraId = matchId ? matchId[1] : null;
+        // 7. Procesar respuesta conforme a Contrato OTI (<resultOK>, <resultWarning>, <resultWrong>, SOAP Fault)
+        const parsedResponse =
+            typeof siraService.parseSiraResponse === 'function'
+                ? siraService.parseSiraResponse(responseText)
+                : (() => {
+                    const hasFault = /<([a-zA-Z0-9_-]+:)?Fault\b/i.test(responseText);
+                    const hasResultWrong = /<resultWrong\b/i.test(responseText);
+                    const okMatch = responseText.match(/<resultOK\b([^>]*?)\/?>/i);
+                    const legacyId = responseText.match(/<IdSira>(.*?)<\/IdSira>/)?.[1] || null;
+                    const code = okMatch?.[1]?.match(/code=["']([A-Za-z0-9_-]+)["']/i)?.[1] || null;
+                    const ok = !hasFault && !hasResultWrong && (Boolean(okMatch) || Boolean(legacyId));
+                    return {
+                        ok,
+                        hasFault,
+                        hasResultWrong,
+                        hasResultOK: Boolean(okMatch),
+                        hasResultWarning: false,
+                        siraId: legacyId || (ok ? (code ? `SIRA-OK-${code}` : 'SIRA-OK') : null),
+                        code,
+                        description: null,
+                        detailValue: null,
+                        warnings: [] as string[],
+                    };
+                })();
+
+        const extractedSiraId = parsedResponse.siraId;
         const allowTestCensus =
             process.env.SIRA_ALLOW_TEST_CENSUS === 'true' ||
             (process.env.NODE_ENV !== 'production' && process.env.SIRA_ALLOW_TEST_CENSUS !== 'false');
         const isTestModeCensusPass = allowTestCensus && siraResponse.ok && isSiraTestModeCensusOnlyError(responseText);
 
-        if (!siraResponse.ok || (!isTestModeCensusPass && (hasFault || !extractedSiraId))) {
+        if (!siraResponse.ok || (!isTestModeCensusPass && !parsedResponse.ok)) {
             console.error('SIRA API Error/Fault:', responseText);
 
             const errorMessage = siraService.extractSiraError(responseText);
