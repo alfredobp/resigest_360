@@ -615,6 +615,21 @@ function NuevoDocumentoIdentificacionContent() {
         }
       }
 
+      // Validar coherencia entre fecha de recogida y fecha de entrega
+      if (
+        formData.fecha_recogida &&
+        formData.fecha_entrega &&
+        formData.fecha_entrega.split('T')[0] < formData.fecha_recogida.split('T')[0]
+      ) {
+        setValidationErrors((prev) => ({
+          ...prev,
+          fecha_entrega: 'La fecha de entrega estimada no puede ser anterior a la fecha de recogida.',
+        }));
+        setError('La fecha de entrega estimada no puede ser anterior a la fecha de recogida.');
+        window.scrollTo(0, 0);
+        return;
+      }
+
       // Validar coherencia entre contrato seleccionado y gestor destinatario (Art. 5 RD 553/2020)
       if (formData.contract_id) {
         const linkedContract = contracts.find((c) => c.id === formData.contract_id);
@@ -1722,11 +1737,27 @@ function NuevoDocumentoIdentificacionContent() {
             <ComponentCard title="Fechas y Logística">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="fecha_recogida" className="block text-sm font-medium mb-2">Fecha de RecogidaEstimada</label>
+                  <label htmlFor="fecha_recogida" className="block text-sm font-medium mb-2">Fecha de Recogida Estimada</label>
                   <DatePicker
                     id="fecha_recogida"
                     defaultDate={formData.fecha_recogida || ''}
-                    onChange={([date]) => setFormData({ ...formData, fecha_recogida: date ? date.toISOString().split('T')[0] : '' })}
+                    onChange={(_dates, dateStr) => {
+                      const nextRecogida = dateStr || '';
+                      setFormData((prev) => ({
+                        ...prev,
+                        fecha_recogida: nextRecogida,
+                        fecha_entrega:
+                          nextRecogida && prev.fecha_entrega && prev.fecha_entrega.split('T')[0] < nextRecogida
+                            ? ''
+                            : prev.fecha_entrega,
+                      }));
+                      setValidationErrors((prev) => {
+                        if (!prev.fecha_entrega) return prev;
+                        const { fecha_entrega: _, ...rest } = prev;
+                        void _;
+                        return rest;
+                      });
+                    }}
                   />
                 </div>
 
@@ -1735,8 +1766,34 @@ function NuevoDocumentoIdentificacionContent() {
                   <DatePicker
                     id="fecha_entrega"
                     defaultDate={formData.fecha_entrega || ''}
-                    onChange={([date]) => setFormData({ ...formData, fecha_entrega: date ? date.toISOString().split('T')[0] : '' })}
+                    minDate={formData.fecha_recogida || undefined}
+                    onChange={(_dates, dateStr) => {
+                      const nextEntrega = dateStr || '';
+                      if (
+                        nextEntrega &&
+                        formData.fecha_recogida &&
+                        nextEntrega < formData.fecha_recogida.split('T')[0]
+                      ) {
+                        setValidationErrors((prev) => ({
+                          ...prev,
+                          fecha_entrega: 'La fecha de entrega no puede ser anterior a la fecha de recogida.',
+                        }));
+                        return;
+                      }
+                      setFormData((prev) => ({ ...prev, fecha_entrega: nextEntrega }));
+                      setValidationErrors((prev) => {
+                        if (!prev.fecha_entrega) return prev;
+                        const { fecha_entrega: _, ...rest } = prev;
+                        void _;
+                        return rest;
+                      });
+                    }}
                   />
+                  {validationErrors.fecha_entrega && (
+                    <p className="mt-1.5 text-xs text-error-500 font-medium">
+                      {validationErrors.fecha_entrega}
+                    </p>
+                  )}
                 </div>
               </div>
             </ComponentCard>

@@ -15,6 +15,7 @@ type PropsType = {
   mode?: "single" | "multiple" | "range" | "time";
   onChange?: Hook | Hook[];
   defaultDate?: DateOption;
+  minDate?: DateOption;
   label?: string;
   placeholder?: string;
 };
@@ -25,6 +26,7 @@ export default function DatePicker({
   onChange,
   label,
   defaultDate,
+  minDate,
   placeholder,
 }: PropsType) {
   const onChangeRef = useRef(onChange);
@@ -42,6 +44,8 @@ export default function DatePicker({
         ? defaultDate.map((d) => (d instanceof Date ? d.getTime() : String(d))).join(',')
         : String(defaultDate ?? '');
 
+  const minDateKey = minDate instanceof Date ? minDate.getTime() : String(minDate ?? '');
+
   useEffect(() => {
     const stableOnChange: Hook = (selectedDates, dateStr, instance) => {
       const handler = onChangeRef.current;
@@ -58,6 +62,7 @@ export default function DatePicker({
       monthSelectorType: "static",
       dateFormat: "Y-m-d",
       defaultDate: defaultDateRef.current,
+      minDate: minDate || undefined,
       onChange: stableOnChange,
     });
 
@@ -66,7 +71,7 @@ export default function DatePicker({
         flatPickr.destroy();
       }
     };
-  }, [mode, id, defaultDateKey]);
+  }, [mode, id, defaultDateKey, minDateKey, minDate]);
 
   return (
     <div>

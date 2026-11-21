@@ -1159,6 +1159,31 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
         });
       });
 
+      describe('validación de fechas recogida/entrega', () => {
+        it('rechaza crear o actualizar un DI si fecha_entrega es anterior a fecha_recogida', async () => {
+          mockSupabase.auth.getUser.mockResolvedValue({
+            data: { user: { id: 'user-1' } },
+          });
+
+          await expect(
+            identificationDocumentService.create({
+              company_id: 1,
+              fecha_documento: '2026-11-21',
+              fecha_recogida: '2026-11-25',
+              fecha_entrega: '2026-11-20',
+              codigo_ler: '15 01 01',
+            })
+          ).rejects.toThrow('La fecha de entrega no puede ser anterior a la fecha de recogida.');
+
+          await expect(
+            identificationDocumentService.update(1, {
+              fecha_recogida: '2026-11-25',
+              fecha_entrega: '2026-11-20',
+            })
+          ).rejects.toThrow('La fecha de entrega no puede ser anterior a la fecha de recogida.');
+        });
+      });
+
       describe('getTrackingStatusMeta', () => {
         it.each([
           ['borrador', 'Borrador / Registrado', 'light', 1],

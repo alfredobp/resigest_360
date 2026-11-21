@@ -461,6 +461,14 @@ export const identificationDocumentService = {
     const { numero_documento: _ignoredDocNumber, ...insertData } = documentData;
     void _ignoredDocNumber;
 
+    if (
+      insertData.fecha_recogida &&
+      insertData.fecha_entrega &&
+      String(insertData.fecha_entrega).split('T')[0] < String(insertData.fecha_recogida).split('T')[0]
+    ) {
+      throw new Error('La fecha de entrega no puede ser anterior a la fecha de recogida.');
+    }
+
     const fallbackCode = buildDICode(
       insertData.productor_nima || insertData.gestor_nima,
       resolveDocumentYear(insertData.fecha_documento),
@@ -516,6 +524,14 @@ export const identificationDocumentService = {
     const activeComp = await resolveActiveCompanyForDI();
     const { numero_documento: _immutableDocNumber, ...mutableData } = documentData;
     void _immutableDocNumber;
+
+    if (
+      mutableData.fecha_recogida &&
+      mutableData.fecha_entrega &&
+      String(mutableData.fecha_entrega).split('T')[0] < String(mutableData.fecha_recogida).split('T')[0]
+    ) {
+      throw new Error('La fecha de entrega no puede ser anterior a la fecha de recogida.');
+    }
 
     const baseQuery = supabase
       .from('identification_documents')
