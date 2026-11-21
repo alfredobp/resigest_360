@@ -82,11 +82,11 @@ export const PROFILE_DEFINITIONS: Record<OperationalProfile, ProfileDefinition> 
     id: 'transportista',
     label: 'Transportista de Residuos',
     shortLabel: 'Transportista',
-    description: 'Interfaz móvil simplificada para conductores, servicios asignados, flota, traslados en tránsito y DeCA/QR.',
+    description: 'Panel de transporte, flota, traslados en tránsito, DeCA/QR y vista móvil simplificada para conductores.',
     defaultCompanyType: 'transportista',
     defaultRoles: ['transportista'],
     defaultModules: ['di', 'deca', 'flota_transporte'],
-    homePath: '/transporte',
+    homePath: '/app',
   },
   negociante: {
     id: 'negociante',

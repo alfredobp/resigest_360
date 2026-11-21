@@ -69,14 +69,14 @@ const DEMO_CARDS: DemoCardItem[] = [
   },
   {
     key: 'transportista',
-    title: 'Transportista (Vista Móvil)',
+    title: 'Transportista',
     buttonLabel: 'Entrar como transportista',
     company: 'TransLogística Ambiental Express S.L.',
     email: 'transportista.prueba@resigest.test',
-    badge: 'Vista Móvil Conductor',
+    badge: 'Perfil Transportista',
     description:
-      'Interfaz simplificada pensada para móvil: consulta de servicios asignados, DIs en tránsito, matrícula activa y acceso directo al DeCA/QR.',
-    highlights: ['2 DeCA con QR móvil', '2 traslados activos', 'Sin módulos administrativos'],
+      'Panel de transporte con consulta de servicios asignados, DIs en tránsito, control DeCA/QR y acceso opcional a la Vista Conductor (Móvil).',
+    highlights: ['Dashboard de transporte', '2 DeCA con QR móvil', 'Sin módulos administrativos'],
     icon: Truck,
     accentClass: 'border-blue-200 bg-blue-50/60 dark:border-blue-900/50 dark:bg-blue-950/20',
     group: 'bloque1',

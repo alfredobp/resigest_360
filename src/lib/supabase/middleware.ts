@@ -177,14 +177,7 @@ export async function updateSession(request: NextRequest) {
       return redirectWithSupabaseCookies(url, supabaseResponse)
     }
 
-    // 3. Si es transportista y entra en /app, llevar a su vista móvil-first /transporte
-    if (!tenantCtx.isPlatformAdmin && tenantCtx.perfilOperativo === 'transportista' && pathname === '/app') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/transporte'
-      return redirectWithSupabaseCookies(url, supabaseResponse)
-    }
-
-    // 4. Bloquear acceso por URL directa a módulos o rutas de creación no habilitadas para su perfil/rol
+    // 3. Bloquear acceso por URL directa a módulos o rutas de creación no habilitadas para su perfil/rol
     if (
       !canAccessPath(pathname, tenantCtx.activeModules, tenantCtx.isPlatformAdmin, {
         membershipRole: tenantCtx.membershipRole,

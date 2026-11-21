@@ -71,17 +71,34 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     const items: PaletteActionItem[] = [
       {
         id: "nav-dashboard",
-        title: perfilOperativo === "transportista" ? "Vista Conductor (Móvil)" : "Dashboard Principal",
-        subtitle: perfilOperativo === "transportista" ? "Traslados asignados, QR y firmas en ruta" : "Vista general y métricas de residuos",
+        title: "Dashboard Principal",
+        subtitle: "Vista general y métricas de residuos",
         category: "navigation",
-        path: perfilOperativo === "transportista" ? "/transporte" : "/app",
+        path: "/app",
         badge: "Vista",
         icon: <LayoutDashboard className="w-4 h-4 text-brand-500" />,
         onSelect: () => {
-          router.push(perfilOperativo === "transportista" ? "/transporte" : "/app");
+          router.push("/app");
           onClose();
         },
       },
+      ...(isPlatformAdmin || perfilOperativo === "transportista"
+        ? [
+            {
+              id: "nav-transporte-movil",
+              title: "Vista Conductor (Móvil)",
+              subtitle: "Traslados asignados, QR y firmas en ruta",
+              category: "navigation" as const,
+              path: "/transporte",
+              badge: "Móvil",
+              icon: <Truck className="w-4 h-4 text-blue-500" />,
+              onSelect: () => {
+                router.push("/transporte");
+                onClose();
+              },
+            },
+          ]
+        : []),
       {
         id: "nav-contratos",
         title: "Contratos de Tratamiento",
@@ -189,7 +206,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     ];
 
     return items.filter((item) => !item.path || canAccessRoute(item.path));
-  }, [router, onClose, canAccessRoute, perfilOperativo]);
+  }, [router, onClose, canAccessRoute, perfilOperativo, isPlatformAdmin]);
 
   // Acciones directas del sistema filtradas por permisos de escritura y módulo
   const systemActions = useMemo<PaletteActionItem[]>(() => {

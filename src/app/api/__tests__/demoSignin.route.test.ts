@@ -89,7 +89,7 @@ describe('API /api/demo/signin', () => {
     (resolveTenantContext as jest.Mock).mockResolvedValue({
       hasCompletedOnboarding: true,
       isPlatformAdmin: false,
-      homePath: '/transporte',
+      homePath: '/app',
     });
 
     const req = new NextRequest('https://resigest.test/api/demo/signin', {
@@ -101,7 +101,7 @@ describe('API /api/demo/signin', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
-    expect(body.redirectTo).toBe('/transporte');
+    expect(body.redirectTo).toBe('/app');
     expect(res.cookies.get('resigest_active_company_id')?.value).toBe('');
   });
 

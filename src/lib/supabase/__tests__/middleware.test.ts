@@ -264,7 +264,7 @@ describe('Supabase Middleware updateSession', () => {
       );
     });
 
-    it('debe redirigir a un transportista de /app a /transporte', async () => {
+    it('debe permitir a un transportista entrar en el dashboard /app por defecto y redirigir /signin a /app', async () => {
       mockGetUser.mockResolvedValue({
         data: { user: { id: 'uid-trans', email: 'trans@resigest.test' } },
         error: null,
@@ -286,9 +286,12 @@ describe('Supabase Middleware updateSession', () => {
         });
       });
 
-      const res = await updateSession(new NextRequest('https://resigest360.com/app'));
-      expect(res.status).toBe(307);
-      expect(res.headers.get('location')).toBe('https://resigest360.com/transporte');
+      const appRes = await updateSession(new NextRequest('https://resigest360.com/app'));
+      expect(appRes.status).toBe(200);
+
+      const signinRes = await updateSession(new NextRequest('https://resigest360.com/signin'));
+      expect(signinRes.status).toBe(307);
+      expect(signinRes.headers.get('location')).toBe('https://resigest360.com/app');
     });
   });
 });

@@ -81,8 +81,8 @@ describe('moduleCatalog - Perfiles Operativos y Módulos', () => {
   });
 
   describe('Rutas, etiquetas y homePath', () => {
-    it('debe devolver /transporte para transportista y /app para otros perfiles', () => {
-      expect(getHomePathForProfile('transportista')).toBe('/transporte');
+    it('debe devolver /app como homePath por defecto para transportista y otros perfiles', () => {
+      expect(getHomePathForProfile('transportista')).toBe('/app');
       expect(getHomePathForProfile('productor')).toBe('/app');
       expect(getHomePathForProfile('chatarreria')).toBe('/app');
     });

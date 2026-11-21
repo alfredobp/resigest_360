@@ -49,7 +49,8 @@ export default function ExecutiveDashboardPage() {
       ? (effectiveProfile === 'chatarreria' || effectiveProfile === 'negociante' || effectiveProfile === 'completo')
       : canViewCommercial;
 
-  const canCreateDI = effectiveHasModule('di');
+  const canCreateDI =
+    effectiveHasModule('di') && (isPlatformAdmin || effectiveProfile !== 'transportista');
   const canCreateOp = effectiveHasModule('operaciones_comerciales') && (isPlatformAdmin || effectiveCanViewCommercial);
   const canViewChrono = effectiveHasModule('archivo_cronologico');
   const canViewContracts = effectiveHasModule('contratos');
@@ -130,6 +131,17 @@ export default function ExecutiveDashboardPage() {
 
         {/* Acciones Rápidas según perfil */}
         <div className="flex flex-wrap items-center gap-2">
+          {effectiveProfile === 'transportista' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push('/transporte')}
+              className="text-blue-700 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-950/40"
+            >
+              Vista Conductor (Móvil)
+            </Button>
+          )}
+
           {effectiveProfile === 'negociante' && canCreateOp && (
             <Button
               size="sm"
@@ -403,13 +415,15 @@ export default function ExecutiveDashboardPage() {
               </div>
             </div>
 
-            <Link
-              href="/residuos/archivo-cronologico"
-              className="text-xs text-brand-600 dark:text-brand-400 font-medium hover:underline flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800"
-            >
-              <span>Ver Libro de Registro Cronológico</span>
-              <span>→</span>
-            </Link>
+            {canViewChrono && (
+              <Link
+                href="/residuos/archivo-cronologico"
+                className="text-xs text-brand-600 dark:text-brand-400 font-medium hover:underline flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800"
+              >
+                <span>Ver Libro de Registro Cronológico</span>
+                <span>→</span>
+              </Link>
+            )}
           </div>
         </div>
       </div>

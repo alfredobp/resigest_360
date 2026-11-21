@@ -29,7 +29,7 @@ export const DEMO_ACCOUNTS: Record<DemoProfileKey, DemoAccountConfig> = {
   },
   transportista: {
     email: process.env.DEMO_TRANSPORTISTA_EMAIL || 'transportista.prueba@resigest.test',
-    defaultRedirect: '/transporte',
+    defaultRedirect: '/app',
     label: 'Transportista',
   },
   nuevo: {
