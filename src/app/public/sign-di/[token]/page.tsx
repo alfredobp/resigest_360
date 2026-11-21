@@ -288,13 +288,12 @@ function PublicDISignatureContent() {
                     setSelectedRole(roleKey);
                   }}
                   title={isLockedOther ? `Enlace restringido a ${ROLE_META[selectedRole].label}` : undefined}
-                  className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
-                    active
-                      ? 'border-2 border-brand-500 bg-brand-50/70 dark:bg-brand-950/30 dark:border-brand-400'
-                      : isLockedOther
-                        ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/20 opacity-50 cursor-not-allowed'
-                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 hover:border-brand-300'
-                  }`}
+                  className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${active
+                    ? 'border-2 border-brand-500 bg-brand-50/70 dark:bg-brand-950/30 dark:border-brand-400'
+                    : isLockedOther
+                      ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/20 opacity-50 cursor-not-allowed'
+                      : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 hover:border-brand-300'
+                    }`}
                 >
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
