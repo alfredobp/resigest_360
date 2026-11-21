@@ -831,3 +831,4 @@ export function drawDraftWatermark(doc: jsPDF, text = 'BORRADOR - NO OFICIAL'): 
     }
   }
 }
+
