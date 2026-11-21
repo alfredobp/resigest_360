@@ -11,6 +11,7 @@ import {
   type CommercialOperationStats,
   type EstadoOperacionComercial
 } from '@/types/wasteManagement';
+import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
@@ -115,6 +116,7 @@ export default function OperacionesComercialesPage() {
 
   return (
     <div className="space-y-6">
+      <PageBreadCrumb pageTitle="Operaciones Comerciales" />
       {/* Cabecera Principal */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

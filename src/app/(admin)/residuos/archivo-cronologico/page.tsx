@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import {
   getChronologicalEntries,
   getChronologicalStats,
@@ -477,6 +478,7 @@ export default function ArchivoCronologicoPage() {
 
   return (
     <div className="space-y-6">
+      <PageBreadCrumb pageTitle="Archivo Cronológico" />
       {/* Encabezado Principal */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

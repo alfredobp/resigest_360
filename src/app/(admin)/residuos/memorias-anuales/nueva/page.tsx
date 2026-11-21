@@ -6,6 +6,7 @@ import { createMemoria, type CreateMemoriaData } from '@/services/memoriaAnualSe
 import { companyService } from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import { type Company, type TipoMemoria, type ProductionCenter } from '@/types/wasteManagement';
+import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
 import Button from '@/components/ui/button/Button';
@@ -134,6 +135,7 @@ export default function NuevaMemoriaPage() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
+      <PageBreadCrumb pageTitle="Nueva Memoria Anual" />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

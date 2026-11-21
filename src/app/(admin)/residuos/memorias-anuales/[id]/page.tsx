@@ -13,6 +13,7 @@ import {
 } from '@/services/memoriaAnualService';
 import { generateMemoriaAnualPDF } from '@/lib/pdfUtils';
 import { type MemoriaAnual, type EstadoMemoria, type ResumenLER } from '@/types/wasteManagement';
+import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
@@ -235,6 +236,7 @@ export default function DetalleMemoriaPage() {
 
   return (
     <div className="space-y-6">
+      <PageBreadCrumb pageTitle={memoria.numero_memoria || 'Detalle de Memoria Anual'} />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

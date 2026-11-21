@@ -14,6 +14,7 @@ import { carrierService } from '@/services/carrierService';
 import type { DecaDocument, DecaFormData } from '@/types/deca';
 import type { Company, Carrier } from '@/types/wasteManagement';
 import { toast } from '@/context/ToastContext';
+import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import { Modal, ConfirmModal } from '@/components/ui/modal';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
@@ -346,6 +347,7 @@ export default function DecaManagementPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+      <PageBreadCrumb pageTitle="Documentos de Control (DeCA)" />
       {/* Cabecera Principal */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
         <div>

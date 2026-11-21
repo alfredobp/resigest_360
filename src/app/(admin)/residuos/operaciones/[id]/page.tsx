@@ -12,6 +12,7 @@ import {
   type EstadoOperacionComercial,
   type TipoDocumentoOperacion
 } from '@/types/wasteManagement';
+import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
@@ -327,6 +328,7 @@ export default function DetalleOperacionComercialPage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
+      <PageBreadCrumb pageTitle={operation.numero_operacion || 'Detalle de Operación'} />
       {/* Cabecera */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">

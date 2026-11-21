@@ -10,6 +10,7 @@ import {
 import productionCenterService from '@/services/productionCenterService';
 import companyService from '@/services/companyService';
 import { type MemoriaAnual, type EstadoMemoria, type TipoMemoria, type ProductionCenter } from '@/types/wasteManagement';
+import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
@@ -164,6 +165,7 @@ export default function MemoriasAnualesPage() {
 
   return (
     <div className="space-y-6">
+      <PageBreadCrumb pageTitle="Memorias Anuales" />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

@@ -15,6 +15,7 @@ import {
   type ProductionCenter,
   type IdentificationDocument
 } from '@/types/wasteManagement';
+import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
@@ -113,10 +114,10 @@ export default function NuevaOperacionComercialPage() {
     const ton = selectedDI.peso_destino_kg
       ? selectedDI.peso_destino_kg / 1000
       : selectedDI.peso_origen_kg
-      ? selectedDI.peso_origen_kg / 1000
-      : selectedDI.unidad === 'kg'
-      ? selectedDI.cantidad / 1000
-      : selectedDI.cantidad;
+        ? selectedDI.peso_origen_kg / 1000
+        : selectedDI.unidad === 'kg'
+          ? selectedDI.cantidad / 1000
+          : selectedDI.cantidad;
 
     setFormData(prev => ({
       ...prev,
@@ -173,7 +174,7 @@ export default function NuevaOperacionComercialPage() {
       router.push(`/residuos/operaciones/${created.id}`);
     } catch (err: any) {
       console.error(err);
-      setError(`Error al crear la operación comercial: ${  err.message || ''}`);
+      setError(`Error al crear la operación comercial: ${err.message || ''}`);
       setLoading(false);
     }
   };
@@ -182,6 +183,7 @@ export default function NuevaOperacionComercialPage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
+      <PageBreadCrumb pageTitle="Nueva Operación Comercial" />
       {/* Cabecera */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -727,20 +729,18 @@ export default function NuevaOperacionComercialPage() {
         {/* Columna Lateral: Tarjeta Fija de Rentabilidad en Vivo */}
         <div className="space-y-6">
           <div className="sticky top-6 space-y-4">
-            <div className={`p-5 rounded-2xl shadow-sm border transition-all ${
-              isRentable
+            <div className={`p-5 rounded-2xl shadow-sm border transition-all ${isRentable
                 ? 'bg-emerald-50/70 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800'
                 : 'bg-red-50/70 border-red-200 dark:bg-red-950/30 dark:border-red-800'
-            }`}>
+              }`}>
               <div className="flex items-center justify-between pb-3 border-b border-gray-200/60 dark:border-gray-700">
                 <span className="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-200">
                   Rentabilidad en Vivo
                 </span>
-                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                  isRentable
+                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${isRentable
                     ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
                     : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300'
-                }`}>
+                  }`}>
                   {isRentable ? 'Positivo' : 'Negativo'}
                 </span>
               </div>
