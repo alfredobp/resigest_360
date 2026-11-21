@@ -391,6 +391,67 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       expect(siraService.buildAuthorizationIdXml('AN-123')).toContain('<authorizationIdFree>AN-123</authorizationIdFree>');
       expect(siraService.buildAuthorizationIdXml('')).toContain('<authorizationIdEffects>No disponible</authorizationIdEffects>');
     });
+
+    it('resuelve automáticamente SIRA (Andalucía), e-SIR (MITECO) y plataformas autonómicas no integradas', () => {
+      delete process.env.SIRA_WS_URL;
+      delete process.env.SIRA_ENV;
+
+      const andalucia = siraService.resolveTelematicPlatform({ province: 'Sevilla' });
+      expect(andalucia.platform).toBe('sira');
+      expect(andalucia.code).toBe('SIRA');
+      expect(andalucia.supported).toBe(true);
+      expect(andalucia.endpointUrl).toContain('juntadeandalucia.es');
+
+      const madrid = siraService.resolveTelematicPlatform({ province: 'Madrid' });
+      expect(madrid.platform).toBe('esir');
+      expect(madrid.code).toBe('e-SIR');
+      expect(madrid.supported).toBe(true);
+      expect(madrid.endpointUrl).toContain('esir.miteco.gob.es');
+
+      // Detección por prefijo de NIMA cuando falta provincia
+      const murciaByNima = siraService.resolveTelematicPlatform({ nima: '3000000012' });
+      expect(murciaByNima.platform).toBe('esir');
+      expect(murciaByNima.caCode).toBe('14');
+
+      // Plataforma autonómica propia no integrada (Cataluña SDR)
+      const cataluna = siraService.resolveTelematicPlatform({ province: 'Barcelona' });
+      expect(cataluna.platform).toBe('autonomica_no_integrada');
+      expect(cataluna.code).toBe('SDR');
+      expect(cataluna.supported).toBe(false);
+      expect(cataluna.endpointUrl).toBeNull();
+
+      // Overrides explícitos
+      expect(siraService.resolveTelematicPlatform({ province: 'Madrid', forcePlatform: 'sira' }).platform).toBe('sira');
+      expect(siraService.resolveTelematicPlatform({ province: 'Sevilla', forcePlatform: 'esir' }).platform).toBe('esir');
+
+      // Override por SIRA_WS_URL
+      process.env.SIRA_WS_URL = 'https://esir.miteco.gob.es/esir-service/WastesOperationServiceExt';
+      expect(siraService.resolveTelematicPlatform({ province: 'Sevilla' }).platform).toBe('esir');
+    });
+
+    it('resuelve plataforma para DI según fase (origen en fase R, destino en fase D) y para NT por origen', () => {
+      delete process.env.SIRA_WS_URL;
+      delete process.env.SIRA_ENV;
+
+      const diOrigenAndaluciaDestinoMadrid = {
+        productor_provincia: 'Sevilla',
+        gestor_provincia: 'Madrid',
+        estado_traslado: 'borrador',
+      };
+      expect(siraService.resolvePlatformForDI(diOrigenAndaluciaDestinoMadrid).platform).toBe('sira');
+
+      const diFaseDestinoMadrid = {
+        ...diOrigenAndaluciaDestinoMadrid,
+        estado_traslado: 'aceptado',
+      };
+      expect(siraService.resolvePlatformForDI(diFaseDestinoMadrid).platform).toBe('esir');
+
+      const ntMadrid = {
+        productor_provincia: 'Madrid',
+        gestor_provincia: 'Sevilla',
+      };
+      expect(siraService.resolvePlatformForNT(ntMadrid).platform).toBe('esir');
+    });
   });
 
   describe('validateDIForE3L', () => {

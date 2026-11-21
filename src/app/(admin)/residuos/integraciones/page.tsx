@@ -140,7 +140,7 @@ export default function IntegracionesAuditoriaPage() {
           {/* KPI 1: SIRA Telematics */}
           <div className="p-5 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
             <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted">Transmisiones SIRA / e3l</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-muted">Transmisiones e-SIR / SIRA (E3L)</span>
               <p className="text-2xl font-bold font-mono text-gray-900 dark:text-white">
                 {acceptedSubmissions} <span className="text-sm font-normal text-muted">/ {totalSubmissions}</span>
               </p>
@@ -196,7 +196,7 @@ export default function IntegracionesAuditoriaPage() {
                 : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
-            <span>Cola Telemática SIRA / e3l</span>
+            <span>Cola Telemática e-SIR / SIRA</span>
             {failedSubmissions > 0 && (
               <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 font-bold">
                 {failedSubmissions}
@@ -229,7 +229,7 @@ export default function IntegracionesAuditoriaPage() {
 
         {/* TAB 1: COLA SIRA */}
         {activeTab === 'sira' && (
-          <ComponentCard title="Cola de Transmisiones SOAP / e3l (Plataforma SIRA - Junta de Andalucía)">
+          <ComponentCard title="Cola de Transmisiones SOAP / E3L (SIRA Andalucía · e-SIR MITECO)">
             <div className="space-y-4">
               {/* Filtros y Acciones */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -266,9 +266,9 @@ export default function IntegracionesAuditoriaPage() {
               {!company?.sira_usuario && (
                 <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-amber-800 dark:text-amber-200 text-xs flex justify-between items-center">
                   <div>
-                    <p className="font-bold">Credenciales de SIRA pendientes de configuración</p>
+                    <p className="font-bold">Credenciales telemáticas (e-SIR / SIRA) pendientes de configuración</p>
                     <p className="opacity-90 mt-0.5">
-                      Para transmitir directamente los DCS / Documentos de Identificación al servidor de la Junta, complete su usuario y clave en Mi Empresa.
+                      Para transmitir directamente los DI y NT al servidor autonómico (SIRA) o estatal (e-SIR MITECO), complete su usuario y clave WS en Mi Empresa.
                     </p>
                   </div>
                   <Link href="/residuos/empresas" className="px-3 py-1.5 bg-amber-600 text-white font-bold rounded-lg hover:bg-amber-700 whitespace-nowrap">

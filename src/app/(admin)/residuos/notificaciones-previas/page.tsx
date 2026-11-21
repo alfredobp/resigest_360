@@ -11,6 +11,7 @@ import { ConfirmModal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import { toast } from '@/context/ToastContext';
 import { priorNotificationService } from '@/services/priorNotificationService';
+import { resolvePlatformForNT } from '@/services/siraService';
 import companyService from '@/services/companyService';
 import type { PriorNotification, Company } from '@/types/wasteManagement';
 import { FileText, Send, Trash2, Eye, Plus } from 'lucide-react';
@@ -60,16 +61,17 @@ export default function NotificacionesPreviasPage() {
       const result = await priorNotificationService.sendToSira(ntToSendSira.id, validateOnly);
 
       if (result.success) {
+        const targetName = result.platformName || 'e-SIR / SIRA';
         toast.success(
           validateOnly
-            ? 'Notificación Previa validada con éxito por SIRA'
-            : `Notificación Previa presentada y aceptada por SIRA.\nID: ${result.siraId || 'OK'}`
+            ? `Notificación Previa validada con éxito (${targetName})`
+            : `Notificación Previa presentada y aceptada por ${targetName}.\nID: ${result.siraId || 'OK'}`
         );
         setNtToSendSira(null);
         await loadData();
       }
     } catch (err: any) {
-      toast.error(`SIRA: ${err.message}`);
+      toast.error(`Envío telemático: ${err.message}`);
     } finally {
       setActionLoading(false);
     }
@@ -110,11 +112,11 @@ export default function NotificacionesPreviasPage() {
   const getStatusBadge = (estado: string) => {
     switch (estado) {
       case 'aceptada':
-        return <Badge variant="light" color="success">Aceptada en SIRA</Badge>;
+        return <Badge variant="light" color="success">Aceptada (e-SIR / SIRA)</Badge>;
       case 'validada':
         return <Badge variant="light" color="info">Pre-validada</Badge>;
       case 'enviada_sira':
-        return <Badge variant="light" color="warning">Enviada SIRA</Badge>;
+        return <Badge variant="light" color="warning">Enviada (e-SIR / SIRA)</Badge>;
       case 'rechazada':
         return <Badge variant="light" color="error">Rechazada</Badge>;
       case 'caducada':
@@ -138,7 +140,7 @@ export default function NotificacionesPreviasPage() {
               Notificaciones Previas de Traslado (NT)
             </h2>
             <p className="text-sm text-muted">
-              Obligación previa reglamentaria (RD 553/2020) conectada con el Web Service SIRA de la Junta de Andalucía.
+              Obligación previa reglamentaria (RD 553/2020) conectada automáticamente con SIRA (Andalucía) y e-SIR (MITECO).
             </p>
           </div>
           <Button
@@ -153,8 +155,8 @@ export default function NotificacionesPreviasPage() {
         {!hasCredentials && (
           <Alert
             variant="warning"
-            title="Credenciales SIRA no detectadas"
-            message="Para tramitar y enviar Notificaciones Previas telemáticamente a la Junta de Andalucía, configura tus credenciales de SIRA en Mi Empresa."
+            title="Credenciales telemáticas (e-SIR / SIRA) no detectadas"
+            message="Para tramitar y enviar Notificaciones Previas telemáticamente a SIRA o e-SIR, configura tus credenciales WS en Mi Empresa."
           />
         )}
 
@@ -278,18 +280,21 @@ export default function NotificacionesPreviasPage() {
                               <Eye className="w-3.5 h-3.5" />
                             </Button>
 
-                            {!isAccepted && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleSendToSira(nt)}
-                                disabled={!hasCredentials || actionLoading}
-                                className="bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 border-emerald-200 hover:bg-emerald-100 flex items-center gap-1"
-                              >
-                                <Send className="w-3.5 h-3.5" />
-                                <span className="hidden sm:inline">SIRA</span>
-                              </Button>
-                            )}
+                            {!isAccepted && (() => {
+                              const platform = resolvePlatformForNT(nt);
+                              return (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleSendToSira(nt)}
+                                  disabled={!hasCredentials || actionLoading || !platform.supported}
+                                  className="bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 border-emerald-200 hover:bg-emerald-100 flex items-center gap-1"
+                                >
+                                  <Send className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">{platform.shortLabel}</span>
+                                </Button>
+                              );
+                            })()}
 
                             {!isAccepted && (
                               <Button
@@ -314,19 +319,22 @@ export default function NotificacionesPreviasPage() {
         </ComponentCard>
       </div>
 
-      {/* Modal Envío a SIRA */}
-      {ntToSendSira && (
-        <ConfirmModal
-          isOpen={!!ntToSendSira}
-          onClose={() => setNtToSendSira(null)}
-          onConfirm={() => confirmSendToSira(false)}
-          title="Transmitir Notificación Previa a SIRA"
-          message={`¿Deseas presentar telemáticamente la Notificación Previa ${ntToSendSira.numero_notificacion} ante la Junta de Andalucía? La Junta registrará la obligación ambiental en su base de datos oficial.`}
-          confirmLabel={actionLoading ? 'Transmitiendo...' : 'Presentar Oficialmente'}
-          cancelLabel="Cancelar"
-          variant="primary"
-        />
-      )}
+      {/* Modal Envío Telemático (e-SIR / SIRA) */}
+      {ntToSendSira && (() => {
+        const platform = resolvePlatformForNT(ntToSendSira);
+        return (
+          <ConfirmModal
+            isOpen={!!ntToSendSira}
+            onClose={() => setNtToSendSira(null)}
+            onConfirm={() => confirmSendToSira(false)}
+            title={`Transmitir Notificación Previa a ${platform.shortLabel}`}
+            message={`¿Deseas presentar telemáticamente la Notificación Previa ${ntToSendSira.numero_notificacion} ante ${platform.name}? La plataforma registrará la obligación ambiental en su base de datos oficial.`}
+            confirmLabel={actionLoading ? 'Transmitiendo...' : 'Presentar Oficialmente'}
+            cancelLabel="Cancelar"
+            variant="primary"
+          />
+        );
+      })()}
 
       {/* Modal Eliminar */}
       {ntToDelete !== null && (

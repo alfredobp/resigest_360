@@ -12,6 +12,27 @@ export const DEFAULT_SIRA_WS_URL =
 export const ESIR_PROD_WS_URL =
   'https://esir.miteco.gob.es/esir-service/WastesOperationServiceExt';
 
+export type TelematicPlatformId = 'sira' | 'esir' | 'autonomica_no_integrada';
+
+export interface TelematicPlatformInfo {
+  platform: TelematicPlatformId;
+  code: string;
+  name: string;
+  shortLabel: string;
+  endpointUrl: string | null;
+  supported: boolean;
+  provinceCode: string;
+  caCode: string;
+  reason: string;
+}
+
+const NON_INTEGRATED_REGIONAL_PLATFORMS: Record<string, { code: string; name: string }> = {
+  '09': { code: 'SDR', name: 'SDR (Agència de Residus de Catalunya)' },
+  '10': { code: 'ADCR', name: 'ADCR (Comunitat Valenciana)' },
+  '12': { code: 'GaIA', name: 'GaIA / eResiduos (Galicia)' },
+  '16': { code: 'IKS-eeM', name: 'IKS-eeM / Ingurunet (País Vasco)' },
+};
+
 /**
  * Resuelve la URL del servicio SOAP de SIRA/e-SIR según variables de entorno.
  * Permite configurar un endpoint alternativo (p. ej. SIRA_WS_URL o SIRA_ENV=esir).
@@ -26,6 +47,144 @@ export const getSiraEndpointUrl = (): string => {
     return ESIR_PROD_WS_URL;
   }
   return DEFAULT_SIRA_WS_URL;
+};
+
+/**
+ * Determina automáticamente la plataforma telemática (SIRA o e-SIR) en función de
+ * la provincia o del prefijo provincial del NIMA de la instalación.
+ */
+export const resolveTelematicPlatform = (options: {
+  province?: string | null;
+  nima?: string | null;
+  forcePlatform?: 'auto' | 'sira' | 'esir';
+}): TelematicPlatformInfo => {
+  const customUrl = typeof process !== 'undefined' ? process.env?.SIRA_WS_URL?.trim() : undefined;
+  const envMode = typeof process !== 'undefined' ? process.env?.SIRA_ENV?.trim().toLowerCase() : undefined;
+
+  let provCode = options.province ? getProvinceCodeByName(options.province) : '00';
+  if (provCode === '00' && options.nima) {
+    const digits = String(options.nima).replace(/\D/g, '');
+    if (/^(0[1-9]|[1-4][0-9]|5[0-2])/.test(digits)) {
+      provCode = digits.slice(0, 2);
+    }
+  }
+  const caCode = provCode !== '00' ? getCACodeByProvince(provCode) : '01';
+
+  if (customUrl) {
+    const isEsirCustom = /esir\.miteco\.gob\.es|WastesOperationServiceExt/i.test(customUrl);
+    return {
+      platform: isEsirCustom ? 'esir' : 'sira',
+      code: isEsirCustom ? 'e-SIR' : 'SIRA',
+      name: isEsirCustom ? 'e-SIR (MITECO — Endpoint personalizado)' : 'SIRA (Endpoint personalizado)',
+      shortLabel: isEsirCustom ? 'e-SIR' : 'SIRA',
+      endpointUrl: customUrl,
+      supported: true,
+      provinceCode: provCode,
+      caCode,
+      reason: 'Endpoint configurado manualmente mediante SIRA_WS_URL',
+    };
+  }
+
+  if (options.forcePlatform === 'sira' || envMode === 'sira') {
+    return {
+      platform: 'sira',
+      code: 'SIRA',
+      name: 'SIRA (Junta de Andalucía)',
+      shortLabel: 'SIRA',
+      endpointUrl: DEFAULT_SIRA_WS_URL,
+      supported: true,
+      provinceCode: provCode,
+      caCode,
+      reason: 'Plataforma SIRA seleccionada explícitamente',
+    };
+  }
+
+  if (options.forcePlatform === 'esir' || envMode === 'esir' || envMode === 'esir_prod') {
+    return {
+      platform: 'esir',
+      code: 'e-SIR',
+      name: 'e-SIR (MITECO)',
+      shortLabel: 'e-SIR',
+      endpointUrl: ESIR_PROD_WS_URL,
+      supported: true,
+      provinceCode: provCode,
+      caCode,
+      reason: 'Plataforma e-SIR seleccionada explícitamente',
+    };
+  }
+
+  if (caCode === '01') {
+    return {
+      platform: 'sira',
+      code: 'SIRA',
+      name: 'SIRA (Junta de Andalucía)',
+      shortLabel: 'SIRA',
+      endpointUrl: DEFAULT_SIRA_WS_URL,
+      supported: true,
+      provinceCode: provCode,
+      caCode,
+      reason: 'Instalación ubicada en Andalucía (CCAA 01)',
+    };
+  }
+
+  const regional = NON_INTEGRATED_REGIONAL_PLATFORMS[caCode];
+  if (regional) {
+    return {
+      platform: 'autonomica_no_integrada',
+      code: regional.code,
+      name: regional.name,
+      shortLabel: regional.code,
+      endpointUrl: null,
+      supported: false,
+      provinceCode: provCode,
+      caCode,
+      reason: `La CCAA ${caCode} opera mediante su plataforma autonómica propia (${regional.name})`,
+    };
+  }
+
+  return {
+    platform: 'esir',
+    code: 'e-SIR',
+    name: 'e-SIR (MITECO)',
+    shortLabel: 'e-SIR',
+    endpointUrl: ESIR_PROD_WS_URL,
+    supported: true,
+    provinceCode: provCode,
+    caCode,
+    reason: `Instalación en CCAA ${caCode} adherida a e-SIR (MITECO)`,
+  };
+};
+
+/**
+ * Resuelve la plataforma telemática para un DI conforme al RD 553/2020:
+ * - Fase D/T (destino/recepción): CCAA de la instalación de destino (gestor).
+ * - Fase R/C (origen/remitente): CCAA de la instalación de origen (productor).
+ */
+export const resolvePlatformForDI = (doc: any): TelematicPlatformInfo => {
+  const compData = Array.isArray(doc?.company) ? doc.company[0] : doc?.company;
+  const isDest = isDestinationDCSPhase(doc);
+  if (isDest) {
+    return resolveTelematicPlatform({
+      province: doc?.gestor_provincia || doc?.productor_provincia || compData?.provincia_instalacion || compData?.provincia,
+      nima: doc?.gestor_nima || doc?.productor_nima || compData?.nima,
+    });
+  }
+  return resolveTelematicPlatform({
+    province: doc?.productor_provincia || compData?.provincia_instalacion || compData?.provincia,
+    nima: doc?.productor_nima || compData?.nima,
+  });
+};
+
+/**
+ * Resuelve la plataforma telemática para una Notificación Previa (NT) conforme al RD 553/2020:
+ * se presenta ante la autoridad competente de la CCAA de origen del traslado.
+ */
+export const resolvePlatformForNT = (nt: any): TelematicPlatformInfo => {
+  const compData = Array.isArray(nt?.company) ? nt.company[0] : nt?.company;
+  return resolveTelematicPlatform({
+    province: nt?.productor_provincia || nt?.operador_provincia || compData?.provincia_instalacion || compData?.provincia,
+    nima: nt?.productor_nima || nt?.operador_nima || compData?.nima,
+  });
 };
 
 // ============================================================================
@@ -1078,6 +1237,22 @@ export const siraService = {
     return getSiraEndpointUrl();
   },
 
+  resolveTelematicPlatform(options: {
+    province?: string | null;
+    nima?: string | null;
+    forcePlatform?: 'auto' | 'sira' | 'esir';
+  }): TelematicPlatformInfo {
+    return resolveTelematicPlatform(options);
+  },
+
+  resolvePlatformForDI(doc: any): TelematicPlatformInfo {
+    return resolvePlatformForDI(doc);
+  },
+
+  resolvePlatformForNT(nt: any): TelematicPlatformInfo {
+    return resolvePlatformForNT(nt);
+  },
+
   getCACodeByProvince(provCode: string): string {
     return getCACodeByProvince(provCode);
   },
@@ -1086,7 +1261,7 @@ export const siraService = {
     return buildAuthorizationIdXml(rawAuthNumber, safeNima, indent);
   },
 
-  async sendDI(documentId: number): Promise<{ success: boolean; message: string; siraId?: string }> {
+  async sendDI(documentId: number): Promise<{ success: boolean; message: string; siraId?: string; platform?: string; platformName?: string }> {
     try {
       const response = await fetch('/api/residuos/sira/enviar-di', {
         method: 'POST',

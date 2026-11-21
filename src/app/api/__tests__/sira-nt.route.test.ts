@@ -82,6 +82,17 @@ jest.mock('@/services/priorNotificationService', () => ({
 jest.mock('@/services/siraService', () => ({
   siraService: {
     extractSiraError: jest.fn(() => 'JA000026: Error de validación SIRA'),
+    resolvePlatformForNT: jest.fn(() => ({
+      platform: 'sira',
+      code: 'SIRA',
+      name: 'SIRA (Junta de Andalucía)',
+      shortLabel: 'SIRA',
+      endpointUrl: 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones',
+      supported: true,
+      provinceCode: '41',
+      caCode: '01',
+      reason: 'Instalación ubicada en Andalucía (CCAA 01)',
+    })),
   },
 }));
 
@@ -248,6 +259,35 @@ describe('POST /api/residuos/sira/enviar-nt', () => {
     const body = await res.json();
     expect(body.success).toBe(true);
     expect(body.siraId).toBe('SIRA-OK-03');
+    expect(body.platform).toBe('SIRA');
+  });
+
+  it('devuelve 422 si la CCAA de origen de la NT usa plataforma autonómica no integrada', async () => {
+    mockNtSingle.mockResolvedValue({
+      data: {
+        id: 12,
+        company_id: 1,
+        productor_provincia: 'Barcelona',
+        company: { sira_usuario: 'user_cat', sira_password: 'pass_cat' },
+      },
+      error: null,
+    });
+    (siraService.resolvePlatformForNT as jest.Mock).mockReturnValueOnce({
+      platform: 'autonomica_no_integrada',
+      code: 'SDR',
+      name: 'SDR (Agència de Residus de Catalunya)',
+      shortLabel: 'SDR',
+      endpointUrl: null,
+      supported: false,
+      provinceCode: '08',
+      caCode: '09',
+      reason: 'CCAA 09',
+    });
+
+    const res = await POST(makeReq({ notificationId: 12 }));
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.platform).toBe('SDR');
   });
 
   it('maneja rechazo de SIRA con código de error legible', async () => {

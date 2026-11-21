@@ -195,11 +195,11 @@ export default function DocumentosIdentificacionPage() {
       const result = await siraService.sendDI(docToSendSira);
 
       if (result.success) {
-        toast.success(`Documento enviado con éxito a SIRA.\nID de Registro: ${result.siraId}`);
+        toast.success(`Documento enviado con éxito a ${result.platformName || 'e-SIR / SIRA'}.\nID de Registro: ${result.siraId}`);
         await loadData();
       }
     } catch (err: any) {
-      toast.error(`Error al enviar a SIRA: ${err.message}`);
+      toast.error(`Error en el envío telemático: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -415,19 +415,22 @@ export default function DocumentosIdentificacionPage() {
             </span>
           )}
 
-          {canCreateOrDeleteDi && (!row.estado_traslado || row.estado_traslado === 'borrador') && (
-            <span title="Enviar a SIRA">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleSendToSira(row.id)}
-                disabled={!myCompany?.sira_usuario || !myCompany?.sira_password}
-                className={`text-[11px] py-1 px-1.5 h-auto ${!myCompany?.sira_usuario || !myCompany?.sira_password ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                SIRA
-              </Button>
-            </span>
-          )}
+          {canCreateOrDeleteDi && (!row.estado_traslado || row.estado_traslado === 'borrador') && (() => {
+            const platform = siraService.resolvePlatformForDI(row);
+            return (
+              <span title={`Enviar a ${platform.name}`}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSendToSira(row.id)}
+                  disabled={!myCompany?.sira_usuario || !myCompany?.sira_password || !platform.supported}
+                  className={`text-[11px] py-1 px-1.5 h-auto ${!myCompany?.sira_usuario || !myCompany?.sira_password || !platform.supported ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {platform.shortLabel}
+                </Button>
+              </span>
+            );
+          })()}
 
           {canCreateOrDeleteDi && (!row.estado_traslado || row.estado_traslado === 'borrador') && (
             <span title="Eliminar borrador">
@@ -793,10 +796,10 @@ export default function DocumentosIdentificacionPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleSendToSira(doc.id)}
-                          disabled={!myCompany?.sira_usuario || !myCompany?.sira_password}
-                          className={!myCompany?.sira_usuario || !myCompany?.sira_password ? 'opacity-50 cursor-not-allowed' : ''}
+                          disabled={!myCompany?.sira_usuario || !myCompany?.sira_password || !siraService.resolvePlatformForDI(doc).supported}
+                          className={!myCompany?.sira_usuario || !myCompany?.sira_password || !siraService.resolvePlatformForDI(doc).supported ? 'opacity-50 cursor-not-allowed' : ''}
                         >
-                          Enviar a SIRA
+                          Enviar a {siraService.resolvePlatformForDI(doc).shortLabel}
                         </Button>
                       )}
 
@@ -1053,15 +1056,21 @@ export default function DocumentosIdentificacionPage() {
         message="¿Estás seguro de que deseas eliminar este documento? Esta acción no se puede deshacer."
       />
 
-      <ConfirmModal
-        isOpen={docToSendSira !== null}
-        onClose={() => setDocToSendSira(null)}
-        onConfirm={confirmSendToSira}
-        variant="primary"
-        title="Enviar documento a SIRA"
-        confirmLabel="Enviar a SIRA"
-        message="¿Deseas enviar este documento a SIRA (Junta de Andalucía)?"
-      />
+      {(() => {
+        const selectedDoc = documents.find((d) => d.id === docToSendSira);
+        const platform = selectedDoc ? siraService.resolvePlatformForDI(selectedDoc) : null;
+        return (
+          <ConfirmModal
+            isOpen={docToSendSira !== null}
+            onClose={() => setDocToSendSira(null)}
+            onConfirm={confirmSendToSira}
+            variant="primary"
+            title={`Enviar documento a ${platform?.shortLabel || 'e-SIR / SIRA'}`}
+            confirmLabel={`Enviar a ${platform?.shortLabel || 'e-SIR / SIRA'}`}
+            message={`¿Deseas enviar este documento telemáticamente a ${platform?.name || 'la plataforma oficial (SIRA / e-SIR)'}?`}
+          />
+        );
+      })()}
     </>
   );
 }

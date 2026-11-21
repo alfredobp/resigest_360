@@ -1517,12 +1517,20 @@ export default function DetalleDocumentoIdentificacionPage() {
                     ) : (
                       <Badge color="info" size="md">Enviado / En Proceso</Badge>
                     )
-                  ) : document.notas?.includes('[SIRA]') ? (
-                    <Badge color="success" size="md">✓ Notificado en SIRA</Badge>
+                  ) : (document.notas?.includes('[SIRA]') || document.notas?.includes('[e-SIR]')) ? (
+                    <Badge color="success" size="md">✓ Notificado ({siraService.resolvePlatformForDI(document).shortLabel})</Badge>
                   ) : (
                     <Badge color="light" size="md">Pendiente de Remisión</Badge>
                   )}
                 </div>
+                {(() => {
+                  const detectedPlatform = siraService.resolvePlatformForDI(document);
+                  return (
+                    <p className={`text-xs font-medium ${detectedPlatform.supported ? 'text-blue-700 dark:text-blue-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                      Plataforma detectada automáticamente: <strong>{detectedPlatform.name}</strong> ({detectedPlatform.reason})
+                    </p>
+                  );
+                })()}
                 {siraSubmissions.length > 0 && siraSubmissions[0].codigo_acuse && (
                   <p className="text-xs font-mono font-semibold text-emerald-700 dark:text-emerald-400">
                     Código Acuse Oficial: {siraSubmissions[0].codigo_acuse}
@@ -1577,10 +1585,20 @@ export default function DetalleDocumentoIdentificacionPage() {
                 <Button
                   size="sm"
                   variant={siraSubmissions.length > 0 && siraSubmissions[0].estado === 'aceptado' ? "outline" : "primary"}
-                  disabled={sendingSira || !myCompany?.sira_usuario}
+                  disabled={sendingSira || !myCompany?.sira_usuario || !siraService.resolvePlatformForDI(document).supported}
                   onClick={() => handleSendSira()}
                 >
-                  <span>{sendingSira ? 'Transmitiendo...' : (siraSubmissions.length > 0 && siraSubmissions[0].estado === 'aceptado' ? 'Re-enviar a SIRA' : 'Transmitir a SIRA')}</span>
+                  <span>
+                    {sendingSira
+                      ? 'Transmitiendo...'
+                      : (() => {
+                          const p = siraService.resolvePlatformForDI(document);
+                          if (!p.supported) return `${p.shortLabel} (solo XML)`;
+                          return siraSubmissions.length > 0 && siraSubmissions[0].estado === 'aceptado'
+                            ? `Re-enviar a ${p.shortLabel}`
+                            : `Transmitir a ${p.shortLabel}`;
+                        })()}
+                  </span>
                 </Button>
               </div>
             </div>

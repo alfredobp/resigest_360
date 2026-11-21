@@ -17,6 +17,7 @@ import AutorizacionModal from '@/components/residuos/AutorizacionModal';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import authorizationService from '@/services/authorizationService';
+import { resolveTelematicPlatform } from '@/services/siraService';
 import { useTenant } from '@/context/TenantContext';
 import {
   ALL_MODULES,
@@ -956,29 +957,44 @@ export default function MiEmpresaPage() {
           )}
 
           {/* =========================================================
-              PESTAÑA 3: INTEGRACIONES SIRA & HOLDED
+              PESTAÑA 3: INTEGRACIONES e-SIR / SIRA & HOLDED
           ========================================================= */}
           {activeTab === 'integraciones' && (
             <div className="space-y-6">
-              {/* Configuración SIRA (Junta de Andalucía) */}
-              <ComponentCard title="Configuración SIRA (Junta de Andalucía)">
+              {/* Configuración Telemática e-SIR / SIRA */}
+              <ComponentCard title="Integración Telemática e-SIR / SIRA (Protocolo E3L)">
                 <div className="space-y-4">
                   <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800 text-xs text-gray-600 dark:text-gray-300 leading-relaxed space-y-1.5">
                     <div className="font-semibold text-gray-900 dark:text-white">
-                      Conexión con el Sistema de Información de Residuos de Andalucía (SIRA)
+                      Enrutado automático según ubicación de la instalación (RD 553/2020)
                     </div>
                     <p>
-                      Al activar la integración e introducir tus credenciales del Servicio Web (Usuario WS y Contraseña WS), ResiGest 360 enviará los Documentos de Identificación (DI) directamente mediante protocolo E3L.
+                      ResiGest 360 detecta automáticamente la plataforma oficial correspondiente en función de la provincia/NIMA de cada centro: <strong>SIRA</strong> en Andalucía y <strong>e-SIR (MITECO)</strong> en las Comunidades Autónomas adheridas.
                     </p>
+                    {(() => {
+                      const detected = resolveTelematicPlatform({
+                        province: formData.provincia_instalacion || formData.provincia_social,
+                        nima: formData.nima,
+                      });
+                      return (
+                        <div className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-semibold ${
+                          detected.supported
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                            : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                        }`}>
+                          <span>Plataforma detectada para esta empresa: {detected.name}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="flex items-center justify-between py-2">
                     <div>
                       <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                        Conexión con el Web Service
+                        Conexión con el Web Service (SOAP / E3L)
                       </h4>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Habilita el envío directo de DI a la plataforma SIRA.
+                        Habilita el envío directo de DI y Notificaciones Previas a SIRA o e-SIR.
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1001,13 +1017,13 @@ export default function MiEmpresaPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium mb-2">
-                        Usuario WS (CIF o NIMA)
+                        Usuario WS (CIF/NIF en e-SIR o SIRA)
                       </label>
                       <Input
                         name="sira_usuario"
                         value={formData.sira_usuario}
                         onChange={handleChange}
-                        placeholder="Usuario asignado en SIRA"
+                        placeholder="Usuario WS asignado en e-SIR / SIRA"
                       />
                     </div>
                     <div>

@@ -560,7 +560,7 @@ ${buildAuthorizationIdXml(nt.gestor_numero_autorizacion, gestNima, '            
   /**
    * Enviar Notificación Previa a SIRA (Junta de Andalucía)
    */
-  async sendToSira(notificationId: number, validateOnly = false): Promise<{ success: boolean; message: string; siraId?: string }> {
+  async sendToSira(notificationId: number, validateOnly = false): Promise<{ success: boolean; message: string; siraId?: string; platform?: string; platformName?: string }> {
     try {
       const response = await fetch('/api/residuos/sira/enviar-nt', {
         method: 'POST',

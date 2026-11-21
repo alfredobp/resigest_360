@@ -10,6 +10,7 @@ import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
 import { priorNotificationService } from '@/services/priorNotificationService';
+import { resolvePlatformForNT } from '@/services/siraService';
 import identificationDocumentService from '@/services/identificationDocumentService';
 import type { PriorNotification, IdentificationDocument } from '@/types/wasteManagement';
 import { ArrowLeft, Send, FileCode, Plus, Trash2, ShieldCheck, Download } from 'lucide-react';
@@ -187,7 +188,7 @@ export default function DetalleNotificacionPreviaPage({ params }: PageProps) {
                   </span>
                 ) : (
                   <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                    Identificador Oficial SIRA: {notification.sira_id}
+                    Identificador Oficial ({resolvePlatformForNT(notification).shortLabel}): {notification.sira_id}
                   </p>
                 )}
               </div>
@@ -224,7 +225,7 @@ export default function DetalleNotificacionPreviaPage({ params }: PageProps) {
                   className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5"
                 >
                   <Send className="w-4 h-4" />
-                  Presentar a SIRA
+                  Presentar a {resolvePlatformForNT(notification).shortLabel}
                 </Button>
 
                 <Button
@@ -409,13 +410,13 @@ export default function DetalleNotificacionPreviaPage({ params }: PageProps) {
         </ComponentCard>
       </div>
 
-      {/* ConfirmModal Presentar SIRA */}
+      {/* ConfirmModal Presentar Telemáticamente (e-SIR / SIRA) */}
       <ConfirmModal
         isOpen={showSendModal}
         onClose={() => setShowSendModal(false)}
         onConfirm={() => handleSendToSira(false)}
-        title="Presentar Notificación Previa a SIRA"
-        message={`¿Deseas presentar telemáticamente la Notificación Previa ${notification.numero_notificacion} ante la Junta de Andalucía? La NT quedará registrada oficialmente y habilitará el envío de sus DIs correspondientes.`}
+        title={`Presentar Notificación Previa a ${resolvePlatformForNT(notification).shortLabel}`}
+        message={`¿Deseas presentar telemáticamente la Notificación Previa ${notification.numero_notificacion} ante ${resolvePlatformForNT(notification).name}? La NT quedará registrada oficialmente y habilitará el envío de sus DIs correspondientes.`}
         confirmLabel={actionLoading ? 'Transmitiendo...' : 'Presentar Oficialmente'}
         cancelLabel="Cancelar"
         variant="primary"

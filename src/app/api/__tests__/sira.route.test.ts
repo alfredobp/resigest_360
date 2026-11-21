@@ -77,6 +77,17 @@ jest.mock('@/services/siraService', () => ({
     validateDIForE3L: jest.fn(() => ({ valid: true, errors: [], warnings: [] })),
     generateDIXml: jest.fn(() => '<wasteDCS DCSCode="DI-1"/>'),
     extractSiraError: jest.fn(() => 'JA000018: Error de validación SIRA'),
+    resolvePlatformForDI: jest.fn(() => ({
+      platform: 'sira',
+      code: 'SIRA',
+      name: 'SIRA (Junta de Andalucía)',
+      shortLabel: 'SIRA',
+      endpointUrl: 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones',
+      supported: true,
+      provinceCode: '41',
+      caCode: '01',
+      reason: 'Instalación ubicada en Andalucía (CCAA 01)',
+    })),
   },
 }));
 
@@ -413,6 +424,37 @@ describe('POST /api/residuos/sira/enviar-di', () => {
     const json = await res.json();
     expect(json.success).toBe(true);
     expect(json.siraId).toBe('SIRA-OK-03');
+    expect(json.platform).toBe('SIRA');
+  });
+
+  it('devuelve 422 si la comunidad autónoma detectada usa una plataforma autonómica no integrada (ej. SDR Cataluña)', async () => {
+    mockDocSingle.mockResolvedValue({
+      data: {
+        id: 17,
+        company_id: 2,
+        numero_documento: 'DI-2026-CAT',
+        productor_provincia: 'Barcelona',
+        company: { sira_usuario: 'user_cat', sira_password: 'pass_cat' },
+      },
+      error: null,
+    });
+    (siraService.resolvePlatformForDI as jest.Mock).mockReturnValueOnce({
+      platform: 'autonomica_no_integrada',
+      code: 'SDR',
+      name: 'SDR (Agència de Residus de Catalunya)',
+      shortLabel: 'SDR',
+      endpointUrl: null,
+      supported: false,
+      provinceCode: '08',
+      caCode: '09',
+      reason: 'CCAA 09',
+    });
+
+    const res = await POST(makeReq({ documentId: 17 }));
+    expect(res.status).toBe(422);
+    const json = await res.json();
+    expect(json.platform).toBe('SDR');
+    expect(json.error).toContain('SDR');
   });
 
   it('devuelve 400 si el DI no supera la validación estructural E3L previa', async () => {

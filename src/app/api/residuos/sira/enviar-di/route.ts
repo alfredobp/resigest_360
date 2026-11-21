@@ -181,11 +181,34 @@ export async function POST(req: NextRequest) {
         }
         // ------------------------------------------------
 
-        // 6. Realizar la petición al Web Service de la Junta / e-SIR
-        const siraUrl =
-            typeof siraService.getSiraEndpointUrl === 'function'
-                ? siraService.getSiraEndpointUrl()
-                : 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones';
+        // 6. Resolver plataforma automáticamente según ubicación del centro (Andalucía -> SIRA, resto -> e-SIR)
+        const platformInfo =
+            typeof siraService.resolvePlatformForDI === 'function'
+                ? siraService.resolvePlatformForDI(doc)
+                : {
+                    platform: 'sira' as const,
+                    code: 'SIRA',
+                    name: 'SIRA (Junta de Andalucía)',
+                    shortLabel: 'SIRA',
+                    endpointUrl:
+                        typeof siraService.getSiraEndpointUrl === 'function'
+                            ? siraService.getSiraEndpointUrl()
+                            : 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones',
+                    supported: true,
+                    provinceCode: '00',
+                    caCode: '01',
+                    reason: 'Default SIRA',
+                };
+
+        if (!platformInfo.supported || !platformInfo.endpointUrl) {
+            return NextResponse.json({
+                error: `La comunidad autónoma detectada opera mediante ${platformInfo.name}, que no dispone de envío SOAP directo todavía. Puedes descargar el XML E3L para subirlo manualmente.`,
+                platform: platformInfo.code,
+                platformName: platformInfo.name,
+            }, { status: 422 });
+        }
+
+        const siraUrl = platformInfo.endpointUrl;
         const authHeader = `Basic ${Buffer.from(`${sira_usuario}:${sira_password}`).toString('base64')}`;
 
         const siraResponse = await fetch(siraUrl, {
@@ -307,8 +330,8 @@ export async function POST(req: NextRequest) {
         }
 
         const successNote = isTestModeCensusPass
-            ? `\n[SIRA Modo Prueba] XML E3L validado correctamente. ID: ${siraId}`
-            : `\n[SIRA] Enviado con éxito. ID SIRA: ${siraId}`;
+            ? `\n[${platformInfo.code} Modo Prueba] XML E3L validado correctamente. ID: ${siraId}`
+            : `\n[${platformInfo.code}] Enviado con éxito. ID: ${siraId}`;
 
         await supabase
             .from('identification_documents')
@@ -329,6 +352,8 @@ export async function POST(req: NextRequest) {
                 accion: 'sincronizar_sira',
                 detalles: {
                     resultado: isTestModeCensusPass ? 'aceptada_modo_prueba' : 'aceptado',
+                    plataforma: platformInfo.code,
+                    plataforma_nombre: platformInfo.name,
                     sira_id: siraId,
                     numero_documento: doc.numero_documento,
                     submission_id: submissionId
@@ -339,9 +364,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             success: true,
             ...(isTestModeCensusPass ? { isTestMode: true } : {}),
+            platform: platformInfo.code,
+            platformName: platformInfo.name,
             message: isTestModeCensusPass
-                ? 'Documento validado en esquema E3L por SIRA y aceptado en Modo Prueba'
-                : 'Documento aceptado correctamente por SIRA',
+                ? `Documento validado en esquema E3L por ${platformInfo.code} y aceptado en Modo Prueba`
+                : `Documento aceptado correctamente por ${platformInfo.name}`,
             siraId,
             submissionId
         });

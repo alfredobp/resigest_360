@@ -34,7 +34,7 @@ export const MODULE_LABELS: Record<AppModule, string> = {
   archivo_cronologico: 'Archivo Cronológico',
   operaciones_comerciales: 'Operaciones Comerciales y Báscula',
   memorias_anuales: 'Memorias Anuales',
-  sira_integraciones: 'Integraciones SIRA y Auditoría',
+  sira_integraciones: 'Integraciones e-SIR / SIRA y Auditoría',
 };
 
 export const PROFILE_DEFINITIONS: Record<OperationalProfile, ProfileDefinition> = {

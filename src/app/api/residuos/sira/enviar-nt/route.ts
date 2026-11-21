@@ -103,17 +103,40 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // 4. Generar el XML E3L <wasteNT>
+    // 4. Generar el XML E3L <wasteNT> y resolver plataforma automáticamente según ubicación del origen
     const e3lXml = priorNotificationService.generateNTXml(nt);
-    const siraUrl =
-      typeof siraService.getSiraEndpointUrl === 'function'
-        ? siraService.getSiraEndpointUrl()
-        : 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones';
+    const platformInfo =
+      typeof siraService.resolvePlatformForNT === 'function'
+        ? siraService.resolvePlatformForNT(nt)
+        : {
+            platform: 'sira' as const,
+            code: 'SIRA',
+            name: 'SIRA (Junta de Andalucía)',
+            shortLabel: 'SIRA',
+            endpointUrl:
+              typeof siraService.getSiraEndpointUrl === 'function'
+                ? siraService.getSiraEndpointUrl()
+                : 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones',
+            supported: true,
+            provinceCode: '00',
+            caCode: '01',
+            reason: 'Default SIRA',
+          };
+
+    if (!platformInfo.supported || !platformInfo.endpointUrl) {
+      return NextResponse.json({
+        error: `La comunidad autónoma de origen opera mediante ${platformInfo.name}, que no dispone de envío SOAP directo todavía. Puedes exportar el XML E3L para subirlo manualmente.`,
+        platform: platformInfo.code,
+        platformName: platformInfo.name,
+      }, { status: 422 });
+    }
+
+    const siraUrl = platformInfo.endpointUrl;
 
     // Perfil de Integración SIRA (págs. 7, 18-19): validateWasteNT es exclusivo de e-SIR (MITECO),
     // no está habilitado para Empresas Externas en SIRA. Si se solicita validateOnly contra SIRA,
     // se completa la validación local E3L sin invocar una operación sin permisos.
-    const isSiraExternalEndpoint = siraUrl.includes('juntadeandalucia.es');
+    const isSiraExternalEndpoint = platformInfo.platform === 'sira' || siraUrl.includes('juntadeandalucia.es');
     if (validateOnly && isSiraExternalEndpoint && process.env.SIRA_ALLOW_REMOTE_VALIDATE_NT !== 'true') {
       await supabase
         .from('prior_notifications')
@@ -128,6 +151,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         validationMode: 'local_e3l',
+        platform: platformInfo.code,
+        platformName: platformInfo.name,
         message: 'Notificación Previa validada con éxito (validación estructural E3L local; SIRA Empresas Externas solo expone sendWasteNT)',
         siraId: 'VALIDADO-E3L',
         warnings: validation.warnings,
@@ -312,6 +337,8 @@ export async function POST(req: NextRequest) {
         accion: 'sincronizar_sira',
         detalles: {
           resultado: isTestModeCensusPass ? 'aceptada_modo_prueba' : 'aceptada',
+          plataforma: platformInfo.code,
+          plataforma_nombre: platformInfo.name,
           sira_id: siraId,
           numero_notificacion: nt.numero_notificacion,
           submission_id: submissionId,
@@ -322,11 +349,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       ...(isTestModeCensusPass ? { isTestMode: true } : {}),
+      platform: platformInfo.code,
+      platformName: platformInfo.name,
       message: isTestModeCensusPass
-        ? 'Notificación Previa validada en esquema E3L por SIRA y aceptada en Modo Prueba'
+        ? `Notificación Previa validada en esquema E3L por ${platformInfo.code} y aceptada en Modo Prueba`
         : validateOnly
-          ? 'Notificación Previa validada con éxito por SIRA'
-          : 'Notificación Previa presentada y aceptada por SIRA',
+          ? `Notificación Previa validada con éxito por ${platformInfo.name}`
+          : `Notificación Previa presentada y aceptada por ${platformInfo.name}`,
       siraId,
       submissionId,
     });
