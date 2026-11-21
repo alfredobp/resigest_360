@@ -72,6 +72,12 @@ module.exports = {
     'src/lib/validations/normativeCompliance.ts',
     'src/services/scrapYardService.ts',
     'src/services/documentSequenceService.ts',
+    'src/lib/validations/digitalSignature.ts',
+    'src/lib/pdf/padesInspector.ts',
+    'src/lib/signature/autoFirmaClient.ts',
+    'src/services/pdfSignatureService.ts',
+    'src/app/api/pdf/signed/route.ts',
+    'src/app/api/pdf/signed/[id]/route.ts',
     '!src/**/*.d.ts',
   ],
   coverageReporters: ['text', 'lcov', 'clover'],
@@ -323,6 +329,42 @@ module.exports = {
       statements: 80
     },
     './src/services/documentSequenceService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/lib/validations/digitalSignature.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/lib/pdf/padesInspector.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/lib/signature/autoFirmaClient.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/pdfSignatureService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/app/api/pdf/signed/route.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/app/api/pdf/signed/[id]/route.ts': {
       branches: 80,
       functions: 80,
       lines: 80,

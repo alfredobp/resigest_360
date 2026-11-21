@@ -25,6 +25,10 @@ import {
   isWeightDiscrepancy,
 } from '@/lib/validations/discrepancyJustification';
 import SignatureModal from '@/components/ui/signature/SignatureModal';
+import AutoFirmaModal from '@/components/ui/signature/AutoFirmaModal';
+import SignedDocumentsCard from '@/components/ui/signature/SignedDocumentsCard';
+import pdfSignatureService from '@/services/pdfSignatureService';
+import type { SignedDocumentRecord } from '@/lib/validations/digitalSignature';
 import type {
   IdentificationDocument,
   Company,
@@ -99,10 +103,14 @@ export default function DetalleDocumentoIdentificacionPage() {
     supuesto_excepcion_contrato: '',
   });
 
-  // Estados de firma digital
+  // Estados de firma digital (manuscrita + AutoFirma PAdES)
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const [signingRole, setSigningRole] = useState<'productor' | 'gestor' | 'transportista'>('productor');
   const [signerInitialData, setSignerInitialData] = useState<{ nombre: string; dni: string }>({ nombre: '', dni: '' });
+  const [signedDocuments, setSignedDocuments] = useState<SignedDocumentRecord[]>([]);
+  const [loadingSignedDocs, setLoadingSignedDocs] = useState(false);
+  const [isAutoFirmaOpen, setIsAutoFirmaOpen] = useState(false);
+  const [coSignBaseDoc, setCoSignBaseDoc] = useState<SignedDocumentRecord | null>(null);
 
   // Formularios de modales
   const [departureForm, setDepartureForm] = useState<RecordDeparturePayload>({
@@ -152,6 +160,7 @@ export default function DetalleDocumentoIdentificacionPage() {
 
       const docData = await identificationDocumentService.getById(parseInt(id));
       setDocument(docData);
+      loadSignedDocuments(docData.id);
 
       // Cargar transmisiones telemáticas SIRA
       try {
@@ -233,6 +242,24 @@ export default function DetalleDocumentoIdentificacionPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadSignedDocuments = async (docId: number) => {
+    try {
+      setLoadingSignedDocs(true);
+      const docs = await pdfSignatureService.getSignedDocuments('di', docId);
+      setSignedDocuments(docs);
+    } catch {
+      // Silencioso si no existen firmas previas o migración pendiente
+    } finally {
+      setLoadingSignedDocs(false);
+    }
+  };
+
+  const generateDiPdfBuffer = async (): Promise<ArrayBuffer> => {
+    if (!document) throw new Error('Documento de Identificación no cargado');
+    const doc = await generateIdentificationDocumentPDF(document);
+    return doc.output('arraybuffer');
   };
 
   const handleDownloadPDF = async () => {
@@ -1389,6 +1416,16 @@ export default function DetalleDocumentoIdentificacionPage() {
           </div>
         </ComponentCard>
 
+        {/* FIRMA ELECTRÓNICA CON CERTIFICADO DIGITAL (AUTOFIRMA / PAdES) */}
+        <SignedDocumentsCard
+          documents={signedDocuments}
+          loading={loadingSignedDocs}
+          onOpenAutoFirma={(baseDoc) => {
+            setCoSignBaseDoc(baseDoc ?? null);
+            setIsAutoFirmaOpen(true);
+          }}
+        />
+
         {/* PANEL TELEMÁTICO SIRA / E3L */}
         <ComponentCard title="Integración Telemática Oficial (SIRA / e3l - Junta de Andalucía)">
           <div className="space-y-4">
@@ -2175,6 +2212,22 @@ export default function DetalleDocumentoIdentificacionPage() {
             : 'Gestor Destinatario'
           }`}
         description="Dibuje su firma en el recuadro para validar la conformidad y registrarla en el documento oficial."
+      />
+
+      <AutoFirmaModal
+        isOpen={isAutoFirmaOpen}
+        onClose={() => setIsAutoFirmaOpen(false)}
+        entityType="di"
+        entityId={document.id}
+        entityVersion={1}
+        documentLabel={`Documento de Identificación ${document.numero_documento || `#${document.id}`}`}
+        defaultFileName={`DI_${document.numero_documento || document.id}.pdf`}
+        generateBasePdfBuffer={generateDiPdfBuffer}
+        existingSignedDoc={coSignBaseDoc}
+        onSignedSuccess={async () => {
+          toast.success('DI firmado electrónicamente con AutoFirma y custodiado.');
+          await loadSignedDocuments(document.id);
+        }}
       />
 
       <ConfirmModal

@@ -12,6 +12,10 @@ import { toast } from '@/context/ToastContext';
 import wasteContractService, { getContractEffectiveStatus, validateContractActivation } from '@/services/wasteContractService';
 import type { WasteContract } from '@/types/wasteManagement';
 import SignatureModal from '@/components/ui/signature/SignatureModal';
+import AutoFirmaModal from '@/components/ui/signature/AutoFirmaModal';
+import SignedDocumentsCard from '@/components/ui/signature/SignedDocumentsCard';
+import pdfSignatureService from '@/services/pdfSignatureService';
+import type { SignedDocumentRecord } from '@/lib/validations/digitalSignature';
 import { generateContractPDF } from '@/lib/pdfUtils';
 
 const STATUS_COLORS = {
@@ -44,6 +48,10 @@ export default function ContractDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const [signingRole, setSigningRole] = useState<'productor' | 'gestor'>('productor');
+  const [signedDocuments, setSignedDocuments] = useState<SignedDocumentRecord[]>([]);
+  const [loadingSignedDocs, setLoadingSignedDocs] = useState(false);
+  const [isAutoFirmaOpen, setIsAutoFirmaOpen] = useState(false);
+  const [coSignBaseDoc, setCoSignBaseDoc] = useState<SignedDocumentRecord | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [statusToConfirm, setStatusToConfirm] = useState<'finalizado' | 'cancelado' | null>(null);
 
@@ -58,11 +66,37 @@ export default function ContractDetailPage() {
       setLoading(true);
       const data = await wasteContractService.getById(parseInt(id));
       setContract(data);
+      if (data) {
+        loadSignedDocuments(data.id);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadSignedDocuments = async (contractId: number) => {
+    try {
+      setLoadingSignedDocs(true);
+      const docs = await pdfSignatureService.getSignedDocuments('contract', contractId);
+      setSignedDocuments(docs);
+    } catch {
+      // Silencioso si la tabla aún no está migrada o sin firmas previas
+    } finally {
+      setLoadingSignedDocs(false);
+    }
+  };
+
+  const generateContractPdfBuffer = async (): Promise<ArrayBuffer> => {
+    if (!contract) throw new Error('Contrato no cargado');
+    let contractToPrint = contract;
+    if (!contractToPrint.contract_waste_codes || contractToPrint.contract_waste_codes.length === 0) {
+      const full = await wasteContractService.getById(contract.id);
+      if (full) contractToPrint = full;
+    }
+    const doc = await generateContractPDF(contractToPrint);
+    return doc.output('arraybuffer');
   };
 
   const handleDelete = () => {
@@ -787,6 +821,16 @@ export default function ContractDetailPage() {
           </div>
         </ComponentCard>
 
+        {/* Firma Electrónica con Certificado Digital (AutoFirma / PAdES) */}
+        <SignedDocumentsCard
+          documents={signedDocuments}
+          loading={loadingSignedDocs}
+          onOpenAutoFirma={(baseDoc) => {
+            setCoSignBaseDoc(baseDoc ?? null);
+            setIsAutoFirmaOpen(true);
+          }}
+        />
+
         {/* Fechas de Sistema */}
         <ComponentCard title="Información del Sistema">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
@@ -808,6 +852,22 @@ export default function ContractDetailPage() {
         onSave={handleSaveSignature}
         title={`Firmar Contrato como ${signingRole === 'productor' ? 'Productor' : 'Gestor'}`}
         description="Al pulsar en 'Confirmar Firma' se guardará su firma digital en el documento."
+      />
+
+      <AutoFirmaModal
+        isOpen={isAutoFirmaOpen}
+        onClose={() => setIsAutoFirmaOpen(false)}
+        entityType="contract"
+        entityId={contract.id}
+        entityVersion={contract.version || 1}
+        documentLabel={`Contrato ${contract.numero_contrato || `#${contract.id}`} (v${contract.version || 1})`}
+        defaultFileName={`contrato_${contract.numero_contrato || contract.id}.pdf`}
+        generateBasePdfBuffer={generateContractPdfBuffer}
+        existingSignedDoc={coSignBaseDoc}
+        onSignedSuccess={async () => {
+          toast.success('Contrato firmado electrónicamente con AutoFirma y custodiado.');
+          await loadSignedDocuments(contract.id);
+        }}
       />
 
       <ConfirmModal
