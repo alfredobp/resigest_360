@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
-import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
+import { DataTable, type ColumnDef } from '@/components/ui/table';
 import { toast } from '@/context/ToastContext';
 import { useTenant } from '@/context/TenantContext';
 import NuevoContratoModal from '@/components/residuos/NuevoContratoModal';
@@ -146,7 +146,7 @@ export default function ContratosPage() {
     return c.estado === filterStatus;
   });
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string | null) => {
     if (!dateString) return '-';
     const datePart = dateString.split('T')[0];
     const parts = datePart.split('-');
@@ -155,17 +155,162 @@ export default function ContratosPage() {
       if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
         return new Date(y, m - 1, d).toLocaleDateString('es-ES', {
           year: 'numeric',
-          month: 'long',
-          day: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
         });
       }
     }
     return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
-      month: 'long',
-      day: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
     });
   };
+
+  const columns = useMemo<ColumnDef<WasteContract>[]>(
+    () => [
+      {
+        id: 'numero_contrato',
+        header: 'Nº Contrato',
+        accessorFn: (row) => row.numero_contrato || `Contrato #${row.id}`,
+        sortable: true,
+        cell: ({ row }) => (
+          <div>
+            <button
+              type="button"
+              onClick={() => router.push(`/residuos/contratos/${row.id}`)}
+              className="font-mono font-semibold text-slate-900 dark:text-slate-100 hover:text-brand-600 dark:hover:text-brand-400 text-left"
+            >
+              {row.numero_contrato || `Contrato #${row.id}`}
+            </button>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">{row.tipo_contrato}</div>
+          </div>
+        ),
+      },
+      {
+        id: 'partes',
+        header: 'Productor / Gestor',
+        accessorFn: (row) =>
+          `${row.company?.razon_social || myCompany?.razon_social || ''} ${row.treatment_manager?.razon_social || row.gestor_company?.razon_social || ''}`,
+        cell: ({ row }) => {
+          const productorName = row.company?.razon_social || myCompany?.razon_social;
+          const gestorName = row.treatment_manager?.razon_social || row.gestor_company?.razon_social;
+          return (
+            <div className="min-w-[200px]">
+              <div className="font-medium text-slate-900 dark:text-slate-100 truncate max-w-[260px]">
+                {productorName || 'No disponible'}
+              </div>
+              {gestorName ? (
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[260px]">
+                  ➔ {gestorName}
+                </div>
+              ) : (
+                <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                  Sin gestor asignado
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'vigencia',
+        header: 'Vigencia',
+        accessorFn: (row) => row.fecha_fin || row.fecha_contrato || '',
+        sortable: true,
+        cell: ({ row }) => {
+          const effective = getContractEffectiveStatus(row);
+          return (
+            <div className="whitespace-nowrap">
+              {row.fecha_inicio && row.fecha_fin ? (
+                <div className={`font-mono text-xs ${effective.isExpired ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-slate-700 dark:text-slate-300'}`}>
+                  {formatDate(row.fecha_inicio)} – {formatDate(row.fecha_fin)}
+                </div>
+              ) : (
+                <div className="font-mono text-xs text-slate-700 dark:text-slate-300">
+                  {formatDate(row.fecha_contrato)}
+                </div>
+              )}
+              {row.descripcion_residuos && (
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[210px]" title={row.descripcion_residuos}>
+                  {row.descripcion_residuos}
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'estado',
+        header: 'Estado',
+        accessorFn: (row) => getContractEffectiveStatus(row).label,
+        sortable: true,
+        cell: ({ row }) => {
+          const effective = getContractEffectiveStatus(row);
+          return (
+            <Badge color={STATUS_COLORS[effective.status]} size="sm">
+              {effective.label}
+            </Badge>
+          );
+        },
+      },
+      {
+        id: 'acciones',
+        header: 'Acciones',
+        headerClassName: 'text-right',
+        className: 'text-right',
+        cell: ({ row }) => (
+          <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/residuos/contratos/${row.id}`)}
+            >
+              Ver
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleDownloadPDF(row)}
+              disabled={downloadingId === row.id}
+            >
+              {downloadingId === row.id ? 'PDF...' : 'PDF'}
+            </Button>
+            {canWrite && row.estado === 'borrador' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleChangeStatus(row.id, 'vigente')}
+              >
+                Activar
+              </Button>
+            )}
+            {canWrite && row.estado === 'vigente' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setContractToFinalize(row.id)}
+              >
+                Finalizar
+              </Button>
+            )}
+            {canWrite && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDelete(row.id)}
+                className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+              >
+                Eliminar
+              </Button>
+            )}
+          </div>
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [myCompany, downloadingId, canWrite]
+  );
 
   if (loading) {
     return (
@@ -220,8 +365,8 @@ export default function ContratosPage() {
         )}
 
         {/* Filtros */}
-        <div className="rounded-2xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-white/[0.03]">
-          <div className="flex flex-wrap gap-2">
+        <div className="rounded-[10px] border border-slate-200 bg-white p-2.5 dark:border-slate-800 dark:bg-[#111827]">
+          <div className="flex flex-wrap gap-1.5">
             <Button
               variant={filterStatus === 'all' ? 'primary' : 'outline'}
               size="sm"
@@ -260,163 +405,36 @@ export default function ContratosPage() {
           </div>
         </div>
 
-        {/* Lista de Contratos */}
-        {filteredContracts.length === 0 ? (
-          <ComponentCard title="Contratos">
-            <div className="text-center py-12">
-              <svg
-                className="mx-auto h-12 w-12 text-muted"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              <h3 className="mt-4 text-lg font-medium text-foreground">No hay contratos</h3>
-              <p className="mt-2 text-sm text-muted">
+        {/* Tabla de Contratos */}
+        <DataTable
+          data={filteredContracts}
+          columns={columns}
+          searchPlaceholder="Buscar por nº contrato, productor, gestor o residuo..."
+          emptyMessage={
+            canWrite
+              ? 'No hay contratos registrados. Comienza creando tu primer contrato de tratamiento.'
+              : 'No hay contratos registrados para esta empresa.'
+          }
+          emptyState={
+            <div className="py-8 text-center">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No hay contratos</p>
+              <p className="mt-1 text-xs text-slate-500">
                 {canWrite
                   ? 'Comienza creando tu primer contrato de tratamiento'
                   : 'No hay contratos registrados para esta empresa'}
               </p>
               {canWrite && (
                 <Button
-                  className="mt-4"
+                  size="sm"
+                  className="mt-3"
                   onClick={() => setShowNewContractModal(true)}
                 >
-                  Crear Primer Contrato
+                  + Crear Primer Contrato
                 </Button>
               )}
             </div>
-          </ComponentCard>
-        ) : (
-          <div className="grid grid-cols-1 gap-6">
-            {filteredContracts.map((contract) => {
-              const effective = getContractEffectiveStatus(contract);
-              const gestorName = contract.treatment_manager?.razon_social || contract.gestor_company?.razon_social;
-              const productorName = contract.company?.razon_social || myCompany?.razon_social;
-
-              return (
-                <ComponentCard key={contract.id} title="">
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="text-lg font-semibold text-foreground">
-                              {contract.numero_contrato || `Contrato #${contract.id}`}
-                            </h3>
-                            <Badge color={STATUS_COLORS[effective.status]}>
-                              {effective.label}
-                            </Badge>
-                          </div>
-
-                          <div className="space-y-2 text-sm text-muted">
-                            <p>
-                              <span className="font-medium text-foreground">Productor:</span>{' '}
-                              {productorName || 'No disponible'}
-                            </p>
-
-                            {gestorName ? (
-                              <p>
-                                <span className="font-medium text-foreground">Gestor:</span>{' '}
-                                {gestorName}
-                              </p>
-                            ) : (
-                              <p className="text-amber-600 dark:text-amber-400 font-medium">
-                                Sin gestor asignado
-                              </p>
-                            )}
-
-                            <p>
-                              <span className="font-medium text-foreground">Tipo:</span>{' '}
-                              {contract.tipo_contrato}
-                            </p>
-
-                            <p>
-                              <span className="font-medium text-foreground">Fecha contrato:</span>{' '}
-                              {formatDate(contract.fecha_contrato)}
-                            </p>
-
-                            {contract.fecha_inicio && contract.fecha_fin && (
-                              <p className={effective.isExpired ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>
-                                <span className="font-medium text-foreground">Vigencia:</span>{' '}
-                                {formatDate(contract.fecha_inicio)} - {formatDate(contract.fecha_fin)}
-                                {effective.isExpired && ' (Vencido)'}
-                              </p>
-                            )}
-
-                            {contract.descripcion_residuos && (
-                              <p>
-                                <span className="font-medium text-foreground">Residuos:</span>{' '}
-                                {contract.descripcion_residuos}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Acciones */}
-                    <div className="flex flex-col gap-2 min-w-[140px]">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => router.push(`/residuos/contratos/${contract.id}`)}
-                      >
-                        Ver Detalles
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDownloadPDF(contract)}
-                        disabled={downloadingId === contract.id}
-                      >
-                        {downloadingId === contract.id ? 'Generando PDF...' : 'Descargar PDF'}
-                      </Button>
-
-                      {canWrite && contract.estado === 'borrador' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleChangeStatus(contract.id, 'vigente')}
-                        >
-                          Activar
-                        </Button>
-                      )}
-
-                      {canWrite && contract.estado === 'vigente' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setContractToFinalize(contract.id)}
-                        >
-                          Finalizar
-                        </Button>
-                      )}
-
-                      {canWrite && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(contract.id)}
-                          className="text-red-600 hover:bg-red-50"
-                        >
-                          Eliminar
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </ComponentCard>
-              );
-            })}
-          </div>
-        )}
+          }
+        />
 
         {/* Modal de Nuevo Contrato */}
         {myCompany && (

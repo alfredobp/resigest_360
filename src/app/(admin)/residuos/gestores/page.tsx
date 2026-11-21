@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
-import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
+import { DataTable, type ColumnDef } from '@/components/ui/table';
 import { toast } from '@/context/ToastContext';
 import treatmentManagerService from '@/services/treatmentManagerService';
 import type { TreatmentManager } from '@/types/wasteManagement';
@@ -62,6 +62,74 @@ export default function GestoresPage() {
         }
     };
 
+    const columns = useMemo<ColumnDef<TreatmentManager>[]>(
+        () => [
+            {
+                id: 'nombre',
+                header: 'Gestor de Tratamiento',
+                accessorFn: (row) => row.nombre || row.razon_social || '',
+                sortable: true,
+                cell: ({ row }) => (
+                    <div className="font-semibold text-slate-900 dark:text-slate-100">
+                        {row.nombre || row.razon_social}
+                    </div>
+                ),
+            },
+            {
+                id: 'cif',
+                header: 'CIF',
+                accessorKey: 'cif',
+                sortable: true,
+                cell: ({ row }) => <span className="font-mono text-slate-700 dark:text-slate-300">{row.cif || '-'}</span>,
+            },
+            {
+                id: 'nima_auth',
+                header: 'NIMA / Autorización',
+                accessorFn: (row) => `${row.nima || ''} ${row.numero_autorizacion || ''}`,
+                cell: ({ row }) => (
+                    <div className="font-mono text-xs">
+                        <div className="text-slate-800 dark:text-slate-200">{row.nima || '-'}</div>
+                        {row.numero_autorizacion && (
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400">{row.numero_autorizacion}</div>
+                        )}
+                    </div>
+                ),
+            },
+            {
+                id: 'ubicacion',
+                header: 'Ubicación',
+                accessorFn: (row) => [row.municipio, row.provincia].filter(Boolean).join(', '),
+                cell: ({ row }) => (
+                    <span className="text-slate-600 dark:text-slate-400">
+                        {[row.municipio, row.provincia].filter(Boolean).join(', ') || '-'}
+                    </span>
+                ),
+            },
+            {
+                id: 'acciones',
+                header: 'Acciones',
+                headerClassName: 'text-right',
+                className: 'text-right',
+                cell: ({ row }) => (
+                    <div className="inline-flex items-center justify-end gap-1.5">
+                        <Button variant="outline" size="sm" onClick={() => handleEdit(row)}>
+                            Editar
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDelete(row.id)}
+                            className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                        >
+                            Eliminar
+                        </Button>
+                    </div>
+                ),
+            },
+        ],
+        []
+    );
+
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
@@ -110,60 +178,23 @@ export default function GestoresPage() {
                     <Alert variant="error" title="Error" message={error} />
                 )}
 
-                {/* Lista de Gestores */}
-                {gestores.length === 0 ? (
-                    <ComponentCard title="Gestores">
-                        <div className="text-center py-12">
-                            <h3 className="text-lg font-medium text-foreground">No tienes gestores registrados</h3>
-                            <p className="mt-2 text-sm text-muted">
+                {/* Tabla de Gestores */}
+                <DataTable
+                    data={gestores}
+                    columns={columns}
+                    searchPlaceholder="Buscar gestor por nombre, CIF, NIMA o autorización..."
+                    emptyState={
+                        <div className="py-8 text-center">
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No tienes gestores registrados</p>
+                            <p className="mt-1 text-xs text-slate-500">
                                 Registra tus gestores habituales para usarlos en contratos y documentos de identificación.
                             </p>
-                            <Button className="mt-4" onClick={handleAddNew}>
-                                Añadir Primer Gestor
+                            <Button size="sm" className="mt-3" onClick={handleAddNew}>
+                                + Añadir Primer Gestor
                             </Button>
                         </div>
-                    </ComponentCard>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {gestores.map((gestor) => (
-                            <ComponentCard key={gestor.id} title={gestor.nombre}>
-                                <div className="space-y-4">
-                                    <div className="space-y-1 text-sm text-muted">
-                                        <p><span className="font-medium text-foreground">CIF:</span> {gestor.cif}</p>
-                                        {gestor.nima && <p><span className="font-medium text-foreground">NIMA:</span> {gestor.nima}</p>}
-                                        {gestor.numero_autorizacion && (
-                                            <p><span className="font-medium text-foreground">Autorización:</span> {gestor.numero_autorizacion}</p>
-                                        )}
-                                        {(gestor.municipio || gestor.provincia) && (
-                                            <p>
-                                                <span className="font-medium text-foreground">Ubicación:</span>{' '}
-                                                {[gestor.municipio, gestor.provincia].filter(Boolean).join(', ')}
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    <div className="flex justify-end gap-2 pt-4 border-t border-stroke">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => handleEdit(gestor)}
-                                        >
-                                            Editar
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => handleDelete(gestor.id)}
-                                            className="text-red-600 hover:bg-red-50"
-                                        >
-                                            Eliminar
-                                        </Button>
-                                    </div>
-                                </div>
-                            </ComponentCard>
-                        ))}
-                    </div>
-                )}
+                    }
+                />
 
                 <GestorModal
                     isOpen={showModal}
