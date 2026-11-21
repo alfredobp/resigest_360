@@ -379,15 +379,14 @@ export default function DetalleDocumentoIdentificacionPage() {
           observaciones: receptionForm.motivo_incidencia,
           causa_discrepancia: receptionForm.causa_discrepancia,
           justificacion_discrepancia: receptionForm.justificacion_discrepancia,
-        });
           ...(receptionForm.resultado_recepcion ? { resultado_recepcion: receptionForm.resultado_recepcion } : {}),
           ...(receptionForm.cantidad_rechazada_kg !== undefined
-    ? { cantidad_rechazada_kg: receptionForm.cantidad_rechazada_kg }
-    : {}),
+            ? { cantidad_rechazada_kg: receptionForm.cantidad_rechazada_kg }
+            : {}),
         } as any);
-setIsReceptionModalOpen(false);
-setSuccess('Justificante de recepción del gestor externo registrado correctamente con peso final confirmado.');
-toast.success('Justificante de recepción del gestor externo registrado correctamente.');
+        setIsReceptionModalOpen(false);
+        setSuccess('Justificante de recepción del gestor externo registrado correctamente con peso final confirmado.');
+        toast.success('Justificante de recepción del gestor externo registrado correctamente.');
       } else {
   const receptionPayload: RecordReceptionPayload = receptionForm.causa_discrepancia
     ? receptionForm

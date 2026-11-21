@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
 
     const { data: contract, error: contractError } = await admin
       .from('waste_contracts')
-      .select('id, company_id, gestor_company_id, user_id, numero_contrato, version, firmado_productor, firmado_gestor')
+      .select('id, company_id, gestor_company_id, user_id, numero_contrato, version, estado, firmado_productor, firmado_gestor, signing_token_expires_at')
       .eq('signing_token', token)
       .maybeSingle();
 
@@ -100,6 +100,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(
         { error: 'Enlace de firma inválido o contrato no encontrado.' },
         { status: 404 }
+      );
+    }
+
+    if (
+      contract.signing_token_expires_at &&
+      new Date(contract.signing_token_expires_at) < new Date()
+    ) {
+      return NextResponse.json(
+        { error: 'El enlace de firma ha caducado. Solicite uno nuevo al emisor del contrato.' },
+        { status: 410 }
       );
     }
 
@@ -229,7 +239,7 @@ export async function POST(req: NextRequest) {
 
     const { data: contract, error: contractError } = await admin
       .from('waste_contracts')
-      .select('id, company_id, gestor_company_id, user_id, numero_contrato, version, estado, firmado_productor, firmado_gestor')
+      .select('id, company_id, gestor_company_id, user_id, numero_contrato, version, estado, firmado_productor, firmado_gestor, signing_token_expires_at')
       .eq('signing_token', token)
       .maybeSingle();
 
@@ -237,6 +247,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Enlace de firma inválido o contrato no disponible.' },
         { status: 404 }
+      );
+    }
+
+    if (
+      contract.signing_token_expires_at &&
+      new Date(contract.signing_token_expires_at) < new Date()
+    ) {
+      return NextResponse.json(
+        { error: 'El enlace de firma ha caducado. Solicite uno nuevo al emisor del contrato.' },
+        { status: 410 }
+      );
+    }
+
+    if (contract.estado === 'cancelado' || contract.estado === 'finalizado') {
+      return NextResponse.json(
+        { error: `No se puede firmar un contrato en estado '${contract.estado}'.` },
+        { status: 409 }
       );
     }
 
@@ -349,7 +376,7 @@ export async function POST(req: NextRequest) {
       await admin.from('audit_logs').insert({
         user_id: contract.user_id,
         company_id: contract.company_id,
-        entidad: 'contrato_tratamiento',
+        entidad: 'contrato',
         entidad_id: String(contract.id),
         accion: 'firmar_pdf_autofirma_publico',
         detalles: {

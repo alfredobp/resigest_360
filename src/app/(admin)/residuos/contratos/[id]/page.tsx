@@ -828,7 +828,7 @@ export default function ContractDetailPage() {
             return (
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-3">
-                  {contract.estado === 'borrador' && (() => {
+                  {(contract.estado === 'borrador' || contract.estado === 'pendiente_firma') && (() => {
                     const activation = validateContractActivation(contract);
                     return (
                       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
@@ -856,12 +856,6 @@ export default function ContractDetailPage() {
                         Cancelar Contrato
                       </Button>
                     </>
-                  )}
-
-                  {(contract.estado === 'finalizado' || contract.estado === 'cancelado') && (
-                    <Button variant="outline" onClick={() => handleChangeStatus('borrador')}>
-                      Volver a Borrador
-                    </Button>
                   )}
 
                   <Button

@@ -323,26 +323,19 @@ describe('POST /api/residuos/sira/enviar-nt', () => {
     expect(body.error).toBe('SIRA ha rechazado la Notificación Previa');
   });
 
-  it('utiliza credenciales de empresa secundaria si la principal o propia no tiene', async () => {
+  it('no utiliza credenciales SIRA de otra empresa secundaria si la de la NT y la principal no tienen', async () => {
     mockNtSingle.mockResolvedValue({
       data: { id: 10, company_id: 1, company: null },
       error: null,
     });
 
-    mockCompanyMaybeSingle
-      .mockResolvedValueOnce({ data: null, error: null })
-      .mockResolvedValueOnce({
-        data: { sira_usuario: 'user_fallback', sira_password: 'pass_fallback' },
-        error: null,
-      });
-
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      text: async () => '<IdSira>SIRA-1</IdSira>',
-    });
+    mockCompanyMaybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock;
 
     const res = await POST(makeReq({ notificationId: 10 }));
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('captura excepciones y retorna 500', async () => {

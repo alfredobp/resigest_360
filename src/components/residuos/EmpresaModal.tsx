@@ -268,18 +268,16 @@ export default function EmpresaModal({
                     key={r.id}
                     type="button"
                     onClick={() => toggleRole(r.id)}
-                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-all ${
-                      active
-                        ? 'border-brand-500 bg-brand-50/70 text-brand-900 font-medium dark:bg-brand-900/30 dark:border-brand-400 dark:text-brand-200 ring-2 ring-brand-500/20'
-                        : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700 dark:bg-gray-900 dark:border-gray-800 dark:text-gray-300'
-                    }`}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-all ${active
+                      ? 'border-brand-500 bg-brand-50/70 text-brand-900 font-medium dark:bg-brand-900/30 dark:border-brand-400 dark:text-brand-200 ring-2 ring-brand-500/20'
+                      : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700 dark:bg-gray-900 dark:border-gray-800 dark:text-gray-300'
+                      }`}
                   >
                     <Icon
-                      className={`w-4 h-4 shrink-0 transition-colors ${
-                        active
-                          ? 'text-brand-600 dark:text-brand-400'
-                          : 'text-gray-500 dark:text-gray-400'
-                      }`}
+                      className={`w-4 h-4 shrink-0 transition-colors ${active
+                        ? 'text-brand-600 dark:text-brand-400'
+                        : 'text-gray-500 dark:text-gray-400'
+                        }`}
                     />
                     <span className="text-xs sm:text-sm">{r.label}</span>
                   </button>

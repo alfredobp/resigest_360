@@ -52,9 +52,13 @@ async function resolveAuthorizedEntityCompanyId(
   entityId: string
 ): Promise<number | null> {
   const tableName = ENTITY_TABLE_MAP[entityType];
+  const selectCols =
+    entityType === 'contract'
+      ? 'id, user_id, company_id, gestor_company_id'
+      : 'id, user_id, company_id';
   const { data: entityRow, error } = await supabase
     .from(tableName)
-    .select('id, user_id, company_id')
+    .select(selectCols)
     .eq('id', entityId)
     .maybeSingle();
 
@@ -62,17 +66,23 @@ async function resolveAuthorizedEntityCompanyId(
     return null;
   }
 
-  const rowCompanyId =
-    typeof entityRow.company_id === 'number' ? entityRow.company_id : null;
-  const isOwner = entityRow.user_id === userId;
+  const row = entityRow as unknown as {
+    user_id?: string | null;
+    company_id?: number | null;
+    gestor_company_id?: number | null;
+  };
+  const rowCompanyId = typeof row.company_id === 'number' ? row.company_id : null;
+  const gestorCompanyId = typeof row.gestor_company_id === 'number' ? row.gestor_company_id : null;
+  const isOwner = row.user_id === userId;
   const isMember =
-    rowCompanyId !== null && accessibleCompanyIds.includes(rowCompanyId);
+    (rowCompanyId !== null && accessibleCompanyIds.includes(rowCompanyId)) ||
+    (gestorCompanyId !== null && accessibleCompanyIds.includes(gestorCompanyId));
 
   if (!isOwner && !isMember) {
     return null;
   }
 
-  return rowCompanyId ?? accessibleCompanyIds[0] ?? null;
+  return rowCompanyId ?? gestorCompanyId ?? accessibleCompanyIds[0] ?? null;
 }
 
 /**
@@ -388,7 +398,12 @@ export async function POST(req: NextRequest) {
       await supabase.from('audit_logs').insert({
         user_id: user.id,
         company_id: companyId,
-        entidad: meta.entityType === 'contract' ? 'contrato_tratamiento' : meta.entityType,
+        entidad:
+          meta.entityType === 'contract'
+            ? 'contrato'
+            : meta.entityType === 'commercial_operation'
+              ? 'operacion_comercial'
+              : meta.entityType,
         entidad_id: meta.entityId,
         accion: 'firmar_pdf_autofirma',
         detalles: {

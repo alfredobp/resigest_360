@@ -38,9 +38,19 @@ export async function GET(request: Request) {
       );
     }
 
+    const {
+      user_id: _hiddenUserId,
+      signing_token: _hiddenToken,
+      notas: _hiddenNotes,
+      ...publicDoc
+    } = doc as unknown as Record<string, unknown>;
+    void _hiddenUserId;
+    void _hiddenToken;
+    void _hiddenNotes;
+
     return NextResponse.json({
       success: true,
-      document: doc,
+      document: publicDoc,
     });
   } catch (error: any) {
     console.error('[API Public Sign DI] Error al consultar DI por token:', error);
@@ -83,10 +93,50 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'El trazo manuscrito de firma es obligatorio.' }, { status: 400 });
     }
 
+    if (
+      !/^data:image\/(png|jpeg|jpg|webp);base64,/i.test(signatureBase64) ||
+      signatureBase64.length > 2_800_000
+    ) {
+      return NextResponse.json(
+        { error: 'El formato o tamaño de la imagen de firma no es válido (PNG/JPEG/WEBP, máx. 2 MB).' },
+        { status: 400 }
+      );
+    }
+
     if (!signerName || typeof signerName !== 'string' || !signerName.trim()) {
       return NextResponse.json(
         { error: 'El nombre y apellidos del firmante son obligatorios.' },
         { status: 400 }
+      );
+    }
+
+    const existingDoc = await identificationDocumentService.getBySigningToken(token.trim());
+    if (!existingDoc) {
+      return NextResponse.json(
+        { error: 'El enlace de firma es inválido o el Documento de Identificación no está disponible.' },
+        { status: 404 }
+      );
+    }
+    if (existingDoc.signing_token_expires_at && new Date(existingDoc.signing_token_expires_at) < new Date()) {
+      return NextResponse.json(
+        { error: 'El enlace de firma ha caducado. Solicite un nuevo enlace al emisor del traslado.' },
+        { status: 410 }
+      );
+    }
+    if (existingDoc.estado === 'cancelado' || existingDoc.estado_traslado === 'rechazado_total') {
+      return NextResponse.json(
+        { error: `No se puede firmar un DI en estado '${existingDoc.estado_traslado || existingDoc.estado}'.` },
+        { status: 409 }
+      );
+    }
+    if (
+      (role === 'productor' && existingDoc.firmado_productor) ||
+      (role === 'transportista' && existingDoc.firmado_transportista) ||
+      (role === 'gestor' && existingDoc.firmado_gestor)
+    ) {
+      return NextResponse.json(
+        { error: `La firma de ${role} ya ha sido registrada en este DI y está bloqueada.` },
+        { status: 409 }
       );
     }
 

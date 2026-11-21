@@ -124,14 +124,66 @@ describe('/api/public/sign-di', () => {
       const res = await POST(req('http://localhost/api/public/sign-di', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: 'tok-1', role: 'transportista', signatureBase64: 'data:img', signerName: '  ' }),
+        body: JSON.stringify({ token: 'tok-1', role: 'transportista', signatureBase64: 'data:image/png;base64,123', signerName: '  ' }),
       }));
       expect(res.status).toBe(400);
       const json = await res.json();
       expect(json.error).toContain('nombre y apellidos');
     });
 
+    it('devuelve 400 si el formato de la imagen de firma no es válido', async () => {
+      const res = await POST(req('http://localhost/api/public/sign-di', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: 'tok-1', role: 'transportista', signatureBase64: 'data:text/html;base64,abc', signerName: 'Pedro' }),
+      }));
+      expect(res.status).toBe(400);
+    });
+
+    it('devuelve 410 si el token caducó, 409 si el DI está cancelado o el rol ya firmó', async () => {
+      (identificationDocumentService.getBySigningToken as jest.Mock).mockResolvedValueOnce({
+        id: 1,
+        estado: 'borrador',
+        signing_token_expires_at: '2020-01-01T00:00:00Z',
+      });
+      const resExpired = await POST(req('http://localhost/api/public/sign-di', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: 'tok-exp', role: 'transportista', signatureBase64: 'data:image/png;base64,123', signerName: 'Pedro' }),
+      }));
+      expect(resExpired.status).toBe(410);
+
+      (identificationDocumentService.getBySigningToken as jest.Mock).mockResolvedValueOnce({
+        id: 1,
+        estado: 'cancelado',
+      });
+      const resCancelled = await POST(req('http://localhost/api/public/sign-di', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: 'tok-can', role: 'transportista', signatureBase64: 'data:image/png;base64,123', signerName: 'Pedro' }),
+      }));
+      expect(resCancelled.status).toBe(409);
+
+      (identificationDocumentService.getBySigningToken as jest.Mock).mockResolvedValueOnce({
+        id: 1,
+        estado: 'borrador',
+        firmado_transportista: true,
+      });
+      const resDup = await POST(req('http://localhost/api/public/sign-di', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: 'tok-dup', role: 'transportista', signatureBase64: 'data:image/png;base64,123', signerName: 'Pedro' }),
+      }));
+      expect(resDup.status).toBe(409);
+    });
+
     it('devuelve 200 al registrar correctamente la firma', async () => {
+      (identificationDocumentService.getBySigningToken as jest.Mock).mockResolvedValue({
+        id: 1,
+        numero_documento: 'DI-001',
+        estado: 'borrador',
+        firmado_transportista: false,
+      });
       (identificationDocumentService.signDocumentByToken as jest.Mock).mockResolvedValue({
         id: 1,
         numero_documento: 'DI-001',

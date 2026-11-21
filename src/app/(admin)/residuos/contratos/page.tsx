@@ -276,7 +276,7 @@ export default function ContratosPage() {
             >
               {downloadingId === row.id ? 'PDF...' : 'PDF'}
             </Button>
-            {canWrite && row.estado === 'borrador' && (
+            {canWrite && (row.estado === 'borrador' || row.estado === 'pendiente_firma') && (
               <Button
                 variant="outline"
                 size="sm"
@@ -294,7 +294,7 @@ export default function ContratosPage() {
                 Finalizar
               </Button>
             )}
-            {canWrite && (
+            {canWrite && !row.firmado_productor && !row.firmado_gestor && row.estado !== 'finalizado' && (
               <Button
                 variant="outline"
                 size="sm"
@@ -308,7 +308,6 @@ export default function ContratosPage() {
         ),
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [myCompany, downloadingId, canWrite]
   );
 
@@ -394,6 +393,13 @@ export default function ContratosPage() {
               onClick={() => setFilterStatus('borrador')}
             >
               Borradores ({contracts.filter(c => c.estado === 'borrador').length})
+            </Button>
+            <Button
+              variant={filterStatus === 'pendiente_firma' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => setFilterStatus('pendiente_firma')}
+            >
+              Pend. Firma ({contracts.filter(c => c.estado === 'pendiente_firma').length})
             </Button>
             <Button
               variant={filterStatus === 'finalizado' ? 'primary' : 'outline'}

@@ -192,8 +192,8 @@ function PublicSignatureContent() {
                     }
                     : undefined,
                 reason: `Firma de Contrato de Tratamiento (${selectedRole.toUpperCase()}) - RD 553/2020`,
-                isCoSign: Boolean(latestPadesDoc),
-                signatureSlotIndex: latestPadesDoc ? latestPadesDoc.signature_count : 0,
+                isCoSign: Boolean(activeLatestDoc),
+                signatureSlotIndex: activeLatestDoc ? activeLatestDoc.signature_count : 0,
             });
 
             const signedBlob = base64ToPdfBlob(signedBase64);

@@ -221,6 +221,19 @@ export function inspectSignedPdf(pdfBuffer: Buffer): PadesInspectionResult {
   }
 
   const signerCert = pickSignerCertificate(certificates);
+
+  // Validar vigencia temporal del certificado X.509 firmante
+  const now = new Date();
+  if (signerCert.validity?.notAfter && signerCert.validity.notAfter < now) {
+    throw new InvalidPadesSignatureError(
+      'El certificado digital empleado en la firma PAdES está caducado.'
+    );
+  }
+  if (signerCert.validity?.notBefore && signerCert.validity.notBefore > now) {
+    throw new InvalidPadesSignatureError(
+      'El certificado digital empleado en la firma PAdES aún no es válido.'
+    );
+  }
   const subjectAttrs = signerCert.subject.attributes as Array<{
     shortName?: string;
     type?: string;

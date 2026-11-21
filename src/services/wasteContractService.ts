@@ -342,7 +342,22 @@ async function getTenantContext() {
   const companyIds = (userCompanies || []).map((c) => c.id);
   const activeCompanyId = getActiveCompanyCookie();
   if (activeCompanyId && !companyIds.includes(activeCompanyId)) {
-    companyIds.push(activeCompanyId);
+    try {
+      const memQuery: any = supabase.from('company_memberships');
+      if (memQuery && typeof memQuery.select === 'function') {
+        const { data: membership } = await memQuery
+          .select('id')
+          .eq('company_id', activeCompanyId)
+          .eq('user_id', user.id)
+          .eq('activo', true)
+          .limit(1);
+        if (Array.isArray(membership) && membership.length > 0) {
+          companyIds.push(activeCompanyId);
+        }
+      }
+    } catch {
+      // No inyectar empresa activa si no se puede verificar membresía
+    }
   }
 
   return {
@@ -1277,6 +1292,13 @@ export const wasteContractService = {
           cantidad_maxima_anual: current.cantidad_maxima_anual,
         });
         updateData.metadata_snapshot = snapshot;
+        const nextProd = role === 'productor' ? true : Boolean(current.firmado_productor);
+        const nextGest = role === 'gestor' ? true : Boolean(current.firmado_gestor);
+        if (nextProd && nextGest && (current.estado === 'borrador' || current.estado === 'pendiente_firma')) {
+          updateData.estado = 'vigente';
+        } else if ((nextProd || nextGest) && current.estado === 'borrador') {
+          updateData.estado = 'pendiente_firma';
+        }
       }
     } catch (snapErr) {
       console.warn('Nota al crear snapshot de contrato firmado:', snapErr);
