@@ -71,6 +71,7 @@ module.exports = {
     'src/app/api/residuos/sira/enviar-nt/route.ts',
     'src/lib/validations/normativeCompliance.ts',
     'src/services/scrapYardService.ts',
+    'src/services/documentSequenceService.ts',
     '!src/**/*.d.ts',
   ],
   coverageReporters: ['text', 'lcov', 'clover'],
@@ -316,6 +317,12 @@ module.exports = {
       statements: 80
     },
     './src/services/scrapYardService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/documentSequenceService.ts': {
       branches: 80,
       functions: 80,
       lines: 80,

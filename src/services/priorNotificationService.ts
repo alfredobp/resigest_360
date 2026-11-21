@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/client';
 import { applyTenantScope } from './tenantContextService';
+import { buildNTCode, resolveDocumentYear } from './documentSequenceService';
 import type { PriorNotification } from '@/types/wasteManagement';
 import {
   formatNima,
@@ -225,19 +226,21 @@ export const priorNotificationService = {
       throw new Error(dateErrors[0]);
     }
 
-    const numeroNotificacion =
-      notificationData.numero_notificacion && String(notificationData.numero_notificacion).trim().length > 0
-        ? String(notificationData.numero_notificacion).trim()
-        : formatNTCode(
-          undefined,
-          notificationData.productor_nima || notificationData.operador_nima || ''
-        );
+    const { numero_notificacion: _ignoredNtNumber, ...insertData } = notificationData;
+    void _ignoredNtNumber;
+
+    // Fallback E3L coherente (en BD el trigger BEFORE INSERT asigna el correlativo atómico definitivo)
+    const fallbackNtCode = buildNTCode(
+      insertData.productor_nima || insertData.operador_nima || '',
+      resolveDocumentYear(insertData.fecha_notificacion),
+      1
+    );
 
     const { data, error } = await supabase
       .from('prior_notifications')
       .insert({
-        ...notificationData,
-        numero_notificacion: numeroNotificacion,
+        ...insertData,
+        numero_notificacion: fallbackNtCode,
         user_id: user.id,
       })
       .select()
@@ -262,10 +265,13 @@ export const priorNotificationService = {
       throw new Error(dateErrors[0]);
     }
 
+    const { numero_notificacion: _immutableNtNumber, ...mutableData } = notificationData;
+    void _immutableNtNumber;
+
     const { data, error } = await supabase
       .from('prior_notifications')
       .update({
-        ...notificationData,
+        ...mutableData,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)

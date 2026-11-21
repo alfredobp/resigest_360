@@ -11,6 +11,7 @@ import Alert from '@/components/ui/alert/Alert';
 import { toast } from '@/context/ToastContext';
 import wasteContractService from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
+import documentSequenceService from '@/services/documentSequenceService';
 import type { Company, WasteContractFormData } from '@/types/wasteManagement';
 
 const TIPOS_CONTRATO = [
@@ -65,7 +66,7 @@ export default function NuevoContratoPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      
+
       // Cargar mi empresa
       const company = await companyService.getUserCompany();
       if (!company) {
@@ -73,12 +74,14 @@ export default function NuevoContratoPage() {
         router.push('/residuos/mi-empresa');
         return;
       }
-      
+
       setMyCompany(company);
       setFormData((prev) => ({ ...prev, company_id: company.id }));
 
-      // Generar número de contrato automático
-      const numeroContrato = wasteContractService.generateContractNumber(company.id);
+      // Previsualizar próximo número de contrato consecutivo (asignación definitiva atómica en BD)
+      const numeroContrato = await documentSequenceService
+        .previewNextCode(company.id, 'contract', { cif: company.cif })
+        .catch(() => wasteContractService.generateContractNumber(company.id, company.cif));
       setFormData((prev) => ({ ...prev, numero_contrato: numeroContrato }));
 
       // Cargar lista de gestores disponibles
@@ -103,7 +106,7 @@ export default function NuevoContratoPage() {
 
   const handleSearchGestor = async () => {
     if (searchQuery.trim().length < 2) return;
-    
+
     try {
       const results = await companyService.search(searchQuery);
       setGestores(results);
@@ -201,13 +204,16 @@ export default function NuevoContratoPage() {
           <ComponentCard title="Datos del Contrato">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium mb-2">Número de Contrato</label>
+                <label className="block text-sm font-medium mb-2">Número de Contrato (Automático)</label>
                 <Input
                   name="numero_contrato"
                   value={formData.numero_contrato}
-                  onChange={handleChange}
-                  placeholder="Se genera automáticamente"
+                  disabled
+                  placeholder="Se asignará automáticamente al guardar"
                 />
+                <p className="text-[11px] text-muted mt-1">
+                  Código consecutivo asignado automáticamente por empresa y año al guardar (no editable).
+                </p>
               </div>
 
               <div>
@@ -409,15 +415,15 @@ export default function NuevoContratoPage() {
           {/* Residuos y Condiciones */}
           <ComponentCard title="Residuos y Condiciones" className="mt-6">
             <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">Descripción de Residuos</label>
-              <TextArea
-                value={formData.descripcion_residuos}
-                onChange={(value) => setFormData(prev => ({ ...prev, descripcion_residuos: value }))}
-                rows={3}
-                placeholder="Describe los tipos de residuos cubiertos por el contrato..."
-              />
-            </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Descripción de Residuos</label>
+                <TextArea
+                  value={formData.descripcion_residuos}
+                  onChange={(value) => setFormData(prev => ({ ...prev, descripcion_residuos: value }))}
+                  rows={3}
+                  placeholder="Describe los tipos de residuos cubiertos por el contrato..."
+                />
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>

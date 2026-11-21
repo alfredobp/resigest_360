@@ -149,7 +149,7 @@ export default function EditarContratoPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      
+
       const contractData = await wasteContractService.getById(parseInt(id));
       setContract(contractData);
 
@@ -268,7 +268,7 @@ export default function EditarContratoPage() {
       setShowGestorForm(false);
       setNewGestor({ razon_social: '', cif: '', nima: '', email: '', telefono: '' });
       toast.success('Gestor creado y asignado con éxito.');
-      
+
       const allCompanies = await companyService.getAll();
       const gestorCompanies = allCompanies.filter(
         c => c.tipo_empresa === 'gestor' || (c.roles && c.roles.includes('gestor'))
@@ -428,14 +428,17 @@ export default function EditarContratoPage() {
           <ComponentCard title="Información General">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label htmlFor="numero_contrato" className="block text-sm font-medium mb-2">Número de Contrato</label>
+                <label htmlFor="numero_contrato" className="block text-sm font-medium mb-2">Número de Contrato (Inmutable)</label>
                 <Input
                   id="numero_contrato"
                   type="text"
                   value={formData.numero_contrato}
-                  onChange={(e) => setFormData({ ...formData, numero_contrato: e.target.value })}
-                  placeholder="Ej: CONT-2024-001"
+                  disabled
+                  placeholder="Código asignado automáticamente"
                 />
+                <p className="text-[11px] text-muted mt-1">
+                  El código consecutivo del contrato es inmutable y no puede editarse una vez emitido.
+                </p>
               </div>
 
               <div>
@@ -527,7 +530,7 @@ export default function EditarContratoPage() {
                       { value: '', label: '-- Centro general / Sede principal --' },
                       ...producerCenters.map(c => ({
                         value: c.id.toString(),
-                        label: `${c.nombre} (${c.municipio || ''}${c.nima ? ` - NIMA: ${  c.nima}` : ''})`,
+                        label: `${c.nombre} (${c.municipio || ''}${c.nima ? ` - NIMA: ${c.nima}` : ''})`,
                       })),
                     ]}
                     value={formData.producer_center_id?.toString() || ''}
@@ -570,7 +573,7 @@ export default function EditarContratoPage() {
                           { value: '', label: '-- Seleccionar Gestor --' },
                           ...filteredGestores.map((g) => ({
                             value: `company:${g.id}`,
-                            label: `${g.razon_social} (${g.cif})${g.nima ? ` - NIMA: ${  g.nima}` : ''}`,
+                            label: `${g.razon_social} (${g.cif})${g.nima ? ` - NIMA: ${g.nima}` : ''}`,
                           })),
                           ...internalGestores
                             .filter((ig) => {
@@ -642,7 +645,7 @@ export default function EditarContratoPage() {
                           { value: '', label: '-- Instalación general / Sede principal --' },
                           ...gestorCenters.map(c => ({
                             value: c.id.toString(),
-                            label: `${c.nombre} (${c.municipio || ''}${c.nima ? ` - NIMA: ${  c.nima}` : ''})`,
+                            label: `${c.nombre} (${c.municipio || ''}${c.nima ? ` - NIMA: ${c.nima}` : ''})`,
                           })),
                         ]}
                         value={formData.gestor_center_id?.toString() || ''}

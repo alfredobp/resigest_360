@@ -9,6 +9,7 @@ import { auditService } from '@/services/auditService';
 import { authorizationService } from '@/services/authorizationService';
 import { applyDITenantScope, getActiveCompanyCookie } from '@/services/tenantContextService';
 import { companyService } from '@/services/companyService';
+import { buildDICode, resolveDocumentYear } from '@/services/documentSequenceService';
 import type {
   IdentificationDocument,
   EstadoTraslado,
@@ -333,13 +334,12 @@ async function buildJustificationFields(input: JustifyDiscrepancyPayload): Promi
 
 export const identificationDocumentService = {
   /**
-   * Generar número de documento de identificación interno
-   * Formato: NIMA + AÑO + CORRELATIVO (7 dígitos)
+   * Generar vista previa de código de Documento de Identificación (DI) conforme a E3L 3.3:
+   * DCS + origen (2) + NIMA (10) + AÑO (4) + CORRELATIVO (7 dígitos).
+   * La asignación consecutiva definitiva se realiza atómicamente en BD al insertar.
    */
   generateDocumentNumber(nima: string): string {
-    const year = new Date().getFullYear();
-    const random = Math.floor(Math.random() * 9999999).toString().padStart(7, '0');
-    return `${nima}${year}${random}`;
+    return buildDICode(nima, new Date().getFullYear(), 1);
   },
 
   /**
@@ -458,10 +458,20 @@ export const identificationDocumentService = {
       throw new Error('Usuario no autenticado');
     }
 
+    const { numero_documento: _ignoredDocNumber, ...insertData } = documentData;
+    void _ignoredDocNumber;
+
+    const fallbackCode = buildDICode(
+      insertData.productor_nima || insertData.gestor_nima,
+      resolveDocumentYear(insertData.fecha_documento),
+      1
+    );
+
     const { data, error } = await supabase
       .from('identification_documents')
       .insert({
-        ...documentData,
+        ...insertData,
+        numero_documento: fallbackCode,
         user_id: user.id,
       })
       .select(`
@@ -504,10 +514,12 @@ export const identificationDocumentService = {
     }
 
     const activeComp = await resolveActiveCompanyForDI();
+    const { numero_documento: _immutableDocNumber, ...mutableData } = documentData;
+    void _immutableDocNumber;
 
     const baseQuery = supabase
       .from('identification_documents')
-      .update(documentData)
+      .update(mutableData)
       .eq('id', id);
 
     const { data, error } = await applyDITenantScope(baseQuery, user.id, activeComp?.id, activeComp?.cif)

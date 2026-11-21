@@ -11,6 +11,7 @@ import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFi
 import TextArea from '@/components/form/input/TextArea';
 import { toast } from '@/context/ToastContext';
 import { priorNotificationService } from '@/services/priorNotificationService';
+import documentSequenceService from '@/services/documentSequenceService';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import treatmentManagerService from '@/services/treatmentManagerService';
@@ -77,10 +78,16 @@ export default function NuevaNotificacionPreviaPage() {
       setManagers(managersList);
       setWasteTypes(wastes);
 
+      // Previsualizar próximo código NT consecutivo E3L (se asigna atómicamente en BD al guardar)
+      const previewNtCode = await documentSequenceService
+        .previewNextCode(company.id, 'nt', { nima: company.nima })
+        .catch(() => priorNotificationService.formatNTCode('', company.nima || ''));
+
       // Precargar datos del Operador con la empresa principal
       setFormData((prev) => ({
         ...prev,
         company_id: company.id,
+        numero_notificacion: previewNtCode,
         operador_razon_social: company.razon_social,
         operador_cif: company.cif,
         operador_nima: company.nima || '',
@@ -156,10 +163,8 @@ export default function NuevaNotificacionPreviaPage() {
   };
 
   const handleFillTestData = () => {
-    const formattedCode = priorNotificationService.formatNTCode('', '1100000001');
     setFormData((prev) => ({
       ...prev,
-      numero_notificacion: formattedCode,
       operador_razon_social: prev.operador_razon_social || 'EMPRESA OPERADORA PRUEBAS S.L.',
       operador_cif: prev.operador_cif || 'B11999999',
       operador_nima: '',
@@ -309,14 +314,16 @@ export default function NuevaNotificacionPreviaPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Código NT (Opcional si se auto-genera)</label>
+                <label className="block text-sm font-medium mb-1">Código NT (Automático E3L)</label>
                 <Input
                   type="text"
-                  placeholder="Ej. NT10110000000120260000001"
+                  placeholder="Se asignará automáticamente al guardar"
                   value={formData.numero_notificacion || ''}
-                  onChange={(e) => setFormData({ ...formData, numero_notificacion: e.target.value })}
+                  disabled
                 />
-                <p className="text-[11px] text-muted mt-1">Si se deja vacío, SIRA o ResiGest generarán el código oficial E3L.</p>
+                <p className="text-[11px] text-muted mt-1">
+                  Código oficial consecutivo E3L 3.3 por empresa y año (no editable).
+                </p>
               </div>
 
               <div>
