@@ -52,8 +52,6 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
         const docNumber = identificationDocumentService.generateDocumentNumber(nima);
         const currentYear = new Date().getFullYear().toString();
 
-        expect(docNumber.startsWith(`${nima}${currentYear}`)).toBe(true);
-        expect(docNumber.length).toBe(nima.length + currentYear.length + 7);
         expect(docNumber).toBe(`DCS10${nima}${currentYear}0000001`);
         expect(docNumber.length).toBe(26);
       });
@@ -220,36 +218,30 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
         );
       });
 
-      it('create debe insertar el documento asignando user_id', async () => {
-        it('create debe insertar el documento asignando user_id e ignorando numero_documento manual', async () => {
-          mockSupabase.auth.getUser.mockResolvedValue({
-            data: { user: { id: 'user-uuid-1' } },
-          });
-
-          const payload = { numero_documento: 'DI-NEW', cantidad: 100 };
-          const createdDoc = { id: 15, ...payload, user_id: 'user-uuid-1' };
-          const createdDoc = { id: 15, cantidad: 100, numero_documento: 'DCS01999999999920260000001', user_id: 'user-uuid-1' };
-
-          const singleMock = jest.fn().mockResolvedValue({ data: createdDoc, error: null });
-          const selectMock = jest.fn().mockReturnValue({ single: singleMock });
-          const insertMock = jest.fn().mockReturnValue({ select: selectMock });
-          mockSupabase.from.mockReturnValue({ insert: insertMock });
-
-          const result = await identificationDocumentService.create(payload);
-
-          expect(insertMock).toHaveBeenCalledWith({
-            ...payload,
-            user_id: 'user-uuid-1',
-          });
-          expect(insertMock).toHaveBeenCalledWith(
-            expect.objectContaining({
-              cantidad: 100,
-              numero_documento: expect.stringMatching(/^DCS019999999999\d{4}0000001$/),
-              user_id: 'user-uuid-1',
-            })
-          );
-          expect(result).toEqual(createdDoc);
+      it('create debe insertar el documento asignando user_id e ignorando numero_documento manual', async () => {
+        mockSupabase.auth.getUser.mockResolvedValue({
+          data: { user: { id: 'user-uuid-1' } },
         });
+
+        const payload = { numero_documento: 'DI-NEW', cantidad: 100 };
+        const createdDoc = { id: 15, cantidad: 100, numero_documento: 'DCS01999999999920260000001', user_id: 'user-uuid-1' };
+
+        const singleMock = jest.fn().mockResolvedValue({ data: createdDoc, error: null });
+        const selectMock = jest.fn().mockReturnValue({ single: singleMock });
+        const insertMock = jest.fn().mockReturnValue({ select: selectMock });
+        mockSupabase.from.mockReturnValue({ insert: insertMock });
+
+        const result = await identificationDocumentService.create(payload);
+
+        expect(insertMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            cantidad: 100,
+            numero_documento: expect.stringMatching(/^DCS019999999999\d{4}0000001$/),
+            user_id: 'user-uuid-1',
+          })
+        );
+        expect(result).toEqual(createdDoc);
+      });
 
         it('create debe lanzar error si Supabase falla', async () => {
           mockSupabase.auth.getUser.mockResolvedValue({

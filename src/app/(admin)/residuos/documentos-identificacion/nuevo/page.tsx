@@ -124,7 +124,6 @@ function NuevoDocumentoIdentificacionContent() {
           gestor_provincia: defaultProv,
           gestor_codigo_postal: defaultCP,
           gestor_telefono: company.telefono || '',
-          numero_documento: identificationDocumentService.generateDocumentNumber(company.nima || company.cif),
           numero_documento: previewDiNumber,
         }));
       } else {
@@ -139,7 +138,6 @@ function NuevoDocumentoIdentificacionContent() {
           productor_municipio: defaultMuni,
           productor_provincia: defaultProv,
           productor_codigo_postal: defaultCP,
-          numero_documento: identificationDocumentService.generateDocumentNumber(company.nima || company.cif),
           numero_documento: previewDiNumber,
         }));
       }
@@ -264,7 +262,6 @@ function NuevoDocumentoIdentificacionContent() {
                 archivo_justificante_url: undefined,
                 fecha_documento: new Date().toISOString().split('T')[0],
                 fecha_inicio_traslado: new Date().toISOString().split('T')[0],
-                numero_documento: identificationDocumentService.generateDocumentNumber(company.nima || company.cif),
                 numero_documento: previewDiNumber,
               }));
 
