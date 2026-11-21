@@ -365,7 +365,7 @@ export default function EmpresaModal({
           </div>
 
           {/* Campos Operativos Específicos según Roles */}
-          {(isRoleActive('gestor') || isRoleActive('transportista') || isRoleActive('negociante')) && (
+          {(isRoleActive('gestor') || isRoleActive('transportista') || isRoleActive('negociante') || isRoleActive('agente')) && (
             <div className="space-y-4 pt-2 border-t border-gray-100 dark:border-gray-800">
               <h4 className="text-xs font-bold uppercase tracking-wider text-muted">
                 Autorizaciones y Operativa

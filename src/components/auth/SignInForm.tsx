@@ -17,9 +17,36 @@ export default function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const handleForgotPassword = async () => {
+    setError(null);
+    setInfoMessage(null);
+    if (!email.trim()) {
+      setError("Introduce tu correo electrónico arriba y pulsa de nuevo para recibir el enlace de recuperación.");
+      return;
+    }
+    try {
+      setResetting(true);
+      const supabase = createClient();
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/auth/callback?next=/profile`,
+      });
+      if (resetError) {
+        setError(getAuthErrorMessage(resetError.message));
+        return;
+      }
+      setInfoMessage("Si existe una cuenta con ese correo, te hemos enviado un enlace para restablecer tu contraseña.");
+    } catch {
+      setError("No se pudo enviar el correo de recuperación. Inténtalo de nuevo.");
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,11 +66,17 @@ export default function SignInForm() {
         return;
       }
 
-      // Redirect to target path or dashboard on successful login
+      // Redirect to target path or dashboard on successful login (prevent Open Redirect)
       const redirectedFrom = searchParams.get('redirectedFrom');
-      const destination = (redirectedFrom && redirectedFrom !== '/' && redirectedFrom !== '/signin') 
-        ? redirectedFrom 
-        : '/app';
+      const isSafeInternalPath = Boolean(
+        redirectedFrom &&
+        redirectedFrom.startsWith('/') &&
+        !redirectedFrom.startsWith('//') &&
+        !redirectedFrom.includes('\\') &&
+        redirectedFrom !== '/' &&
+        redirectedFrom !== '/signin'
+      );
+      const destination = isSafeInternalPath ? redirectedFrom! : '/app';
 
       router.push(destination);
       router.refresh();
@@ -78,6 +111,11 @@ export default function SignInForm() {
             {error && (
               <div className="p-3 mb-4 text-sm text-red-800 bg-red-100 rounded-lg dark:bg-red-900/20 dark:text-red-400">
                 {error}
+              </div>
+            )}
+            {infoMessage && (
+              <div className="p-3 mb-4 text-sm text-emerald-800 bg-emerald-100 rounded-lg dark:bg-emerald-900/20 dark:text-emerald-400">
+                {infoMessage}
               </div>
             )}
             <form onSubmit={handleSignIn}>
@@ -125,12 +163,14 @@ export default function SignInForm() {
                       Recordar sesión
                     </span>
                   </div>
-                  <Link
-                    href="/reset-password"
-                    className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400"
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={resetting}
+                    className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400 disabled:opacity-50"
                   >
-                    ¿Has olvidado tu contraseña?
-                  </Link>
+                    {resetting ? "Enviando..." : "¿Has olvidado tu contraseña?"}
+                  </button>
                 </div>
                 <div>
                   <Button 

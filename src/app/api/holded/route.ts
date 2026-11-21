@@ -19,17 +19,49 @@ async function resolveHoldedKey(req?: NextRequest): Promise<{ apiKey: string } |
 
     const activeCompanyId = getActiveCompanyCookie(req?.headers?.get?.('cookie') || '');
 
-    let companyQuery: any = supabase
-        .from('companies')
-        .select('holded_api_key');
+    if (activeCompanyId) {
+        const { data: activeRows, error: activeError } = await supabase
+            .from('companies')
+            .select('id, user_id, holded_api_key')
+            .eq('id', activeCompanyId)
+            .limit(1);
 
-    if (activeCompanyId && typeof companyQuery.or === 'function') {
-        companyQuery = companyQuery.or(`user_id.eq.${user.id},id.eq.${activeCompanyId}`);
-    } else {
-        companyQuery = companyQuery.eq('user_id', user.id);
+        if (activeError) {
+            return { response: NextResponse.json({ error: 'Holded API Key no configurada' }, { status: 400 }) };
+        }
+
+        const activeCompany = activeRows?.[0];
+        if (!activeCompany) {
+            return { response: NextResponse.json({ error: 'No autorizado para la empresa activa seleccionada.' }, { status: 403 }) };
+        }
+
+        let isAuthorized = activeCompany.user_id === user.id;
+        if (!isAuthorized) {
+            const { data: membership } = await supabase
+                .from('company_memberships')
+                .select('id')
+                .eq('company_id', activeCompanyId)
+                .eq('user_id', user.id)
+                .eq('activo', true)
+                .limit(1);
+            isAuthorized = Boolean(membership && membership.length > 0);
+        }
+
+        if (!isAuthorized) {
+            return { response: NextResponse.json({ error: 'No autorizado para la empresa activa seleccionada.' }, { status: 403 }) };
+        }
+
+        if (!activeCompany.holded_api_key) {
+            return { response: NextResponse.json({ error: 'Holded API Key no configurada para la empresa activa' }, { status: 400 }) };
+        }
+
+        return { apiKey: activeCompany.holded_api_key };
     }
 
-    const { data: companies, error } = await companyQuery
+    const { data: companies, error } = await supabase
+        .from('companies')
+        .select('holded_api_key')
+        .eq('user_id', user.id)
         .not('holded_api_key', 'is', null)
         .order('is_my_company', { ascending: false })
         .limit(1);

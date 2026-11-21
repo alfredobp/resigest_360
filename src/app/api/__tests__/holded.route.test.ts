@@ -5,20 +5,12 @@ import { GET, POST } from '../holded/route';
 
 const mockGetUser = jest.fn();
 const mockLimit = jest.fn();
+const mockFrom = jest.fn();
 
 jest.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
     auth: { getUser: mockGetUser },
-    from: () => {
-      const chain: any = {
-        select: () => chain,
-        eq: () => chain,
-        not: () => chain,
-        order: () => chain,
-        limit: mockLimit,
-      };
-      return chain;
-    },
+    from: (...args: any[]) => mockFrom(...args),
   }),
 }));
 
@@ -29,6 +21,16 @@ describe('/api/holded', () => {
     jest.clearAllMocks();
     mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
     mockLimit.mockResolvedValue({ data: [{ holded_api_key: 'srv-key' }], error: null });
+    mockFrom.mockImplementation(() => {
+      const chain: any = {
+        select: () => chain,
+        eq: () => chain,
+        not: () => chain,
+        order: () => chain,
+        limit: mockLimit,
+      };
+      return chain;
+    });
     global.fetch = jest.fn().mockResolvedValue({ status: 200, json: async () => ({ ok: true }) }) as any;
   });
 
@@ -86,5 +88,65 @@ describe('/api/holded', () => {
     expect(JSON.stringify(await res.json())).not.toContain('secreto');
     const res2 = await POST(req('http://x/api/holded?action=createContact', { method: 'POST', body: '{}' }));
     expect(res2.status).toBe(502);
+  });
+
+  it('usa la API Key de la empresa activa si el usuario es propietario', async () => {
+    mockLimit.mockResolvedValueOnce({
+      data: [{ id: 42, user_id: 'u1', holded_api_key: 'active-company-key' }],
+      error: null,
+    });
+    const res = await GET(req('http://x/api/holded?action=listContacts', {
+      headers: { cookie: 'resigest_active_company_id=42' },
+    }));
+    expect(res.status).toBe(200);
+    const init = (global.fetch as jest.Mock).mock.calls[0][1];
+    expect(init.headers.key).toBe('active-company-key');
+  });
+
+  it('permite usar la API Key de empresa activa mediante company_memberships activa', async () => {
+    mockLimit
+      .mockResolvedValueOnce({
+        data: [{ id: 55, user_id: 'other-owner', holded_api_key: 'client-key' }],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [{ id: 99 }],
+        error: null,
+      });
+    const res = await GET(req('http://x/api/holded?action=listContacts', {
+      headers: { cookie: 'resigest_active_company_id=55' },
+    }));
+    expect(res.status).toBe(200);
+    const init = (global.fetch as jest.Mock).mock.calls[0][1];
+    expect(init.headers.key).toBe('client-key');
+  });
+
+  it('devuelve 403 si la cookie resigest_active_company_id apunta a empresa ajena sin membresía', async () => {
+    mockLimit
+      .mockResolvedValueOnce({
+        data: [{ id: 99, user_id: 'victim-user', holded_api_key: 'victim-key' }],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [],
+        error: null,
+      });
+    const res = await GET(req('http://x/api/holded?action=listContacts', {
+      headers: { cookie: 'resigest_active_company_id=99' },
+    }));
+    expect(res.status).toBe(403);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('devuelve 400 si la empresa activa autorizada no tiene Holded API Key', async () => {
+    mockLimit.mockResolvedValueOnce({
+      data: [{ id: 42, user_id: 'u1', holded_api_key: null }],
+      error: null,
+    });
+    const res = await GET(req('http://x/api/holded?action=listContacts', {
+      headers: { cookie: 'resigest_active_company_id=42' },
+    }));
+    expect(res.status).toBe(400);
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

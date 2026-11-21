@@ -112,11 +112,12 @@ export const decaService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
-    const { data, error } = await supabase
+    const baseQuery = supabase
       .from('deca_documents')
       .select('*')
-      .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('id', id);
+
+    const { data, error } = await applyTenantScope(baseQuery, user.id)
       .maybeSingle();
 
     if (error) {
@@ -444,11 +445,11 @@ export const decaService = {
     if (!user) throw new Error('Usuario no autenticado');
 
     // 1. Marcar versión anterior como no vigente y sustituida (RES6-I09 / UXDEV-04)
-    await supabase
+    const supersedeQuery = supabase
       .from('deca_documents')
       .update({ is_vigente: false, estado: 'sustituido', updated_at: new Date().toISOString() })
-      .eq('id', currentDeca.id)
-      .eq('user_id', user.id);
+      .eq('id', currentDeca.id);
+    await applyTenantScope(supersedeQuery, user.id);
 
     // 2. Crear nueva fila con version + 1 y nuevo token criptográfico
     const nextVersion = currentDeca.version + 1;
@@ -492,11 +493,15 @@ export const decaService = {
 
     if (error) {
       try {
-        await supabase
+        const rollbackQuery = supabase
           .from('deca_documents')
-          .update({ is_vigente: true, updated_at: currentDeca.updated_at || new Date().toISOString() })
-          .eq('id', currentDeca.id)
-          .eq('user_id', user.id);
+          .update({
+            is_vigente: true,
+            estado: currentDeca.estado || 'vigente',
+            updated_at: currentDeca.updated_at || new Date().toISOString(),
+          })
+          .eq('id', currentDeca.id);
+        await applyTenantScope(rollbackQuery, user.id);
       } catch {
         // Best-effort rollback si falla la inserción de la nueva versión
       }
@@ -522,7 +527,7 @@ export const decaService = {
     if (!user) throw new Error('Usuario no autenticado');
 
     const now = new Date().toISOString();
-    const { data, error } = await supabase
+    const finalizeQuery = supabase
       .from('deca_documents')
       .update({
         estado: 'finalizado',
@@ -530,8 +535,9 @@ export const decaService = {
         hora_cierre: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
         updated_at: now,
       })
-      .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('id', id);
+
+    const { data, error } = await applyTenantScope(finalizeQuery, user.id)
       .select()
       .single();
 
@@ -543,12 +549,12 @@ export const decaService = {
     if (data?.numero_deca) {
       try {
         const baseNumero = data.numero_deca.replace(/-v\d+$/, '').trim();
-        await supabase
+        const closeHistoryQuery = supabase
           .from('deca_documents')
           .update({ is_vigente: false, estado: 'finalizado', updated_at: now })
           .ilike('numero_deca', `${baseNumero}%`)
-          .eq('user_id', user.id)
           .neq('id', id);
+        await applyTenantScope(closeHistoryQuery, user.id);
       } catch (e) {
         console.warn('Nota al cerrar versiones históricas de DeCA:', e);
       }

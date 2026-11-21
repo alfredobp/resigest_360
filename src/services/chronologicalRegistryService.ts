@@ -521,7 +521,7 @@ export async function syncEntryFromCommercialOperation(
     descripcion_residuo: op.descripcion_residuo,
     peligrosidad: op.codigo_ler.includes('*') ? 'peligroso' : op.peligrosidad,
     cantidad_kg: cantidadKg,
-    origen_tipo: 'tercero_productor',
+    origen_tipo: 'propio',
     origen_nif: op.origen_cif || op.proveedor_cif || op.origen_productor?.cif || null,
     origen_razon_social:
       op.origen_nombre_personalizado ||

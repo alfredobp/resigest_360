@@ -26,7 +26,7 @@ export default function NuevaOperacionComercialPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Catálogos
-  const [, setCompanies] = useState<Company[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [, setCenters] = useState<ProductionCenter[]>([]);
   const [documents, setDocuments] = useState<IdentificationDocument[]>([]);
 
@@ -608,11 +608,30 @@ export default function NuevaOperacionComercialPage() {
                     </label>
                     <input
                       type="text"
+                      list="clientes-comerciales-list"
                       placeholder="Empresa a quien se vende"
                       value={formData.cliente_razon_social || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, cliente_razon_social: e.target.value }))}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const matched = companies.find(
+                          (c) => c.razon_social.trim().toLowerCase() === value.trim().toLowerCase()
+                        );
+                        setFormData(prev => ({
+                          ...prev,
+                          cliente_razon_social: value,
+                          cliente_comercial_id: matched ? matched.id : undefined,
+                          cliente_cif: matched?.cif || prev.cliente_cif,
+                        }));
+                      }}
                       className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-700"
                     />
+                    <datalist id="clientes-comerciales-list">
+                      {companies.map((c) => (
+                        <option key={c.id} value={c.razon_social}>
+                          {c.cif ? `${c.razon_social} (${c.cif})` : c.razon_social}
+                        </option>
+                      ))}
+                    </datalist>
                   </div>
 
                   <div>

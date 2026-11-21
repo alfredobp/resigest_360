@@ -382,53 +382,58 @@ export default function DecaManagementPage() {
       </div>
 
       {/* Tarjetas de Métricas Rápidas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center gap-3">
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl">
-            <FileText className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white">{documents.length}</div>
-            <div className="text-xs text-slate-500 dark:text-slate-400">Total DeCAs Emitidos</div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center gap-3">
-          <div className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl">
-            <CheckCircle2 className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white">
-              {documents.filter((d) => d.estado === 'vigente' && d.is_vigente).length}
+      {(() => {
+        const { activeDecas, finishedDecas, allLatest } = decaService.filterVigenteServices(documents);
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center gap-3">
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl">
+                <FileText className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white">{allLatest.length}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">Total DeCAs Emitidos</div>
+              </div>
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400">Servicios Vigentes / En Ruta</div>
-          </div>
-        </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center gap-3">
-          <div className="p-3 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl">
-            <Clock className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white">
-              {documents.filter((d) => d.estado === 'finalizado').length}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center gap-3">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                  {activeDecas.length}
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">Servicios Vigentes / En Ruta</div>
+              </div>
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400">Servicios Finalizados</div>
-          </div>
-        </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center gap-3">
-          <div className="p-3 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl">
-            <History className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white">
-              {documents.filter((d) => Boolean(d.identification_document_id)).length}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center gap-3">
+              <div className="p-3 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl">
+                <Clock className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                  {finishedDecas.length}
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">Servicios Finalizados</div>
+              </div>
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400">Vinculados a DIs de Residuos</div>
+
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center gap-3">
+              <div className="p-3 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl">
+                <History className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                  {allLatest.filter((d) => Boolean(d.identification_document_id)).length}
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">Vinculados a DIs de Residuos</div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Barra de Filtros y Búsqueda */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
@@ -570,13 +575,12 @@ export default function DecaManagementPage() {
 
                         return (
                           <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold ${
-                              doc.estado === 'vigente'
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold ${doc.estado === 'vigente'
                                 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
                                 : doc.estado === 'finalizado'
-                                ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                                : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
-                            }`}
+                                  ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                  : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+                              }`}
                           >
                             {doc.estado.toUpperCase()}
                           </span>

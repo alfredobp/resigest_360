@@ -117,7 +117,7 @@ export const dashboardService = {
         ? supabase.from('commercial_operations').select('*').eq(filterColumn, filterValue)
         : Promise.resolve({ data: [] as any[] }),
       supabase.from('companies').select('id, cif, razon_social').eq('user_id', user.id),
-      supabase.from('chronological_registry').select('tipo_operacion, cantidad_kg, origen_tipo, destino_tipo, numero_documento_referencia').eq(filterColumn, filterValue),
+      supabase.from('chronological_registry').select('tipo_operacion, cantidad_kg, origen_tipo, destino_tipo, numero_documento_referencia, codigo_ler, descripcion_residuo').eq(filterColumn, filterValue),
     ]);
 
     const dis = disRes.data || [];
@@ -346,7 +346,7 @@ export const dashboardService = {
           ton = Number(d.peso_destino_kg) / 1000;
         } else if (d.peso_origen_kg && d.peso_origen_kg > 0) {
           ton = Number(d.peso_origen_kg) / 1000;
-        } else if (d.unidad === 'kg') {
+        } else if (d.unidad === 'kg' || d.unidad === 'litros' || d.unidad === 'unidades') {
           ton = (d.cantidad || 0) / 1000;
         } else {
           ton = d.cantidad || 0;
@@ -395,6 +395,9 @@ export const dashboardService = {
     ops.forEach(op => {
       if (['abierta', 'en_transito'].includes(op.estado)) {
         operacionesAbiertas++;
+      }
+      if (op.estado === 'cancelada' || op.estado === 'borrador') {
+        return;
       }
       facturacionVenta += Number(op.ingreso_venta_total) || 0;
       costesTotales += (Number(op.coste_compra_total) || 0) + (Number(op.coste_transporte) || 0) + (Number(op.otros_costes) || 0);
@@ -485,7 +488,7 @@ export const dashboardService = {
         toneladasPeligrosas: Number(toneladasPeligrosas.toFixed(3)),
         toneladasNoPeligrosas: Number(toneladasNoPeligrosas.toFixed(3)),
         totalDIs: dis.length,
-        disCompletados: dis.filter(d => d.estado === 'completado').length,
+        disCompletados: dis.filter(d => d.estado === 'completado' || ['aceptado', 'tratado'].includes(d.estado_traslado || '')).length,
         totalAsientosArchivo: chronoEntries.length,
         toneladasArchivoCronologico: Number(
           (chronoEntries.reduce((sum: number, e: any) => sum + Number(e.cantidad_kg || 0), 0) / 1000).toFixed(3)
@@ -580,7 +583,7 @@ export const dashboardService = {
       let weight = 0;
       if (di.peso_destino_kg) weight = di.peso_destino_kg / 1000;
       else if (di.peso_origen_kg) weight = di.peso_origen_kg / 1000;
-      else if (di.unidad === 'kg') weight = (di.cantidad || 0) / 1000;
+      else if (di.unidad === 'kg' || di.unidad === 'litros' || di.unidad === 'unidades') weight = (di.cantidad || 0) / 1000;
       else weight = di.cantidad || 0;
 
       monthlyData[monthLabel] = (monthlyData[monthLabel] || 0) + weight;

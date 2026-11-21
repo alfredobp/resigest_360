@@ -221,7 +221,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         badge: "Acción",
         icon: <PlusCircle className="w-4 h-4 text-emerald-500" />,
         onSelect: () => {
-          router.push("/residuos/contratos");
+          router.push("/residuos/contratos/nuevo");
           onClose();
         },
       },

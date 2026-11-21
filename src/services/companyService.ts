@@ -196,12 +196,20 @@ export const companyService = {
       throw new Error('Usuario no autenticado');
     }
 
-    const { data, error } = await supabase
+    const { activeId, targetUserId } = await this.getDelegatedContext(user.id);
+
+    let query = supabase
       .from('companies')
       .select('*, production_centers(*)')
-      .eq('id', id)
-      .eq('user_id', user.id)
-      .single();
+      .eq('id', id);
+
+    if (activeId && targetUserId !== user.id) {
+      query = query.or(`user_id.eq.${user.id},user_id.eq.${targetUserId},id.eq.${activeId}`);
+    } else {
+      query = query.eq('user_id', user.id);
+    }
+
+    const { data, error } = await query.single();
 
     if (error) {
       throw new Error(`Error al obtener empresa: ${error.message}`);
@@ -332,10 +340,13 @@ export const companyService = {
    */
   async search(query: string): Promise<Company[]> {
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
     const cleanQuery = query.replace(/[%_(),]/g, '').trim();
     if (!cleanQuery) return this.getAllContacts();
 
-    const { activeId, targetUserId } = await this.getDelegatedContext(user?.id || '');
+    const { activeId, targetUserId } = await this.getDelegatedContext(user.id);
 
     let req = supabase
       .from('companies')
@@ -471,6 +482,24 @@ export const companyService = {
     const { activeId, targetUserId, activeCompany } = await this.getDelegatedContext(user.id);
 
     const normalizedUpdate: Partial<CompanyFormData> = { ...companyData };
+
+    // Proteger credenciales enmascaradas (ej. '••••••••' o '••••xxxx') para evitar sobrescritura destructiva
+    if (typeof normalizedUpdate.sira_password === 'string' && normalizedUpdate.sira_password.startsWith('••••')) {
+      delete normalizedUpdate.sira_password;
+    }
+    if (typeof normalizedUpdate.holded_api_key === 'string' && normalizedUpdate.holded_api_key.startsWith('••••')) {
+      delete normalizedUpdate.holded_api_key;
+    }
+
+    // Sincronizar tipo_empresa cuando se actualizan roles y no se especifica tipo_empresa explícitamente
+    if (
+      Array.isArray(normalizedUpdate.roles) &&
+      normalizedUpdate.roles.length > 0 &&
+      !normalizedUpdate.tipo_empresa
+    ) {
+      normalizedUpdate.tipo_empresa = normalizedUpdate.roles[0];
+    }
+
     if (normalizedUpdate.cif !== undefined) {
       const normCif = normalizedUpdate.cif.trim().toUpperCase();
       normalizedUpdate.cif = normCif;

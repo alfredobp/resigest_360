@@ -383,17 +383,6 @@ export default function MemoriasAnualesPage() {
                           Ver
                         </Button>
 
-                        {memoria.archivo_excel_url && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => window.open(memoria.archivo_excel_url, '_blank')}
-                            className="text-xs px-2.5 py-1 text-emerald-700 dark:text-emerald-400"
-                          >
-                            Excel
-                          </Button>
-                        )}
-
                         {memoria.estado === 'borrador' && (
                           <Button
                             variant="outline"

@@ -5,6 +5,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { auditService } from './auditService';
+import { applyTenantScope } from './tenantContextService';
 import type { ProductionCenter, ProductionCenterFormData } from '@/types/wasteManagement';
 
 const supabase = createClient();
@@ -19,11 +20,12 @@ export const productionCenterService = {
             throw new Error('Usuario no autenticado');
         }
 
-        const { data, error } = await supabase
+        const baseQuery = supabase
             .from('production_centers')
             .select('*')
-            .eq('company_id', companyId)
-            .eq('user_id', user.id)
+            .eq('company_id', companyId);
+
+        const { data, error } = await applyTenantScope(baseQuery, user.id)
             .eq('activo', true)
             .order('created_at', { ascending: true });
 
@@ -43,11 +45,12 @@ export const productionCenterService = {
             throw new Error('Usuario no autenticado');
         }
 
-        const { data, error } = await supabase
+        const baseQuery = supabase
             .from('production_centers')
             .select('*')
-            .eq('id', id)
-            .eq('user_id', user.id)
+            .eq('id', id);
+
+        const { data, error } = await applyTenantScope(baseQuery, user.id)
             .single();
 
         if (error) {
@@ -109,11 +112,12 @@ export const productionCenterService = {
             throw new Error('Usuario no autenticado');
         }
 
-        const { data, error } = await supabase
+        const updateQuery = supabase
             .from('production_centers')
             .update(formData)
-            .eq('id', id)
-            .eq('user_id', user.id)
+            .eq('id', id);
+
+        const { data, error } = await applyTenantScope(updateQuery, user.id)
             .select()
             .single();
 
@@ -146,11 +150,12 @@ export const productionCenterService = {
             throw new Error('Usuario no autenticado');
         }
 
-        const { error } = await supabase
+        const softDeleteQuery = supabase
             .from('production_centers')
             .update({ activo: false })
-            .eq('id', id)
-            .eq('user_id', user.id);
+            .eq('id', id);
+
+        const { error } = await applyTenantScope(softDeleteQuery, user.id);
 
         if (error) {
             throw new Error(`Error al desactivar centro de producción: ${error.message}`);
@@ -173,11 +178,12 @@ export const productionCenterService = {
             throw new Error('Usuario no autenticado');
         }
 
-        const { error } = await supabase
+        const deleteQuery = supabase
             .from('production_centers')
             .delete()
-            .eq('id', id)
-            .eq('user_id', user.id);
+            .eq('id', id);
+
+        const { error } = await applyTenantScope(deleteQuery, user.id);
 
         if (error) {
             throw new Error(`Error al eliminar centro de producción: ${error.message}`);

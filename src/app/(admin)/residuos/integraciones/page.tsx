@@ -271,7 +271,7 @@ export default function IntegracionesAuditoriaPage() {
                       Para transmitir directamente los DI y NT al servidor autonómico (SIRA) o estatal (e-SIR MITECO), complete su usuario y clave WS en Mi Empresa.
                     </p>
                   </div>
-                  <Link href="/residuos/empresas" className="px-3 py-1.5 bg-amber-600 text-white font-bold rounded-lg hover:bg-amber-700 whitespace-nowrap">
+                  <Link href="/residuos/mi-empresa" className="px-3 py-1.5 bg-amber-600 text-white font-bold rounded-lg hover:bg-amber-700 whitespace-nowrap">
                     Configurar Credenciales
                   </Link>
                 </div>
@@ -407,7 +407,7 @@ export default function IntegracionesAuditoriaPage() {
                   </p>
                 </div>
 
-                <Link href="/residuos/empresas">
+                <Link href="/residuos/mi-empresa">
                   <Button variant="outline" size="sm">
                     Modificar Clave API Holded
                   </Button>

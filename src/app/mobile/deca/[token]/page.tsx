@@ -40,8 +40,13 @@ export default function DecaDriverMobilePage({
 
         setDeca(data);
 
+        const expiredPayload = Boolean((data as any).expired) || decaService.isTokenExpired(data);
+        if (expiredPayload) {
+          return;
+        }
+
         // Si la versión no está vigente, buscar la versión vigente activa
-        if (!data.is_vigente) {
+        if (data.is_vigente === false) {
           try {
             const active = await decaService.getLatestActiveVersion(data);
             if (active && active.id !== data.id) {
@@ -125,8 +130,34 @@ export default function DecaDriverMobilePage({
     );
   }
 
-  const isExpired = decaService.isTokenExpired(deca);
+  const isExpired = Boolean((deca as any).expired) || decaService.isTokenExpired(deca);
   const pdfDownloadUrl = `/api/deca/${token}`;
+
+  if (isExpired) {
+    const finDate = deca.fecha_finalizacion
+      ? new Date(deca.fecha_finalizacion).toLocaleDateString('es-ES')
+      : null;
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
+        <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-6 max-w-md w-full text-center space-y-3">
+          <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto" />
+          <h1 className="text-xl font-bold text-white">Acceso de Inspección Caducado</h1>
+          <p className="text-slate-300 text-sm leading-relaxed">
+            Este documento DeCA fue finalizado{finDate ? ` el ${finDate}` : ''} y ha superado el plazo reglamentario de 7 días naturales para acceso público en carretera.
+          </p>
+          <p className="text-xs text-slate-400">
+            Para consultar el histórico oficial, acceda con su cuenta en RESIGEST 360.
+          </p>
+          <Link
+            href="/"
+            className="inline-block bg-slate-800 hover:bg-slate-700 text-slate-200 px-5 py-2.5 rounded-xl text-sm font-medium transition mt-2"
+          >
+            Ir a Inicio
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6 max-w-lg mx-auto">

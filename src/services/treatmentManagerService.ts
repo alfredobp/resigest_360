@@ -178,7 +178,8 @@ export const treatmentManagerService = {
                     await supabase
                         .from('treatment_managers')
                         .update({ holded_contact_id: holdedContact.id })
-                        .eq('id', data.id);
+                        .eq('id', data.id)
+                        .eq('user_id', user.id);
 
                     data.holded_contact_id = holdedContact.id;
                 }
@@ -193,10 +194,56 @@ export const treatmentManagerService = {
     /**
      * Actualizar gestor existente
      */
-    async update(id: number, managerData: Partial<TreatmentManagerFormData>): Promise<TreatmentManager> {
+    async update(
+        id: number,
+        managerData: Partial<TreatmentManagerFormData>,
+        options?: { source?: 'treatment_managers' | 'companies'; companyId?: number }
+    ): Promise<TreatmentManager> {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
             throw new Error('Usuario no autenticado');
+        }
+
+        // Si el gestor procede del Directorio Unificado (companies), actualizar en companies
+        if (options?.source === 'companies') {
+            const targetCompanyId = options.companyId ?? id;
+            const updatedComp = await companyService.update(targetCompanyId, {
+                nombre_comercial: managerData.nombre,
+                razon_social: managerData.razon_social || managerData.nombre,
+                cif: managerData.cif,
+                nima: managerData.nima,
+                numero_autorizacion: managerData.numero_autorizacion,
+                domicilio_social: managerData.direccion,
+                codigo_postal_social: managerData.codigo_postal,
+                municipio_social: managerData.municipio,
+                provincia_social: managerData.provincia,
+                telefono: managerData.telefono,
+                email: managerData.email,
+                persona_contacto: managerData.persona_contacto,
+                notas: managerData.notas,
+            });
+            return {
+                id,
+                user_id: updatedComp.user_id,
+                nombre: updatedComp.nombre_comercial || updatedComp.razon_social,
+                razon_social: updatedComp.razon_social,
+                cif: updatedComp.cif,
+                nima: updatedComp.nima,
+                numero_autorizacion: updatedComp.numero_autorizacion,
+                direccion: updatedComp.domicilio_social,
+                codigo_postal: updatedComp.codigo_postal_social,
+                municipio: updatedComp.municipio_social,
+                provincia: updatedComp.provincia_social,
+                telefono: updatedComp.telefono,
+                email: updatedComp.email,
+                persona_contacto: updatedComp.persona_contacto,
+                notas: updatedComp.notas,
+                activo: updatedComp.activo ?? true,
+                created_at: updatedComp.created_at,
+                updated_at: updatedComp.updated_at,
+                source: 'companies',
+                company_id: updatedComp.id,
+            };
         }
 
         // Obtener datos actuales para tener el holded_contact_id
@@ -273,10 +320,18 @@ export const treatmentManagerService = {
     /**
      * Eliminar gestor permanentemente
      */
-    async delete(id: number): Promise<void> {
+    async delete(
+        id: number,
+        options?: { source?: 'treatment_managers' | 'companies'; companyId?: number }
+    ): Promise<void> {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
             throw new Error('Usuario no autenticado');
+        }
+
+        if (options?.source === 'companies') {
+            await companyService.delete(options.companyId ?? id);
+            return;
         }
 
         const { error } = await supabase

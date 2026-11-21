@@ -65,7 +65,7 @@ export default function OperacionesComercialesPage() {
 
       const [opsData, statsData] = await Promise.all([
         commercialOperationService.getAll(filters),
-        commercialOperationService.getStats(selectedYear)
+        commercialOperationService.getStats(selectedYear, activeCompanyId)
       ]);
 
       setOperations(opsData);

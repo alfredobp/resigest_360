@@ -15,7 +15,7 @@ import {
 } from '@/types/wasteManagement';
 import { holdedService } from './holdedService';
 import { auditService } from './auditService';
-import { tenantContextService } from './tenantContextService';
+import { tenantContextService, applyTenantScope } from './tenantContextService';
 import { syncEntryFromCommercialOperation } from './chronologicalRegistryService';
 
 const OP_META_MARKER = '__RESIGEST_OP_META__:';
@@ -320,7 +320,7 @@ export const commercialOperationService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    const { data, error } = await supabase
+    const baseQuery = supabase
       .from('commercial_operations')
       .select(`
         *,
@@ -332,8 +332,9 @@ export const commercialOperationService = {
         cliente_comercial:companies!commercial_operations_cliente_comercial_id_fkey(*),
         identification_document:identification_documents(*)
       `)
-      .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('id', id);
+
+    const { data, error } = await applyTenantScope(baseQuery, user.id)
       .single();
 
     if (error) {
@@ -610,11 +611,12 @@ export const commercialOperationService = {
       payload.peligrosidad = 'peligroso';
     }
 
-    const { data: updated, error } = await supabase
+    const updateQuery = supabase
       .from('commercial_operations')
       .update(payload)
-      .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('id', id);
+
+    const { data: updated, error } = await applyTenantScope(updateQuery, user.id)
       .select()
       .single();
 
@@ -714,11 +716,12 @@ export const commercialOperationService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No hay usuario autenticado');
 
-    const { error } = await supabase
+    const deleteQuery = supabase
       .from('commercial_operations')
       .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id);
+
+    const { error } = await applyTenantScope(deleteQuery, user.id);
 
     if (error) {
       console.error('Error al eliminar operación comercial:', error);
@@ -738,8 +741,8 @@ export const commercialOperationService = {
   /**
    * Obtener métricas y KPIs agregados
    */
-  async getStats(año?: number): Promise<CommercialOperationStats> {
-    const ops = await this.getAll({ año });
+  async getStats(año?: number, companyId?: number | null): Promise<CommercialOperationStats> {
+    const ops = await this.getAll({ año, company_id: companyId });
 
     const stats: CommercialOperationStats = {
       total_operaciones: ops.length,
@@ -759,15 +762,19 @@ export const commercialOperationService = {
     };
 
     ops.forEach(op => {
+      if (stats.por_estado[op.estado] !== undefined) {
+        stats.por_estado[op.estado]++;
+      }
+
+      if (op.estado === 'cancelada' || op.estado === 'borrador') {
+        return;
+      }
+
       const ton = Number(op.cantidad_real_t && op.cantidad_real_t > 0 ? op.cantidad_real_t : op.cantidad_estimada_t) || 0;
       stats.toneladas_totales += ton;
       stats.facturacion_total += Number(op.ingreso_venta_total) || 0;
       stats.costes_totales += (Number(op.coste_compra_total) || 0) + (Number(op.coste_transporte) || 0) + (Number(op.otros_costes) || 0);
       stats.margen_bruto_total += Number(op.margen_bruto_total) || 0;
-
-      if (stats.por_estado[op.estado] !== undefined) {
-        stats.por_estado[op.estado]++;
-      }
     });
 
     stats.margen_medio_tonelada = stats.toneladas_totales > 0
@@ -923,10 +930,15 @@ export const commercialOperationService = {
     <Cell><Data ss:Type="String">Descripción Residuo</Data></Cell>
     <Cell><Data ss:Type="String">Toneladas</Data></Cell>
     <Cell><Data ss:Type="String">Proveedor Compra</Data></Cell>
+    <Cell><Data ss:Type="String">Modalidad Compra</Data></Cell>
+    <Cell><Data ss:Type="String">Precio Unitario Compra</Data></Cell>
     <Cell><Data ss:Type="String">Coste Compra (€)</Data></Cell>
     <Cell><Data ss:Type="String">Cliente Venta</Data></Cell>
+    <Cell><Data ss:Type="String">Modalidad Venta</Data></Cell>
+    <Cell><Data ss:Type="String">Precio Unitario Venta</Data></Cell>
     <Cell><Data ss:Type="String">Ingreso Venta (€)</Data></Cell>
     <Cell><Data ss:Type="String">Porte Transporte (€)</Data></Cell>
+    <Cell><Data ss:Type="String">Otros Costes (€)</Data></Cell>
     <Cell><Data ss:Type="String">Margen Bruto (€)</Data></Cell>
     <Cell><Data ss:Type="String">Margen (€/t)</Data></Cell>
    </Row>
@@ -985,28 +997,40 @@ export const commercialOperationService = {
           .single();
 
         if (clientCompany) {
-          // Si no tiene holded_contact_id, lo creamos
-          const contactName = clientCompany.razon_social || op.cliente_razon_social || 'Cliente Operación Comercial';
-          const vat = clientCompany.cif || op.cliente_cif || '';
+          if (clientCompany.holded_contact_id) {
+            contactId = clientCompany.holded_contact_id;
+          } else {
+            // Si no tiene holded_contact_id, lo creamos y lo guardamos para evitar duplicados
+            const contactName = clientCompany.razon_social || op.cliente_razon_social || 'Cliente Operación Comercial';
+            const vat = clientCompany.cif || op.cliente_cif || '';
 
-          try {
-            const createdContact = await holdedService.createContact({
-              name: contactName,
-              vatnumber: vat,
-              type: 'client',
-              email: clientCompany.email || undefined,
-              phone: clientCompany.telefono || undefined,
-              city: clientCompany.municipio_social || clientCompany.municipio_instalacion || clientCompany.municipio || undefined,
-              postalCode: clientCompany.codigo_postal_social || clientCompany.codigo_postal_instalacion || clientCompany.codigo_postal || undefined,
-              province: clientCompany.provincia_social || clientCompany.provincia_instalacion || clientCompany.provincia || undefined,
-              address: clientCompany.domicilio_social || clientCompany.domicilio_instalacion || clientCompany.direccion || undefined,
-            }, apiKey);
+            try {
+              const createdContact = await holdedService.createContact({
+                name: contactName,
+                vatnumber: vat,
+                type: 'client',
+                email: clientCompany.email || undefined,
+                phone: clientCompany.telefono || undefined,
+                city: clientCompany.municipio_social || clientCompany.municipio_instalacion || clientCompany.municipio || undefined,
+                postalCode: clientCompany.codigo_postal_social || clientCompany.codigo_postal_instalacion || clientCompany.codigo_postal || undefined,
+                province: clientCompany.provincia_social || clientCompany.provincia_instalacion || clientCompany.provincia || undefined,
+                address: clientCompany.domicilio_social || clientCompany.domicilio_instalacion || clientCompany.direccion || undefined,
+              }, apiKey);
 
-            if (createdContact?.id) {
-              contactId = createdContact.id;
+              if (createdContact?.id) {
+                contactId = createdContact.id;
+                try {
+                  await supabase
+                    .from('companies')
+                    .update({ holded_contact_id: createdContact.id })
+                    .eq('id', clientCompany.id);
+                } catch {
+                  // Best-effort persistencia de holded_contact_id
+                }
+              }
+            } catch (cErr) {
+              console.warn('Holded contact creation warning:', cErr);
             }
-          } catch (cErr) {
-            console.warn('Holded contact creation warning:', cErr);
           }
         }
       }
@@ -1054,14 +1078,22 @@ export const commercialOperationService = {
       const result = await holdedService.createInvoice(invoicePayload, apiKey);
       const invoiceRef = result?.docNumber || result?.id || `HOLDED-${Date.now()}`;
 
-      // 4. Actualizar referencia en commercial_operations
-      await supabase
+      // 4. Actualizar referencia en commercial_operations con aislamiento multi-tenant
+      let updateOpQuery: any = supabase
         .from('commercial_operations')
         .update({
           factura_venta_ref: invoiceRef,
           estado_cobro_venta: 'pendiente'
         })
         .eq('id', operationId);
+
+      if (op.user_id && typeof updateOpQuery.eq === 'function') {
+        updateOpQuery = updateOpQuery.eq('user_id', op.user_id);
+      }
+      const { error: updateOpError } = await updateOpQuery;
+      if (updateOpError) {
+        console.warn('Error al guardar referencia de factura Holded en la operación:', updateOpError);
+      }
 
       // 5. Registrar en audit_logs
       await auditService.logAction({

@@ -233,14 +233,15 @@ export async function updateMemoria(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay usuario autenticado');
 
-  const { data, error } = await supabase
+  const updateQuery = supabase
     .from('memorias_anuales')
     .update({
       ...updates,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', id)
-    .eq('user_id', user.id)
+    .eq('id', id);
+
+  const { data, error } = await applyTenantScope(updateQuery, user.id)
     .select()
     .single();
 
@@ -291,11 +292,12 @@ export async function deleteMemoria(id: number): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay usuario autenticado');
 
-  const { error } = await supabase
+  const deleteQuery = supabase
     .from('memorias_anuales')
     .delete()
-    .eq('id', id)
-    .eq('user_id', user.id);
+    .eq('id', id);
+
+  const { error } = await applyTenantScope(deleteQuery, user.id);
 
   if (error) {
     console.error('Error al eliminar memoria:', error);
@@ -352,11 +354,12 @@ export async function recalculateDraftMemoria(id: number): Promise<MemoriaAnual>
     updated_at: new Date().toISOString(),
   };
 
-  const { data: updated, error } = await supabase
+  const recalcQuery = supabase
     .from('memorias_anuales')
     .update(updates)
-    .eq('id', id)
-    .eq('user_id', user.id)
+    .eq('id', id);
+
+  const { data: updated, error } = await applyTenantScope(recalcQuery, user.id)
     .select()
     .single();
 
@@ -417,7 +420,9 @@ export async function generateExcelData(
       memoria.user_id,
       memoria.company_id,
       memoria.año,
-      memoria.production_center_id
+      memoria.production_center_id,
+      memoria.tipo_memoria,
+      memoria.nif_empresa
     );
   }
 
@@ -439,7 +444,20 @@ export async function generateExcelData(
             .gte('fecha', `${year}-01-01`)
             .lte('fecha', `${year}-12-31`);
           if (Array.isArray(regData)) {
-            registrosSalida = regData;
+            const docIds = new Set(documentos.filter((d) => d.id > 0).map((d) => d.id));
+            const docRefs = new Set(documentos.map((d) => d.numero_documento).filter(Boolean));
+            registrosSalida = regData.filter((reg: any) => {
+              if (reg.company_id && memoria.company_id && reg.company_id !== memoria.company_id) {
+                return false;
+              }
+              if (reg.identification_document_id && docIds.has(reg.identification_document_id)) {
+                return false;
+              }
+              if (reg.numero_documento_referencia && docRefs.has(reg.numero_documento_referencia)) {
+                return false;
+              }
+              return true;
+            });
           }
         }
       } catch {
@@ -656,10 +674,11 @@ export async function getStats(año?: number): Promise<{
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay usuario autenticado');
 
-  let query = supabase
+  const baseStatsQuery = supabase
     .from('memorias_anuales')
-    .select('*')
-    .eq('user_id', user.id);
+    .select('*');
+
+  let query = applyTenantScope(baseStatsQuery, user.id);
 
   if (año) {
     query = query.eq('año', año);

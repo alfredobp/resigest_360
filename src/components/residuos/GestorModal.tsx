@@ -170,7 +170,10 @@ export default function GestorModal({
         try {
             setSaving(true);
             if (gestor) {
-                await treatmentManagerService.update(gestor.id, formData);
+                await treatmentManagerService.update(gestor.id, formData, {
+                    source: gestor.source,
+                    companyId: gestor.company_id,
+                });
             } else {
                 await treatmentManagerService.create(formData);
             }

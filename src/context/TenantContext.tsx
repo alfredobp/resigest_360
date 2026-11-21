@@ -74,6 +74,13 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const switchCompany = useCallback(
     async (companyId: number) => {
       setActiveCompanyCookie(companyId);
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem('resigest_active_company_id', String(companyId));
+        } catch {
+          // Ignorar errores de acceso a localStorage en modo privado
+        }
+      }
       await refreshTenant();
     },
     [refreshTenant]
