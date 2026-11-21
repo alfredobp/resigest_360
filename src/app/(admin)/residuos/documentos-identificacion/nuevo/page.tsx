@@ -27,6 +27,7 @@ import { priorNotificationService } from '@/services/priorNotificationService';
 import type { IdentificationDocument, Company, WasteContract, ProductionCenter, WasteType, TreatmentManager, Carrier, PriorNotification } from '@/types/wasteManagement';
 import DatePicker from '@/components/form/date-picker';
 import LerSelector from '@/components/residuos/LerSelector';
+import TreatmentOperationSelector from '@/components/residuos/TreatmentOperationSelector';
 import { getProvinceByPostalCode } from '@/lib/validations/spainLocations';
 import { PHYSICAL_CONTAINER_CATALOG } from '@/lib/validations/normativeCompliance';
 import { useTenant } from '@/context/TenantContext';
@@ -1586,12 +1587,32 @@ function NuevoDocumentoIdentificacionContent() {
 
                 <div>
                   <label htmlFor="operacion_tratamiento" className="block text-sm font-medium mb-2">Operación de Tratamiento</label>
-                  <Input
+                  <TreatmentOperationSelector
                     id="operacion_tratamiento"
-                    type="text"
                     value={formData.operacion_tratamiento || ''}
-                    onChange={(e) => setFormData({ ...formData, operacion_tratamiento: e.target.value })}
-                    placeholder="Ej: R05, D01"
+                    onChange={(val) => setFormData({ ...formData, operacion_tratamiento: val })}
+                    codigoLer={formData.codigo_ler}
+                    contractOps={(() => {
+                      const sc = formData.contract_id
+                        ? contracts.find((c) => c.id === formData.contract_id)
+                        : undefined;
+                      if (!sc) return undefined;
+                      const ler = (formData.codigo_ler || '').trim();
+                      if (sc.contract_waste_codes && sc.contract_waste_codes.length > 0) {
+                        const matching = ler
+                          ? sc.contract_waste_codes.filter((wc) => wc.codigo_ler.trim() === ler)
+                          : sc.contract_waste_codes;
+                        return (matching.length > 0 ? matching : sc.contract_waste_codes)
+                          .map((wc) => wc.operacion_tratamiento)
+                          .filter(Boolean);
+                      }
+                      return sc.operaciones_tratamiento;
+                    })()}
+                    authorizedOps={
+                      destAuthScope && formData.codigo_ler
+                        ? destAuthScope.authorizedLers[formData.codigo_ler]
+                        : undefined
+                    }
                   />
                   {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler && destAuthScope.authorizedLers[formData.codigo_ler] && (
                     formData.operacion_tratamiento && !destAuthScope.authorizedLers[formData.codigo_ler].includes(formData.operacion_tratamiento.toUpperCase().trim()) ? (

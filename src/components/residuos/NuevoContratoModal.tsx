@@ -26,6 +26,7 @@ import type {
 } from '@/types/wasteManagement';
 import DatePicker from '../form/date-picker';
 import LerSelector from '@/components/residuos/LerSelector';
+import TreatmentOperationSelector from '@/components/residuos/TreatmentOperationSelector';
 
 const TIPOS_CONTRATO = [
   { value: 'tratamiento', label: 'Tratamiento' },
@@ -783,16 +784,22 @@ return (
                 />
               </div>
 
-              <div className="w-full md:w-32">
+              <div className="w-full md:w-44">
                 <Label className="text-xs mb-1" required>Operación R/D</Label>
-                <input
+                <TreatmentOperationSelector
                   id={`op_${idx}`}
                   name={`op_${idx}`}
-                  type="text"
-                  placeholder="R13"
                   value={item.operacion_tratamiento}
-                  onChange={(e) => {
-                    const val = e.target.value.toUpperCase();
+                  codigoLer={item.codigo_ler}
+                  authorizedOps={
+                    destAuthScope && item.codigo_ler
+                      ? destAuthScope.authorizedLers[item.codigo_ler.trim()]
+                      : undefined
+                  }
+                  compact
+                  showHint={false}
+                  error={Boolean(fieldErrors[`op_${idx}`])}
+                  onChange={(val) => {
                     setContractWasteCodes((prev) => {
                       const copy = [...prev];
                       copy[idx] = { ...copy[idx], operacion_tratamiento: val };
@@ -800,8 +807,6 @@ return (
                     });
                     clearFieldError(`op_${idx}`);
                   }}
-                  className={`h-10 w-full px-3 text-sm rounded-lg border bg-white dark:bg-dark shadow-xs focus:border-primary ${fieldErrors[`op_${idx}`] ? 'border-error-500' : 'border-stroke'
-                    }`}
                 />
                 {fieldErrors[`op_${idx}`] && (
                   <p className="mt-1 text-xs text-error-500 font-medium flex items-center gap-1">
