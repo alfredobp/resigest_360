@@ -71,6 +71,14 @@ interface ProfileKpisProps {
   canViewCommercial: boolean;
 }
 
+function formatWeightLabel(tonnes?: number): string {
+  const val = Number(tonnes) || 0;
+  if (val > 0 && val < 1) {
+    return `${(val * 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 })} kg`;
+  }
+  return `${val.toFixed(2)} t`;
+}
+
 export function ProfileKpiGrid({ profile, data, canViewCommercial }: ProfileKpisProps) {
   const { residuos, comercial, planta, alertas } = data;
   const plantaStats = planta || {
@@ -124,7 +132,7 @@ export function ProfileKpiGrid({ profile, data, canViewCommercial }: ProfileKpis
               <div className="pt-2 border-t border-gray-100 dark:border-gray-800 text-[11px] text-gray-500">
                 <span>Archivo Cronológico (Art. 64): </span>
                 <span className="font-semibold text-gray-800 dark:text-gray-200">
-                  {residuos.toneladasArchivoCronologico?.toFixed(2)} t ({residuos.totalAsientosArchivo} asientos)
+                  {formatWeightLabel(residuos.toneladasArchivoCronologico)} ({residuos.totalAsientosArchivo} asientos)
                 </span>
               </div>
             )}
@@ -314,25 +322,31 @@ export function ProfileKpiGrid({ profile, data, canViewCommercial }: ProfileKpis
             <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Residuos Gestionados</span>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-extrabold text-gray-900 dark:text-white">
-                {residuos.totalToneladas.toFixed(2)}
+                {residuos.totalToneladas > 0 && residuos.totalToneladas < 1
+                  ? `${(residuos.totalToneladas * 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 })} kg`
+                  : residuos.totalToneladas.toFixed(2)}
               </span>
-              <span className="text-xs font-medium text-gray-500">toneladas netas</span>
+              <span className="text-xs font-medium text-gray-500">
+                {residuos.totalToneladas > 0 && residuos.totalToneladas < 1
+                  ? `(${residuos.totalToneladas.toFixed(3)} t)`
+                  : 'toneladas netas'}
+              </span>
             </div>
             <div className="pt-2 border-t border-gray-100 dark:border-gray-800 grid grid-cols-2 gap-2 text-[11px]">
               <div>
                 <span className="text-amber-600 dark:text-amber-400 font-semibold">Peligrosos:</span>
-                <p className="font-bold text-gray-800 dark:text-gray-200">{residuos.toneladasPeligrosas.toFixed(2)} t</p>
+                <p className="font-bold text-gray-800 dark:text-gray-200">{formatWeightLabel(residuos.toneladasPeligrosas)}</p>
               </div>
               <div>
                 <span className="text-emerald-600 dark:text-emerald-400 font-semibold">No Peligrosos:</span>
-                <p className="font-bold text-gray-800 dark:text-gray-200">{residuos.toneladasNoPeligrosas.toFixed(2)} t</p>
+                <p className="font-bold text-gray-800 dark:text-gray-200">{formatWeightLabel(residuos.toneladasNoPeligrosas)}</p>
               </div>
             </div>
             {typeof residuos.totalAsientosArchivo === 'number' && residuos.totalAsientosArchivo > 0 && (
               <div className="pt-2 border-t border-gray-100 dark:border-gray-800 text-[11px] text-gray-500">
                 <span>Archivo Cronológico (Art. 64): </span>
                 <span className="font-semibold text-gray-800 dark:text-gray-200">
-                  {residuos.toneladasArchivoCronologico?.toFixed(2)} t ({residuos.totalAsientosArchivo} asientos)
+                  {formatWeightLabel(residuos.toneladasArchivoCronologico)} ({residuos.totalAsientosArchivo} asientos)
                 </span>
               </div>
             )}
@@ -344,15 +358,15 @@ export function ProfileKpiGrid({ profile, data, canViewCommercial }: ProfileKpis
             <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Entradas / Salidas</span>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">
-                {plantaStats.entradasToneladas.toFixed(2)} t
+                {formatWeightLabel(plantaStats.entradasToneladas)}
               </span>
               <span className="text-xs font-medium text-gray-500">
-                / {plantaStats.salidasToneladas.toFixed(2)} t
+                / {formatWeightLabel(plantaStats.salidasToneladas)}
               </span>
             </div>
             <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[11px]">
               <span className="text-gray-500">Existencias estimadas:</span>
-              <span className="font-bold text-gray-800 dark:text-gray-200">{plantaStats.existenciasToneladas.toFixed(2)} t</span>
+              <span className="font-bold text-gray-800 dark:text-gray-200">{formatWeightLabel(plantaStats.existenciasToneladas)}</span>
             </div>
           </div>
         </ComponentCard>
@@ -480,18 +494,24 @@ export function ProfileKpiGrid({ profile, data, canViewCommercial }: ProfileKpis
           <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Residuos Gestionados</span>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-extrabold text-gray-900 dark:text-white">
-              {residuos.totalToneladas.toFixed(2)}
+              {residuos.totalToneladas > 0 && residuos.totalToneladas < 1
+                ? `${(residuos.totalToneladas * 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 })} kg`
+                : residuos.totalToneladas.toFixed(2)}
             </span>
-            <span className="text-xs font-medium text-gray-500">toneladas netas</span>
+            <span className="text-xs font-medium text-gray-500">
+              {residuos.totalToneladas > 0 && residuos.totalToneladas < 1
+                ? `(${residuos.totalToneladas.toFixed(3)} t)`
+                : 'toneladas netas'}
+            </span>
           </div>
           <div className="pt-2 border-t border-gray-100 dark:border-gray-800 grid grid-cols-2 gap-2 text-[11px]">
             <div>
               <span className="text-amber-600 dark:text-amber-400 font-semibold">Peligrosos:</span>
-              <p className="font-bold text-gray-800 dark:text-gray-200">{residuos.toneladasPeligrosas.toFixed(2)} t</p>
+              <p className="font-bold text-gray-800 dark:text-gray-200">{formatWeightLabel(residuos.toneladasPeligrosas)}</p>
             </div>
             <div>
               <span className="text-emerald-600 dark:text-emerald-400 font-semibold">No Peligrosos:</span>
-              <p className="font-bold text-gray-800 dark:text-gray-200">{residuos.toneladasNoPeligrosas.toFixed(2)} t</p>
+              <p className="font-bold text-gray-800 dark:text-gray-200">{formatWeightLabel(residuos.toneladasNoPeligrosas)}</p>
             </div>
           </div>
         </div>
