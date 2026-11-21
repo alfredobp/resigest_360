@@ -585,7 +585,12 @@ export default function DocumentosIdentificacionPage() {
         {/* Cabecera de Lista y Selector de Vista */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
           <div className="text-sm font-semibold text-foreground">
-            {filteredDocuments.length} documento{filteredDocuments.length === 1 ? '' : 's'} {filterStatus !== 'all' || filterCenter !== 'all' ? 'filtrado' : 'en total'}{filteredDocuments.length === 1 ? '' : 's'}
+            {filteredDocuments.length} documento{filteredDocuments.length === 1 ? '' : 's'}{' '}
+            {filterStatus !== 'all' || filterCenter !== 'all'
+              ? filteredDocuments.length === 1
+                ? 'filtrado'
+                : 'filtrados'
+              : 'en total'}
           </div>
 
           <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl border border-gray-200 dark:border-gray-700">
