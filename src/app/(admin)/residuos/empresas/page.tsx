@@ -68,14 +68,18 @@ function EmpresasContent() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [companiesData, authsData] = await Promise.all([
+      const [companiesData, myCompany, authsData] = await Promise.all([
         companyService.getAllContacts(),
+        companyService.getUserCompany().catch(() => null),
         authorizationService.getAll().catch((err) => {
           console.warn('Error al cargar autorizaciones:', err);
           return [] as EnvironmentalAuthorization[];
         }),
       ]);
-      setCompanies(companiesData);
+      const directoryContacts = companiesData.filter(
+        (c) => !c.is_my_company && (!myCompany || c.id !== myCompany.id)
+      );
+      setCompanies(directoryContacts);
       setAuthorizations(authsData);
     } catch (err: any) {
       setError(err.message || 'Error al cargar empresas');
@@ -122,6 +126,11 @@ function EmpresasContent() {
       return company.roles;
     }
     return company.tipo_empresa ? [company.tipo_empresa as CompanyRole] : ['productor'];
+  };
+
+  const supportsAuthorizations = (company: Company): boolean => {
+    const roles = getCompanyRoles(company);
+    return roles.includes('gestor') || roles.includes('transportista');
   };
 
   // Filtrado combinado por texto y rol
@@ -281,6 +290,7 @@ function EmpresasContent() {
             {filteredCompanies.map((company) => {
               const roles = getCompanyRoles(company);
               const companyAuths = authorizations.filter(a => a.company_id === company.id);
+              const showAuthorizations = supportsAuthorizations(company) || companyAuths.length > 0;
               const isExpanded = Boolean(expandedAuthCompanyIds[company.id]);
 
               return (
@@ -375,7 +385,8 @@ function EmpresasContent() {
                         </p>
                       )}
 
-                      {/* Indicador / Desplegable de Autorizaciones Ambientales */}
+                      {/* Indicador / Desplegable de Autorizaciones Ambientales (solo Gestor / Transportista) */}
+                      {showAuthorizations && (
                       <div className="pt-2.5 mt-2 border-t border-gray-100 dark:border-gray-800">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <button
@@ -546,6 +557,7 @@ function EmpresasContent() {
                           </div>
                         )}
                       </div>
+                      )}
                     </div>
 
                     {/* Acciones */}
@@ -561,25 +573,27 @@ function EmpresasContent() {
                         Editar Ficha
                       </Button>
 
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (companyAuths.length > 0) {
-                            setExpandedAuthCompanyIds(prev => ({
-                              ...prev,
-                              [company.id]: true
-                            }));
-                          } else {
-                            setSelectedCompanyForAuth(company);
-                            setEditingAuth(null);
-                            setIsAuthModalOpen(true);
-                          }
-                        }}
-                        className="border-brand-200 text-brand-700 hover:bg-brand-50 dark:border-brand-800 dark:text-brand-300"
-                      >
-                        Autorizaciones {companyAuths.length > 0 && `(${companyAuths.length})`}
-                      </Button>
+                      {showAuthorizations && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (companyAuths.length > 0) {
+                              setExpandedAuthCompanyIds(prev => ({
+                                ...prev,
+                                [company.id]: true
+                              }));
+                            } else {
+                              setSelectedCompanyForAuth(company);
+                              setEditingAuth(null);
+                              setIsAuthModalOpen(true);
+                            }
+                          }}
+                          className="border-brand-200 text-brand-700 hover:bg-brand-50 dark:border-brand-800 dark:text-brand-300"
+                        >
+                          Autorizaciones {companyAuths.length > 0 && `(${companyAuths.length})`}
+                        </Button>
+                      )}
 
                       {!company.is_my_company && (
                         <Button

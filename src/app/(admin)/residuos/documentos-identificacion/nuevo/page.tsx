@@ -40,9 +40,7 @@ import { PHYSICAL_CONTAINER_CATALOG } from '@/lib/validations/normativeComplianc
     const [myCompany, setMyCompany] = useState<Company | null>(null);
     const [productionCenters, setProductionCenters] = useState<ProductionCenter[]>([]);
     const [contracts, setContracts] = useState<WasteContract[]>([]);
-    const [gestores, setGestores] = useState<Company[]>([]);
     const [internalGestores, setInternalGestores] = useState<TreatmentManager[]>([]);
-    const [transportistas, setTransportistas] = useState<Company[]>([]);
     const [internalCarriers, setInternalCarriers] = useState<Carrier[]>([]);
     const [wasteTypes, setWasteTypes] = useState<WasteType[]>([]);
     const [allContacts, setAllContacts] = useState<Company[]>([]);
@@ -152,17 +150,13 @@ import { PHYSICAL_CONTAINER_CATALOG } from '@/lib/validations/normativeComplianc
         setContracts(validContracts);
 
         // Cargar gestores, transportistas, contactos unificados y notificaciones previas
-        const [gestoresData, internalData, transportistasData, internalCarriersData, contactsData, ntsData] = await Promise.all([
-          companyService.getByType('gestor'),
+        const [internalData, internalCarriersData, contactsData, ntsData] = await Promise.all([
           treatmentManagerService.getAll(),
-          companyService.getByType('transportista'),
           carrierService.getAll(),
           companyService.getAllContacts(),
           priorNotificationService.getAll().catch(() => []),
         ]);
-        setGestores(gestoresData);
         setInternalGestores(internalData);
-        setTransportistas(transportistasData);
         setInternalCarriers(internalCarriersData);
         setAllContacts(contactsData);
         setPriorNotifications(ntsData || []);
@@ -480,29 +474,6 @@ import { PHYSICAL_CONTAINER_CATALOG } from '@/lib/validations/normativeComplianc
       }
     };
 
-    const handleGestorChange = (gestorId: string) => {
-      const gestor = gestores.find(g => g.id === parseInt(gestorId));
-      if (gestor) {
-        const gCp = gestor.codigo_postal_instalacion || gestor.codigo_postal_social || (gestor as any).codigo_postal || '';
-        const gMuni = gestor.municipio_instalacion || gestor.municipio_social || (gestor as any).municipio || '';
-        const gProv = gestor.provincia_instalacion || gestor.provincia_social || (gestor as any).provincia || (gCp ? getProvinceByPostalCode(gCp) : '') || '';
-        const gDir = gestor.domicilio_instalacion || gestor.domicilio_social || (gestor as any).direccion || '';
-
-        setFormData(prev => ({
-          ...prev,
-          gestor_razon_social: gestor.razon_social,
-          gestor_cif: gestor.cif,
-          gestor_nima: gestor.nima || '',
-          gestor_numero_autorizacion: gestor.numero_inscripcion || gestor.numero_autorizacion || '',
-          gestor_direccion: gDir,
-          gestor_codigo_postal: gCp,
-          gestor_municipio: gMuni,
-          gestor_provincia: gProv,
-          gestor_telefono: gestor.telefono || '',
-        }));
-      }
-    };
-
     const handleInternalGestorChange = (gestorId: string) => {
       const gestor = internalGestores.find(g => g.id === parseInt(gestorId));
       if (gestor) {
@@ -519,29 +490,6 @@ import { PHYSICAL_CONTAINER_CATALOG } from '@/lib/validations/normativeComplianc
           gestor_municipio: gestor.municipio || '',
           gestor_provincia: gProv,
           gestor_telefono: gestor.telefono || '',
-        }));
-      }
-    };
-
-    const handleTransportistaChange = (transportistaId: string) => {
-      const transportista = transportistas.find(t => t.id === parseInt(transportistaId));
-      if (transportista) {
-        const tCp = transportista.codigo_postal_instalacion || transportista.codigo_postal_social || (transportista as any).codigo_postal || '';
-        const tMuni = transportista.municipio_instalacion || transportista.municipio_social || (transportista as any).municipio || '';
-        const tProv = transportista.provincia_instalacion || transportista.provincia_social || (transportista as any).provincia || (tCp ? getProvinceByPostalCode(tCp) : '') || '';
-        const tDir = transportista.domicilio_instalacion || transportista.domicilio_social || (transportista as any).direccion || '';
-
-        setFormData(prev => ({
-          ...prev,
-          transportista_razon_social: transportista.razon_social,
-          transportista_cif: transportista.cif,
-          transportista_nima: transportista.nima || '',
-          transportista_numero_inscripcion: transportista.numero_inscripcion || transportista.numero_autorizacion || '',
-          transportista_direccion: tDir,
-          transportista_codigo_postal: tCp,
-          transportista_municipio: tMuni,
-          transportista_provincia: tProv,
-          transportista_telefono: transportista.telefono || '',
         }));
       }
     };
@@ -1050,37 +998,20 @@ import { PHYSICAL_CONTAINER_CATALOG } from '@/lib/validations/normativeComplianc
                     ✓ El gestor destinatario receptor es <span className="font-semibold">{myCompany?.razon_social}</span>. Los datos se han completado con la ficha de tu empresa.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="internal_gestor_select" className="block text-sm font-medium mb-2">Mis Gestores Internos</label>
-                      <Select
-                        options={[
-                          { value: '', label: '-- Seleccionar --' },
-                          ...internalGestores.map(g => ({
-                            value: g.id.toString(),
-                            label: `${g.nombre} (${g.razon_social})`,
-                          })),
-                        ]}
-                        defaultValue=""
-                        onChange={(value) => handleInternalGestorChange(value)}
-                        placeholder="Selecciona uno de tus gestores"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="gestor_select" className="block text-sm font-medium mb-2">Gestores Públicos</label>
-                      <Select
-                        options={[
-                          { value: '', label: '-- Seleccionar --' },
-                          ...gestores.map(g => ({
-                            value: g.id.toString(),
-                            label: `${g.razon_social} - ${g.cif}`,
-                          })),
-                        ]}
-                        defaultValue=""
-                        onChange={(value) => handleGestorChange(value)}
-                        placeholder="Selecciona un gestor público"
-                      />
-                    </div>
+                  <div>
+                    <label htmlFor="internal_gestor_select" className="block text-sm font-medium mb-2">Mis Gestores</label>
+                    <Select
+                      options={[
+                        { value: '', label: '-- Seleccionar --' },
+                        ...internalGestores.map(g => ({
+                          value: g.id.toString(),
+                          label: `${g.nombre} (${g.razon_social})`,
+                        })),
+                      ]}
+                      defaultValue=""
+                      onChange={(value) => handleInternalGestorChange(value)}
+                      placeholder="Selecciona uno de tus gestores"
+                    />
                   </div>
                 )}
 
@@ -1231,37 +1162,20 @@ import { PHYSICAL_CONTAINER_CATALOG } from '@/lib/validations/normativeComplianc
             {/* Transportista (Opcional) */}
             <ComponentCard title="Transportista (Opcional)">
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="internal_carrier_select" className="block text-sm font-medium mb-2">Mis Transportistas Internos</label>
-                    <Select
-                      options={[
-                        { value: '', label: '-- Seleccionar --' },
-                        ...internalCarriers.map(c => ({
-                          value: c.id.toString(),
-                          label: `${c.razon_social} - ${c.cif}${c.matricula ? ` (${c.matricula})` : ''}`,
-                        })),
-                      ]}
-                      defaultValue=""
-                      onChange={(value) => handleInternalCarrierChange(value)}
-                      placeholder="Selecciona uno de tus transportistas"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="transportista_select" className="block text-sm font-medium mb-2">Transportistas Públicos</label>
-                    <Select
-                      options={[
-                        { value: '', label: '-- Seleccionar --' },
-                        ...transportistas.map(t => ({
-                          value: t.id.toString(),
-                          label: `${t.razon_social} - ${t.cif}`,
-                        })),
-                      ]}
-                      defaultValue=""
-                      onChange={(value) => handleTransportistaChange(value)}
-                      placeholder="Selecciona un transportista público"
-                    />
-                  </div>
+                <div>
+                  <label htmlFor="internal_carrier_select" className="block text-sm font-medium mb-2">Mis Transportistas</label>
+                  <Select
+                    options={[
+                      { value: '', label: '-- Seleccionar --' },
+                      ...internalCarriers.map(c => ({
+                        value: c.id.toString(),
+                        label: `${c.razon_social} - ${c.cif}${c.matricula ? ` (${c.matricula})` : ''}`,
+                      })),
+                    ]}
+                    defaultValue=""
+                    onChange={(value) => handleInternalCarrierChange(value)}
+                    placeholder="Selecciona uno de tus transportistas"
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

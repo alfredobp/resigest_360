@@ -8,12 +8,15 @@ import Input from '@/components/form/input/InputField';
 import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFields';
 import TextArea from '@/components/form/input/TextArea';
 import Button from '@/components/ui/button/Button';
+import Badge from '@/components/ui/badge/Badge';
 import ImageUpload from '@/components/common/ImageUpload';
 import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
+import AutorizacionModal from '@/components/residuos/AutorizacionModal';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
+import authorizationService from '@/services/authorizationService';
 import { useTenant } from '@/context/TenantContext';
 import {
   ALL_MODULES,
@@ -28,12 +31,13 @@ import type {
   AppModule,
   Company,
   CompanyFormData,
+  EnvironmentalAuthorization,
   OperationalProfile,
   ProductionCenter,
   ProductionCenterFormData,
 } from '@/types/wasteManagement';
 
-type ActiveTab = 'identidad' | 'sedes' | 'integraciones';
+type ActiveTab = 'identidad' | 'sedes' | 'integraciones' | 'autorizaciones';
 
 const TIPOS_EMPRESA: Array<{
   value: NonNullable<CompanyFormData['tipo_empresa']>;
@@ -69,6 +73,10 @@ export default function MiEmpresaPage() {
   const [saving, setSaving] = useState(false);
   const [company, setCompany] = useState<Company | null>(null);
   const [productionCenters, setProductionCenters] = useState<ProductionCenter[]>([]);
+  const [authorizations, setAuthorizations] = useState<EnvironmentalAuthorization[]>([]);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [editingAuth, setEditingAuth] = useState<EnvironmentalAuthorization | null>(null);
+  const [authToDelete, setAuthToDelete] = useState<{ id: number; numero: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [sameInstallationAddress, setSameInstallationAddress] = useState(true);
@@ -171,8 +179,12 @@ export default function MiEmpresaPage() {
           holded_api_key: data.holded_api_key || '',
         });
 
-        const centers = await productionCenterService.getByCompanyId(data.id);
+        const [centers, auths] = await Promise.all([
+          productionCenterService.getByCompanyId(data.id),
+          authorizationService.getByCompany(data.id).catch(() => [] as EnvironmentalAuthorization[]),
+        ]);
         setProductionCenters(centers);
+        setAuthorizations(auths);
       }
     } catch (err: any) {
       setError(err.message);
@@ -384,6 +396,41 @@ export default function MiEmpresaPage() {
     }
   };
 
+  const confirmDeleteAuth = async () => {
+    if (!authToDelete) return;
+    try {
+      await authorizationService.delete(authToDelete.id);
+      setAuthorizations((prev) => prev.filter((a) => a.id !== authToDelete.id));
+      const msg = `Autorización "${authToDelete.numero}" eliminada correctamente.`;
+      setSuccess(msg);
+      toast.success(msg);
+      setAuthToDelete(null);
+    } catch (err: any) {
+      setError(err.message);
+      toast.error(`Error al eliminar autorización: ${err.message}`);
+    }
+  };
+
+  const reloadAuthorizations = async () => {
+    if (!company) return;
+    try {
+      const auths = await authorizationService.getByCompany(company.id);
+      setAuthorizations(auths);
+    } catch {
+      // mantener estado actual si falla
+    }
+  };
+
+  const isGestorOrTransportista = Boolean(
+    formData.tipo_empresa === 'gestor' ||
+    formData.tipo_empresa === 'transportista' ||
+    formData.roles?.includes('gestor') ||
+    formData.roles?.includes('transportista') ||
+    company?.roles?.includes('gestor') ||
+    company?.roles?.includes('transportista')
+  );
+  const showAuthorizationsTab = Boolean(company && (isGestorOrTransportista || authorizations.length > 0));
+
   const cifTrimmed = formData.cif.trim();
   const isCifValid = cifTrimmed !== '' && companyService.validateCIF(cifTrimmed);
   const nimaTrimmed = (formData.nima || '').trim();
@@ -488,6 +535,25 @@ export default function MiEmpresaPage() {
               </span>
             )}
           </button>
+
+          {showAuthorizationsTab && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('autorizaciones')}
+              className={`pb-3.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                activeTab === 'autorizaciones'
+                  ? 'border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+            >
+              <span>Autorizaciones Ambientales</span>
+              {authorizations.length > 0 && (
+                <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                  {authorizations.length}
+                </span>
+              )}
+            </button>
+          )}
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -978,10 +1044,11 @@ export default function MiEmpresaPage() {
           )}
 
 {/* Barra de Acciones del Formulario Principal */}
+          {activeTab !== 'autorizaciones' && (
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-xs text-gray-500 dark:text-gray-400">
               {canManageCompany
-                ? 'Los cambios realizados en cualquiera de las 3 pestañas se guardan conjuntamente.'
+                ? 'Los cambios realizados en cualquiera de las pestañas de ficha se guardan conjuntamente.'
                 : 'Modo de consulta: no tienes permisos para modificar los datos fiscales de esta empresa.'}
             </div>
             <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
@@ -1000,7 +1067,159 @@ export default function MiEmpresaPage() {
               )}
             </div>
           </div>
+          )}
         </form>
+
+        {/* =========================================================
+            PESTAÑA 4: AUTORIZACIONES AMBIENTALES (Solo Gestor / Transportista)
+        ========================================================= */}
+        {activeTab === 'autorizaciones' && company && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-foreground">Autorizaciones Ambientales</h2>
+                <p className="text-xs text-muted mt-0.5">
+                  Resoluciones administrativas, códigos LER autorizados y operaciones de tratamiento/transporte de tu empresa.
+                </p>
+              </div>
+              {canWrite && (
+                <Button
+                  onClick={() => {
+                    setEditingAuth(null);
+                    setIsAuthModalOpen(true);
+                  }}
+                >
+                  + Nueva Autorización
+                </Button>
+              )}
+            </div>
+
+            {authorizations.length === 0 ? (
+              <ComponentCard title="Sin autorizaciones registradas">
+                <div className="text-center py-8">
+                  <p className="text-sm text-muted">
+                    Todavía no has dado de alta ninguna autorización ambiental para tu empresa.
+                  </p>
+                  {canWrite && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-4"
+                      onClick={() => {
+                        setEditingAuth(null);
+                        setIsAuthModalOpen(true);
+                      }}
+                    >
+                      + Dar de alta primera autorización
+                    </Button>
+                  )}
+                </div>
+              </ComponentCard>
+            ) : (
+              <div className="space-y-3">
+                {authorizations.map((auth) => {
+                  const numLers = auth.waste_codes?.length || 0;
+                  const isExpired = !auth.es_indefinida && auth.fecha_vencimiento && new Date(auth.fecha_vencimiento) < new Date();
+                  const daysToExpire = !auth.es_indefinida && auth.fecha_vencimiento
+                    ? Math.ceil((new Date(auth.fecha_vencimiento).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+                    : null;
+                  const isExpiringSoon = daysToExpire !== null && daysToExpire >= 0 && daysToExpire <= 60;
+
+                  return (
+                    <div
+                      key={auth.id}
+                      className="p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col sm:flex-row sm:items-start justify-between gap-4 text-xs"
+                    >
+                      <div className="space-y-2 flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono font-bold text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700">
+                            Nº {auth.numero_autorizacion}
+                          </span>
+                          <span className="font-semibold text-sm text-gray-800 dark:text-gray-200">
+                            {auth.titulo}
+                          </span>
+                          {auth.es_indefinida ? (
+                            <Badge color="success" size="sm">Vigencia Indefinida</Badge>
+                          ) : isExpired ? (
+                            <Badge color="error" size="sm">Caducada ({auth.fecha_vencimiento})</Badge>
+                          ) : isExpiringSoon ? (
+                            <Badge color="warning" size="sm">Vence pronto ({auth.fecha_vencimiento})</Badge>
+                          ) : (
+                            <Badge color="primary" size="sm">Vence: {auth.fecha_vencimiento}</Badge>
+                          )}
+                          <span className="inline-flex items-center text-[11px] font-semibold text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/60 px-2 py-0.5 rounded-full border border-brand-200 dark:border-brand-800">
+                            {numLers} {numLers === 1 ? 'código LER autorizado' : 'códigos LER autorizados'}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted text-[11px]">
+                          {auth.organismo_emisor && (
+                            <span><strong>Organismo:</strong> {auth.organismo_emisor}</span>
+                          )}
+                          {auth.fecha_emision && (
+                            <span><strong>Emisión:</strong> {auth.fecha_emision}</span>
+                          )}
+                          {auth.production_center && (
+                            <span><strong>Instalación:</strong> {auth.production_center.nombre}</span>
+                          )}
+                        </div>
+
+                        {auth.waste_codes && auth.waste_codes.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                            {auth.waste_codes.slice(0, 12).map((wc, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 font-mono text-[11px] text-gray-700 dark:text-gray-300"
+                                title={wc.descripcion_ler || undefined}
+                              >
+                                <span className={wc.codigo_ler.includes('*') ? 'text-red-600 font-bold' : ''}>
+                                  {wc.codigo_ler}
+                                </span>
+                                {wc.operaciones_tratamiento && wc.operaciones_tratamiento.length > 0 && (
+                                  <span className="text-brand-600 dark:text-brand-400 text-[10px] font-semibold">
+                                    ({wc.operaciones_tratamiento.join(',')})
+                                  </span>
+                                )}
+                              </span>
+                            ))}
+                            {auth.waste_codes.length > 12 && (
+                              <span className="text-[11px] text-muted italic">
+                                +{auth.waste_codes.length - 12} más...
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {canWrite && (
+                        <div className="flex sm:flex-col gap-1.5 shrink-0 self-end sm:self-start">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-[11px] py-1 px-2.5 h-auto"
+                            onClick={() => {
+                              setEditingAuth(auth);
+                              setIsAuthModalOpen(true);
+                            }}
+                          >
+                            Editar
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => setAuthToDelete({ id: auth.id, numero: auth.numero_autorizacion })}
+                            className="text-[11px] text-red-600 hover:text-red-700 hover:underline px-2 py-0.5 text-center"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Centros de Producción Adicionales (Visible en la Pestaña 2: Domicilios y Centros) */}
         {activeTab === 'sedes' && company && (
@@ -1167,12 +1386,36 @@ export default function MiEmpresaPage() {
           </div>
         )}
 
+        {company && (
+          <AutorizacionModal
+            isOpen={isAuthModalOpen}
+            onClose={() => setIsAuthModalOpen(false)}
+            onSuccess={() => {
+              reloadAuthorizations();
+              const msg = 'Autorización ambiental guardada correctamente.';
+              setSuccess(msg);
+              toast.success(msg);
+            }}
+            company={company}
+            centers={productionCenters}
+            authorizationToEdit={editingAuth}
+          />
+        )}
+
         <ConfirmModal
           isOpen={centerToDelete !== null}
           onClose={() => setCenterToDelete(null)}
           onConfirm={confirmDeleteCenter}
           title="Eliminar centro de producción"
           message="¿Estás seguro de que deseas eliminar este centro de producción? Esta acción no se puede deshacer."
+        />
+
+        <ConfirmModal
+          isOpen={Boolean(authToDelete)}
+          onClose={() => setAuthToDelete(null)}
+          onConfirm={confirmDeleteAuth}
+          title="Eliminar autorización ambiental"
+          message={`¿Estás seguro de que deseas eliminar la autorización "${authToDelete?.numero || ''}"? Esta acción no se puede deshacer.`}
         />
       </div>
     </>
