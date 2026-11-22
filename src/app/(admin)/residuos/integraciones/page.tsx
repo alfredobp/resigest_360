@@ -123,9 +123,12 @@ export default function IntegracionesAuditoriaPage() {
 
   return (
     <>
-      <PageBreadCrumb pageTitle="Integraciones y Auditoría Oficial" />
-
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto space-y-5">
+        <PageBreadCrumb
+          pageTitle="Integraciones y Auditoría"
+          title="Integraciones y Auditoría Oficial"
+          className="mb-0"
+        />
         {/* Banner de Notificaciones */}
         {notification && (
           <Alert

@@ -307,30 +307,26 @@ function EmpresasContent() {
 
   return (
     <>
-      <PageBreadCrumb pageTitle="Empresas y Contactos" />
-
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-foreground">
-              Directorio de Empresas y Contactos
-            </h2>
-            <p className="text-sm text-muted mt-0.5">
-              Gestión unificada de gestores, transportistas, productores, clientes y proveedores sin duplicidades de CIF.
-            </p>
-          </div>
-          {canWrite && (
-            <Button
-              onClick={() => {
-                setEditingCompany(null);
-                setIsModalOpen(true);
-              }}
-            >
-              + Nueva Empresa / Contacto
-            </Button>
-          )}
-        </div>
+      <div className="max-w-6xl mx-auto space-y-5">
+        <PageBreadCrumb
+          pageTitle="Empresas y Contactos"
+          title="Directorio de Empresas y Contactos"
+          subtitle="Gestión unificada de gestores, transportistas, productores, clientes y proveedores sin duplicidades de CIF."
+          className="mb-0"
+          actions={
+            canWrite ? (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditingCompany(null);
+                  setIsModalOpen(true);
+                }}
+              >
+                + Nueva Empresa / Contacto
+              </Button>
+            ) : undefined
+          }
+        />
 
         {error && (
           <Alert variant="error" title="Error" message={error} />

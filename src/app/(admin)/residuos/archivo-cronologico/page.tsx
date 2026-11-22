@@ -475,65 +475,59 @@ export default function ArchivoCronologicoPage() {
   ], []);
 
   return (
-    <div className="space-y-6">
-      <PageBreadCrumb pageTitle="Archivo Cronológico" />
-      {/* Encabezado Principal */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-              Archivo Cronológico de Residuos
-            </h1>
-            <Badge variant="light" color="success">
-              Art. 64 Ley 7/2022
-            </Badge>
-          </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Registro cronológico obligatorio de operaciones de producción y gestión de residuos. Custodia legal obligatoria de 5 años.
-          </p>
-        </div>
+    <div className="space-y-5">
+      <PageBreadCrumb
+        pageTitle="Archivo Cronológico"
+        title="Archivo Cronológico de Residuos"
+        subtitle="Registro cronológico obligatorio de operaciones de producción y gestión de residuos. Custodia legal obligatoria de 5 años."
+        badge={
+          <Badge variant="light" color="success">
+            Art. 64 Ley 7/2022
+          </Badge>
+        }
+        className="mb-0"
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSyncDIs}
+              disabled={syncing}
+              className="text-slate-700 hover:text-slate-900 font-medium"
+            >
+              {syncing ? 'Sincronizando DIs...' : 'Sincronizar DIs'}
+            </Button>
 
-        {/* Acciones Superiores */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSyncDIs}
-            disabled={syncing}
-            className="text-slate-700 hover:text-slate-900 font-medium"
-          >
-            {syncing ? 'Sincronizando DIs...' : 'Sincronizar DIs'}
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exportChronologicalToExcelXML(entries)}
+              disabled={entries.length === 0}
+              className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400 font-medium"
+            >
+              Excel (.xls)
+            </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => exportChronologicalToExcelXML(entries)}
-            disabled={entries.length === 0}
-            className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400 font-medium"
-          >
-            Excel (.xls)
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exportChronologicalToCSV(entries)}
+              disabled={entries.length === 0}
+              className="text-slate-700 hover:text-slate-900 hover:bg-slate-50 dark:text-slate-300 font-medium"
+            >
+              CSV Art. 64
+            </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => exportChronologicalToCSV(entries)}
-            disabled={entries.length === 0}
-            className="text-slate-700 hover:text-slate-900 hover:bg-slate-50 dark:text-slate-300 font-medium"
-          >
-            CSV Art. 64
-          </Button>
-
-          <Button
-            size="sm"
-            onClick={openNewEntryModal}
-            className="bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors"
-          >
-            Nuevo Asiento Manual
-          </Button>
-        </div>
-      </div>
+            <Button
+              size="sm"
+              onClick={openNewEntryModal}
+              className="bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors"
+            >
+              Nuevo Asiento Manual
+            </Button>
+          </>
+        }
+      />
 
       {/* Banner normativo para Negociante / Agente (UXDEV-06 / UX-24) */}
       {perfilOperativo === 'negociante' && (

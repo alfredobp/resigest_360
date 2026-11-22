@@ -407,28 +407,24 @@ export default function MemoriasAnualesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <PageBreadCrumb pageTitle="Memorias Anuales" />
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Memorias Anuales
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Gestiona las memorias anuales de residuos generadas desde los documentos de identificación
-          </p>
-        </div>
-        {canWrite && (
-          <Button
-            startIcon={<Plus className="w-4 h-4" />}
-            onClick={() => router.push('/residuos/memorias-anuales/nueva')}
-          >
-            Nueva Memoria
-          </Button>
-        )}
-      </div>
+    <div className="space-y-5">
+      <PageBreadCrumb
+        pageTitle="Memorias Anuales"
+        title="Memorias Anuales"
+        subtitle="Gestiona las memorias anuales de residuos generadas desde los documentos de identificación"
+        className="mb-0"
+        actions={
+          canWrite ? (
+            <Button
+              size="sm"
+              startIcon={<Plus className="w-4 h-4" />}
+              onClick={() => router.push('/residuos/memorias-anuales/nueva')}
+            >
+              Nueva Memoria
+            </Button>
+          ) : undefined
+        }
+      />
 
       {/* Alertas */}
       {error && <Alert variant="error" title="Error" message={error} />}

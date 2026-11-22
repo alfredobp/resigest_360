@@ -558,27 +558,24 @@ export default function DocumentosIdentificacionPage() {
 
   return (
     <>
-      <PageBreadCrumb pageTitle="Documentos de Identificación" />
+      <div className="space-y-5">
+        <PageBreadCrumb
+          pageTitle="Documentos de Identificación"
+          title="Documentos de Identificación (DI)"
+          subtitle="Control oficial de traslados, pesajes en báscula, incidencias y tratamiento (RD 553/2020)"
+          className="mb-0"
+          actions={
+            canCreateOrDeleteDi ? (
+              <Button size="sm" onClick={() => router.push('/residuos/documentos-identificacion/nuevo')}>
+                + Nuevo Documento
+              </Button>
+            ) : undefined
+          }
+        />
 
-      <div className="space-y-6">
         {error && (
           <Alert variant="error" title="Error" message={error} />
         )}
-
-        {/* Acciones Principales */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Documentos de Identificación (DI)</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Control oficial de traslados, pesajes en báscula, incidencias y tratamiento (RD 553/2020)
-            </p>
-          </div>
-          {canCreateOrDeleteDi && (
-            <Button onClick={() => router.push('/residuos/documentos-identificacion/nuevo')}>
-              + Nuevo Documento
-            </Button>
-          )}
-        </div>
 
         {/* Filtros por Ciclo de Vida */}
         <ComponentCard title="Ciclo de Vida del Traslado (RD 553/2020)">

@@ -384,20 +384,19 @@ export default function ContratosPage() {
 
   return (
     <>
-      <PageBreadCrumb pageTitle="Contratos de Residuos" />
-
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-foreground">
-            Contratos de Gestión de Residuos
-          </h2>
-          {canWrite && (
-            <Button variant="outline" onClick={() => setShowNewContractModal(true)}>
-              + Nuevo Contrato
-            </Button>
-          )}
-        </div>
+      <div className="max-w-6xl mx-auto space-y-5">
+        <PageBreadCrumb
+          pageTitle="Contratos de Residuos"
+          title="Contratos de Gestión de Residuos"
+          className="mb-0"
+          actions={
+            canWrite ? (
+              <Button variant="outline" size="sm" onClick={() => setShowNewContractModal(true)}>
+                + Nuevo Contrato
+              </Button>
+            ) : undefined
+          }
+        />
 
         {error && (
           <Alert variant="error" title="Error" message={error} />

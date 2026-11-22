@@ -178,9 +178,20 @@ export default function TransportistasPage() {
 
     return (
         <>
-            <PageBreadCrumb pageTitle="Transportistas" />
+            <div className="max-w-6xl mx-auto space-y-5">
+                <PageBreadCrumb
+                    pageTitle="Transportistas"
+                    title="Mis Transportistas"
+                    className="mb-0"
+                    actions={
+                        canWrite ? (
+                            <Button size="sm" onClick={handleAddNew}>
+                                + Nuevo Transportista
+                            </Button>
+                        ) : undefined
+                    }
+                />
 
-            <div className="max-w-6xl mx-auto space-y-6">
                 {/* Banner Directorio Unificado */}
                 <div className="p-4 rounded-xl border border-brand-200 bg-brand-50/60 dark:bg-brand-950/20 dark:border-brand-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
                     <div>
@@ -198,18 +209,6 @@ export default function TransportistasPage() {
                         >
                             Ver en Directorio Unificado →
                         </Link>
-                    )}
-                </div>
-
-                {/* Header */}
-                <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-bold text-foreground">
-                        Mis Transportistas
-                    </h2>
-                    {canWrite && (
-                        <Button onClick={handleAddNew}>
-                            + Nuevo Transportista
-                        </Button>
                     )}
                 </div>
 

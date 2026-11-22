@@ -472,48 +472,43 @@ function FlotaHubContent() {
 
   return (
     <>
-      <PageBreadCrumb pageTitle="Mi Flota (Conductores y Vehículos)" />
-
-      <div className="max-w-6xl mx-auto space-y-6 pb-12">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-              Mi Flota: Conductores y Vehículos
-            </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              Registra tus conductores y vehículos para autorrellenar DeCA y DI al instante y vigilar caducidades de ITV, Seguro, ADR y CAP.
-            </p>
-          </div>
-          {canWrite && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant={activeTab === 'vehiculos' ? 'primary' : 'outline'}
-                size="sm"
-                onClick={() => {
-                  setSelectedVehicle(undefined);
-                  setVehicleModalOpen(true);
-                }}
-                className="flex items-center gap-1.5"
-              >
-                <Plus className="w-4 h-4" />
-                Nuevo Vehículo
-              </Button>
-              <Button
-                variant={activeTab === 'conductores' ? 'primary' : 'outline'}
-                size="sm"
-                onClick={() => {
-                  setSelectedDriver(undefined);
-                  setDriverModalOpen(true);
-                }}
-                className="flex items-center gap-1.5"
-              >
-                <Plus className="w-4 h-4" />
-                Nuevo Conductor
-              </Button>
-            </div>
-          )}
-        </div>
+      <div className="max-w-6xl mx-auto space-y-5 pb-12">
+        <PageBreadCrumb
+          pageTitle="Mi Flota"
+          title="Mi Flota: Conductores y Vehículos"
+          subtitle="Registra tus conductores y vehículos para autorrellenar DeCA y DI al instante y vigilar caducidades de ITV, Seguro, ADR y CAP."
+          className="mb-0"
+          actions={
+            canWrite ? (
+              <>
+                <Button
+                  variant={activeTab === 'vehiculos' ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setSelectedVehicle(undefined);
+                    setVehicleModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nuevo Vehículo
+                </Button>
+                <Button
+                  variant={activeTab === 'conductores' ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setSelectedDriver(undefined);
+                    setDriverModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nuevo Conductor
+                </Button>
+              </>
+            ) : undefined
+          }
+        />
 
         {error && <Alert variant="error" title="Error" message={error} />}
 

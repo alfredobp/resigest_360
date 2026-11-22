@@ -470,9 +470,12 @@ export default function MiEmpresaPage() {
 
   return (
     <>
-      <PageBreadCrumb pageTitle="Mi Empresa" />
-
       <div className="max-w-5xl mx-auto pb-12">
+        <PageBreadCrumb
+          pageTitle="Mi Empresa"
+          title="Mi Empresa"
+          subtitle="Identidad fiscal, perfil operativo, sedes de producción e integraciones telemáticas."
+        />
         {error && (
           <div className="mb-6">
             <Alert variant="error" title="Error" message={error} />
