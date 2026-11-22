@@ -63,6 +63,7 @@ module.exports = {
     'src/services/dashboardService.ts',
     'src/services/emailService.ts',
     'src/services/adminPlatformService.ts',
+    'src/services/delegationService.ts',
     'src/services/siraService.ts',
     'src/services/memoriaAnualService.ts',
     'src/lib/profiles/moduleCatalog.ts',
@@ -279,6 +280,12 @@ module.exports = {
       statements: 80
     },
     './src/services/adminPlatformService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/delegationService.ts': {
       branches: 80,
       functions: 80,
       lines: 80,

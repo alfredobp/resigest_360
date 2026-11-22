@@ -6,14 +6,19 @@ import Badge from '@/components/ui/badge/Badge';
 import Button from '@/components/ui/button/Button';
 import Input from '@/components/form/input/InputField';
 import Alert from '@/components/ui/alert/Alert';
+import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
+import { useTenant } from '@/context/TenantContext';
 import CompanyAuditModal from '@/components/admin/CompanyAuditModal';
 import adminPlatformService from '@/services/adminPlatformService';
-import type { 
-  PlatformOverviewStats, 
-  PlatformCompanyRecord, 
+import { computeDelegationExpiryIso } from '@/services/delegationService';
+import type {
+  PlatformOverviewStats,
+  PlatformCompanyRecord,
   CompanyAuditDetail,
-  CompanyRole 
+  CompanyRole,
+  AdminDelegationSummary,
+  MembershipRole,
 } from '@/types/wasteManagement';
 
 const ROLE_BADGE_CONFIG: Record<CompanyRole, { label: string; color: 'primary' | 'success' | 'warning' | 'info' | 'light' | 'error' }> = {
@@ -28,6 +33,7 @@ const ROLE_BADGE_CONFIG: Record<CompanyRole, { label: string; color: 'primary' |
 
 export default function PlatformAdminPage() {
   const router = useRouter();
+  const { switchCompany, refreshTenant, activeCompanyId } = useTenant();
 
   // Estados de carga y autorización
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -38,17 +44,34 @@ export default function PlatformAdminPage() {
   // Datos
   const [stats, setStats] = useState<PlatformOverviewStats | null>(null);
   const [companies, setCompanies] = useState<PlatformCompanyRecord[]>([]);
+  const [delegationsMap, setDelegationsMap] = useState<Record<number, AdminDelegationSummary>>({});
 
   // Filtros
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [selectedType, setSelectedType] = useState<'all' | 'my' | 'contacts'>('all');
+  const [selectedStatus, setSelectedStatus] = useState<'all' | 'active' | 'blocked'>('all');
+
+  // Modal de bloqueo / activación de acceso
+  const [blockingCompany, setBlockingCompany] = useState<PlatformCompanyRecord | null>(null);
+  const [blockReason, setBlockReason] = useState('');
+  const [submittingBlock, setSubmittingBlock] = useState(false);
+  const [activatingCompany, setActivatingCompany] = useState<PlatformCompanyRecord | null>(null);
 
   // Modal de auditoría
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [, setSelectedCompanyId] = useState<number | null>(null);
   const [auditDetail, setAuditDetail] = useState<CompanyAuditDetail | null>(null);
   const [loadingAudit, setLoadingAudit] = useState(false);
+
+  // Modal rápido de delegación con motivo y caducidad
+  const [delegatingCompany, setDelegatingCompany] = useState<PlatformCompanyRecord | null>(null);
+  const [delegationRole, setDelegationRole] = useState<Exclude<MembershipRole, 'owner'>>('consultor_admin');
+  const [delegationCommercial, setDelegationCommercial] = useState(false);
+  const [delegationDays, setDelegationDays] = useState<number>(7);
+  const [delegationReason, setDelegationReason] = useState('');
+  const [submittingDelegation, setSubmittingDelegation] = useState(false);
+  const [revokingCompany, setRevokingCompany] = useState<PlatformCompanyRecord | null>(null);
 
   // 1. Comprobar permisos administrativos
   useEffect(() => {
@@ -75,23 +98,120 @@ export default function PlatformAdminPage() {
     verifyAdmin();
   }, [router]);
 
-  // 2. Cargar métricas y listado de empresas
+  // 2. Cargar métricas, listado de empresas y delegaciones del administrador
   const loadPlatformData = async () => {
     try {
       setLoading(true);
       setError(null);
-      const [statsData, companiesData] = await Promise.all([
+      const [statsData, companiesData, delegationsData] = await Promise.all([
         adminPlatformService.getPlatformStats(),
-        adminPlatformService.getAllPlatformCompanies()
+        adminPlatformService.getAllPlatformCompanies(),
+        adminPlatformService.getAdminDelegations().catch(() => ({} as Record<number, AdminDelegationSummary>)),
       ]);
 
       setStats(statsData);
       setCompanies(companiesData);
+      setDelegationsMap(delegationsData);
     } catch (err: any) {
       console.error('Error al cargar datos globales:', err);
       setError(err.message || 'Error al obtener la información de la plataforma.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Actuar directamente en nombre de una empresa ya delegada vigente
+  const handleActOnBehalf = async (company: PlatformCompanyRecord) => {
+    await switchCompany(company.id);
+    toast.success(`Actuando ahora en nombre de: ${company.nombre_comercial || company.razon_social}`);
+    router.push('/app');
+  };
+
+  // Abrir diálogo de activación de delegación con motivo y caducidad
+  const handleOpenDelegateModal = (company: PlatformCompanyRecord) => {
+    const existing = delegationsMap[company.id];
+    setDelegatingCompany(company);
+    setDelegationRole(
+      existing && existing.role !== 'owner' ? existing.role : 'consultor_admin'
+    );
+    setDelegationCommercial(Boolean(existing?.can_view_commercial));
+    setDelegationDays(7);
+    setDelegationReason(existing?.delegation_reason || '');
+  };
+
+  const handleSubmitDelegation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!delegatingCompany) return;
+    if (!delegationReason.trim()) {
+      toast.warning('Debes indicar el motivo o referencia de autorización.');
+      return;
+    }
+
+    try {
+      setSubmittingDelegation(true);
+      const expiresAt = computeDelegationExpiryIso(delegationDays);
+      await adminPlatformService.delegateCompanyToSelf(delegatingCompany.id, {
+        role: delegationRole,
+        canViewCommercial: delegationCommercial,
+        expiresAt,
+        reason: delegationReason.trim(),
+      });
+      await switchCompany(delegatingCompany.id);
+      toast.success(
+        `Delegación activada. Actuando en nombre de ${delegatingCompany.nombre_comercial || delegatingCompany.razon_social}.`
+      );
+      setDelegatingCompany(null);
+      router.push('/app');
+    } catch (err: any) {
+      toast.error(err.message || 'No se pudo activar la delegación.');
+    } finally {
+      setSubmittingDelegation(false);
+    }
+  };
+
+  const handleConfirmRevokeDelegation = async () => {
+    if (!revokingCompany) return;
+    try {
+      await adminPlatformService.revokeAdminDelegation(revokingCompany.id);
+      toast.success(`Delegación revocada para ${revokingCompany.razon_social}.`);
+      setRevokingCompany(null);
+      await Promise.all([loadPlatformData(), refreshTenant()]);
+    } catch (err: any) {
+      toast.error(err.message || 'No se pudo revocar la delegación.');
+    }
+  };
+
+  const handleSubmitBlockCompany = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!blockingCompany) return;
+    if (!blockReason.trim()) {
+      toast.warning('Debes indicar el motivo del bloqueo.');
+      return;
+    }
+
+    try {
+      setSubmittingBlock(true);
+      await adminPlatformService.setCompanyAccessStatus(blockingCompany.id, false, blockReason.trim());
+      toast.success(`Acceso bloqueado para ${blockingCompany.razon_social}.`);
+      setBlockingCompany(null);
+      setBlockReason('');
+      await Promise.all([loadPlatformData(), refreshTenant()]);
+    } catch (err: any) {
+      toast.error(err.message || 'No se pudo bloquear la empresa.');
+    } finally {
+      setSubmittingBlock(false);
+    }
+  };
+
+  const handleConfirmActivateCompany = async () => {
+    if (!activatingCompany) return;
+    try {
+      await adminPlatformService.setCompanyAccessStatus(activatingCompany.id, true, 'Reactivación desde Panel Admin');
+      toast.success(`Acceso reactivado para ${activatingCompany.razon_social}.`);
+      setActivatingCompany(null);
+      await Promise.all([loadPlatformData(), refreshTenant()]);
+    } catch (err: any) {
+      toast.error(err.message || 'No se pudo activar la empresa.');
     }
   };
 
@@ -128,10 +248,14 @@ export default function PlatformAdminPage() {
       if (selectedType === 'my' && !c.is_my_company) return false;
       if (selectedType === 'contacts' && c.is_my_company) return false;
 
+      // Filtro por estado de acceso
+      if (selectedStatus === 'active' && c.activo === false) return false;
+      if (selectedStatus === 'blocked' && c.activo !== false) return false;
+
       // Filtro por rol
       if (selectedRole !== 'all') {
-        const roles = Array.isArray(c.roles) && c.roles.length > 0 
-          ? c.roles 
+        const roles = Array.isArray(c.roles) && c.roles.length > 0
+          ? c.roles
           : (c.tipo_empresa ? [c.tipo_empresa] : ['productor']);
         if (!roles.includes(selectedRole as CompanyRole)) return false;
       }
@@ -151,7 +275,7 @@ export default function PlatformAdminPage() {
 
       return true;
     });
-  }, [companies, selectedType, selectedRole, searchQuery]);
+  }, [companies, selectedType, selectedStatus, selectedRole, searchQuery]);
 
   if (checkingAuth) {
     return (
@@ -302,35 +426,43 @@ export default function PlatformAdminPage() {
             <div className="flex items-center gap-1.5 text-xs bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
               <button
                 onClick={() => setSelectedType('all')}
-                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
-                  selectedType === 'all'
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-xs'
-                    : 'text-gray-500 hover:text-gray-800 dark:text-gray-400'
-                }`}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${selectedType === 'all'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-xs'
+                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400'
+                  }`}
               >
                 Todas
               </button>
               <button
                 onClick={() => setSelectedType('my')}
-                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
-                  selectedType === 'my'
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-xs'
-                    : 'text-gray-500 hover:text-gray-800 dark:text-gray-400'
-                }`}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${selectedType === 'my'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-xs'
+                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400'
+                  }`}
               >
                 Titulares
               </button>
               <button
                 onClick={() => setSelectedType('contacts')}
-                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
-                  selectedType === 'contacts'
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-xs'
-                    : 'text-gray-500 hover:text-gray-800 dark:text-gray-400'
-                }`}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${selectedType === 'contacts'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-xs'
+                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400'
+                  }`}
               >
                 Colaboradoras
               </button>
             </div>
+
+            {/* Filtro por Estado de Acceso */}
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value as 'all' | 'active' | 'blocked')}
+              className="h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-xs font-medium text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="all">Todos los Estados</option>
+              <option value="active">Solo Activas</option>
+              <option value="blocked">Solo Bloqueadas</option>
+            </select>
 
             {/* Filtro por Rol */}
             <select
@@ -371,20 +503,20 @@ export default function PlatformAdminPage() {
                   <th className="px-4 py-3.5">Identificación Fiscal</th>
                   <th className="px-4 py-3.5">Roles Activos</th>
                   <th className="px-4 py-3.5">Cuenta Propietaria</th>
-                  <th className="px-4 py-3.5 text-center">Métricas</th>
+                  <th className="px-4 py-3.5 text-center">Datos de Operación</th>
                   <th className="px-4 py-3.5">Estado</th>
                   <th className="px-5 py-3.5 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800 font-normal">
                 {filteredCompanies.map((c) => {
-                  const roles: CompanyRole[] = Array.isArray(c.roles) && c.roles.length > 0 
-                    ? c.roles 
+                  const roles: CompanyRole[] = Array.isArray(c.roles) && c.roles.length > 0
+                    ? c.roles
                     : (c.tipo_empresa ? [c.tipo_empresa as CompanyRole] : ['productor']);
 
                   return (
-                    <tr 
-                      key={c.id} 
+                    <tr
+                      key={c.id}
                       className="hover:bg-gray-50/80 dark:hover:bg-gray-800/40 transition-colors"
                     >
                       {/* Empresa */}
@@ -449,38 +581,123 @@ export default function PlatformAdminPage() {
                         </span>
                       </td>
 
-                      {/* Métricas Agregadas */}
+                      {/* Datos de Operación */}
                       <td className="px-4 py-4">
-                        <div className="flex items-center justify-center gap-2">
-                          <span title="Centros registrados" className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-mono text-[11px]">
-                            Centros: {c.centers_count || 0}
-                          </span>
-                          <span title="Documentos de identificación" className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-mono text-[11px]">
-                            DIs: {c.dis_count || 0}
-                          </span>
-                          <span title="Contratos de tratamiento" className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-mono text-[11px]">
-                            Contratos: {c.contracts_count || 0}
+                        <div className="flex flex-col items-center gap-1.5">
+                          <div className="flex flex-wrap items-center justify-center gap-1.5">
+                            <span title="Centros registrados" className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-mono text-[11px]">
+                              Centros: {c.centers_count || 0}
+                            </span>
+                            <span title="Documentos de identificación" className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-mono text-[11px]">
+                              DIs: {c.dis_count || 0}
+                            </span>
+                            <span title="Contratos de tratamiento" className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-mono text-[11px]">
+                              Contratos: {c.contracts_count || 0}
+                            </span>
+                            <span title="Volumen total declarado" className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-mono text-[11px]">
+                              {c.total_toneladas || 0} t
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-gray-400">
+                            Últ. operación:{' '}
+                            {c.last_operation_at
+                              ? new Date(c.last_operation_at).toLocaleDateString('es-ES')
+                              : 'Sin actividad'}
                           </span>
                         </div>
                       </td>
 
                       {/* Estado */}
                       <td className="px-4 py-4">
-                        <Badge variant="light" color={c.activo !== false ? 'success' : 'error'} size="sm">
-                          {c.activo !== false ? 'Activa' : 'Inactiva'}
-                        </Badge>
+                        <div className="flex flex-col gap-1 items-start">
+                          <Badge variant="light" color={c.activo !== false ? 'success' : 'error'} size="sm">
+                            {c.activo !== false ? 'Activa' : 'Bloqueada'}
+                          </Badge>
+                          {c.activo === false && c.blocked_reason && (
+                            <span className="text-[10px] text-red-500 max-w-[160px] truncate" title={c.blocked_reason}>
+                              {c.blocked_reason}
+                            </span>
+                          )}
+                          {c.is_my_company && delegationsMap[c.id] && (
+                            <Badge
+                              variant="light"
+                              color={delegationsMap[c.id].is_active ? 'primary' : 'warning'}
+                              size="sm"
+                            >
+                              {delegationsMap[c.id].is_active
+                                ? `Delegada (${delegationsMap[c.id].role})`
+                                : 'Delegación caducada'}
+                            </Badge>
+                          )}
+                        </div>
                       </td>
 
                       {/* Acciones */}
                       <td className="px-5 py-4 text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleOpenAudit(c.id)}
-                          className="text-xs"
-                        >
-                          Auditar y Obtener Datos
-                        </Button>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {c.is_my_company && c.activo !== false && (
+                            delegationsMap[c.id]?.is_active ? (
+                              <>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleActOnBehalf(c)}
+                                  className="text-xs"
+                                >
+                                  {activeCompanyId === c.id ? 'Activa ahora' : 'Actuar en nombre de'}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setRevokingCompany(c)}
+                                  className="text-xs text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900/60"
+                                >
+                                  Revocar
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleOpenDelegateModal(c)}
+                                className="text-xs"
+                              >
+                                Delegar y Actuar
+                              </Button>
+                            )
+                          )}
+                          {c.is_my_company && (
+                            c.activo !== false ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setBlockingCompany(c);
+                                  setBlockReason('');
+                                }}
+                                className="text-xs text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900/60"
+                              >
+                                Bloquear
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setActivatingCompany(c)}
+                                className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50 dark:border-emerald-900/60"
+                              >
+                                Activar
+                              </Button>
+                            )
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenAudit(c.id)}
+                            className="text-xs"
+                          >
+                            Auditar
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -497,6 +714,160 @@ export default function PlatformAdminPage() {
         onClose={() => setIsModalOpen(false)}
         auditDetail={auditDetail}
         loading={loadingAudit}
+      />
+
+      {/* Modal Rápido de Delegación con Motivo y Caducidad */}
+      {delegatingCompany && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-6 shadow-2xl space-y-4">
+            <div>
+              <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                Activar Delegación Temporal
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Empresa: <strong>{delegatingCompany.razon_social}</strong> ({delegatingCompany.cif}).
+                Esta acción quedará registrada en auditoría y visible para el titular.
+              </p>
+            </div>
+
+            <form onSubmit={handleSubmitDelegation} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Motivo / Referencia de autorización <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  placeholder="Ej. Contrato consultoría #2026-14 o Ticket soporte #402"
+                  value={delegationReason}
+                  onChange={(e) => setDelegationReason(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                    Rol delegado
+                  </label>
+                  <select
+                    value={delegationRole}
+                    onChange={(e) => setDelegationRole(e.target.value as Exclude<MembershipRole, 'owner'>)}
+                    className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2.5 text-xs text-gray-800 dark:text-gray-200"
+                  >
+                    <option value="consultor_admin">Consultor Admin</option>
+                    <option value="consultor_operador">Consultor Operador</option>
+                    <option value="lectura">Solo Lectura</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                    Caducidad
+                  </label>
+                  <select
+                    value={delegationDays}
+                    onChange={(e) => setDelegationDays(Number(e.target.value))}
+                    className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2.5 text-xs text-gray-800 dark:text-gray-200"
+                  >
+                    <option value={1}>24 horas</option>
+                    <option value={7}>7 días</option>
+                    <option value={30}>30 días</option>
+                    <option value={365}>1 año</option>
+                  </select>
+                </div>
+              </div>
+
+              <label className="flex items-start gap-2.5 cursor-pointer rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 p-3">
+                <input
+                  type="checkbox"
+                  checked={delegationCommercial}
+                  onChange={(e) => setDelegationCommercial(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600"
+                />
+                <span className="text-[11px] text-gray-700 dark:text-gray-300">
+                  Incluir acceso a <strong>Operaciones Comerciales</strong> (desactivado por defecto)
+                </span>
+              </label>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDelegatingCompany(null)}
+                  disabled={submittingDelegation}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" size="sm" disabled={submittingDelegation}>
+                  {submittingDelegation ? 'Activando...' : 'Activar y Actuar'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmación de Revocación */}
+      <ConfirmModal
+        isOpen={Boolean(revokingCompany)}
+        onClose={() => setRevokingCompany(null)}
+        onConfirm={handleConfirmRevokeDelegation}
+        title="Revocar delegación"
+        message={`¿Seguro que deseas revocar tu delegación sobre ${revokingCompany?.razon_social || ''}?`}
+        confirmLabel="Sí, revocar"
+        variant="danger"
+      />
+
+      {/* Modal de Bloqueo de Acceso de Empresa */}
+      {blockingCompany && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 border border-red-200 dark:border-red-900/60 p-6 shadow-2xl space-y-4">
+            <div>
+              <h3 className="text-base font-bold text-red-700 dark:text-red-400">
+                Bloquear Acceso de Empresa
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Se suspenderá inmediatamente el acceso operativo de <strong>{blockingCompany.razon_social}</strong> ({blockingCompany.cif}) tanto en la interfaz como en las políticas RLS.
+              </p>
+            </div>
+            <form onSubmit={handleSubmitBlockCompany} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Motivo del bloqueo <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  placeholder="Ej. Suspensión temporal por impago o incidencia de seguridad"
+                  value={blockReason}
+                  onChange={(e) => setBlockReason(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBlockingCompany(null)}
+                  disabled={submittingBlock}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" size="sm" disabled={submittingBlock}>
+                  {submittingBlock ? 'Bloqueando...' : 'Confirmar bloqueo'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Reactivación de Acceso */}
+      <ConfirmModal
+        isOpen={Boolean(activatingCompany)}
+        onClose={() => setActivatingCompany(null)}
+        onConfirm={handleConfirmActivateCompany}
+        title="Reactivar acceso de empresa"
+        message={`¿Confirmas reactivar el acceso operativo para ${activatingCompany?.razon_social || ''}?`}
+        confirmLabel="Sí, activar"
+        variant="primary"
       />
     </div>
   );

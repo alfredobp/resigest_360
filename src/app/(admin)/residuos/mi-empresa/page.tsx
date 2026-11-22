@@ -14,6 +14,7 @@ import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
 import AutorizacionModal from '@/components/residuos/AutorizacionModal';
+import CompanyDelegationPanel from '@/components/residuos/CompanyDelegationPanel';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import authorizationService from '@/services/authorizationService';
@@ -38,7 +39,7 @@ import type {
   ProductionCenterFormData,
 } from '@/types/wasteManagement';
 
-type ActiveTab = 'identidad' | 'sedes' | 'integraciones' | 'autorizaciones';
+type ActiveTab = 'identidad' | 'sedes' | 'integraciones' | 'autorizaciones' | 'delegacion';
 
 const TIPOS_EMPRESA: Array<{
   value: NonNullable<CompanyFormData['tipo_empresa']>;
@@ -577,6 +578,20 @@ export default function MiEmpresaPage() {
                   {authorizations.length}
                 </span>
               )}
+            </button>
+          )}
+
+          {company && (membershipRole === 'owner' || isPlatformAdmin) && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('delegacion')}
+              className={`pb-3.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                activeTab === 'delegacion'
+                  ? 'border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+            >
+              <span>Delegación y Acceso</span>
             </button>
           )}
         </div>
@@ -1128,7 +1143,7 @@ export default function MiEmpresaPage() {
           )}
 
 {/* Barra de Acciones del Formulario Principal */}
-          {activeTab !== 'autorizaciones' && (
+          {activeTab !== 'autorizaciones' && activeTab !== 'delegacion' && (
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-xs text-gray-500 dark:text-gray-400">
               {canManageCompany
@@ -1153,6 +1168,18 @@ export default function MiEmpresaPage() {
           </div>
           )}
         </form>
+
+        {/* =========================================================
+            PESTAÑA 5: DELEGACIÓN Y ACCESO (Titular / Admin)
+        ========================================================= */}
+        {activeTab === 'delegacion' && company && (
+          <CompanyDelegationPanel
+            companyId={company.id}
+            companyName={company.nombre_comercial || company.razon_social}
+            canManageDelegations={membershipRole === 'owner' || isPlatformAdmin}
+            onChanged={refreshTenant}
+          />
+        )}
 
         {/* =========================================================
             PESTAÑA 4: AUTORIZACIONES AMBIENTALES (Solo Gestor / Transportista)

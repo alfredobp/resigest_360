@@ -288,7 +288,40 @@ export interface CompanyMembership {
   user_id: string;
   role: MembershipRole;
   can_view_commercial: boolean;
+  expires_at?: string | null;
+  granted_by?: string | null;
+  delegation_reason?: string | null;
+  terms_accepted_at?: string | null;
+  terms_version?: string | null;
   created_at: string;
+  updated_at?: string;
+}
+
+export interface CompanyDelegationRecord extends CompanyMembership {
+  delegate_email: string;
+  delegate_name: string;
+}
+
+export interface GrantDelegationInput {
+  companyId: number;
+  role: Exclude<MembershipRole, 'owner'>;
+  canViewCommercial: boolean;
+  expiresAt: string;
+  termsAccepted?: boolean;
+  termsVersion?: string;
+  reason?: string;
+  delegateEmail?: string;
+}
+
+export interface AdminDelegationSummary {
+  company_id: number;
+  role: MembershipRole;
+  can_view_commercial: boolean;
+  expires_at?: string | null;
+  delegation_reason?: string | null;
+  terms_accepted_at?: string | null;
+  is_active: boolean;
+  created_at?: string;
   updated_at?: string;
 }
 
@@ -1704,6 +1737,11 @@ export interface PlatformCompanyRecord extends Company {
   centers_count?: number;
   dis_count?: number;
   contracts_count?: number;
+  total_toneladas?: number;
+  last_operation_at?: string | null;
+  blocked_at?: string | null;
+  blocked_reason?: string | null;
+  delegation?: AdminDelegationSummary | null;
 }
 
 export interface CompanyAuditDetail {

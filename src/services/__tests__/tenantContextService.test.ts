@@ -408,35 +408,31 @@ describe('tenantContextService - Contexto Multi-Empresa, Perfiles y Permisos', (
       expect(sanitizeCompanySecrets(emptyComp, 'uid-consultor', 'lectura')).toEqual(emptyComp);
     });
 
-    it('aplica .or con empresa activa cuando está soportado o .eq(user_id) como fallback', () => {
-      const orMock = jest.fn().mockReturnValue('or-result');
+    it('aplica aislamiento estricto .eq(company_id) cuando hay empresa activa o .eq(user_id) como fallback', () => {
       const eqMock = jest.fn().mockReturnValue('eq-result');
-      const queryWithOr = { or: orMock, eq: eqMock };
-      const queryWithoutOr = { eq: eqMock };
+      const query = { eq: eqMock };
 
-      expect(applyTenantScope(queryWithOr, 'u-1', 42)).toBe('or-result');
-      expect(orMock).toHaveBeenCalledWith('user_id.eq.u-1,company_id.eq.42');
+      expect(applyTenantScope(query, 'u-1', 42)).toBe('eq-result');
+      expect(eqMock).toHaveBeenCalledWith('company_id', 42);
 
-      expect(applyTenantScope(queryWithOr, 'u-1', null)).toBe('eq-result');
-      expect(eqMock).toHaveBeenCalledWith('user_id', 'u-1');
-
-      expect(applyTenantScope(queryWithoutOr, 'u-1', 42)).toBe('eq-result');
+      eqMock.mockClear();
+      expect(applyTenantScope(query, 'u-1', null)).toBe('eq-result');
       expect(eqMock).toHaveBeenCalledWith('user_id', 'u-1');
     });
 
-    it('applyDITenantScope aplica cláusulas multi-actor en DI con empresa activa y CIF o fallback', () => {
+    it('applyDITenantScope aísla por empresa activa y CIF sin mezclar user_id cuando hay companyId', () => {
       const orMock = jest.fn().mockReturnValue('or-di-result');
       const eqMock = jest.fn().mockReturnValue('eq-di-result');
       const queryWithOr = { or: orMock, eq: eqMock };
       const queryWithoutOr = { eq: eqMock };
 
-      // Caso 1: con activeCompanyId y activeCompanyCif
+      // Caso 1: con activeCompanyId y activeCompanyCif (sin user_id para evitar mezcla entre empresas)
       expect(applyDITenantScope(queryWithOr, 'u-di-1', 50, 'B12345678')).toBe('or-di-result');
       expect(orMock).toHaveBeenCalledWith(
-        'user_id.eq.u-di-1,company_id.eq.50,transportista_company_id.eq.50,gestor_company_id.eq.50,transportista_cif.ilike.B12345678,gestor_cif.ilike.B12345678'
+        'company_id.eq.50,transportista_company_id.eq.50,gestor_company_id.eq.50,transportista_cif.ilike.B12345678,gestor_cif.ilike.B12345678'
       );
 
-      // Caso 2: solo con CIF
+      // Caso 2: solo con CIF (sin companyId)
       orMock.mockClear();
       expect(applyDITenantScope(queryWithOr, 'u-di-1', null, 'A99999999')).toBe('or-di-result');
       expect(orMock).toHaveBeenCalledWith(
@@ -451,6 +447,157 @@ describe('tenantContextService - Contexto Multi-Empresa, Perfiles y Permisos', (
       eqMock.mockClear();
       expect(applyDITenantScope(queryWithoutOr, 'u-di-1', 50, 'B12345678')).toBe('eq-di-result');
       expect(eqMock).toHaveBeenCalledWith('user_id', 'u-di-1');
+    });
+
+    it('filtra delegaciones caducadas y respeta permisos de delegación incluso para isPlatformAdmin', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-admin', email: 'alfredobape@gmail.com' } },
+      });
+
+      const futureIso = new Date(Date.now() + 86400000).toISOString();
+      const pastIso = new Date(Date.now() - 86400000).toISOString();
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({ data: [] }),
+            }),
+          };
+        }
+        if (table === 'company_memberships') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({
+              data: [
+                {
+                  company_id: 70,
+                  role: 'lectura',
+                  can_view_commercial: false,
+                  expires_at: futureIso,
+                  company: {
+                    id: 70,
+                    user_id: 'uid-cliente-1',
+                    razon_social: 'Cliente Vigente S.L.',
+                    is_my_company: true,
+                    activo: true,
+                    perfil_operativo: 'negociante',
+                    modulos_activos: ['di', 'operaciones_comerciales'],
+                    onboarding_completado: true,
+                  },
+                },
+                {
+                  company_id: 71,
+                  role: 'consultor_admin',
+                  can_view_commercial: true,
+                  expires_at: pastIso,
+                  company: {
+                    id: 71,
+                    user_id: 'uid-cliente-2',
+                    razon_social: 'Cliente Caducado S.L.',
+                    is_my_company: true,
+                    activo: true,
+                    perfil_operativo: 'productor',
+                    onboarding_completado: true,
+                  },
+                },
+              ],
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data: [] }),
+        };
+      });
+
+      const ctx = await tenantContextService.getTenantContext(70);
+      expect(ctx.isPlatformAdmin).toBe(true);
+      expect(ctx.isDelegated).toBe(true);
+      expect(ctx.accessibleCompanies).toHaveLength(1);
+      expect(ctx.activeCompanyId).toBe(70);
+      expect(ctx.canWrite).toBe(false);
+      expect(ctx.canViewCommercial).toBe(false);
+      expect(ctx.activeModules).not.toContain('operaciones_comerciales');
+
+      await expect(
+        tenantContextService.assertModuleAccess('operaciones_comerciales', 70)
+      ).rejects.toThrow('Acceso denegado');
+    });
+
+    it('envía a /platform-admin como homePath cuando el admin no tiene empresa propia ni delegada', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-admin-pure', email: 'alfredobape@gmail.com' } },
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({ data: [] }),
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data: [] }),
+        };
+      });
+
+      const ctx = await resolveTenantContext(mockSupabase);
+      expect(ctx.isPlatformAdmin).toBe(true);
+      expect(ctx.activeCompany).toBeNull();
+      expect(ctx.homePath).toBe('/platform-admin');
+    });
+
+    it('marca isAccountBlocked cuando la única empresa propia está bloqueada (activo = false)', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-blocked', email: 'bloqueada@empresa.es' } },
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'user' } }),
+          };
+        }
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: 99,
+                    user_id: 'uid-blocked',
+                    razon_social: 'Empresa Suspendida S.L.',
+                    is_my_company: true,
+                    activo: false,
+                    blocked_reason: 'Suspensión administrativa',
+                  },
+                ],
+              }),
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data: [] }),
+        };
+      });
+
+      const ctx = await resolveTenantContext(mockSupabase);
+      expect(ctx.isAccountBlocked).toBe(true);
+      expect(ctx.blockedReason).toBe('Suspensión administrativa');
+      expect(ctx.canWrite).toBe(false);
+      expect(ctx.hasCompletedOnboarding).toBe(true);
     });
 
     it('sincroniza y borra cookie si targetId no coincide con ninguna empresa accesible', async () => {

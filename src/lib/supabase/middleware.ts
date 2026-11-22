@@ -172,27 +172,50 @@ export async function updateSession(request: NextRequest) {
       return supabaseResponse
     }
 
-    // 2. Si ya completó onboarding y entra a /onboarding, enviar a su homePath
-    if (tenantCtx.hasCompletedOnboarding && (pathname === '/onboarding' || pathname.startsWith('/onboarding/'))) {
-      const url = request.nextUrl.clone()
-      url.pathname = tenantCtx.homePath
-      return redirectWithSupabaseCookies(url, supabaseResponse)
+      // 2. Si ya completó onboarding (o es admin de plataforma) y entra a /onboarding, enviar a su homePath
+      if (
+        (tenantCtx.hasCompletedOnboarding || tenantCtx.isPlatformAdmin) &&
+        (pathname === '/onboarding' || pathname.startsWith('/onboarding/'))
+      ) {
+        const url = request.nextUrl.clone()
+        url.pathname = tenantCtx.homePath
+        return redirectWithSupabaseCookies(url, supabaseResponse)
+      }
+
+      // 2.b El administrador sin empresa delegada seleccionada solo accede al panel de control de plataforma y perfil/soporte
+      const isAdminOnlyAllowedPath =
+        pathname === '/platform-admin' ||
+        pathname.startsWith('/platform-admin/') ||
+        pathname === '/profile' ||
+        pathname.startsWith('/profile/') ||
+        pathname === '/support' ||
+        pathname.startsWith('/support/') ||
+        pathname === '/soporte' ||
+        pathname.startsWith('/soporte/')
+
+      if (tenantCtx.isPlatformAdmin && !tenantCtx.activeCompany && !isAdminOnlyAllowedPath) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/platform-admin'
+        return redirectWithSupabaseCookies(url, supabaseResponse)
+      }
+
+      // 3. Bloquear acceso por URL directa a módulos o rutas de creación no habilitadas para su perfil/rol
+      const isPlatformAdminRoute = pathname === '/platform-admin' || pathname.startsWith('/platform-admin/')
+      const hasUnrestrictedAdminBypass = tenantCtx.isPlatformAdmin && !tenantCtx.isDelegated
+      if (
+        !(tenantCtx.isPlatformAdmin && isPlatformAdminRoute) &&
+        !canAccessPath(pathname, tenantCtx.activeModules, hasUnrestrictedAdminBypass, {
+          membershipRole: tenantCtx.membershipRole,
+          perfilOperativo: tenantCtx.perfilOperativo,
+        })
+      ) {
+        const requiredModule = getRequiredModuleForPath(pathname)
+        const url = request.nextUrl.clone()
+        url.pathname = tenantCtx.homePath
+        url.searchParams.set('denied', requiredModule || 'restricted')
+        return redirectWithSupabaseCookies(url, supabaseResponse)
+      }
     }
 
-    // 3. Bloquear acceso por URL directa a módulos o rutas de creación no habilitadas para su perfil/rol
-    if (
-      !canAccessPath(pathname, tenantCtx.activeModules, tenantCtx.isPlatformAdmin, {
-        membershipRole: tenantCtx.membershipRole,
-        perfilOperativo: tenantCtx.perfilOperativo,
-      })
-    ) {
-      const requiredModule = getRequiredModuleForPath(pathname)
-      const url = request.nextUrl.clone()
-      url.pathname = tenantCtx.homePath
-      url.searchParams.set('denied', requiredModule || 'restricted')
-      return redirectWithSupabaseCookies(url, supabaseResponse)
-    }
+    return supabaseResponse
   }
-
-  return supabaseResponse
-}

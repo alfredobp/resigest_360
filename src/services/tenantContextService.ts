@@ -21,6 +21,7 @@ export interface AccessibleCompany {
   membershipRole: MembershipRole;
   canViewCommercial: boolean;
   isOwner: boolean;
+  expiresAt?: string | null;
 }
 
 export interface FullTenantContext {
@@ -36,6 +37,10 @@ export interface FullTenantContext {
   canWrite: boolean;
   canManageCompany: boolean;
   canViewCommercial: boolean;
+  isDelegated: boolean;
+  activeDelegationExpiresAt: string | null;
+  isAccountBlocked: boolean;
+  blockedReason: string | null;
   hasOwnCompany: boolean;
   hasCompletedOnboarding: boolean;
   isPlatformAdmin: boolean;
@@ -112,17 +117,18 @@ export function applyTenantScope<T>(
     companyId &&
     Number.isInteger(companyId) &&
     companyId > 0 &&
-    typeof (query as any)?.or === 'function'
+    typeof (query as any)?.eq === 'function'
   ) {
-    return (query as any).or(`user_id.eq.${userId},company_id.eq.${companyId}`) as T;
+    return (query as any).eq('company_id', companyId) as T;
   }
   return (query as any).eq('user_id', userId) as T;
 }
 
 /**
  * Aplica alcance multi-actor para Documentos de Identificación (DI):
- * permite consultar el DI si el usuario es propietario, consultor de la empresa activa
- * o si la empresa activa interviene como productor (`company_id`), transportista (`transportista_company_id` / `transportista_cif`)
+ * aísla estrictamente por la empresa activa cuando está definida (evitando mezclar registros propios
+ * de un admin o consultor con los de una empresa delegada) y permite consultar el DI si la empresa activa
+ * interviene como productor (`company_id`), transportista (`transportista_company_id` / `transportista_cif`)
  * o gestor destinatario (`gestor_company_id` / `gestor_cif`) (P1 QA5-I01).
  */
 export function applyDITenantScope<T>(
@@ -133,13 +139,14 @@ export function applyDITenantScope<T>(
 ): T {
   const companyId = activeCompanyId !== undefined ? activeCompanyId : getActiveCompanyCookie();
   const cleanCif = activeCompanyCif ? activeCompanyCif.replace(/[,()'"%\s]/g, '').toUpperCase() : '';
-  if (
-    (companyId && Number.isInteger(companyId) && companyId > 0) ||
-    cleanCif
-  ) {
+  const hasValidCompanyId = Boolean(companyId && Number.isInteger(companyId) && companyId > 0);
+  if (hasValidCompanyId || cleanCif) {
     if (typeof (query as any)?.or === 'function') {
-      const clauses = [`user_id.eq.${userId}`];
-      if (companyId && Number.isInteger(companyId) && companyId > 0) {
+      const clauses: string[] = [];
+      if (!hasValidCompanyId) {
+        clauses.push(`user_id.eq.${userId}`);
+      }
+      if (hasValidCompanyId) {
         clauses.push(`company_id.eq.${companyId}`);
         clauses.push(`transportista_company_id.eq.${companyId}`);
         clauses.push(`gestor_company_id.eq.${companyId}`);
@@ -183,23 +190,27 @@ export async function resolveTenantContext(
     }
   }
 
-  let ownCompanies: Company[] = [];
+  let allOwnCompanies: Company[] = [];
   if (typeof supabaseClient.from === 'function') {
     try {
       const { data } = await supabaseClient
         .from('companies')
         .select('*')
         .eq('user_id', user.id)
-        .eq('activo', true)
         .order('is_my_company', { ascending: false })
         .order('created_at', { ascending: true });
       if (Array.isArray(data)) {
-        ownCompanies = data as Company[];
+        allOwnCompanies = data as Company[];
       }
     } catch {
-      ownCompanies = [];
+      allOwnCompanies = [];
     }
   }
+
+  const ownCompanies = allOwnCompanies.filter((c) => c.activo !== false);
+  const blockedOwnCompanies = allOwnCompanies.filter(
+    (c) => c.is_my_company && c.activo === false
+  );
 
   // Filtrar empresas titulares propias (o si solo creó una empresa marcada sin is_my_company)
   const myCompanies = ownCompanies.filter((c) => c.is_my_company);
@@ -215,18 +226,25 @@ export async function resolveTenantContext(
     });
   });
 
-  // Membresías de consultoría (Bloque 2)
+  // Membresías de consultoría / delegación (Bloque 2 + caducidad)
   if (typeof supabaseClient.from === 'function') {
     try {
       const { data: memberships } = await supabaseClient
         .from('company_memberships')
-        .select('company_id, role, can_view_commercial, company:companies(*)')
+        .select('company_id, role, can_view_commercial, expires_at, company:companies(*)')
         .eq('user_id', user.id);
 
       if (Array.isArray(memberships)) {
+        const nowMs = Date.now();
         memberships.forEach((m: any) => {
           const comp = m.company as Company | null;
           if (!comp || comp.activo === false) return;
+          if (m.expires_at) {
+            const expMs = new Date(m.expires_at).getTime();
+            if (Number.isNaN(expMs) || expMs <= nowMs) {
+              return;
+            }
+          }
           if (!accessibleMap.has(comp.id)) {
             const role = (m.role as MembershipRole) || 'consultor_operador';
             accessibleMap.set(comp.id, {
@@ -234,6 +252,7 @@ export async function resolveTenantContext(
               membershipRole: role,
               canViewCommercial: Boolean(m.can_view_commercial),
               isOwner: comp.user_id === user.id,
+              expiresAt: m.expires_at || null,
             });
           }
         });
@@ -246,8 +265,11 @@ export async function resolveTenantContext(
   const accessibleCompanies = Array.from(accessibleMap.values());
   const targetId = preferredCompanyId !== undefined ? preferredCompanyId : getActiveCompanyCookie();
 
-  const selectedEntry =
-    (targetId ? accessibleCompanies.find((item) => item.company.id === targetId) : undefined) ||
+  // El administrador de plataforma no es un usuario operativo normal:
+  // solo adopta una empresa cuando la selecciona explícitamente (cookie/preferredCompanyId).
+  const selectedEntry = isPlatformAdmin
+    ? (targetId ? accessibleCompanies.find((item) => item.company.id === targetId) : undefined) || null
+    : (targetId ? accessibleCompanies.find((item) => item.company.id === targetId) : undefined) ||
     accessibleCompanies.find((item) => item.isOwner) ||
     accessibleCompanies[0] ||
     null;
@@ -263,10 +285,12 @@ export async function resolveTenantContext(
     }
   }
 
+  const isDelegated = Boolean(selectedEntry && !selectedEntry.isOwner);
   const canViewCommercial = selectedEntry ? selectedEntry.canViewCommercial : true;
   const membershipRole: MembershipRole = selectedEntry?.membershipRole || 'owner';
-  const canWrite = canWriteWithMembershipRole(membershipRole, isPlatformAdmin);
-  const canManageCompany = canManageCompanyWithMembershipRole(membershipRole, isPlatformAdmin);
+  const effectiveAdminBypass = isPlatformAdmin && !isDelegated;
+  const canWrite = canWriteWithMembershipRole(membershipRole, effectiveAdminBypass);
+  const canManageCompany = canManageCompanyWithMembershipRole(membershipRole, effectiveAdminBypass);
 
   const perfilOperativo: OperationalProfile = activeCompany
     ? normalizeOperationalProfile(
@@ -281,9 +305,20 @@ export async function resolveTenantContext(
     : [];
 
   const hasOwnCompany = primaryOwnCompanies.length > 0;
+  const isAccountBlocked =
+    !isPlatformAdmin && accessibleCompanies.length === 0 && blockedOwnCompanies.length > 0;
+  const blockedReason = isAccountBlocked
+    ? ((blockedOwnCompanies[0] as any)?.blocked_reason as string | null) || null
+    : null;
   const hasCompletedOnboarding = Boolean(
-    activeCompany && (activeCompany.onboarding_completado || accessibleCompanies.length > 0)
+    isPlatformAdmin ||
+    isAccountBlocked ||
+    (activeCompany && (activeCompany.onboarding_completado || accessibleCompanies.length > 0))
   );
+  const homePath =
+    isPlatformAdmin && !activeCompany
+      ? '/platform-admin'
+      : getHomePathForProfile(perfilOperativo);
 
   return {
     userId: user.id,
@@ -300,13 +335,17 @@ export async function resolveTenantContext(
     perfilOperativo,
     activeModules,
     membershipRole,
-    canWrite,
-    canManageCompany,
+    canWrite: isAccountBlocked ? false : canWrite,
+    canManageCompany: isAccountBlocked ? false : canManageCompany,
     canViewCommercial,
+    isDelegated,
+    activeDelegationExpiresAt: selectedEntry?.expiresAt ?? null,
+    isAccountBlocked,
+    blockedReason,
     hasOwnCompany,
     hasCompletedOnboarding,
     isPlatformAdmin,
-    homePath: getHomePathForProfile(perfilOperativo),
+    homePath,
   };
 }
 
@@ -318,7 +357,8 @@ export const tenantContextService = {
 
   async assertModuleAccess(module: AppModule, preferredCompanyId?: number | null): Promise<FullTenantContext> {
     const ctx = await this.getTenantContext(preferredCompanyId);
-    if (!ctx.isPlatformAdmin && ctx.activeCompany && !ctx.activeModules.includes(module)) {
+    const hasAdminBypass = ctx.isPlatformAdmin && !ctx.isDelegated;
+    if (!hasAdminBypass && ctx.activeCompany && !ctx.activeModules.includes(module)) {
       throw new Error(
         `Acceso denegado: el módulo "${getModuleLabel(module)}" no está habilitado para la empresa activa.`
       );

@@ -3,6 +3,11 @@
 // ==============================================================================
 
 import { createClient } from '@/lib/supabase/client';
+import {
+  delegationService,
+  isDelegationActive,
+  validateDelegationPayload,
+} from './delegationService';
 import type {
   PlatformOverviewStats,
   PlatformCompanyRecord,
@@ -11,7 +16,9 @@ import type {
   ProductionCenter,
   IdentificationDocument,
   WasteContract,
-  CompanyRole
+  CompanyRole,
+  AdminDelegationSummary,
+  MembershipRole,
 } from '@/types/wasteManagement';
 
 const ADMIN_EMAILS = [
@@ -176,11 +183,13 @@ export const adminPlatformService = {
       }
     }
 
-    // 3. Cargar conteos agregados de centros, DIs y contratos
+    // 3. Cargar conteos agregados y métricas de operación (centros, DIs, toneladas, última actividad y contratos)
     const [centersRes, disRes, contractsRes] = await Promise.all([
       supabase.from('production_centers').select('id, company_id'),
-      supabase.from('identification_documents').select('id, company_id, gestor_id'),
-      supabase.from('waste_contracts').select('id, company_id, gestor_company_id')
+      supabase
+        .from('identification_documents')
+        .select('id, company_id, gestor_id, cantidad, cantidad_estimada, created_at, fecha_documento'),
+      supabase.from('waste_contracts').select('id, company_id, gestor_company_id, created_at')
     ]);
 
     const centersByCompany = new Map<number, number>();
@@ -191,22 +200,42 @@ export const adminPlatformService = {
     });
 
     const disByCompany = new Map<number, number>();
-    (disRes.data || []).forEach(d => {
+    const tonsByCompany = new Map<number, number>();
+    const lastOpByCompany = new Map<number, string>();
+
+    const updateLastOp = (companyId: number, dateStr?: string | null) => {
+      if (!dateStr) return;
+      const current = lastOpByCompany.get(companyId);
+      if (!current || dateStr > current) {
+        lastOpByCompany.set(companyId, dateStr);
+      }
+    };
+
+    (disRes.data || []).forEach((d: any) => {
+      const qty = parseFloat(d.cantidad ?? d.cantidad_estimada);
+      const validQty = Number.isNaN(qty) ? 0 : qty;
+      const opDate = d.fecha_documento || d.created_at || null;
       if (d.company_id) {
         disByCompany.set(d.company_id, (disByCompany.get(d.company_id) || 0) + 1);
+        tonsByCompany.set(d.company_id, (tonsByCompany.get(d.company_id) || 0) + validQty);
+        updateLastOp(d.company_id, opDate);
       }
       if (d.gestor_id && d.gestor_id !== d.company_id) {
         disByCompany.set(d.gestor_id, (disByCompany.get(d.gestor_id) || 0) + 1);
+        tonsByCompany.set(d.gestor_id, (tonsByCompany.get(d.gestor_id) || 0) + validQty);
+        updateLastOp(d.gestor_id, opDate);
       }
     });
 
     const contractsByCompany = new Map<number, number>();
-    (contractsRes.data || []).forEach(ct => {
+    (contractsRes.data || []).forEach((ct: any) => {
       if (ct.company_id) {
         contractsByCompany.set(ct.company_id, (contractsByCompany.get(ct.company_id) || 0) + 1);
+        updateLastOp(ct.company_id, ct.created_at);
       }
       if (ct.gestor_company_id && ct.gestor_company_id !== ct.company_id) {
         contractsByCompany.set(ct.gestor_company_id, (contractsByCompany.get(ct.gestor_company_id) || 0) + 1);
+        updateLastOp(ct.gestor_company_id, ct.created_at);
       }
     });
 
@@ -220,7 +249,9 @@ export const adminPlatformService = {
         user_created_at: prof?.created_at,
         centers_count: centersByCompany.get(comp.id) || 0,
         dis_count: disByCompany.get(comp.id) || 0,
-        contracts_count: contractsByCompany.get(comp.id) || 0
+        contracts_count: contractsByCompany.get(comp.id) || 0,
+        total_toneladas: Math.round((tonsByCompany.get(comp.id) || 0) * 100) / 100,
+        last_operation_at: lastOpByCompany.get(comp.id) || null,
       };
     });
 
@@ -406,6 +437,189 @@ export const adminPlatformService = {
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+  },
+
+  /**
+   * Obtiene el mapa de delegaciones activas o caducadas del administrador actual.
+   */
+  async getAdminDelegations(): Promise<Record<number, AdminDelegationSummary>> {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return {};
+    }
+
+    const authorized = await this.checkIsAdmin(user.email || '', user.id);
+    if (!authorized) {
+      throw new Error('Acceso denegado: Se requieren permisos de Administrador de Plataforma.');
+    }
+
+    const { data, error } = await supabase
+      .from('company_memberships')
+      .select(
+        'company_id, role, can_view_commercial, expires_at, delegation_reason, terms_accepted_at, created_at, updated_at'
+      )
+      .eq('user_id', user.id);
+
+    if (error) {
+      throw new Error(`Error al cargar delegaciones del administrador: ${error.message}`);
+    }
+
+    const map: Record<number, AdminDelegationSummary> = {};
+    (data || []).forEach((row: any) => {
+      if (!row?.company_id) return;
+      map[row.company_id] = {
+        company_id: row.company_id,
+        role: (row.role as MembershipRole) || 'consultor_admin',
+        can_view_commercial: Boolean(row.can_view_commercial),
+        expires_at: row.expires_at ?? null,
+        delegation_reason: row.delegation_reason ?? null,
+        terms_accepted_at: row.terms_accepted_at ?? null,
+        is_active: isDelegationActive(row.expires_at ?? null),
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+    });
+
+    return map;
+  },
+
+  /**
+   * Activa o actualiza la delegación explícita del administrador sobre una empresa titular
+   * exigiendo motivo/referencia y fecha de caducidad futura.
+   */
+  async delegateCompanyToSelf(
+    companyId: number,
+    options: {
+      role?: Exclude<MembershipRole, 'owner'>;
+      canViewCommercial?: boolean;
+      expiresAt: string;
+      reason: string;
+    }
+  ): Promise<AdminDelegationSummary> {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    const authorized = await this.checkIsAdmin(user.email || '', user.id);
+    if (!authorized) {
+      throw new Error('Acceso denegado: Se requieren permisos de Administrador de Plataforma.');
+    }
+
+    const role = options.role || 'consultor_admin';
+    const canViewCommercial = Boolean(options.canViewCommercial);
+
+    validateDelegationPayload(
+      {
+        companyId,
+        role,
+        canViewCommercial,
+        expiresAt: options.expiresAt,
+        reason: options.reason,
+        termsAccepted: false,
+      },
+      { requireTermsAcceptance: false, requireReason: true }
+    );
+
+    const record = await delegationService.grantPilotDelegation(
+      {
+        companyId,
+        role,
+        canViewCommercial,
+        expiresAt: options.expiresAt,
+        reason: options.reason.trim(),
+        termsAccepted: false,
+        delegateEmail: user.email || undefined,
+      },
+      { requireTermsAcceptance: false, requireReason: true }
+    );
+
+    return {
+      company_id: record.company_id,
+      role: record.role,
+      can_view_commercial: Boolean(record.can_view_commercial),
+      expires_at: record.expires_at ?? null,
+      delegation_reason: record.delegation_reason ?? options.reason.trim(),
+      terms_accepted_at: record.terms_accepted_at ?? null,
+      is_active: isDelegationActive(record.expires_at ?? null),
+      created_at: record.created_at,
+      updated_at: record.updated_at,
+    };
+  },
+
+  /**
+   * Revoca la delegación activa del administrador sobre una empresa.
+   */
+  async revokeAdminDelegation(companyId: number): Promise<void> {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    const authorized = await this.checkIsAdmin(user.email || '', user.id);
+    if (!authorized) {
+      throw new Error('Acceso denegado: Se requieren permisos de Administrador de Plataforma.');
+    }
+
+    await delegationService.revokeDelegation(companyId, user.id);
+  },
+
+  /**
+   * Bloquea o reactiva el acceso operativo de una empresa en la plataforma (vía RPC auditada).
+   */
+  async setCompanyAccessStatus(
+    companyId: number,
+    active: boolean,
+    reason?: string
+  ): Promise<{ id: number; activo: boolean; blocked_at: string | null; blocked_reason: string | null }> {
+    if (!Number.isInteger(companyId) || companyId <= 0) {
+      throw new Error('Identificador de empresa inválido.');
+    }
+
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    const authorized = await this.checkIsAdmin(user.email || '', user.id);
+    if (!authorized) {
+      throw new Error('Acceso denegado: Se requieren permisos de Administrador de Plataforma.');
+    }
+
+    if (!active && !reason?.trim()) {
+      throw new Error('Debes indicar un motivo para bloquear el acceso de la empresa.');
+    }
+
+    const { data, error } = await supabase.rpc('set_company_access_status', {
+      p_company_id: companyId,
+      p_active: active,
+      p_reason: reason?.trim() || null,
+    });
+
+    if (error || !data) {
+      throw new Error(
+        `No se pudo ${active ? 'activar' : 'bloquear'} la empresa: ${error?.message || 'Error desconocido'}`
+      );
+    }
+
+    return data as {
+      id: number;
+      activo: boolean;
+      blocked_at: string | null;
+      blocked_reason: string | null;
+    };
   }
 };
 

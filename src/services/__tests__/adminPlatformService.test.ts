@@ -580,4 +580,208 @@ describe('adminPlatformService - Administración y Auditoría de Plataforma', ()
       expect(document.createElement).toHaveBeenCalledWith('a');
     });
   });
+
+  describe('Delegaciones de Administrador (getAdminDelegations, delegateCompanyToSelf, revokeAdminDelegation)', () => {
+    it('getAdminDelegations devuelve mapa vacío sin usuario, rechaza no-admin y mapea vigencia', async () => {
+      mockSupabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      expect(await adminPlatformService.getAdminDelegations()).toEqual({});
+
+      // Usuario no admin
+      mockSupabase.auth.getUser.mockResolvedValueOnce({
+        data: { user: { id: 'u-norm', email: 'normal@empresa.es' } },
+      });
+      mockSupabase.from.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'user' }, error: null }),
+      });
+      await expect(adminPlatformService.getAdminDelegations()).rejects.toThrow('Acceso denegado');
+
+      // Admin con delegaciones vigente y caducada
+      const futureIso = new Date(Date.now() + 86400000).toISOString();
+      const pastIso = new Date(Date.now() - 86400000).toISOString();
+      mockSupabase.auth.getUser.mockResolvedValueOnce({
+        data: { user: { id: 'u-adm', email: 'alfredobape@gmail.com' } },
+      });
+      mockSupabase.from.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockResolvedValue({
+          data: [
+            {
+              company_id: 10,
+              role: 'consultor_admin',
+              can_view_commercial: false,
+              expires_at: futureIso,
+              delegation_reason: 'Ticket #1',
+            },
+            {
+              company_id: 11,
+              role: null,
+              can_view_commercial: true,
+              expires_at: pastIso,
+            },
+            {
+              company_id: null,
+              role: 'lectura',
+            },
+          ],
+          error: null,
+        }),
+      });
+
+      const map = await adminPlatformService.getAdminDelegations();
+      expect(map[10].is_active).toBe(true);
+      expect(map[10].can_view_commercial).toBe(false);
+      expect(map[11].is_active).toBe(false);
+      expect(map[11].role).toBe('consultor_admin');
+
+      // Error en consulta
+      mockSupabase.auth.getUser.mockResolvedValueOnce({
+        data: { user: { id: 'u-adm', email: 'alfredobape@gmail.com' } },
+      });
+      mockSupabase.from.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockResolvedValue({ data: null, error: { message: 'DB fail' } }),
+      });
+      await expect(adminPlatformService.getAdminDelegations()).rejects.toThrow(
+        'Error al cargar delegaciones del administrador'
+      );
+    });
+
+    it('delegateCompanyToSelf exige admin, motivo y fecha futura, y delega vía RPC', async () => {
+      const futureIso = new Date(Date.now() + 7 * 86400000).toISOString();
+
+      mockSupabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      await expect(
+        adminPlatformService.delegateCompanyToSelf(10, { expiresAt: futureIso, reason: 'Ticket #9' })
+      ).rejects.toThrow('Usuario no autenticado');
+
+      // No admin
+      mockSupabase.auth.getUser.mockResolvedValueOnce({
+        data: { user: { id: 'u-norm', email: 'normal@empresa.es' } },
+      });
+      mockSupabase.from.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'user' }, error: null }),
+      });
+      await expect(
+        adminPlatformService.delegateCompanyToSelf(10, { expiresAt: futureIso, reason: 'Ticket #9' })
+      ).rejects.toThrow('Acceso denegado');
+
+      // Admin válido (dos getUser: uno en adminPlatformService y otro en delegationService)
+      mockSupabase.auth.getUser
+        .mockResolvedValueOnce({ data: { user: { id: 'u-adm', email: 'alfredobape@gmail.com' } } })
+        .mockResolvedValueOnce({ data: { user: { id: 'u-adm', email: 'alfredobape@gmail.com' } } });
+
+      mockSupabase.rpc.mockResolvedValueOnce({
+        data: {
+          id: 99,
+          company_id: 10,
+          user_id: 'u-adm',
+          role: 'consultor_admin',
+          can_view_commercial: false,
+          expires_at: futureIso,
+          delegation_reason: 'Contrato #2026-1',
+        },
+        error: null,
+      });
+
+      const summary = await adminPlatformService.delegateCompanyToSelf(10, {
+        expiresAt: futureIso,
+        reason: 'Contrato #2026-1',
+      });
+      expect(summary.company_id).toBe(10);
+      expect(summary.is_active).toBe(true);
+      expect(summary.delegation_reason).toBe('Contrato #2026-1');
+    });
+
+    it('revokeAdminDelegation valida permisos y elimina la membresía del admin', async () => {
+      mockSupabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      await expect(adminPlatformService.revokeAdminDelegation(10)).rejects.toThrow(
+        'Usuario no autenticado'
+      );
+
+      mockSupabase.auth.getUser.mockResolvedValueOnce({
+        data: { user: { id: 'u-norm', email: 'normal@empresa.es' } },
+      });
+      mockSupabase.from.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'user' }, error: null }),
+      });
+      await expect(adminPlatformService.revokeAdminDelegation(10)).rejects.toThrow('Acceso denegado');
+
+      mockSupabase.auth.getUser
+        .mockResolvedValueOnce({ data: { user: { id: 'u-adm', email: 'alfredobape@gmail.com' } } })
+        .mockResolvedValueOnce({ data: { user: { id: 'u-adm', email: 'alfredobape@gmail.com' } } });
+
+      mockSupabase.rpc.mockResolvedValueOnce({ data: true, error: null });
+
+      await expect(adminPlatformService.revokeAdminDelegation(10)).resolves.toBeUndefined();
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('revoke_company_delegation', {
+        p_company_id: 10,
+        p_delegate_user_id: 'u-adm',
+      });
+    });
+
+    it('setCompanyAccessStatus valida admin, motivo al bloquear e invoca RPC', async () => {
+      await expect(adminPlatformService.setCompanyAccessStatus(0, false, 'Motivo')).rejects.toThrow(
+        'Identificador de empresa inválido'
+      );
+
+      mockSupabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      await expect(adminPlatformService.setCompanyAccessStatus(10, false, 'Motivo')).rejects.toThrow(
+        'Usuario no autenticado'
+      );
+
+      mockSupabase.auth.getUser.mockResolvedValueOnce({
+        data: { user: { id: 'u-norm', email: 'normal@empresa.es' } },
+      });
+      mockSupabase.from.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'user' }, error: null }),
+      });
+      await expect(adminPlatformService.setCompanyAccessStatus(10, false, 'Motivo')).rejects.toThrow(
+        'Acceso denegado'
+      );
+
+      // Bloqueo sin motivo
+      mockSupabase.auth.getUser.mockResolvedValueOnce({
+        data: { user: { id: 'u-adm', email: 'alfredobape@gmail.com' } },
+      });
+      await expect(adminPlatformService.setCompanyAccessStatus(10, false, '   ')).rejects.toThrow(
+        'Debes indicar un motivo'
+      );
+
+      // Bloqueo exitoso
+      mockSupabase.auth.getUser.mockResolvedValueOnce({
+        data: { user: { id: 'u-adm', email: 'alfredobape@gmail.com' } },
+      });
+      mockSupabase.rpc.mockResolvedValueOnce({
+        data: { id: 10, activo: false, blocked_at: '2026-11-22T10:00:00Z', blocked_reason: 'Impago' },
+        error: null,
+      });
+      const blocked = await adminPlatformService.setCompanyAccessStatus(10, false, 'Impago');
+      expect(blocked.activo).toBe(false);
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('set_company_access_status', {
+        p_company_id: 10,
+        p_active: false,
+        p_reason: 'Impago',
+      });
+
+      // Activación con error RPC
+      mockSupabase.auth.getUser.mockResolvedValueOnce({
+        data: { user: { id: 'u-adm', email: 'alfredobape@gmail.com' } },
+      });
+      mockSupabase.rpc.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Empresa no encontrada' },
+      });
+      await expect(adminPlatformService.setCompanyAccessStatus(10, true)).rejects.toThrow(
+        'No se pudo activar la empresa'
+      );
+    });
+  });
 });

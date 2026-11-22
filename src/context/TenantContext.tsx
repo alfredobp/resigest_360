@@ -24,9 +24,14 @@ interface TenantContextValue {
   canManageCompany: boolean;
   isPlatformAdmin: boolean;
   canViewCommercial: boolean;
+  isDelegated: boolean;
+  activeDelegationExpiresAt: string | null;
+  isAccountBlocked: boolean;
+  blockedReason: string | null;
   hasModule: (module: AppModule) => boolean;
   canAccessRoute: (path?: string) => boolean;
   switchCompany: (companyId: number) => Promise<void>;
+  exitDelegationContext: () => Promise<void>;
   refreshTenant: () => Promise<void>;
 }
 
@@ -86,8 +91,22 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [refreshTenant]
   );
 
+  const exitDelegationContext = useCallback(async () => {
+    setActiveCompanyCookie(null);
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.removeItem('resigest_active_company_id');
+      } catch {
+        // Ignorar errores de acceso a localStorage en modo privado
+      }
+    }
+    await refreshTenant();
+  }, [refreshTenant]);
+
   const activeModules = tenant?.activeModules ?? [];
   const isPlatformAdmin = tenant?.isPlatformAdmin ?? false;
+  const isDelegated = tenant?.isDelegated ?? false;
+  const activeDelegationExpiresAt = tenant?.activeDelegationExpiresAt ?? null;
   const perfilOperativo: OperationalProfile = tenant?.perfilOperativo ?? 'productor';
   const membershipRole: MembershipRole = tenant?.membershipRole ?? 'owner';
   const canWrite = tenant?.canWrite ?? true;
@@ -95,22 +114,25 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const hasModule = useCallback(
     (module: AppModule) => {
-      if (isPlatformAdmin) return true;
+      if (isPlatformAdmin && !isDelegated) return true;
       return activeModules.includes(module);
     },
-    [activeModules, isPlatformAdmin]
+    [activeModules, isPlatformAdmin, isDelegated]
   );
 
   const canAccessRoute = useCallback(
     (path?: string) => {
       if (!path) return true;
       if (!tenant) return true;
-      return canAccessPath(path, activeModules, isPlatformAdmin, {
+      if (isPlatformAdmin && (path === '/platform-admin' || path.startsWith('/platform-admin/'))) {
+        return true;
+      }
+      return canAccessPath(path, activeModules, isPlatformAdmin && !isDelegated, {
         membershipRole,
         perfilOperativo,
       });
     },
-    [tenant, activeModules, isPlatformAdmin, membershipRole, perfilOperativo]
+    [tenant, activeModules, isPlatformAdmin, isDelegated, membershipRole, perfilOperativo]
   );
 
   return (
@@ -128,9 +150,14 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         canManageCompany,
         isPlatformAdmin,
         canViewCommercial: tenant?.canViewCommercial ?? false,
+        isDelegated,
+        activeDelegationExpiresAt,
+        isAccountBlocked: tenant?.isAccountBlocked ?? false,
+        blockedReason: tenant?.blockedReason ?? null,
         hasModule,
         canAccessRoute,
         switchCompany,
+        exitDelegationContext,
         refreshTenant,
       }}
     >
@@ -155,9 +182,14 @@ export const useTenant = (): TenantContextValue => {
       canManageCompany: true,
       isPlatformAdmin: false,
       canViewCommercial: false,
+      isDelegated: false,
+      activeDelegationExpiresAt: null,
+      isAccountBlocked: false,
+      blockedReason: null,
       hasModule: () => true,
       canAccessRoute: () => true,
       switchCompany: async () => { },
+      exitDelegationContext: async () => { },
       refreshTenant: async () => { },
     };
   }
