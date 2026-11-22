@@ -15,7 +15,7 @@ import {
 } from '@/types/wasteManagement';
 import { holdedService } from './holdedService';
 import { auditService } from './auditService';
-import { tenantContextService, applyTenantScope } from './tenantContextService';
+import { tenantContextService, applyTenantScope, getActiveCompanyCookie } from './tenantContextService';
 import { syncEntryFromCommercialOperation } from './chronologicalRegistryService';
 
 const OP_META_MARKER = '__RESIGEST_OP_META__:';
@@ -433,8 +433,10 @@ export const commercialOperationService = {
         })
       : data.observaciones;
 
+    const resolvedCompanyId = dbData.company_id ?? getActiveCompanyCookie() ?? undefined;
     const basePayload = {
       ...dbData,
+      ...(resolvedCompanyId ? { company_id: resolvedCompanyId } : {}),
       observaciones: finalObservaciones,
       user_id: user.id,
       estado: data.estado || 'abierta',

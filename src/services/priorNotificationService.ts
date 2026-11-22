@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
-import { applyTenantScope } from './tenantContextService';
+import { applyTenantScope, getActiveCompanyCookie } from './tenantContextService';
 import { buildNTCode, resolveDocumentYear } from './documentSequenceService';
 import type { PriorNotification } from '@/types/wasteManagement';
 import {
@@ -238,10 +238,12 @@ export const priorNotificationService = {
       1
     );
 
+    const resolvedCompanyId = insertData.company_id ?? getActiveCompanyCookie() ?? undefined;
     const { data, error } = await supabase
       .from('prior_notifications')
       .insert({
         ...insertData,
+        ...(resolvedCompanyId ? { company_id: resolvedCompanyId } : {}),
         numero_notificacion: fallbackNtCode,
         user_id: user.id,
       })

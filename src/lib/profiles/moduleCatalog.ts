@@ -42,10 +42,10 @@ export const PROFILE_DEFINITIONS: Record<OperationalProfile, ProfileDefinition> 
     id: 'productor',
     label: 'Productor de Residuos',
     shortLabel: 'Productor',
-    description: 'Centros de producción, contratos de tratamiento, retiradas (DI), DeCA, archivo cronológico y memorias anuales.',
+    description: 'Centros de producción, contratos de tratamiento, retiradas (DI), archivo cronológico y memorias anuales.',
     defaultCompanyType: 'productor',
     defaultRoles: ['productor'],
-    defaultModules: ['empresas', 'contratos', 'di', 'deca', 'archivo_cronologico', 'memorias_anuales'],
+    defaultModules: ['empresas', 'contratos', 'di', 'archivo_cronologico', 'memorias_anuales'],
     homePath: '/app',
   },
   chatarreria: {

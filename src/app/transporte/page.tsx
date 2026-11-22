@@ -16,9 +16,11 @@ import {
   RefreshCw,
   Download,
   LayoutDashboard,
+  Share2,
 } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
 import { decaService, filterVigenteServices } from '@/services/decaService';
+import { buildDecaShareMessage, buildDecaWhatsAppUrl } from '@/lib/decaShare';
 import { identificationDocumentService } from '@/services/identificationDocumentService';
 import { companyService } from '@/services/companyService';
 import { createClient } from '@/lib/supabase/client';
@@ -95,6 +97,24 @@ export default function TransporteMobileHomePage() {
     } finally {
       setBusyId(null);
     }
+  };
+
+  const handleShareDeca = async (deca: DecaDocument) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const message = buildDecaShareMessage(deca, origin);
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: `DeCA ${deca.numero_deca}`,
+          text: message,
+          url: `${origin}/mobile/deca/${deca.token}`,
+        });
+        return;
+      } catch {
+        // Fallback si el usuario cancela o falla
+      }
+    }
+    window.open(buildDecaWhatsAppUrl(deca, origin), '_blank', 'noopener,noreferrer');
   };
 
   const handleSignOut = async () => {
@@ -356,7 +376,7 @@ export default function TransporteMobileHomePage() {
                     </div>
 
                     {/* Botones grandes táctiles */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                       <Link
                         href={`/mobile/deca/${deca.token}`}
                         className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition"
@@ -364,6 +384,15 @@ export default function TransporteMobileHomePage() {
                         <QrCode className="w-4 h-4" />
                         Mostrar QR / DeCA
                       </Link>
+
+                      <button
+                        type="button"
+                        onClick={() => handleShareDeca(deca)}
+                        className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-bold shadow-sm transition cursor-pointer"
+                      >
+                        <Share2 className="w-4 h-4" />
+                        Compartir
+                      </button>
 
                       <button
                         type="button"

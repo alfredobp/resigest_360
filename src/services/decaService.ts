@@ -5,7 +5,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { auditService } from './auditService';
-import { applyTenantScope } from './tenantContextService';
+import { applyTenantScope, getActiveCompanyCookie } from './tenantContextService';
 import type { DecaDocument, DecaFormData, DecaAuditLog } from '@/types/deca';
 import type { IdentificationDocument } from '@/types/wasteManagement';
 
@@ -283,13 +283,14 @@ export const decaService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
+    const activeCompanyId = formData.company_id ?? getActiveCompanyCookie() ?? undefined;
     const hasExplicitNumero = Boolean(formData.numero_deca && formData.numero_deca.trim());
     const baseNumero = hasExplicitNumero ? formData.numero_deca.trim() : await this.getNextNumero();
     const token = generateSecureToken();
     const currentYear = new Date().getFullYear();
     const seqMatch = baseNumero.match(/(\d+)$/);
     const baseSeq = seqMatch ? parseInt(seqMatch[1], 10) : 1;
-    const scopeTag = formData.company_id ? `E${formData.company_id}` : `U${user.id.slice(0, 4).toUpperCase()}`;
+    const scopeTag = activeCompanyId ? `E${activeCompanyId}` : `U${user.id.slice(0, 4).toUpperCase()}`;
 
     let createdData: any = null;
     let lastError: any = null;
@@ -302,6 +303,7 @@ export const decaService = {
 
       const insertPayload = {
         ...formData,
+        ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
         user_id: user.id,
         numero_deca: candidateNumero,
         version: 1,
@@ -459,9 +461,13 @@ export const decaService = {
     const nextVersion = currentDeca.version + 1;
     const newToken = generateSecureToken();
 
+    const resolvedCompanyId =
+      updatedFields.company_id ?? currentDeca.company_id ?? getActiveCompanyCookie() ?? undefined;
+
     const newDocPayload = {
       ...currentDeca,
       ...updatedFields,
+      ...(resolvedCompanyId ? { company_id: resolvedCompanyId } : {}),
       id: undefined, // nuevo id autonumérico
       version: nextVersion,
       is_vigente: true,

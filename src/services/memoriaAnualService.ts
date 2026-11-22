@@ -5,7 +5,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { auditService } from './auditService';
-import { applyTenantScope } from './tenantContextService';
+import { applyTenantScope, getActiveCompanyCookie } from './tenantContextService';
 import {
   type MemoriaAnual,
   type EstadoMemoria,
@@ -67,9 +67,10 @@ export async function createMemoria(data: CreateMemoriaData): Promise<MemoriaAnu
   // Calcular resumen por LER
   const resumen_ler = calculateResumenLER(documentos);
 
+  const resolvedCompanyId = data.company_id ?? getActiveCompanyCookie() ?? undefined;
   const memoria: Partial<MemoriaAnual> = {
     user_id: user.id,
-    company_id: data.company_id,
+    company_id: resolvedCompanyId,
     tipo_memoria: data.tipo_memoria,
     año: data.año,
     production_center_id: data.production_center_id,

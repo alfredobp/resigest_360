@@ -4,7 +4,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { auditService } from './auditService';
-import { applyTenantScope } from './tenantContextService';
+import { applyTenantScope, getActiveCompanyCookie } from './tenantContextService';
 import {
   type ChronologicalEntry,
   type ChronologicalEntryFormData,
@@ -276,8 +276,10 @@ export async function createChronologicalEntry(
     }
   }
 
+  const resolvedCompanyId = normalizedData.company_id ?? getActiveCompanyCookie() ?? undefined;
   const payload = {
     ...normalizedData,
+    ...(resolvedCompanyId ? { company_id: resolvedCompanyId } : {}),
     destino_nima,
     user_id: user.id,
     numero_asiento,

@@ -16,6 +16,11 @@ import {
   getDriverComplianceAlerts,
   getVehicleComplianceAlerts,
 } from '@/lib/validations/fleetValidation';
+import {
+  buildDecaMailtoUrl,
+  buildDecaShareMessage,
+  buildDecaWhatsAppUrl,
+} from '@/lib/decaShare';
 import type { DecaDocument, DecaFormData } from '@/types/deca';
 import type { Company, Carrier, CarrierDriver, CarrierVehicle } from '@/types/wasteManagement';
 import { toast } from '@/context/ToastContext';
@@ -47,11 +52,14 @@ import {
   Check,
   Calendar,
   X,
-  AlertTriangle
+  AlertTriangle,
+  Share2,
+  Mail,
+  MessageCircle
 } from 'lucide-react';
 
 export default function DecaManagementPage() {
-  const { activeCompany } = useTenant();
+  const { activeCompany, activeCompanyId } = useTenant();
   const [documents, setDocuments] = useState<DecaDocument[]>([]);
   const [availableCompanies, setAvailableCompanies] = useState<Company[]>([]);
   const [availableCarriers, setAvailableCarriers] = useState<Carrier[]>([]);
@@ -146,7 +154,7 @@ export default function DecaManagementPage() {
 
   useEffect(() => {
     loadDocuments();
-  }, []);
+  }, [activeCompanyId]);
 
   const handleOpenQrModal = async (doc: DecaDocument) => {
     setQrModalDoc(doc);
@@ -213,6 +221,7 @@ export default function DecaManagementPage() {
 
     const prefilledData: Partial<DecaFormData> = {
       ...initialFormData,
+      company_id: activeCompany?.id ?? activeCompanyId ?? undefined,
       transportista_razon_social: activeCompany?.razon_social || activeCompany?.nombre_comercial || currentCarrier?.razon_social || '',
       transportista_nif: activeCompany?.cif || currentCarrier?.cif || '',
       transportista_autorizacion: activeCompany?.numero_autorizacion || activeCompany?.numero_inscripcion || currentCarrier?.numero_autorizacion || '',
@@ -386,6 +395,7 @@ export default function DecaManagementPage() {
       setVersionErrors({});
       toast.success(`Nueva versión v${updated.version} de ${updated.numero_deca} emitida.`);
       await loadDocuments();
+      await handleOpenQrModal(updated);
     } catch (err: any) {
       toast.error(`Error al generar nueva versión: ${err.message}`);
     } finally {
@@ -762,6 +772,88 @@ export default function DecaManagementPage() {
                 Escaneo directo para agentes: descarga el PDF oficial sin login.
               </span>
             </div>
+
+            {/* Compartir rápido con el conductor (WhatsApp, Email, Nativo, Copiar mensaje) */}
+            {(() => {
+              const qrDriver = fleetDrivers.find(
+                (d) =>
+                  qrModalDoc.conductor_nombre &&
+                  d.nombre.trim().toLowerCase() === qrModalDoc.conductor_nombre.trim().toLowerCase()
+              );
+              const waUrl = buildDecaWhatsAppUrl(qrModalDoc, originUrl, qrDriver?.telefono);
+              const mailtoUrl = buildDecaMailtoUrl(qrModalDoc, originUrl, qrDriver?.email);
+              const fullMessage = buildDecaShareMessage(qrModalDoc, originUrl);
+              const canNativeShare =
+                typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+
+              const handleNativeShare = async () => {
+                try {
+                  await navigator.share({
+                    title: `DeCA ${qrModalDoc.numero_deca} (v${qrModalDoc.version})`,
+                    text: fullMessage,
+                    url: `${originUrl}/mobile/deca/${qrModalDoc.token}`,
+                  });
+                } catch {
+                  // Usuario canceló la hoja nativa
+                }
+              };
+
+              return (
+                <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/25 border border-emerald-200/80 dark:border-emerald-900/60 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
+                      <Share2 className="w-3.5 h-3.5" />
+                      Compartir rápido con el conductor
+                    </span>
+                    {qrDriver?.telefono && (
+                      <span className="text-[10.5px] font-mono text-emerald-700 dark:text-emerald-300">
+                        {qrDriver.telefono}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      WhatsApp
+                    </a>
+                    <a
+                      href={mailtoUrl}
+                      className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs"
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      Email
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(fullMessage, 'message')}
+                      className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold transition cursor-pointer"
+                    >
+                      {copiedLink === 'message' ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                      Copiar mensaje
+                    </button>
+                    {canNativeShare && (
+                      <button
+                        type="button"
+                        onClick={handleNativeShare}
+                        className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold transition cursor-pointer"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        Más apps...
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Enlaces de Acción */}
             <div className="space-y-2.5">

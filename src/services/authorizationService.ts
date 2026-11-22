@@ -5,7 +5,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { auditService } from './auditService';
-import { applyTenantScope } from './tenantContextService';
+import { applyTenantScope, getActiveCompanyCookie } from './tenantContextService';
 import type {
   EnvironmentalAuthorization,
   EnvironmentalAuthorizationFormData,
@@ -184,10 +184,12 @@ export const authorizationService = {
 
     const { waste_codes, ...authData } = formData;
 
+    const resolvedCompanyId = authData.company_id ?? getActiveCompanyCookie() ?? undefined;
     const { data, error } = await supabase
       .from('environmental_authorizations')
       .insert({
         ...authData,
+        ...(resolvedCompanyId ? { company_id: resolvedCompanyId } : {}),
         user_id: user.id,
         activo: formData.activo ?? true,
         es_indefinida: formData.es_indefinida ?? false,

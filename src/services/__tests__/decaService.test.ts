@@ -873,4 +873,64 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       expect(result.allLatest).toEqual([]);
     });
   });
+
+  describe('modo delegado (company_id desde cookie activa)', () => {
+    it('debe asignar automáticamente company_id desde la cookie activa al crear un DeCA en modo delegado', async () => {
+      const tenantCtx = await import('../tenantContextService');
+      const cookieSpy = jest.spyOn(tenantCtx, 'getActiveCompanyCookie').mockReturnValue(77);
+
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'consultant-user-1' } },
+      });
+
+      const insertSpy = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          single: jest.fn().mockResolvedValue({
+            data: { id: 500, numero_deca: 'DECA-2026-00099', company_id: 77, version: 1 },
+            error: null,
+          }),
+        }),
+      });
+
+      const auditInsertSpy = jest.fn().mockResolvedValue({ error: null });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'deca_documents') {
+          return { insert: insertSpy };
+        }
+        return { insert: auditInsertSpy };
+      });
+
+      const created = await decaService.create({
+        numero_deca: 'DECA-2026-00099',
+        cargador_razon_social: 'Cargador SA',
+        cargador_nif: 'A12345678',
+        cargador_domicilio: 'Calle 1',
+        cargador_municipio: 'Sevilla',
+        cargador_provincia: 'Sevilla',
+        transportista_razon_social: 'Trans Delegado SL',
+        transportista_nif: 'B87654321',
+        origen_direccion: 'Polígono 1',
+        origen_municipio: 'Sevilla',
+        origen_provincia: 'Sevilla',
+        destino_direccion: 'Planta 2',
+        destino_municipio: 'Málaga',
+        destino_provincia: 'Málaga',
+        naturaleza_mercancia: 'Chatarra',
+        peso_kg: 1200,
+        matricula_tractora: '1234-BBB',
+        fecha_transporte: '2026-11-22',
+        estado: 'vigente',
+      });
+
+      expect(insertSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          company_id: 77,
+          user_id: 'consultant-user-1',
+        })
+      );
+      expect(created.company_id).toBe(77);
+      cookieSpy.mockRestore();
+    });
+  });
 });

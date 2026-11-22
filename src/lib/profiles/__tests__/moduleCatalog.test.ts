@@ -36,6 +36,7 @@ describe('moduleCatalog - Perfiles Operativos y Módulos', () => {
       const prodMods = getDefaultModulesForProfile('productor');
       expect(prodMods).toContain('contratos');
       expect(prodMods).toContain('di');
+      expect(prodMods).not.toContain('deca');
       expect(prodMods).not.toContain('operaciones_comerciales');
 
       const transMods = getDefaultModulesForProfile('transportista');
@@ -96,6 +97,7 @@ describe('moduleCatalog - Perfiles Operativos y Módulos', () => {
       expect(getRequiredModuleForPath('/residuos/operaciones')).toBe('operaciones_comerciales');
       expect(getRequiredModuleForPath('/residuos/operaciones/nueva')).toBe('operaciones_comerciales');
       expect(getRequiredModuleForPath('/transporte')).toBe('flota_transporte');
+      expect(getRequiredModuleForPath('/residuos/flota')).toBe('flota_transporte');
       expect(getRequiredModuleForPath('/app')).toBeNull();
     });
 
