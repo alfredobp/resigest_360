@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.legal_documents (
   id BIGSERIAL PRIMARY KEY,
   code TEXT NOT NULL UNIQUE,
   title TEXT NOT NULL,
-  ambito TEXT NOT NULL CHECK (ambito IN ('estatal', 'ue', 'ccaa')),
+  ambito TEXT NOT NULL CHECK (ambito IN ('estatal', 'ue', 'ccaa', 'plataforma')),
   ccaa TEXT,
   boe_url TEXT,
   vigente BOOLEAN NOT NULL DEFAULT TRUE,
@@ -161,7 +161,7 @@ AS $$
     INNER JOIN public.legal_documents d ON d.id = c.document_id
     WHERE d.vigente = TRUE
       AND (
-        d.ambito IN ('estatal', 'ue')
+        d.ambito IN ('estatal', 'ue', 'plataforma')
         OR (filter_ccaa IS NOT NULL AND LOWER(COALESCE(d.ccaa, '')) = LOWER(filter_ccaa))
       )
   ),

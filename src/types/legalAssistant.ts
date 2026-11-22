@@ -1,6 +1,6 @@
-import type { OperationalProfile } from '@/types/wasteManagement';
+import type { AppModule, OperationalProfile } from '@/types/wasteManagement';
 
-export type LegalScope = 'estatal' | 'ue' | 'ccaa';
+export type LegalScope = 'estatal' | 'ue' | 'ccaa' | 'plataforma';
 
 export type LegalRetrievalMode = 'hybrid' | 'local_fallback';
 
@@ -12,6 +12,8 @@ export interface LegalSourceCitation {
   sectionTitle: string;
   excerpt: string;
   boeUrl?: string | null;
+  appPath?: string | null;
+  appPathLabel?: string | null;
   ambito: LegalScope;
   ccaa?: string | null;
   score: number;
@@ -24,6 +26,8 @@ export interface LegalChunkRecord {
   ambito: LegalScope;
   ccaa?: string | null;
   boeUrl?: string | null;
+  appPath?: string | null;
+  appPathLabel?: string | null;
   articleRef: string;
   sectionTitle: string;
   content: string;
@@ -42,6 +46,7 @@ export interface LegalAssistantRequest {
   perfilOperativo?: OperationalProfile;
   region?: string;
   companyId?: number | null;
+  activeModules?: AppModule[];
 }
 
 export interface LegalAssistantResponse {

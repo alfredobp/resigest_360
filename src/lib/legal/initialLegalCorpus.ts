@@ -1,4 +1,5 @@
 import type { LegalScope } from '@/types/legalAssistant';
+import type { AppModule } from '@/types/wasteManagement';
 
 export interface SeedLegalChunk {
   id: string;
@@ -6,7 +7,10 @@ export interface SeedLegalChunk {
   documentTitle: string;
   ambito: LegalScope;
   ccaa?: string | null;
-  boeUrl: string;
+  boeUrl?: string | null;
+  appPath?: string | null;
+  appPathLabel?: string | null;
+  requiredModule?: AppModule;
   articleRef: string;
   sectionTitle: string;
   keywords: string[];
@@ -151,5 +155,119 @@ export const INITIAL_LEGAL_CORPUS: SeedLegalChunk[] = [
     keywords: ['ler', 'código ler', 'asterisco', 'peligroso', 'espejo', 'hp', 'clasificación', '6 dígitos'],
     content:
       'Todo residuo se clasifica mediante un código LER de seis dígitos agrupado en 20 capítulos según el proceso o actividad de origen. Los códigos marcados con un asterisco (*) corresponden a residuos peligrosos (RP). Existen entradas absolutas peligrosas, absolutas no peligrosas y entradas espejo (un código con asterisco y su par sin asterisco): en las entradas espejo debe evaluarse si el residuo presenta alguna característica de peligrosidad HP1 a HP15 conforme al Reglamento (UE) 1357/2014 antes de clasificarlo como no peligroso.',
+  },
+  // =========================================================================
+  // GUÍA DE PLATAFORMA — RESIGEST 360 (Nivel 1)
+  // =========================================================================
+  {
+    id: 'resigest-mi-empresa',
+    documentCode: 'RESIGEST_GUIA',
+    documentTitle: 'Guía de Plataforma ResiGest 360',
+    ambito: 'plataforma',
+    appPath: '/residuos/mi-empresa',
+    appPathLabel: 'Ir a Mi Empresa',
+    articleRef: 'Guía ResiGest · Mi Empresa',
+    sectionTitle: 'Configurar datos fiscales, NIMA, centros de producción y perfil operativo',
+    keywords: ['mi empresa', 'nima', 'cif', 'centro de produccion', 'perfil operativo', 'configurar', 'alta empresa', 'plataforma', 'resigest', 'consejos'],
+    content:
+      'En ResiGest 360, desde el módulo Mi Empresa (/residuos/mi-empresa) puedes configurar la razón social, CIF, NIMA, número de inscripción ambiental, domicilio social y de instalación, así como dar de alta y gestionar tus Centros de Producción (cada uno con su propio NIMA y provincia). También puedes ajustar preferencias de la interfaz (como mostrar u ocultar consejos) y revisar los módulos activos según tu perfil operativo.',
+  },
+  {
+    id: 'resigest-contratos',
+    documentCode: 'RESIGEST_GUIA',
+    documentTitle: 'Guía de Plataforma ResiGest 360',
+    ambito: 'plataforma',
+    appPath: '/residuos/contratos',
+    appPathLabel: 'Ir a Contratos',
+    requiredModule: 'contratos',
+    articleRef: 'Guía ResiGest · Contratos (CT)',
+    sectionTitle: 'Crear, firmar digitalmente (AutoFirma / PAdES) y enviar Contratos de Tratamiento',
+    keywords: ['contrato', 'contratos', 'firma digital', 'autofirma', 'pades', 'firmar contrato', 'pdf firmado', 'enlace firma', 'como crear contrato', 'plataforma', 'resigest'],
+    content:
+      'En el módulo Contratos de Tratamiento (/residuos/contratos) puedes crear nuevos CT vinculando el centro productor, el gestor de destino, los códigos LER y la operación de tratamiento (R/D). ResiGest 360 permite generar el PDF oficial del contrato, enviarlo para firma pública externa mediante enlace seguro y firmarlo con certificado digital cualificado (AutoFirma / PAdES) manteniendo trazabilidad criptográfica.',
+  },
+  {
+    id: 'resigest-notificaciones-previas',
+    documentCode: 'RESIGEST_GUIA',
+    documentTitle: 'Guía de Plataforma ResiGest 360',
+    ambito: 'plataforma',
+    appPath: '/residuos/notificaciones-previas',
+    appPathLabel: 'Ir a Notificaciones Previas',
+    requiredModule: 'di',
+    articleRef: 'Guía ResiGest · Notificaciones Previas (NT)',
+    sectionTitle: 'Crear y tramitar Notificaciones Previas (NT) en ResiGest 360',
+    keywords: ['notificacion previa', 'nt', 'tramitar nt', 'crear nt', 'enviar nt', 'sira', 'esir', 'plataforma', 'resigest'],
+    content:
+      'Desde Notificaciones Previas (/residuos/notificaciones-previas) puedes dar de alta NT individuales o generales asociadas a un Contrato de Tratamiento activo, controlar su fecha de vigencia (hasta 3 años en NT generales) y enviarlas telemáticamente a la plataforma oficial correspondiente (e-SIR o SIRA en Andalucía según la comunidad autónoma del origen y destino).',
+  },
+  {
+    id: 'resigest-documentos-identificacion',
+    documentCode: 'RESIGEST_GUIA',
+    documentTitle: 'Guía de Plataforma ResiGest 360',
+    ambito: 'plataforma',
+    appPath: '/residuos/documentos-identificacion',
+    appPathLabel: 'Ir a Documentos (DI)',
+    requiredModule: 'di',
+    articleRef: 'Guía ResiGest · Documentos de Identificación (DI)',
+    sectionTitle: 'Emitir, firmar, justificar discrepancias y enviar DI a SIRA/e-SIR',
+    keywords: ['di', 'documento de identificacion', 'traslado', 'emitir di', 'crear di', 'firmar di', 'discrepancia', 'peso', 'enviar di', 'sira', 'esir', 'plataforma', 'resigest'],
+    content:
+      'En Documentos de Identificación (/residuos/documentos-identificacion) puedes emitir nuevos DI a partir de un Contrato de Tratamiento (y su NT si aplica), asignar transportista/vehículo, generar el PDF oficial con código QR, recoger firmas en origen/destino, registrar y justificar discrepancias de peso si difiere la cantidad pesada en planta, y enviar el DI electrónicamente a SIRA o e-SIR.',
+  },
+  {
+    id: 'resigest-deca',
+    documentCode: 'RESIGEST_GUIA',
+    documentTitle: 'Guía de Plataforma ResiGest 360',
+    ambito: 'plataforma',
+    appPath: '/residuos/deca',
+    appPathLabel: 'Ir a Control DeCA',
+    requiredModule: 'deca',
+    articleRef: 'Guía ResiGest · Control DeCA y QR Conductor',
+    sectionTitle: 'Documentación en cabina (DeCA), enlace QR y vista móvil del conductor',
+    keywords: ['deca', 'qr', 'conductor', 'cabina', 'movil', 'inspeccion', 'carretera', 'compartir deca', 'plataforma', 'resigest'],
+    content:
+      'El módulo Control DeCA (/residuos/deca) permite llevar la documentación obligatoria de traslado accesible en carretera mediante un enlace y código QR seguro para el conductor. Ante una inspección en ruta, el conductor puede mostrar desde el móvil los DI activos, autorizaciones y datos del traslado sin necesidad de cargar papel.',
+  },
+  {
+    id: 'resigest-archivo-memorias',
+    documentCode: 'RESIGEST_GUIA',
+    documentTitle: 'Guía de Plataforma ResiGest 360',
+    ambito: 'plataforma',
+    appPath: '/residuos/memorias-anuales',
+    appPathLabel: 'Ir a Memorias Anuales',
+    requiredModule: 'memorias_anuales',
+    articleRef: 'Guía ResiGest · Archivo Cronológico y Memoria Anual',
+    sectionTitle: 'Consultar el Archivo Cronológico y generar la Memoria Anual',
+    keywords: ['archivo cronologico', 'memoria anual', 'exportar memoria', 'resumen anual', 'toneladas', 'excel', 'pdf', 'plataforma', 'resigest'],
+    content:
+      'ResiGest 360 alimenta automáticamente el Archivo Cronológico (/residuos/archivo-cronologico) con todos los DI aceptados y operaciones registradas. Desde Memorias Anuales (/residuos/memorias-anuales) puedes consolidar los totales anuales por código LER, centro y operación de tratamiento para preparar y presentar la memoria antes del 1 de marzo.',
+  },
+  {
+    id: 'resigest-flota',
+    documentCode: 'RESIGEST_GUIA',
+    documentTitle: 'Guía de Plataforma ResiGest 360',
+    ambito: 'plataforma',
+    appPath: '/residuos/flota',
+    appPathLabel: 'Ir a Flota y Transporte',
+    requiredModule: 'flota_transporte',
+    articleRef: 'Guía ResiGest · Flota, Vehículos y Conductores',
+    sectionTitle: 'Gestionar vehículos, conductores y alertas de caducidad (ITV, Seguro, ADR, CAP)',
+    keywords: ['flota', 'vehiculos', 'camiones', 'conductores', 'matricula', 'itv', 'seguro', 'adr', 'cap', 'alertas', 'caducidad', 'transportista', 'plataforma', 'resigest'],
+    content:
+      'Desde Flota y Transportistas (/residuos/flota) puedes registrar tus vehículos (matrícula, tipo, MMA, tara, tarjeta de transporte) y conductores, junto con las fechas de caducidad de ITV, Seguro, ADR y CAP. ResiGest 360 genera alertas automáticas de próximos vencimientos o documentación caducada para evitar incidencias en carretera.',
+  },
+  {
+    id: 'resigest-integraciones',
+    documentCode: 'RESIGEST_GUIA',
+    documentTitle: 'Guía de Plataforma ResiGest 360',
+    ambito: 'plataforma',
+    appPath: '/residuos/integraciones',
+    appPathLabel: 'Ir a Integraciones',
+    requiredModule: 'sira_integraciones',
+    articleRef: 'Guía ResiGest · Integraciones (e-SIR, SIRA y Holded)',
+    sectionTitle: 'Conectar e-SIR, SIRA (Andalucía) y facturación con Holded',
+    keywords: ['integraciones', 'holded', 'facturacion', 'sira', 'esir', 'api', 'conectar', 'auditoria', 'plataforma', 'resigest'],
+    content:
+      'En el módulo de Integraciones (/residuos/integraciones) puedes configurar las credenciales y el enrutamiento automático hacia plataformas ambientales oficiales (e-SIR estatal y SIRA en Andalucía), conectar tu cuenta de Holded para sincronizar contactos y facturación, y revisar el historial de auditoría de envíos.',
   },
 ];

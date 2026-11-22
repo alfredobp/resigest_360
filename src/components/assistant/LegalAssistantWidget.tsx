@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  ArrowRight,
   BookOpen,
   ExternalLink,
   Loader2,
@@ -24,28 +26,28 @@ interface SuggestedPrompt {
 }
 
 function getContextualPrompts(pathname: string): SuggestedPrompt[] {
-  if (pathname.includes('traslados') || pathname.includes('notificaciones')) {
+  if (pathname.includes('documentos-identificacion') || pathname.includes('notificaciones-previas')) {
     return [
       {
         label: '¿Cuándo es obligatoria la NT?',
-        question: '¿Cuándo es obligatoria la Notificación Previa (NT) y con cuántos días de antelación debo presentarla?',
+        question: '¿Cuándo es obligatoria la Notificación Previa (NT) y cómo la tramito en ResiGest 360?',
       },
       {
         label: 'Plazo para aceptar un DI',
         question: '¿Qué plazo máximo tiene el gestor de destino para aceptar o rechazar un Documento de Identificación (DI)?',
       },
       {
-        label: 'Vigencia de una NT general',
-        question: '¿Cuál es la vigencia máxima de una Notificación Previa general para traslados múltiples?',
+        label: 'Discrepancias de peso en DI',
+        question: '¿Cómo gestiono una discrepancia de peso en un DI dentro de ResiGest 360?',
       },
     ];
   }
 
-  if (pathname.includes('memorias') || pathname.includes('archivo')) {
+  if (pathname.includes('memorias-anuales') || pathname.includes('archivo-cronologico')) {
     return [
       {
         label: 'Plazo Memoria Anual',
-        question: '¿Cuál es la fecha límite para presentar la Memoria Anual de residuos según la Ley 7/2022?',
+        question: '¿Cuál es la fecha límite para presentar la Memoria Anual y cómo la genero en ResiGest 360?',
       },
       {
         label: 'Conservación archivo cronológico',
@@ -57,12 +59,25 @@ function getContextualPrompts(pathname: string): SuggestedPrompt[] {
   if (pathname.includes('contratos')) {
     return [
       {
-        label: 'Contenido mínimo del CT',
-        question: '¿Qué contenido mínimo obligatorio debe incluir un Contrato de Tratamiento (CT) según el RD 553/2020?',
+        label: 'Firmar contrato con AutoFirma',
+        question: '¿Cómo creo y firmo digitalmente un Contrato de Tratamiento (CT) en ResiGest 360?',
       },
       {
-        label: 'Responsabilidad del productor',
-        question: '¿Cuándo concluye la responsabilidad legal del productor inicial sobre sus residuos?',
+        label: 'Contenido mínimo del CT',
+        question: '¿Qué contenido mínimo obligatorio debe incluir un Contrato de Tratamiento según el RD 553/2020?',
+      },
+    ];
+  }
+
+  if (pathname.includes('flota') || pathname.includes('transportistas')) {
+    return [
+      {
+        label: 'Alertas ITV, ADR y CAP',
+        question: '¿Cómo configuro vehículos, conductores y alertas de caducidad en ResiGest 360?',
+      },
+      {
+        label: 'Control DeCA para conductores',
+        question: '¿Para qué sirve el módulo Control DeCA y el código QR del conductor?',
       },
     ];
   }
@@ -73,23 +88,23 @@ function getContextualPrompts(pathname: string): SuggestedPrompt[] {
       question: '¿Cuánto tiempo máximo puedo almacenar residuos peligrosos y no peligrosos en mi instalación?',
     },
     {
+      label: '¿Cómo crear un contrato y DI?',
+      question: '¿Cómo creo un Contrato de Tratamiento y emito un DI en ResiGest 360?',
+    },
+    {
       label: '¿Cuándo necesito NT?',
       question: '¿En qué casos es obligatoria la Notificación Previa (NT) de traslado de residuos?',
     },
     {
-      label: 'Códigos LER con asterisco',
-      question: '¿Qué significa el asterisco en un código LER y cómo se clasifican las entradas espejo?',
-    },
-    {
-      label: 'Fecha límite Memoria Anual',
-      question: '¿Antes de qué fecha debe enviarse la Memoria Anual de gestión de residuos?',
+      label: 'Configurar NIMA y centros',
+      question: '¿Dónde configuro mi NIMA y doy de alta centros de producción en la plataforma?',
     },
   ];
 }
 
 export default function LegalAssistantWidget() {
   const pathname = usePathname();
-  const { activeCompany, activeCompanyId, perfilOperativo } = useTenant();
+  const { activeCompany, activeCompanyId, activeModules, perfilOperativo } = useTenant();
 
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -142,6 +157,7 @@ export default function LegalAssistantWidget() {
           perfilOperativo,
           region,
           companyId: activeCompanyId,
+          activeModules,
         }),
       });
 
@@ -212,13 +228,13 @@ export default function LegalAssistantWidget() {
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h2 className="text-sm font-semibold leading-tight">Asistente Legal IA</h2>
+                  <h2 className="text-sm font-semibold leading-tight">Asistente ResiGest IA</h2>
                   <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
                     Piloto
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Ley 7/2022 · RD 553/2020 · Lista LER
+                  Normativa de residuos · Guía de plataforma
                 </p>
               </div>
             </div>
@@ -253,9 +269,9 @@ export default function LegalAssistantWidget() {
             {messages.length === 0 ? (
               <div className="space-y-3 py-2">
                 <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/70 p-3 text-xs text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
-                  <p className="font-semibold">¿Tienes una duda normativa sobre residuos?</p>
+                  <p className="font-semibold">¿Dudas legales o de uso de ResiGest 360?</p>
                   <p className="mt-1 text-emerald-900/80 dark:text-emerald-300/80">
-                    Pregúntame sobre plazos de almacenamiento, DI, Notificación Previa (NT), contratos de tratamiento, códigos LER o memoria anual.
+                    Pregúntame sobre normativa (Ley 7/2022, RD 553/2020, LER) o cómo gestionar contratos, DI, NT, flota, DeCA o memorias en la plataforma.
                   </p>
                 </div>
 
@@ -302,11 +318,22 @@ export default function LegalAssistantWidget() {
                     <div className="mt-1.5 w-[92%] space-y-1">
                       <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                         <BookOpen className="h-3 w-3" />
-                        <span>Fuentes normativas ({msg.sources.length})</span>
+                        <span>Fuentes y accesos ({msg.sources.length})</span>
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {msg.sources.slice(0, 4).map((src) =>
-                          src.boeUrl ? (
+                          src.appPath ? (
+                            <Link
+                              key={src.chunkId}
+                              href={src.appPath}
+                              onClick={() => setIsOpen(false)}
+                              title={src.sectionTitle}
+                              className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
+                            >
+                              <span>{src.appPathLabel || src.articleRef}</span>
+                              <ArrowRight className="h-2.5 w-2.5" />
+                            </Link>
+                          ) : src.boeUrl ? (
                             <a
                               key={src.chunkId}
                               href={src.boeUrl}
@@ -418,7 +445,7 @@ export default function LegalAssistantWidget() {
           className="group flex items-center gap-2 rounded-full bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-lg ring-1 ring-slate-700/60 transition hover:bg-emerald-600 hover:ring-emerald-500 dark:bg-emerald-600 dark:ring-emerald-500/60 dark:hover:bg-emerald-500"
         >
           <Sparkles className="h-4 w-4 text-emerald-400 transition group-hover:text-white dark:text-white" />
-          <span>Dudas legales</span>
+          <span>Asistente IA</span>
         </button>
       )}
     </div>

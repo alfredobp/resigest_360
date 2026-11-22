@@ -5,8 +5,10 @@ import type {
   LegalAssistantResponse,
   LegalChunkRecord,
   LegalRetrievalMode,
+  LegalScope,
   LegalSourceCitation,
 } from '@/types/legalAssistant';
+import type { AppModule } from '@/types/wasteManagement';
 
 export const LEGAL_ASSISTANT_DISCLAIMER =
   'Orientación informativa basada en normativa de residuos vigente. No sustituye asesoramiento jurídico vinculante ni resoluciones de la autoridad ambiental competente.';
@@ -20,7 +22,7 @@ interface RpcMatchRow {
   chunk_id: number | string;
   document_code: string;
   document_title: string;
-  ambito: 'estatal' | 'ue' | 'ccaa';
+  ambito: LegalScope;
   ccaa: string | null;
   boe_url: string | null;
   article_ref: string;
@@ -59,19 +61,29 @@ export function extractSearchTerms(query: string): string[] {
 }
 
 /**
- * Búsqueda léxica local sobre el corpus semilla (fallback cuando pgvector aún no está migrado o poblado).
+ * Búsqueda léxica local sobre el corpus semilla (normativa + guía de plataforma ResiGest 360).
+ * Filtra las guías de plataforma cuyos módulos no están activos para el tenant cuando se pasa `activeModules`.
  */
 export function searchLocalLegalCorpus(
   question: string,
   region?: string,
   limit = 5,
-  corpus: SeedLegalChunk[] = INITIAL_LEGAL_CORPUS
+  corpus: SeedLegalChunk[] = INITIAL_LEGAL_CORPUS,
+  activeModules?: AppModule[]
 ): LegalChunkRecord[] {
   const terms = extractSearchTerms(question);
   const normalizedQuestion = normalizeSpanishText(question);
   const normalizedRegion = region ? normalizeSpanishText(region) : '';
+  const allowedModules = activeModules && activeModules.length > 0 ? new Set(activeModules) : null;
 
-  const scored = corpus.map((item) => {
+  const eligibleCorpus = corpus.filter((item) => {
+    if (item.ambito !== 'plataforma' || !item.requiredModule || !allowedModules) {
+      return true;
+    }
+    return allowedModules.has(item.requiredModule);
+  });
+
+  const scored = eligibleCorpus.map((item) => {
     const haystack = normalizeSpanishText(
       `${item.articleRef} ${item.sectionTitle} ${item.keywords.join(' ')} ${item.content}`
     );
@@ -118,7 +130,9 @@ export function searchLocalLegalCorpus(
     documentTitle: item.documentTitle,
     ambito: item.ambito,
     ccaa: item.ccaa ?? null,
-    boeUrl: item.boeUrl,
+    boeUrl: item.boeUrl ?? null,
+    appPath: item.appPath ?? null,
+    appPathLabel: item.appPathLabel ?? null,
     articleRef: item.articleRef,
     sectionTitle: item.sectionTitle,
     content: item.content,
@@ -164,7 +178,8 @@ export async function retrieveLegalChunks(
   question: string,
   region?: string,
   embedding?: number[] | null,
-  matchCount = 6
+  matchCount = 6,
+  activeModules?: AppModule[]
 ): Promise<{ chunks: LegalChunkRecord[]; retrievalMode: LegalRetrievalMode }> {
   try {
     const rpcPayload: Record<string, unknown> = {
@@ -201,14 +216,25 @@ export async function retrieveLegalChunks(
   }
 
   return {
-    chunks: searchLocalLegalCorpus(question, region, Math.min(matchCount, 5)),
+    chunks: searchLocalLegalCorpus(
+      question,
+      region,
+      Math.min(matchCount, 5),
+      INITIAL_LEGAL_CORPUS,
+      activeModules
+    ),
     retrievalMode: 'local_fallback',
   };
 }
 
 export function buildLegalSystemPrompt(
   chunks: LegalChunkRecord[],
-  context: { perfilOperativo?: string; region?: string; pathname?: string }
+  context: {
+    perfilOperativo?: string;
+    region?: string;
+    pathname?: string;
+    activeModules?: AppModule[];
+  }
 ): string {
   const contextLines: string[] = [];
   if (context.perfilOperativo) {
@@ -220,6 +246,9 @@ export function buildLegalSystemPrompt(
   if (context.pathname) {
     contextLines.push(`- Pantalla actual en la app: ${context.pathname}`);
   }
+  if (context.activeModules && context.activeModules.length > 0) {
+    contextLines.push(`- Módulos activos en su cuenta: ${context.activeModules.join(', ')}`);
+  }
 
   const fragmentsText = chunks
     .map(
@@ -229,15 +258,15 @@ export function buildLegalSystemPrompt(
     .join('\n\n');
 
   return [
-    'Eres el Asistente Legal de Residuos de ResiGest 360 (especializado en normativa española y europea de gestión de residuos).',
+    'Eres el Asistente Legal y de Plataforma de ResiGest 360 (especializado en normativa española/europea de residuos y en el uso práctico de ResiGest 360).',
     'REGLAS ESTRICTAS:',
-    '1. Responde EXCLUSIVAMENTE con base en las fuentes normativas proporcionadas más abajo. No inventes artículos, plazos, sanciones ni requisitos que no aparezcan en las fuentes.',
-    '2. Si las fuentes no cubren un detalle concreto (por ejemplo, una tasa o trámite específico de una Comunidad Autónoma), indícalo claramente y recomienda consultar la normativa autonómica o a la autoridad ambiental competente.',
-    '3. Cita siempre de forma explícita el artículo y la norma entre paréntesis o en negrita (ejemplo: **Art. 21 Ley 7/2022** o **Art. 8 RD 553/2020**).',
-    '4. Responde en español claro, directo y práctico (máximo 250 palabras, usando viñetas si ayuda a la lectura).',
-    '5. No solicites ni almacenes datos personales sensibles (CIF, nombres propios, teléfonos).',
+    '1. Responde EXCLUSIVAMENTE con base en las fuentes proporcionadas (normativa legal y guías de ResiGest 360). No inventes artículos, plazos, sanciones ni botones o pantallas que no aparezcan en las fuentes.',
+    '2. Si el usuario pregunta por normativa, cita siempre el artículo y la norma en negrita (ejemplo: **Art. 21 Ley 7/2022** o **Art. 8 RD 553/2020**).',
+    '3. Si el usuario pregunta cómo hacer algo en ResiGest 360 (o combina duda legal + operativa), explica los pasos claros indicando el nombre del módulo correspondiente, respetando los módulos activos de su cuenta.',
+    '4. Si las fuentes no cubren un detalle concreto (por ejemplo, una tasa autonómica específica o datos privados en tiempo real de su cuenta), indícalo claramente.',
+    '5. Responde en español claro, directo y práctico (máximo 250 palabras, usando viñetas cuando ayude). No solicites ni repitas datos personales sensibles (CIF, nombres propios, teléfonos).',
     contextLines.length > 0 ? `\nCONTEXTO DEL USUARIO (anonimizado):\n${contextLines.join('\n')}` : '',
-    `\nFUENTES NORMATIVAS RECUPERADAS:\n${fragmentsText}`,
+    `\nFUENTES RECUPERADAS:\n${fragmentsText}`,
   ]
     .filter(Boolean)
     .join('\n');
@@ -330,6 +359,8 @@ export function mapChunksToCitations(chunks: LegalChunkRecord[]): LegalSourceCit
     excerpt:
       chunk.content.length > 220 ? `${chunk.content.slice(0, 217).trimEnd()}...` : chunk.content,
     boeUrl: chunk.boeUrl ?? null,
+    appPath: chunk.appPath ?? null,
+    appPathLabel: chunk.appPathLabel ?? null,
     ambito: chunk.ambito,
     ccaa: chunk.ccaa ?? null,
     score: chunk.score,
@@ -355,7 +386,8 @@ export async function askLegalAssistant(
     payload.question,
     payload.region,
     queryEmbedding,
-    6
+    6,
+    payload.activeModules
   );
 
   const sources = mapChunksToCitations(chunks);
@@ -369,6 +401,7 @@ export async function askLegalAssistant(
       perfilOperativo: payload.perfilOperativo,
       region: payload.region,
       pathname: payload.pathname,
+      activeModules: payload.activeModules,
     });
     answer = await generateGeminiLegalAnswer({
       apiKey,

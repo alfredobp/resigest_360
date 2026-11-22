@@ -73,6 +73,27 @@ describe('legalAssistantService', () => {
     expect(results[0].articleRef).toContain('Art. 21 Ley 7/2022');
   });
 
+  it('busca guías de plataforma ResiGest 360 y respeta los módulos activos del tenant', () => {
+    const withFleet = searchLocalLegalCorpus(
+      '¿Cómo configuro vehículos y alertas ITV de flota en ResiGest?',
+      undefined,
+      4,
+      undefined,
+      ['empresas', 'flota_transporte']
+    );
+    expect(withFleet[0].ambito).toBe('plataforma');
+    expect(withFleet[0].appPath).toBe('/residuos/flota');
+
+    const withoutFleet = searchLocalLegalCorpus(
+      '¿Cómo configuro vehículos y alertas ITV de flota en ResiGest?',
+      undefined,
+      4,
+      undefined,
+      ['empresas', 'contratos']
+    );
+    expect(withoutFleet.some((c) => c.appPath === '/residuos/flota')).toBe(false);
+  });
+
   it('devuelve fragmentos por defecto si no hay coincidencias léxicas exactas', () => {
     const results = searchLocalLegalCorpus('xyzqwerty12345', undefined, 3);
     expect(results).toHaveLength(3);
@@ -84,11 +105,13 @@ describe('legalAssistantService', () => {
       perfilOperativo: 'productor',
       region: 'Sevilla',
       pathname: '/residuos/traslados',
+      activeModules: ['empresas', 'contratos', 'di'],
     });
 
     expect(prompt).toContain('Perfil operativo del usuario en ResiGest 360: productor');
     expect(prompt).toContain('Sevilla');
     expect(prompt).toContain('/residuos/traslados');
+    expect(prompt).toContain('Módulos activos en su cuenta: empresas, contratos, di');
     expect(prompt).toContain('[FUENTE 1]');
   });
 

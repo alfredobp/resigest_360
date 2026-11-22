@@ -10,6 +10,19 @@ const OPERATIONAL_PROFILES = [
   'completo',
 ] as const;
 
+const APP_MODULES = [
+  'empresas',
+  'contratos',
+  'gestores',
+  'flota_transporte',
+  'di',
+  'deca',
+  'archivo_cronologico',
+  'operaciones_comerciales',
+  'memorias_anuales',
+  'sira_integraciones',
+] as const;
+
 export const legalHistoryItemSchema = z.object({
   role: z.enum(['user', 'assistant']),
   content: z.string().trim().min(1).max(2000),
@@ -26,6 +39,7 @@ export const legalQuestionSchema = z.object({
   perfilOperativo: z.enum(OPERATIONAL_PROFILES).optional(),
   region: z.string().trim().max(100).optional(),
   companyId: z.number().int().positive().nullable().optional(),
+  activeModules: z.array(z.enum(APP_MODULES)).max(15).optional(),
 });
 
 export const legalFeedbackSchema = z.object({
