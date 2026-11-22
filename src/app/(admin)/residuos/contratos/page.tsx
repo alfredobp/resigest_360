@@ -15,6 +15,7 @@ import wasteContractService, { getContractEffectiveStatus } from '@/services/was
 import companyService from '@/services/companyService';
 import type { WasteContract, Company } from '@/types/wasteManagement';
 import { generateContractPDF } from '@/lib/pdfUtils';
+import { MoreHorizontal, FileDown, CheckCircle2, Archive, Trash2, Loader2 } from 'lucide-react';
 
 const STATUS_COLORS = {
   borrador: 'info',
@@ -39,6 +40,38 @@ export default function ContratosPage() {
   const [showNewContractModal, setShowNewContractModal] = useState(false);
   const [contractToDelete, setContractToDelete] = useState<number | null>(null);
   const [contractToFinalize, setContractToFinalize] = useState<number | null>(null);
+  const [actionMenu, setActionMenu] = useState<{
+    contract: WasteContract;
+    top: number;
+    right: number;
+  } | null>(null);
+
+  const handleFilterStatusChange = (status: string) => {
+    setFilterStatus(status);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (status === 'all') params.delete('status');
+      else params.set('status', status);
+      const qs = params.toString();
+      window.history.replaceState(null, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
+    }
+  };
+
+  useEffect(() => {
+    if (!actionMenu) return;
+    const close = () => setActionMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActionMenu(null);
+    };
+    window.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [actionMenu]);
 
   const handleDownloadPDF = async (contract: WasteContract) => {
     try {
@@ -267,57 +300,54 @@ export default function ContratosPage() {
         id: 'acciones',
         header: 'Acciones',
         headerClassName: 'text-right',
-        className: 'text-right',
-        cell: ({ row }) => (
-          <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push(`/residuos/contratos/${row.id}`)}
-            >
-              Ver
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleDownloadPDF(row)}
-              disabled={downloadingId === row.id}
-            >
-              {downloadingId === row.id ? 'PDF...' : 'PDF'}
-            </Button>
-            {canWrite && (row.estado === 'borrador' || row.estado === 'pendiente_firma') && (
+        className: 'text-right whitespace-nowrap',
+        cell: ({ row }) => {
+          const isDownloadingThis = downloadingId === row.id;
+          return (
+            <div className="inline-flex items-center justify-end gap-1">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleChangeStatus(row.id, 'vigente')}
+                onClick={() => router.push(`/residuos/contratos/${row.id}`)}
+                className="text-[11px] py-1 px-2.5 h-auto"
               >
-                Activar
+                Ver
               </Button>
-            )}
-            {canWrite && row.estado === 'vigente' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setContractToFinalize(row.id)}
+              <button
+                type="button"
+                disabled={isDownloadingThis}
+                aria-label={`Más acciones para contrato ${row.numero_contrato || row.id}`}
+                aria-haspopup="menu"
+                aria-expanded={actionMenu?.contract.id === row.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (actionMenu?.contract.id === row.id) {
+                    setActionMenu(null);
+                    return;
+                  }
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const menuHeight = 176;
+                  const top =
+                    rect.bottom + menuHeight > window.innerHeight
+                      ? Math.max(8, rect.top - menuHeight)
+                      : rect.bottom + 4;
+                  const right = Math.max(8, window.innerWidth - rect.right);
+                  setActionMenu({ contract: row, top, right });
+                }}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
               >
-                Finalizar
-              </Button>
-            )}
-            {canWrite && !row.firmado_productor && !row.firmado_gestor && row.estado !== 'finalizado' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDelete(row.id)}
-                className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
-              >
-                Eliminar
-              </Button>
-            )}
-          </div>
-        ),
+                {isDownloadingThis ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-600" />
+                ) : (
+                  <MoreHorizontal className="w-4 h-4" />
+                )}
+              </button>
+            </div>
+          );
+        },
       },
     ],
-    [myCompany, downloadingId, canWrite]
+    [myCompany, downloadingId, canWrite, actionMenu?.contract.id]
   );
 
   if (loading) {
@@ -394,42 +424,42 @@ export default function ContratosPage() {
             <Button
               variant={filterStatus === 'all' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('all')}
+              onClick={() => handleFilterStatusChange('all')}
             >
               Todos ({contracts.length})
             </Button>
             <Button
               variant={filterStatus === 'vigente' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('vigente')}
+              onClick={() => handleFilterStatusChange('vigente')}
             >
               Vigentes ({contracts.filter(c => getContractEffectiveStatus(c).status === 'vigente').length})
             </Button>
             <Button
               variant={filterStatus === 'caducado' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('caducado')}
+              onClick={() => handleFilterStatusChange('caducado')}
             >
               Caducados ({contracts.filter(c => getContractEffectiveStatus(c).status === 'caducado').length})
             </Button>
             <Button
               variant={filterStatus === 'borrador' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('borrador')}
+              onClick={() => handleFilterStatusChange('borrador')}
             >
               Borradores ({contracts.filter(c => c.estado === 'borrador').length})
             </Button>
             <Button
               variant={filterStatus === 'pendiente_firma' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('pendiente_firma')}
+              onClick={() => handleFilterStatusChange('pendiente_firma')}
             >
               Pend. Firma ({contracts.filter(c => c.estado === 'pendiente_firma').length})
             </Button>
             <Button
               variant={filterStatus === 'finalizado' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('finalizado')}
+              onClick={() => handleFilterStatusChange('finalizado')}
             >
               Finalizados ({contracts.filter(c => c.estado === 'finalizado').length})
             </Button>
@@ -440,6 +470,7 @@ export default function ContratosPage() {
         <DataTable
           data={filteredContracts}
           columns={columns}
+          syncUrlParams
           searchPlaceholder="Buscar por nº contrato, productor, gestor o residuo..."
           emptyMessage={
             canWrite
@@ -476,6 +507,83 @@ export default function ContratosPage() {
             myCompany={myCompany}
           />
         )}
+
+        {actionMenu && (() => {
+          const contract = actionMenu.contract;
+          const canActivate = canWrite && (contract.estado === 'borrador' || contract.estado === 'pendiente_firma');
+          const canFinalize = canWrite && contract.estado === 'vigente';
+          const canDelete = canWrite && !contract.firmado_productor && !contract.firmado_gestor && contract.estado !== 'finalizado';
+
+          return (
+            <div
+              role="menu"
+              style={{ top: actionMenu.top, right: actionMenu.right }}
+              onClick={(e) => e.stopPropagation()}
+              className="fixed z-50 w-48 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg py-1.5 text-xs"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setActionMenu(null);
+                  handleDownloadPDF(contract);
+                }}
+                className="w-full px-3 py-2 text-left flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                <FileDown className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+                <span>Descargar PDF</span>
+              </button>
+
+              {canActivate && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setActionMenu(null);
+                    handleChangeStatus(contract.id, 'vigente');
+                  }}
+                  className="w-full px-3 py-2 text-left flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>Activar contrato</span>
+                </button>
+              )}
+
+              {canFinalize && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setActionMenu(null);
+                    setContractToFinalize(contract.id);
+                  }}
+                  className="w-full px-3 py-2 text-left flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <Archive className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>Finalizar contrato</span>
+                </button>
+              )}
+
+              {canDelete && (
+                <>
+                  <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setActionMenu(null);
+                      handleDelete(contract.id);
+                    }}
+                    className="w-full px-3 py-2 text-left flex items-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Eliminar contrato</span>
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })()}
 
         <ConfirmModal
           isOpen={contractToFinalize !== null}

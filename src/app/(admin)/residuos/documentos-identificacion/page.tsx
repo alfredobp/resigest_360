@@ -69,6 +69,17 @@ export default function DocumentosIdentificacionPage() {
     }
   }, []);
 
+  const handleFilterStatusChange = (status: string) => {
+    setFilterStatus(status);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (status === 'all') params.delete('status');
+      else params.set('status', status);
+      const qs = params.toString();
+      window.history.replaceState(null, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
+    }
+  };
+
   useEffect(() => {
     if (!actionMenu) return;
     const close = () => setActionMenu(null);
@@ -541,49 +552,49 @@ export default function DocumentosIdentificacionPage() {
             <Button
               variant={filterStatus === 'all' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('all')}
+              onClick={() => handleFilterStatusChange('all')}
             >
               Todos ({documents.length})
             </Button>
             <Button
               variant={filterStatus === 'en_transito' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('en_transito')}
+              onClick={() => handleFilterStatusChange('en_transito')}
             >
               En Tránsito ({documents.filter(d => d.estado_traslado === 'en_transito').length})
             </Button>
             <Button
               variant={filterStatus === 'recepcionado' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('recepcionado')}
+              onClick={() => handleFilterStatusChange('recepcionado')}
             >
               En Báscula ({documents.filter(d => d.estado_traslado === 'recepcionado').length})
             </Button>
             <Button
               variant={filterStatus === 'aceptado' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('aceptado')}
+              onClick={() => handleFilterStatusChange('aceptado')}
             >
               Aceptados ({documents.filter(d => d.estado_traslado === 'aceptado').length})
             </Button>
             <Button
               variant={filterStatus === 'incidencias' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('incidencias')}
+              onClick={() => handleFilterStatusChange('incidencias')}
             >
               Incidencias ({documents.filter(d => d.estado_traslado === 'rechazado_parcial' || d.estado_traslado === 'rechazado_total').length})
             </Button>
             <Button
               variant={filterStatus === 'tratado' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('tratado')}
+              onClick={() => handleFilterStatusChange('tratado')}
             >
               Tratados ({documents.filter(d => d.estado_traslado === 'tratado').length})
             </Button>
             <Button
               variant={filterStatus === 'borrador' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('borrador')}
+              onClick={() => handleFilterStatusChange('borrador')}
             >
               Borradores ({documents.filter(d => !d.estado_traslado || d.estado_traslado === 'borrador').length})
             </Button>
@@ -591,7 +602,7 @@ export default function DocumentosIdentificacionPage() {
               <Button
                 variant={filterStatus === 'discrepancias' ? 'primary' : 'outline'}
                 size="sm"
-                onClick={() => setFilterStatus('discrepancias')}
+                onClick={() => handleFilterStatusChange('discrepancias')}
                 className={filterStatus === 'discrepancias' ? '!bg-amber-600' : 'text-amber-700 border-amber-200 dark:text-amber-400 dark:border-amber-900'}
               >
                 Discrepancia Báscula ({documents.filter(d => getTrackingStatusMeta(d).hasDiscrepancy).length})
@@ -601,7 +612,7 @@ export default function DocumentosIdentificacionPage() {
               <Button
                 variant={filterStatus === 'sin_contrato' ? 'primary' : 'outline'}
                 size="sm"
-                onClick={() => setFilterStatus('sin_contrato')}
+                onClick={() => handleFilterStatusChange('sin_contrato')}
                 className={filterStatus === 'sin_contrato' ? '!bg-red-600' : 'text-red-600 border-red-200 dark:border-red-900'}
               >
                 Sin Contrato ({documents.filter(d => d.estado_traslado && d.estado_traslado !== 'borrador' && !d.contract_id && !d.contrato_externo_referencia).length})
@@ -668,6 +679,7 @@ export default function DocumentosIdentificacionPage() {
           <DataTable
             data={filteredDocuments}
             columns={diColumns}
+            syncUrlParams
             searchPlaceholder="Buscar por DI, LER, centro, gestor..."
             defaultPageSize={25}
             pageSizeOptions={[10, 25, 50, 100]}
