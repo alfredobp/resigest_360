@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ArrowUpDown,
   ArrowUp,
@@ -44,6 +44,8 @@ export interface DataTableProps<T> {
   emptyMessage?: string;
   className?: string;
   tableClassName?: string;
+  stickyHeader?: boolean;
+  maxHeight?: string;
   syncUrlParams?: boolean;
   selectable?: boolean;
   bulkActions?: (selectedRows: T[], clearSelection: () => void) => React.ReactNode;
@@ -66,6 +68,8 @@ export function DataTable<T extends Record<string, any>>({
   emptyMessage = 'No se encontraron registros',
   className = '',
   tableClassName = '',
+  stickyHeader = true,
+  maxHeight = 'max-h-[70vh]',
   syncUrlParams = false,
   selectable = false,
   bulkActions,
@@ -98,15 +102,12 @@ export function DataTable<T extends Record<string, any>>({
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const isFirstMountRef = React.useRef(true);
 
-  const getRowKey = useCallback(
-    (row: T, index: number): string =>
-      keyExtractor
-        ? String(keyExtractor(row, index))
-        : row.id !== undefined
-          ? String(row.id)
-          : String(index),
-    [keyExtractor]
-  );
+  const getRowKey = (row: T, index: number): string =>
+    keyExtractor
+      ? String(keyExtractor(row, index))
+      : row.id !== undefined
+        ? String(row.id)
+        : String(index);
 
   // Sincronizar búsqueda y página con la URL para preservar estado al volver atrás
   useEffect(() => {
@@ -266,12 +267,17 @@ export function DataTable<T extends Record<string, any>>({
       )}
 
       {/* Contenedor de la tabla responsiva */}
-      <div className="overflow-x-auto custom-scrollbar">
-        <table className={`w-full text-left text-[12.5px] border-collapse ${tableClassName}`}>
-          <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold tracking-wider uppercase text-[10.5px] select-none">
+      <div className={`overflow-auto custom-scrollbar ${stickyHeader ? maxHeight : ''}`}>
+        <table className={`w-full text-left text-[12.5px] border-separate border-spacing-0 ${tableClassName}`}>
+          <thead className="text-slate-500 dark:text-slate-400 font-semibold tracking-wider uppercase text-[10.5px] select-none">
             <tr>
               {selectable && (
-                <th scope="col" className="w-9 py-2.5 pl-3 pr-1">
+                <th
+                  scope="col"
+                  className={`w-9 py-2.5 pl-3 pr-1 bg-slate-50/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 ${
+                    stickyHeader ? 'sticky top-0 z-10 backdrop-blur-xs' : ''
+                  }`}
+                >
                   <input
                     type="checkbox"
                     checked={allPageSelected}
@@ -298,9 +304,11 @@ export function DataTable<T extends Record<string, any>>({
                     key={colId}
                     scope="col"
                     aria-sort={ariaSort}
-                    className={`py-2.5 px-2.5 transition-colors ${isSortable
-                        ? 'hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
-                        : ''
+                    className={`py-2.5 px-2.5 bg-slate-50/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 transition-colors ${
+                      stickyHeader ? 'sticky top-0 z-10 backdrop-blur-xs' : ''
+                    } ${isSortable
+                      ? 'hover:bg-slate-100/95 dark:hover:bg-slate-800/95'
+                      : ''
                       } ${column.headerClassName || ''}`}
                   >
                     {isSortable ? (
@@ -362,14 +370,13 @@ export function DataTable<T extends Record<string, any>>({
                 return (
                   <tr
                     key={rowKey}
-                    className={`transition-colors ${
-                      isSelected
-                        ? 'bg-brand-50/50 dark:bg-brand-950/20'
-                        : 'hover:bg-gray-50/60 dark:hover:bg-gray-700/25'
-                    }`}
+                    className={`transition-colors ${isSelected
+                      ? 'bg-brand-50/50 dark:bg-brand-950/20'
+                      : 'hover:bg-gray-50/60 dark:hover:bg-gray-700/25'
+                      }`}
                   >
                     {selectable && (
-                      <td className="w-9 py-2 pl-3 pr-1 align-middle">
+                      <td className="w-9 py-2 pl-3 pr-1 align-middle border-b border-slate-100 dark:border-slate-800">
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -390,7 +397,7 @@ export function DataTable<T extends Record<string, any>>({
                       return (
                         <td
                           key={colId}
-                          className={`py-2 px-2.5 align-middle ${column.className || ''}`}
+                          className={`py-2 px-2.5 align-middle border-b border-slate-100 dark:border-slate-800 ${column.className || ''}`}
                         >
                           {column.cell
                             ? column.cell({

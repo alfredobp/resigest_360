@@ -323,10 +323,10 @@ export default function OperacionesComercialesPage() {
             </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="max-h-[70vh] overflow-auto custom-scrollbar">
             <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-100 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-semibold">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-xs text-slate-600 dark:text-slate-300 font-semibold shadow-[inset_0_-1px_0_0_#e2e8f0] dark:shadow-[inset_0_-1px_0_0_#334155]">
                   <th className="py-3 px-3">Operación / Fecha</th>
                   <th className="py-3 px-3">Estado</th>
                   <th className="py-3 px-3">Residuo (LER)</th>
@@ -473,5 +473,5 @@ export default function OperacionesComercialesPage() {
         onSuccess={() => loadData()}
       />
     </div>
-  );
+      );
 }
