@@ -481,5 +481,5 @@ export default function OperacionesComercialesPage() {
         onSuccess={() => loadData()}
       />
     </div>
-      );
+  );
 }

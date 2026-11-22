@@ -664,9 +664,9 @@ export default function DocumentosIdentificacionPage() {
             )}
           </div>
 
-          <div className="mt-4 pt-4 border-t flex flex-wrap items-center gap-4">
-            <label className="text-sm font-medium">Filtrar por Centro:</label>
+          <div className="mt-3 pt-3 border-t flex flex-wrap items-center gap-3">
             <select
+              aria-label="Centro de producción"
               value={filterCenter}
               onChange={(e) => setFilterCenter(e.target.value)}
               className="text-sm border border-stroke dark:border-strokedark bg-transparent rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/20"

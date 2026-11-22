@@ -236,8 +236,7 @@ export default function IntegracionesAuditoriaPage() {
               {/* Filtros y Acciones */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-muted">Filtrar Estado:</span>
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-1.5" role="group" aria-label="Filtrar por estado">
                     {(['todos', 'aceptado', 'rechazado', 'error', 'enviado'] as const).map(st => (
                       <button
                         key={st}
@@ -460,8 +459,8 @@ export default function IntegracionesAuditoriaPage() {
               {/* Filtros y Descarga */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-muted">Filtrar por Entidad:</span>
                   <select
+                    aria-label="Filtrar por entidad"
                     value={auditFilterEntity}
                     onChange={(e) => setAuditFilterEntity(e.target.value)}
                     className="text-xs rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
