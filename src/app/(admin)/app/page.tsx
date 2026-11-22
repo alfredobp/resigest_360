@@ -21,7 +21,7 @@ import {
   getDriverComplianceAlerts,
   getVehicleComplianceAlerts,
 } from '@/lib/validations/fleetValidation';
-import { AlertTriangle, Truck } from 'lucide-react';
+import { AlertTriangle, Truck, ChevronDown, ChevronUp, Plus, Smartphone, Scale, CheckCircle2 } from 'lucide-react';
 import type { AppModule, FleetComplianceAlert, OperationalProfile } from '@/types/wasteManagement';
 
 export default function ExecutiveDashboardPage() {
@@ -59,7 +59,6 @@ export default function ExecutiveDashboardPage() {
     effectiveHasModule('di') && (isPlatformAdmin || effectiveProfile !== 'transportista');
   const canCreateOp = effectiveHasModule('operaciones_comerciales') && (isPlatformAdmin || effectiveCanViewCommercial);
   const canViewChrono = effectiveHasModule('archivo_cronologico');
-  const canViewContracts = effectiveHasModule('contratos');
 
   const [loading, setLoading] = useState(true);
   const [executiveData, setExecutiveData] = useState<ExecutiveDashboardData | null>(null);
@@ -67,6 +66,8 @@ export default function ExecutiveDashboardPage() {
   const [recentDIs, setRecentDIs] = useState<any[]>([]);
   const [fleetAlerts, setFleetAlerts] = useState<FleetComplianceAlert[]>([]);
   const [isScrapModalOpen, setIsScrapModalOpen] = useState(false);
+  const [alertsExpanded, setAlertsExpanded] = useState(false);
+  const [activeAlertTab, setActiveAlertTab] = useState<'normativa' | 'flota'>('normativa');
 
   const loadData = async () => {
     try {
@@ -157,7 +158,17 @@ export default function ExecutiveDashboardPage() {
 
   const { conformidad, alertas, residuos } = data;
   const headerConfig = getDashboardHeaderConfig(effectiveProfile);
-  const hasAlerts = alertas.totalCriticas > 0 || alertas.totalAdvertencias > 0;
+  const hasNormativeAlerts = alertas.totalCriticas > 0 || alertas.totalAdvertencias > 0;
+  const hasFleetAlerts = fleetAlerts.length > 0;
+  const hasAnyAlerts = hasNormativeAlerts || hasFleetAlerts;
+  const fleetExpiredCount = fleetAlerts.filter((a) => a.status === 'caducado').length;
+  const fleetUpcomingCount = fleetAlerts.filter((a) => a.status === 'proximo').length;
+  const effectiveAlertTab: 'normativa' | 'flota' =
+    hasNormativeAlerts && hasFleetAlerts
+      ? activeAlertTab
+      : hasFleetAlerts
+        ? 'flota'
+        : 'normativa';
 
   return (
     <div className="space-y-6 pb-12">
@@ -165,280 +176,330 @@ export default function ExecutiveDashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
               {headerConfig.title}
             </h1>
             <Badge variant="light" color="primary">
               {headerConfig.badge}
             </Badge>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {headerConfig.subtitle}
           </p>
         </div>
 
-        {/* Acciones Rápidas según perfil */}
+        {/* Jerarquía limpia de Acciones Rápidas: máximo 1 CTA primario + 1 secundario */}
         <div className="flex flex-wrap items-center gap-2">
-          {effectiveProfile === 'transportista' && (
+          {effectiveProfile === 'transportista' ? (
             <>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => router.push('/residuos/flota')}
-                className="bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors"
-              >
-                Mi Flota (Conductores y Vehículos)
-              </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => router.push('/transporte')}
-                className="text-blue-700 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                startIcon={<Smartphone className="w-4 h-4" />}
               >
-                Vista Conductor (Móvil)
+                Vista Conductor
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => router.push('/residuos/flota')}
+                startIcon={<Truck className="w-4 h-4" />}
+              >
+                Mi Flota
               </Button>
             </>
-          )}
-
-          {effectiveProfile === 'negociante' && canCreateOp && (
-            <Button
-              size="sm"
-              onClick={() => router.push('/residuos/operaciones/nueva')}
-              className="bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors"
-            >
-              Nueva Operación
-            </Button>
-          )}
-
-          {canCreateDI && (
-            <Button
-              variant={effectiveProfile === 'negociante' ? 'outline' : 'primary'}
-              size="sm"
-              onClick={() =>
-                router.push(
-                  effectiveProfile === 'chatarreria'
-                    ? '/residuos/documentos-identificacion/nuevo?perspectiva=productor'
-                    : '/residuos/documentos-identificacion/nuevo'
-                )
-              }
-              className={
-                effectiveProfile === 'negociante'
-                  ? 'text-gray-700 dark:text-gray-300 font-medium'
-                  : 'bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors'
-              }
-            >
-              {effectiveProfile === 'productor'
-                ? 'Nueva Retirada (DI)'
-                : effectiveProfile === 'chatarreria'
-                  ? 'Nueva Salida (Expedición)'
-                  : 'Nuevo Traslado (DI)'}
-            </Button>
-          )}
-
-          {effectiveProfile !== 'negociante' && canCreateOp && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (effectiveProfile === 'chatarreria') {
-                  setIsScrapModalOpen(true);
-                } else {
-                  router.push('/residuos/operaciones/nueva');
-                }
-              }}
-              className="text-brand-600 dark:text-brand-400 font-medium hover:bg-brand-50 dark:hover:bg-brand-950/40"
-            >
-              {effectiveProfile === 'chatarreria' ? 'Nueva Entrada (Báscula / Recepción)' : 'Nueva Operación'}
-            </Button>
-          )}
-
-          {canViewContracts && effectiveProfile === 'productor' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push('/residuos/contratos')}
-              className="text-gray-700 dark:text-gray-300 font-medium"
-            >
-              Contratos
-            </Button>
-          )}
-
-          {canViewChrono && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push('/residuos/archivo-cronologico')}
-              className="text-emerald-700 dark:text-emerald-400 font-medium hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-            >
-              Archivo Cronológico
-            </Button>
+          ) : effectiveProfile === 'negociante' ? (
+            <>
+              {canCreateDI && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push('/residuos/documentos-identificacion/nuevo')}
+                  startIcon={<Plus className="w-4 h-4" />}
+                >
+                  Nuevo Traslado (DI)
+                </Button>
+              )}
+              {canCreateOp && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => router.push('/residuos/operaciones/nueva')}
+                  startIcon={<Plus className="w-4 h-4" />}
+                >
+                  Nueva Operación
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              {canCreateOp && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (effectiveProfile === 'chatarreria') {
+                      setIsScrapModalOpen(true);
+                    } else {
+                      router.push('/residuos/operaciones/nueva');
+                    }
+                  }}
+                  startIcon={effectiveProfile === 'chatarreria' ? <Scale className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                >
+                  {effectiveProfile === 'chatarreria' ? 'Entrada Báscula' : 'Nueva Operación'}
+                </Button>
+              )}
+              {canCreateDI && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() =>
+                    router.push(
+                      effectiveProfile === 'chatarreria'
+                        ? '/residuos/documentos-identificacion/nuevo?perspectiva=productor'
+                        : '/residuos/documentos-identificacion/nuevo'
+                    )
+                  }
+                  startIcon={<Plus className="w-4 h-4" />}
+                >
+                  {effectiveProfile === 'productor'
+                    ? 'Nueva Retirada (DI)'
+                    : effectiveProfile === 'chatarreria'
+                      ? 'Nueva Salida (DI)'
+                      : 'Nuevo Traslado (DI)'}
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* CENTRO DE ALERTAS Y CONTROL POR EXCEPCIÓN */}
-      {fleetAlerts.length > 0 && (
-        <div className="bg-amber-50/90 dark:bg-amber-950/25 rounded-[10px] p-4 border border-amber-200 dark:border-amber-900/60 space-y-2.5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <h2 className="text-[13.5px] font-bold tracking-tight text-amber-900 dark:text-amber-200 flex items-center gap-2">
-              <Truck className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-              <span>
-                Vencimientos de Flota: {fleetAlerts.filter((a) => a.status === 'caducado').length} caducados y{' '}
-                {fleetAlerts.filter((a) => a.status === 'proximo').length} próximos a vencer (≤30 días)
-              </span>
-            </h2>
-            <Link
-              href="/residuos/flota"
-              className="text-xs font-semibold text-amber-800 dark:text-amber-300 hover:underline whitespace-nowrap"
-            >
-              Gestionar en Mi Flota →
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-            {fleetAlerts.slice(0, 6).map((alert, idx) => (
-              <Link
-                key={`${alert.entityType}-${alert.entityId ?? idx}-${alert.documentType}`}
-                href={`/residuos/flota?tab=${alert.entityType === 'vehicle' ? 'vehiculos' : 'conductores'}&q=${encodeURIComponent(alert.entityLabel)}`}
-                className={`px-3 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 bg-white dark:bg-[#111827] transition hover:-translate-y-[1px] ${alert.status === 'caducado'
-                    ? 'border-red-200 dark:border-red-900/70 text-red-700 dark:text-red-300'
-                    : 'border-amber-200 dark:border-amber-900/70 text-amber-800 dark:text-amber-300'
-                  }`}
-              >
-                <span className="truncate font-medium">{alert.message}</span>
-                <span className="text-[10px] font-bold uppercase shrink-0">
-                  {alert.status === 'caducado' ? 'Caducado' : 'Próximo'}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {hasAlerts ? (
-        <div className="bg-[#fffbeb] dark:bg-amber-950/20 rounded-[10px] p-4 border border-[#fde68a] dark:border-amber-900/50 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-            <h2 className="text-[13.5px] font-bold tracking-tight text-[#92400e] dark:text-amber-300 flex items-center gap-2">
+      {/* CENTRO DE ALERTAS UNIFICADO Y COMPACTO (Mantiene KPIs above-the-fold) */}
+      {hasAnyAlerts ? (
+        <div className="bg-amber-50/90 dark:bg-amber-950/20 rounded-[10px] border border-amber-200 dark:border-amber-900/50 overflow-hidden">
+          <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-              <span>
-                Control por Excepción: {alertas.totalCriticas} Excepciones Críticas y {alertas.totalAdvertencias} Advertencias activas
-              </span>
-            </h2>
-            <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-              RD 553/2020 &amp; Ley 7/2022 · Evaluado {new Date(conformidad.fechaEvaluacion).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-0.5">
-            {alertas.disEnTransitoCount > 0 && (
-              <Link
-                href="/residuos/documentos-identificacion?status=en_transito"
-                className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-amber-400 dark:hover:border-amber-600 transition-all"
-              >
-                <div>
-                  <span className="text-[11.5px] font-medium text-slate-500 dark:text-slate-400 block">DIs en Tránsito</span>
-                  <p className="text-lg font-bold tabular-nums text-brand-600 dark:text-brand-400 leading-tight mt-0.5">{alertas.disEnTransitoCount}</p>
-                </div>
-                <span className="text-xs font-semibold text-brand-600 dark:text-brand-400">Revisar →</span>
-              </Link>
-            )}
-
-            {alertas.disDiscrepanciaCount > 0 && (
-              <Link
-                href="/residuos/documentos-identificacion?status=discrepancias"
-                className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-red-400 dark:hover:border-red-700 transition-all"
-              >
-                <div>
-                  <span className="text-[11.5px] font-medium text-red-600 dark:text-red-400 block">Discrepancia Báscula &gt;5%</span>
-                  <p className="text-lg font-bold tabular-nums text-red-600 dark:text-red-400 leading-tight mt-0.5">{alertas.disDiscrepanciaCount}</p>
-                </div>
-                <span className="text-xs font-semibold text-red-600 dark:text-red-400">Auditar →</span>
-              </Link>
-            )}
-
-            {alertas.contratosCaducadosCount > 0 && (
-              <Link
-                href="/residuos/contratos?status=caducado"
-                className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-red-400 dark:hover:border-red-700 transition-all"
-              >
-                <div>
-                  <span className="text-[11.5px] font-medium text-red-600 dark:text-red-400 block">Contratos Caducados</span>
-                  <p className="text-lg font-bold tabular-nums text-red-600 dark:text-red-400 leading-tight mt-0.5">{alertas.contratosCaducadosCount}</p>
-                </div>
-                <span className="text-xs font-semibold text-red-600 dark:text-red-400">Renovar →</span>
-              </Link>
-            )}
-
-            {alertas.disTratamientoNoAutorizadoCount > 0 && (
-              <Link
-                href="/residuos/documentos-identificacion?status=incidencias"
-                className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-red-400 dark:hover:border-red-700 transition-all"
-              >
-                <div>
-                  <span className="text-[11.5px] font-medium text-red-600 dark:text-red-400 block">Tratamientos No Autorizados</span>
-                  <p className="text-lg font-bold tabular-nums text-red-600 dark:text-red-400 leading-tight mt-0.5">{alertas.disTratamientoNoAutorizadoCount}</p>
-                </div>
-                <span className="text-xs font-semibold text-red-600 dark:text-red-400">Auditar →</span>
-              </Link>
-            )}
-
-            {alertas.disSinContratoCount > 0 && (
-              <Link
-                href="/residuos/documentos-identificacion?status=sin_contrato"
-                className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-red-400 dark:hover:border-red-700 transition-all"
-              >
-                <div>
-                  <span className="text-[11.5px] font-medium text-red-600 dark:text-red-400 block">Traslados Sin Contrato</span>
-                  <p className="text-lg font-bold tabular-nums text-red-600 dark:text-red-400 leading-tight mt-0.5">{alertas.disSinContratoCount}</p>
-                </div>
-                <span className="text-xs font-semibold text-red-600 dark:text-red-400">Regularizar →</span>
-              </Link>
-            )}
-
-            {alertas.contratosPorVencerCount > 0 && (
-              <Link
-                href="/residuos/contratos?status=vigente"
-                className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-amber-400 dark:hover:border-amber-600 transition-all"
-              >
-                <div>
-                  <span className="text-[11.5px] font-medium text-amber-600 dark:text-amber-400 block">Vencimiento &lt;60 días</span>
-                  <p className="text-lg font-bold tabular-nums text-amber-600 dark:text-amber-400 leading-tight mt-0.5">{alertas.contratosPorVencerCount}</p>
-                </div>
-                <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">Atender →</span>
-              </Link>
-            )}
-          </div>
-
-          {alertas.lista.length > 0 && (
-            <div className="pt-2 border-t border-amber-200/70 dark:border-amber-800/50 space-y-1.5">
-              {alertas.lista.slice(0, 5).map((item) => (
-                <Link
-                  key={item.id}
-                  href={item.enlace}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 px-3 py-2 rounded-lg bg-white/70 dark:bg-gray-900/50 hover:bg-white dark:hover:bg-gray-900 transition text-xs border border-amber-200/40 dark:border-gray-800"
-                >
-                  <div>
-                    <span className={`font-bold mr-2 ${item.gravedad === 'critico' ? 'text-red-600 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'}`}>
-                      [{item.gravedad === 'critico' ? 'CRÍTICO' : 'AVISO'}]
-                    </span>
-                    <span className="font-semibold text-gray-900 dark:text-white">{item.titulo}:</span>{' '}
-                    <span className="text-gray-600 dark:text-gray-300">{item.descripcion}</span>
-                  </div>
-                  <span className="text-brand-600 dark:text-brand-400 font-semibold shrink-0">Ver expediente →</span>
-                </Link>
-              ))}
+              <h2 className="text-[13px] font-bold tracking-tight text-amber-950 dark:text-amber-200">
+                Centro de Alertas
+              </h2>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {alertas.totalCriticas > 0 && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300">
+                    {alertas.totalCriticas} crítica{alertas.totalCriticas === 1 ? '' : 's'}
+                  </span>
+                )}
+                {alertas.totalAdvertencias > 0 && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-200/70 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200">
+                    {alertas.totalAdvertencias} aviso{alertas.totalAdvertencias === 1 ? '' : 's'}
+                  </span>
+                )}
+                {hasFleetAlerts && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-white/80 dark:bg-slate-900/70 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300">
+                    <Truck className="w-3 h-3" />
+                    {fleetAlerts.length} flota
+                  </span>
+                )}
+                {conformidad.porcentaje !== null && (
+                  <span className="text-[11px] text-amber-800/80 dark:text-amber-300/80 hidden md:inline">
+                    · Conformidad {conformidad.porcentaje}%
+                  </span>
+                )}
+              </div>
             </div>
-          )}
 
-          {conformidad.porcentaje !== null && (
-            <div className="flex items-center justify-between text-xs pt-1 text-amber-900 dark:text-amber-300">
-              <span>Índice de conformidad comprobada: <strong>{conformidad.porcentaje}%</strong> ({conformidad.totalConformes}/{conformidad.totalEvaluados} registros conformes)</span>
-              <span>Evaluado: {new Date(conformidad.fechaEvaluacion).toLocaleString('es-ES')}</span>
+            <button
+              type="button"
+              onClick={() => setAlertsExpanded((prev) => !prev)}
+              aria-expanded={alertsExpanded}
+              className="inline-flex items-center gap-1.5 self-start sm:self-auto px-2.5 py-1 rounded-md text-xs font-semibold text-amber-900 dark:text-amber-200 bg-white/80 dark:bg-slate-900/60 border border-amber-200/80 dark:border-amber-800/60 hover:bg-white dark:hover:bg-slate-900 transition-colors"
+            >
+              <span>{alertsExpanded ? 'Ocultar detalle' : 'Ver detalle'}</span>
+              {alertsExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+
+          {alertsExpanded && (
+            <div className="px-4 pb-4 pt-2 border-t border-amber-200/70 dark:border-amber-900/40 space-y-3">
+              {hasNormativeAlerts && hasFleetAlerts && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setActiveAlertTab('normativa')}
+                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+                      effectiveAlertTab === 'normativa'
+                        ? 'bg-amber-900 text-white dark:bg-amber-500 dark:text-slate-950'
+                        : 'bg-white/70 dark:bg-slate-900/50 text-amber-900 dark:text-amber-200 hover:bg-white'
+                    }`}
+                  >
+                    Normativa y Traslados ({alertas.totalCriticas + alertas.totalAdvertencias})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveAlertTab('flota')}
+                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+                      effectiveAlertTab === 'flota'
+                        ? 'bg-amber-900 text-white dark:bg-amber-500 dark:text-slate-950'
+                        : 'bg-white/70 dark:bg-slate-900/50 text-amber-900 dark:text-amber-200 hover:bg-white'
+                    }`}
+                  >
+                    Vencimientos de Flota ({fleetAlerts.length})
+                  </button>
+                </div>
+              )}
+
+              {effectiveAlertTab === 'flota' && hasFleetAlerts && (
+                <div className="space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-amber-900 dark:text-amber-200">
+                    <span>
+                      {fleetExpiredCount} caducados y {fleetUpcomingCount} próximos a vencer (≤30 días)
+                    </span>
+                    <Link
+                      href="/residuos/flota"
+                      className="font-semibold text-amber-800 dark:text-amber-300 hover:underline whitespace-nowrap"
+                    >
+                      Gestionar en Mi Flota →
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {fleetAlerts.slice(0, 6).map((alert, idx) => (
+                      <Link
+                        key={`${alert.entityType}-${alert.entityId ?? idx}-${alert.documentType}`}
+                        href={`/residuos/flota?tab=${alert.entityType === 'vehicle' ? 'vehiculos' : 'conductores'}&q=${encodeURIComponent(alert.entityLabel)}`}
+                        className={`px-3 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 bg-white dark:bg-[#111827] transition hover:-translate-y-[1px] ${
+                          alert.status === 'caducado'
+                            ? 'border-red-200 dark:border-red-900/70 text-red-700 dark:text-red-300'
+                            : 'border-amber-200 dark:border-amber-900/70 text-amber-800 dark:text-amber-300'
+                        }`}
+                      >
+                        <span className="truncate font-medium">{alert.message}</span>
+                        <span className="text-[10px] font-bold uppercase shrink-0">
+                          {alert.status === 'caducado' ? 'Caducado' : 'Próximo'}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {effectiveAlertTab === 'normativa' && hasNormativeAlerts && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                    {alertas.disEnTransitoCount > 0 && (
+                      <Link
+                        href="/residuos/documentos-identificacion?status=en_transito"
+                        className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-amber-400 dark:hover:border-amber-600 transition-all"
+                      >
+                        <div>
+                          <span className="text-[11.5px] font-medium text-slate-500 dark:text-slate-400 block">DIs en Tránsito</span>
+                          <p className="text-lg font-bold tabular-nums text-brand-600 dark:text-brand-400 leading-tight mt-0.5">{alertas.disEnTransitoCount}</p>
+                        </div>
+                        <span className="text-xs font-semibold text-brand-600 dark:text-brand-400">Revisar →</span>
+                      </Link>
+                    )}
+
+                    {alertas.disDiscrepanciaCount > 0 && (
+                      <Link
+                        href="/residuos/documentos-identificacion?status=discrepancias"
+                        className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-red-400 dark:hover:border-red-700 transition-all"
+                      >
+                        <div>
+                          <span className="text-[11.5px] font-medium text-red-600 dark:text-red-400 block">Discrepancia Báscula &gt;5%</span>
+                          <p className="text-lg font-bold tabular-nums text-red-600 dark:text-red-400 leading-tight mt-0.5">{alertas.disDiscrepanciaCount}</p>
+                        </div>
+                        <span className="text-xs font-semibold text-red-600 dark:text-red-400">Auditar →</span>
+                      </Link>
+                    )}
+
+                    {alertas.contratosCaducadosCount > 0 && (
+                      <Link
+                        href="/residuos/contratos?status=caducado"
+                        className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-red-400 dark:hover:border-red-700 transition-all"
+                      >
+                        <div>
+                          <span className="text-[11.5px] font-medium text-red-600 dark:text-red-400 block">Contratos Caducados</span>
+                          <p className="text-lg font-bold tabular-nums text-red-600 dark:text-red-400 leading-tight mt-0.5">{alertas.contratosCaducadosCount}</p>
+                        </div>
+                        <span className="text-xs font-semibold text-red-600 dark:text-red-400">Renovar →</span>
+                      </Link>
+                    )}
+
+                    {alertas.disTratamientoNoAutorizadoCount > 0 && (
+                      <Link
+                        href="/residuos/documentos-identificacion?status=incidencias"
+                        className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-red-400 dark:hover:border-red-700 transition-all"
+                      >
+                        <div>
+                          <span className="text-[11.5px] font-medium text-red-600 dark:text-red-400 block">Tratamientos No Autorizados</span>
+                          <p className="text-lg font-bold tabular-nums text-red-600 dark:text-red-400 leading-tight mt-0.5">{alertas.disTratamientoNoAutorizadoCount}</p>
+                        </div>
+                        <span className="text-xs font-semibold text-red-600 dark:text-red-400">Auditar →</span>
+                      </Link>
+                    )}
+
+                    {alertas.disSinContratoCount > 0 && (
+                      <Link
+                        href="/residuos/documentos-identificacion?status=sin_contrato"
+                        className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-red-400 dark:hover:border-red-700 transition-all"
+                      >
+                        <div>
+                          <span className="text-[11.5px] font-medium text-red-600 dark:text-red-400 block">Traslados Sin Contrato</span>
+                          <p className="text-lg font-bold tabular-nums text-red-600 dark:text-red-400 leading-tight mt-0.5">{alertas.disSinContratoCount}</p>
+                        </div>
+                        <span className="text-xs font-semibold text-red-600 dark:text-red-400">Regularizar →</span>
+                      </Link>
+                    )}
+
+                    {alertas.contratosPorVencerCount > 0 && (
+                      <Link
+                        href="/residuos/contratos?status=vigente"
+                        className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-amber-400 dark:hover:border-amber-600 transition-all"
+                      >
+                        <div>
+                          <span className="text-[11.5px] font-medium text-amber-600 dark:text-amber-400 block">Vencimiento &lt;60 días</span>
+                          <p className="text-lg font-bold tabular-nums text-amber-600 dark:text-amber-400 leading-tight mt-0.5">{alertas.contratosPorVencerCount}</p>
+                        </div>
+                        <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">Atender →</span>
+                      </Link>
+                    )}
+                  </div>
+
+                  {alertas.lista.length > 0 && (
+                    <div className="pt-2 border-t border-amber-200/70 dark:border-amber-800/50 space-y-1.5">
+                      {alertas.lista.slice(0, 5).map((item) => (
+                        <Link
+                          key={item.id}
+                          href={item.enlace}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 px-3 py-2 rounded-lg bg-white/70 dark:bg-gray-900/50 hover:bg-white dark:hover:bg-gray-900 transition text-xs border border-amber-200/40 dark:border-gray-800"
+                        >
+                          <div>
+                            <span className={`font-bold mr-2 ${item.gravedad === 'critico' ? 'text-red-600 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                              [{item.gravedad === 'critico' ? 'CRÍTICO' : 'AVISO'}]
+                            </span>
+                            <span className="font-semibold text-slate-900 dark:text-white">{item.titulo}:</span>{' '}
+                            <span className="text-slate-600 dark:text-slate-300">{item.descripcion}</span>
+                          </div>
+                          <span className="text-brand-600 dark:text-brand-400 font-semibold shrink-0">Ver expediente →</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+
+                  {conformidad.porcentaje !== null && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1 text-amber-900 dark:text-amber-300">
+                      <span>Índice de conformidad comprobada: <strong>{conformidad.porcentaje}%</strong> ({conformidad.totalConformes}/{conformidad.totalEvaluados} registros conformes)</span>
+                      <span className="font-mono text-[11px]">RD 553/2020 · {new Date(conformidad.fechaEvaluacion).toLocaleString('es-ES')}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
       ) : conformidad.estado === 'pendiente' ? (
-        <div className="bg-slate-50 dark:bg-gray-900/40 rounded-2xl p-4 border border-slate-200 dark:border-gray-800 flex items-center justify-between">
-          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+        <div className="bg-slate-50 dark:bg-gray-900/40 rounded-[10px] px-4 py-3 border border-slate-200 dark:border-gray-800 flex items-center justify-between gap-3">
+          <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
             No existen traslados iniciados, contratos ni autorizaciones suficientes para evaluar el cumplimiento normativo.
           </span>
           <Badge variant="light" color="light" size="sm">
@@ -446,9 +507,10 @@ export default function ExecutiveDashboardPage() {
           </Badge>
         </div>
       ) : (
-        <div className="bg-emerald-50/70 dark:bg-emerald-950/20 rounded-2xl p-4 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between">
-          <span className="text-xs font-semibold text-emerald-900 dark:text-emerald-300">
-            Control evaluado sobre {conformidad.totalEvaluados} registro(s) sin incidencias ni alertas abiertas (evaluado {new Date(conformidad.fechaEvaluacion).toLocaleTimeString('es-ES')}).
+        <div className="bg-emerald-50/70 dark:bg-emerald-950/20 rounded-[10px] px-4 py-3 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between gap-3">
+          <span className="text-xs font-semibold text-emerald-900 dark:text-emerald-300 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            Control evaluado sobre {conformidad.totalEvaluados} registro(s) sin incidencias ni alertas abiertas.
           </span>
           <Badge variant="light" color="success" size="sm">
             Conformidad {conformidad.porcentaje ?? 100}%
