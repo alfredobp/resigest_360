@@ -7,7 +7,14 @@ import { createClient } from '@/lib/supabase/client';
 import { getActiveCompanyCookie } from '@/services/tenantContextService';
 import type { AppModule } from '@/types/wasteManagement';
 
-export type SearchCategory = 'contracts' | 'documents' | 'companies' | 'gestores' | 'carriers';
+export type SearchCategory =
+  | 'contracts'
+  | 'documents'
+  | 'companies'
+  | 'gestores'
+  | 'carriers'
+  | 'drivers'
+  | 'vehicles';
 
 export interface QuickSearchOptions {
   allowedModules?: AppModule[];
@@ -84,7 +91,15 @@ export const quickSearchService = {
     const results: SearchRecordItem[] = [];
 
     // Búsqueda en paralelo en entidades clave según módulos habilitados
-    const [contractsRes, docsRes, companiesRes, gestoresRes, carriersRes] = await Promise.allSettled([
+    const [
+      contractsRes,
+      docsRes,
+      companiesRes,
+      gestoresRes,
+      carriersRes,
+      driversRes,
+      vehiclesRes,
+    ] = await Promise.allSettled([
       // 1. Contratos de tratamiento
       (async () => {
         if (!canQueryModule('contratos')) return [];
@@ -198,6 +213,83 @@ export const quickSearchService = {
           badge: 'Transportista',
         }));
       })(),
+
+      // 6. Conductores de flota
+      (async () => {
+        if (!canQueryModule('flota_transporte')) return [];
+        const { data, error } = await supabase
+          .from('carrier_drivers')
+          .select('id, nombre, dni, telefono, vehiculo_asignado, remolque_asignado')
+          .eq('user_id', userId)
+          .eq('activo', true)
+          .or(
+            `nombre.ilike.%${safeQuery}%,dni.ilike.%${safeQuery}%,vehiculo_asignado.ilike.%${safeQuery}%,remolque_asignado.ilike.%${safeQuery}%`
+          )
+          .limit(limitPerCategory);
+
+        if (error || !data) return [];
+        return data.map(
+          (d: {
+            id: string | number;
+            nombre: string;
+            dni?: string | null;
+            vehiculo_asignado?: string | null;
+          }) => {
+            const meta = [d.dni ? `DNI: ${d.dni}` : null, d.vehiculo_asignado ? `Vehículo: ${d.vehiculo_asignado}` : null]
+              .filter(Boolean)
+              .join(' · ');
+            return {
+              id: `driver-${d.id}`,
+              title: d.nombre,
+              subtitle: meta || 'Conductor de flota',
+              category: 'drivers' as const,
+              href: `/residuos/flota?tab=conductores&q=${encodeURIComponent(d.dni || d.nombre)}`,
+              badge: 'Conductor',
+            };
+          }
+        );
+      })(),
+
+      // 7. Vehículos de flota
+      (async () => {
+        if (!canQueryModule('flota_transporte')) return [];
+        const { data, error } = await supabase
+          .from('carrier_vehicles')
+          .select('id, matricula, tipo, marca_modelo, remolque_habitual')
+          .eq('user_id', userId)
+          .eq('activo', true)
+          .or(
+            `matricula.ilike.%${safeQuery}%,remolque_habitual.ilike.%${safeQuery}%,marca_modelo.ilike.%${safeQuery}%,tarjeta_transporte.ilike.%${safeQuery}%`
+          )
+          .limit(limitPerCategory);
+
+        if (error || !data) return [];
+        return data.map(
+          (v: {
+            id: string | number;
+            matricula: string;
+            tipo?: string | null;
+            marca_modelo?: string | null;
+            remolque_habitual?: string | null;
+          }) => {
+            const meta = [
+              v.tipo || 'Vehículo',
+              v.marca_modelo || null,
+              v.remolque_habitual ? `Remolque: ${v.remolque_habitual}` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ');
+            return {
+              id: `vehicle-${v.id}`,
+              title: v.matricula,
+              subtitle: meta,
+              category: 'vehicles' as const,
+              href: `/residuos/flota?tab=vehiculos&q=${encodeURIComponent(v.matricula)}`,
+              badge: 'Vehículo',
+            };
+          }
+        );
+      })(),
     ]);
 
     // Combinar resultados exitosos
@@ -206,6 +298,8 @@ export const quickSearchService = {
     if (companiesRes.status === 'fulfilled') results.push(...companiesRes.value);
     if (gestoresRes.status === 'fulfilled') results.push(...gestoresRes.value);
     if (carriersRes.status === 'fulfilled') results.push(...carriersRes.value);
+    if (driversRes.status === 'fulfilled') results.push(...driversRes.value);
+    if (vehiclesRes.status === 'fulfilled') results.push(...vehiclesRes.value);
 
     return results;
   },

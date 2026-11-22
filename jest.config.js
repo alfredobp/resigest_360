@@ -38,6 +38,8 @@ module.exports = {
     'src/services/auditService.ts',
     'src/services/companyService.ts',
     'src/services/carrierService.ts',
+    'src/services/fleetService.ts',
+    'src/lib/validations/fleetValidation.ts',
     'src/services/authorizationService.ts',
     'src/services/treatmentManagerService.ts',
     'src/services/holdedService.ts',
@@ -127,6 +129,18 @@ module.exports = {
       statements: 80
     },
     './src/services/carrierService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/fleetService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/lib/validations/fleetValidation.ts': {
       branches: 80,
       functions: 80,
       lines: 80,

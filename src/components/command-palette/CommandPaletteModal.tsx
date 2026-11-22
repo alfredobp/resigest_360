@@ -25,6 +25,7 @@ import {
   Layers,
   ArrowRight,
   Sparkles,
+  User,
 } from "lucide-react";
 
 interface CommandPaletteModalProps {
@@ -161,6 +162,19 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         icon: <ShieldCheck className="w-4 h-4 text-teal-500" />,
         onSelect: () => {
           router.push("/residuos/gestores");
+          onClose();
+        },
+      },
+      {
+        id: "nav-flota",
+        title: "Mi Flota (Conductores y Vehículos)",
+        subtitle: "Conductores, matrículas, ITV, seguros, ADR y CAP",
+        category: "navigation",
+        path: "/residuos/flota",
+        badge: "Flota",
+        icon: <Truck className="w-4 h-4 text-sky-500" />,
+        onSelect: () => {
+          router.push("/residuos/flota");
           onClose();
         },
       },
@@ -307,6 +321,8 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       if (r.category === "companies") icon = <Building2 className="w-4 h-4 text-purple-500" />;
       if (r.category === "gestores") icon = <ShieldCheck className="w-4 h-4 text-teal-500" />;
       if (r.category === "carriers") icon = <Truck className="w-4 h-4 text-orange-500" />;
+      if (r.category === "drivers") icon = <User className="w-4 h-4 text-emerald-500" />;
+      if (r.category === "vehicles") icon = <Truck className="w-4 h-4 text-sky-500" />;
 
       return {
         id: r.id,

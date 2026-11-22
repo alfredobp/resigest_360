@@ -61,12 +61,34 @@ export interface TreatmentManagerFormData {
   holded_contact_id?: string;
 }
 
+export type ExpiryStatus = 'vigente' | 'proximo' | 'caducado' | 'no_aplica';
+
+export interface FleetComplianceAlert {
+  entityType: 'driver' | 'vehicle';
+  entityId?: number;
+  entityLabel: string;
+  documentType: 'ITV' | 'Seguro' | 'ADR' | 'CAP';
+  status: 'proximo' | 'caducado';
+  expiryDate: string;
+  daysRemaining: number;
+  message: string;
+}
+
 export interface FleetVehicle {
   id: string;
   matricula: string;
-  tipo?: string; // 'Tractora', 'Rígido', 'Portacontenedores', 'Furgón', 'Cisterna'
+  tipo?: string; // 'Tractora', 'Rígido', 'Remolque', 'Portacontenedores', 'Furgón', 'Cisterna', 'Pulpo'
   remolque?: string;
+  marca_modelo?: string;
+  mma_kg?: number;
+  tara_kg?: number;
+  fecha_caducidad_itv?: string;
+  fecha_caducidad_seguro?: string;
+  tiene_adr?: boolean;
+  fecha_caducidad_adr?: string;
+  tarjeta_transporte?: string;
   autorizacion_especial?: string;
+  notas?: string;
   activo?: boolean;
 }
 
@@ -75,7 +97,96 @@ export interface FleetDriver {
   nombre: string;
   dni?: string;
   telefono?: string;
+  email?: string;
   vehiculo_asignado?: string; // matrícula
+  remolque_asignado?: string;
+  carnet_tipo?: string;
+  tiene_adr?: boolean;
+  fecha_caducidad_adr?: string;
+  fecha_caducidad_cap?: string;
+  notas?: string;
+  activo?: boolean;
+}
+
+export interface CarrierVehicle {
+  id: number;
+  user_id: string;
+  company_id?: number | null;
+  carrier_id?: number | null;
+  matricula: string;
+  tipo: string;
+  remolque_habitual?: string | null;
+  marca_modelo?: string | null;
+  mma_kg?: number | null;
+  tara_kg?: number | null;
+  fecha_caducidad_itv?: string | null;
+  fecha_caducidad_seguro?: string | null;
+  tiene_adr: boolean;
+  fecha_caducidad_adr?: string | null;
+  tarjeta_transporte?: string | null;
+  autorizacion_especial?: string | null;
+  notas?: string | null;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CarrierVehicleFormData {
+  company_id?: number | null;
+  carrier_id?: number | null;
+  matricula: string;
+  tipo?: string;
+  remolque_habitual?: string;
+  marca_modelo?: string;
+  mma_kg?: number | null;
+  tara_kg?: number | null;
+  fecha_caducidad_itv?: string;
+  fecha_caducidad_seguro?: string;
+  tiene_adr?: boolean;
+  fecha_caducidad_adr?: string;
+  tarjeta_transporte?: string;
+  autorizacion_especial?: string;
+  notas?: string;
+  activo?: boolean;
+}
+
+export interface CarrierDriver {
+  id: number;
+  user_id: string;
+  company_id?: number | null;
+  carrier_id?: number | null;
+  vehicle_id?: number | null;
+  nombre: string;
+  dni?: string | null;
+  telefono?: string | null;
+  email?: string | null;
+  vehiculo_asignado?: string | null;
+  remolque_asignado?: string | null;
+  carnet_tipo?: string | null;
+  tiene_adr: boolean;
+  fecha_caducidad_adr?: string | null;
+  fecha_caducidad_cap?: string | null;
+  notas?: string | null;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CarrierDriverFormData {
+  company_id?: number | null;
+  carrier_id?: number | null;
+  vehicle_id?: number | null;
+  nombre: string;
+  dni?: string;
+  telefono?: string;
+  email?: string;
+  vehiculo_asignado?: string;
+  remolque_asignado?: string;
+  carnet_tipo?: string;
+  tiene_adr?: boolean;
+  fecha_caducidad_adr?: string;
+  fecha_caducidad_cap?: string;
+  notas?: string;
   activo?: boolean;
 }
 

@@ -33,6 +33,7 @@ export interface DataTableProps<T> {
   keyExtractor?: (row: T, index: number) => string | number;
   searchable?: boolean;
   searchPlaceholder?: string;
+  initialSearch?: string;
   searchFilter?: (row: T, term: string) => boolean;
   defaultPageSize?: number;
   pageSizeOptions?: number[];
@@ -51,6 +52,7 @@ export function DataTable<T extends Record<string, any>>({
   keyExtractor,
   searchable = true,
   searchPlaceholder = 'Buscar registros...',
+  initialSearch = '',
   searchFilter,
   defaultPageSize = 25,
   pageSizeOptions = [10, 25, 50, 100],
@@ -62,7 +64,13 @@ export function DataTable<T extends Record<string, any>>({
   className = '',
   tableClassName = '',
 }: DataTableProps<T>) {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialSearch);
+
+  useEffect(() => {
+    if (initialSearch !== undefined) {
+      setSearchTerm(initialSearch);
+    }
+  }, [initialSearch]);
   const [sortKey, setSortKey] = useState<string | null>(initialSortBy || null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(
     initialSortBy ? initialSortOrder : null

@@ -491,6 +491,28 @@ export default function MiEmpresaPage() {
           </div>
         )}
 
+        {company &&
+          (formData.tipo_empresa === 'transportista' ||
+            formData.roles?.includes('transportista') ||
+            company.roles?.includes('transportista')) && (
+            <div className="mb-6 p-4 rounded-xl border border-sky-200 bg-sky-50/70 dark:bg-sky-950/25 dark:border-sky-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="font-semibold text-sky-900 dark:text-sky-200 text-sm">
+                  Mi Flota: Conductores y Vehículos
+                </h4>
+                <p className="text-xs text-sky-700 dark:text-sky-300 mt-0.5">
+                  Da de alta tus conductores (DNI, ADR, CAP) y vehículos (matrículas, ITV, seguro) para autorrellenar DeCA y DI al instante.
+                </p>
+              </div>
+              <a
+                href="/residuos/flota"
+                className="inline-flex items-center text-xs font-semibold px-3.5 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition shadow-sm whitespace-nowrap"
+              >
+                Gestionar Mi Flota →
+              </a>
+            </div>
+          )}
+
         {/* Navegación por Pestañas sobria */}
         <div className="mb-6 border-b border-gray-200 dark:border-gray-800 flex flex-wrap gap-6">
           <button

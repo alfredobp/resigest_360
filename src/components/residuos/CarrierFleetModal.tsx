@@ -7,14 +7,16 @@
 // ==============================================================================
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Modal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import Label from '@/components/form/Label';
 import Button from '@/components/ui/button/Button';
 import { toast } from '@/context/ToastContext';
 import carrierService from '@/services/carrierService';
+import fleetService from '@/services/fleetService';
 import type { Carrier, FleetVehicle, FleetDriver } from '@/types/wasteManagement';
-import { Truck, User, Plus, Trash2, CheckCircle2, X } from 'lucide-react';
+import { Truck, User, Plus, Trash2, CheckCircle2, X, ExternalLink } from 'lucide-react';
 
 interface CarrierFleetModalProps {
   isOpen: boolean;
@@ -122,7 +124,7 @@ export default function CarrierFleetModal({
     if (!carrier) return;
     try {
       setSaving(true);
-      await carrierService.update(
+      const updatedCarrier = await carrierService.update(
         carrier.id,
         {
           flota_vehiculos: vehicles,
@@ -133,6 +135,7 @@ export default function CarrierFleetModal({
           companyId: carrier.company_id,
         }
       );
+      await fleetService.syncLegacyFleetFromCarriers([updatedCarrier], carrier.company_id).catch(() => null);
       toast.success('Flota de medios y conductores actualizada correctamente.');
       onSuccess();
       onClose();
@@ -171,6 +174,21 @@ export default function CarrierFleetModal({
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* Enlace al hub completo Mi Flota */}
+        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200/80 dark:border-sky-900/60 text-xs">
+          <span className="text-sky-900 dark:text-sky-200">
+            ¿Necesitas gestionar ITV, seguros, ADR o CAP con avisos de caducidad?
+          </span>
+          <Link
+            href="/residuos/flota"
+            onClick={onClose}
+            className="inline-flex items-center gap-1 font-semibold text-sky-700 dark:text-sky-300 hover:underline whitespace-nowrap"
+          >
+            <span>Abrir Mi Flota</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Link>
         </div>
 
         {/* Pestañas Vehículos vs Conductores */}

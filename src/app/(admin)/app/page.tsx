@@ -16,8 +16,13 @@ import {
   ProfileShortcutsCard,
 } from '@/components/dashboard/profiles/ProfileDashboardSections';
 import ScrapYardEntryModal from '@/components/residuos/ScrapYardEntryModal';
-import { AlertTriangle } from 'lucide-react';
-import type { AppModule, OperationalProfile } from '@/types/wasteManagement';
+import fleetService from '@/services/fleetService';
+import {
+  getDriverComplianceAlerts,
+  getVehicleComplianceAlerts,
+} from '@/lib/validations/fleetValidation';
+import { AlertTriangle, Truck } from 'lucide-react';
+import type { AppModule, FleetComplianceAlert, OperationalProfile } from '@/types/wasteManagement';
 
 export default function ExecutiveDashboardPage() {
   const router = useRouter();
@@ -60,24 +65,36 @@ export default function ExecutiveDashboardPage() {
   const [executiveData, setExecutiveData] = useState<ExecutiveDashboardData | null>(null);
   const [monthlyData, setMonthlyData] = useState<Array<{ name: string; value: number }>>([]);
   const [recentDIs, setRecentDIs] = useState<any[]>([]);
+  const [fleetAlerts, setFleetAlerts] = useState<FleetComplianceAlert[]>([]);
   const [isScrapModalOpen, setIsScrapModalOpen] = useState(false);
 
   const loadData = async () => {
     try {
       setLoading(true);
       const scopedCompanyId = isPlatformAdmin && !activeCompanyId ? null : activeCompanyId;
-      const [overview, monthly, recent] = await Promise.all([
+      const shouldLoadFleet = effectiveHasModule('flota_transporte');
+      const [overview, monthly, recent, drivers, vehicles] = await Promise.all([
         dashboardService.getExecutiveOverview({
           companyId: scopedCompanyId,
           includeCommercial: canCreateOp,
         }),
         dashboardService.getMonthlyWasteData(scopedCompanyId),
         dashboardService.getRecentActivity(scopedCompanyId),
+        shouldLoadFleet
+          ? fleetService.getDrivers({ companyId: scopedCompanyId }).catch(() => [])
+          : Promise.resolve([]),
+        shouldLoadFleet
+          ? fleetService.getVehicles({ companyId: scopedCompanyId }).catch(() => [])
+          : Promise.resolve([]),
       ]);
 
       setExecutiveData(overview);
       setMonthlyData(monthly);
       setRecentDIs(recent);
+      setFleetAlerts([
+        ...vehicles.flatMap((v) => getVehicleComplianceAlerts(v)),
+        ...drivers.flatMap((d) => getDriverComplianceAlerts(d)),
+      ]);
     } catch (err) {
       console.error('Error al cargar datos del dashboard ejecutivo:', err);
     } finally {
@@ -133,14 +150,24 @@ export default function ExecutiveDashboardPage() {
         {/* Acciones Rápidas según perfil */}
         <div className="flex flex-wrap items-center gap-2">
           {effectiveProfile === 'transportista' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push('/transporte')}
-              className="text-blue-700 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-950/40"
-            >
-              Vista Conductor (Móvil)
-            </Button>
+            <>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => router.push('/residuos/flota')}
+                className="bg-brand-500 hover:bg-brand-600 text-white font-medium shadow-sm transition-colors"
+              >
+                Mi Flota (Conductores y Vehículos)
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push('/transporte')}
+                className="text-blue-700 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-950/40"
+              >
+                Vista Conductor (Móvil)
+              </Button>
+            </>
           )}
 
           {effectiveProfile === 'negociante' && canCreateOp && (
@@ -220,6 +247,44 @@ export default function ExecutiveDashboardPage() {
       </div>
 
       {/* CENTRO DE ALERTAS Y CONTROL POR EXCEPCIÓN */}
+      {fleetAlerts.length > 0 && (
+        <div className="bg-amber-50/90 dark:bg-amber-950/25 rounded-[10px] p-4 border border-amber-200 dark:border-amber-900/60 space-y-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <h2 className="text-[13.5px] font-bold tracking-tight text-amber-900 dark:text-amber-200 flex items-center gap-2">
+              <Truck className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>
+                Vencimientos de Flota: {fleetAlerts.filter((a) => a.status === 'caducado').length} caducados y{' '}
+                {fleetAlerts.filter((a) => a.status === 'proximo').length} próximos a vencer (≤30 días)
+              </span>
+            </h2>
+            <Link
+              href="/residuos/flota"
+              className="text-xs font-semibold text-amber-800 dark:text-amber-300 hover:underline whitespace-nowrap"
+            >
+              Gestionar en Mi Flota →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            {fleetAlerts.slice(0, 6).map((alert, idx) => (
+              <Link
+                key={`${alert.entityType}-${alert.entityId ?? idx}-${alert.documentType}`}
+                href={`/residuos/flota?tab=${alert.entityType === 'vehicle' ? 'vehiculos' : 'conductores'}&q=${encodeURIComponent(alert.entityLabel)}`}
+                className={`px-3 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 bg-white dark:bg-[#111827] transition hover:-translate-y-[1px] ${
+                  alert.status === 'caducado'
+                    ? 'border-red-200 dark:border-red-900/70 text-red-700 dark:text-red-300'
+                    : 'border-amber-200 dark:border-amber-900/70 text-amber-800 dark:text-amber-300'
+                }`}
+              >
+                <span className="truncate font-medium">{alert.message}</span>
+                <span className="text-[10px] font-bold uppercase shrink-0">
+                  {alert.status === 'caducado' ? 'Caducado' : 'Próximo'}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       {hasAlerts ? (
         <div className="bg-[#fffbeb] dark:bg-amber-950/20 rounded-[10px] p-4 border border-[#fde68a] dark:border-amber-900/50 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">

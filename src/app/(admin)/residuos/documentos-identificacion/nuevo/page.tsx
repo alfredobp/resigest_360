@@ -22,9 +22,14 @@ import productionCenterService, { findPrincipalProductionCenter } from '@/servic
 import wasteTypeService from '@/services/wasteTypeService';
 import treatmentManagerService from '@/services/treatmentManagerService';
 import carrierService from '@/services/carrierService';
+import fleetService from '@/services/fleetService';
+import {
+  getDriverComplianceAlerts,
+  getVehicleComplianceAlerts,
+} from '@/lib/validations/fleetValidation';
 import authorizationService, { type AuthorizedScopeResult } from '@/services/authorizationService';
 import { priorNotificationService } from '@/services/priorNotificationService';
-import type { IdentificationDocument, Company, WasteContract, ProductionCenter, WasteType, TreatmentManager, Carrier, PriorNotification } from '@/types/wasteManagement';
+import type { IdentificationDocument, Company, WasteContract, ProductionCenter, WasteType, TreatmentManager, Carrier, PriorNotification, CarrierDriver, CarrierVehicle } from '@/types/wasteManagement';
 import DatePicker from '@/components/form/date-picker';
 import LerSelector from '@/components/residuos/LerSelector';
 import TreatmentOperationSelector from '@/components/residuos/TreatmentOperationSelector';
@@ -47,6 +52,8 @@ function NuevoDocumentoIdentificacionContent() {
   const [contracts, setContracts] = useState<WasteContract[]>([]);
   const [internalGestores, setInternalGestores] = useState<TreatmentManager[]>([]);
   const [internalCarriers, setInternalCarriers] = useState<Carrier[]>([]);
+  const [fleetDrivers, setFleetDrivers] = useState<CarrierDriver[]>([]);
+  const [fleetVehicles, setFleetVehicles] = useState<CarrierVehicle[]>([]);
   const [wasteTypes, setWasteTypes] = useState<WasteType[]>([]);
   const [allContacts, setAllContacts] = useState<Company[]>([]);
   const [priorNotifications, setPriorNotifications] = useState<PriorNotification[]>([]);
@@ -180,6 +187,12 @@ function NuevoDocumentoIdentificacionContent() {
         )
       );
       setInternalCarriers(internalCarriersData);
+      const [driversData, vehiclesData] = await Promise.all([
+        fleetService.getDrivers().catch(() => [] as CarrierDriver[]),
+        fleetService.getVehicles().catch(() => [] as CarrierVehicle[]),
+      ]);
+      setFleetDrivers(driversData);
+      setFleetVehicles(vehiclesData);
       setAllContacts(
         contactsData.filter(
           (c) => c.id !== company.id && (!myNormCif || c.cif?.toUpperCase().trim() !== myNormCif)
@@ -551,6 +564,74 @@ function NuevoDocumentoIdentificacionContent() {
         }));
       }
     };
+
+    const handleSelectFleetDriverForDi = (driverId: string) => {
+      const drv = fleetDrivers.find((d) => String(d.id) === driverId);
+      if (!drv) return;
+      const linkedVehicle = drv.vehicle_id
+        ? fleetVehicles.find((v) => v.id === drv.vehicle_id)
+        : fleetVehicles.find(
+            (v) =>
+              drv.vehiculo_asignado &&
+              v.matricula.replace(/\s+/g, '').toUpperCase() ===
+                drv.vehiculo_asignado.replace(/\s+/g, '').toUpperCase()
+          );
+      const plate = drv.vehiculo_asignado || linkedVehicle?.matricula || '';
+      const isOwnCarrier = Boolean(
+        myCompany &&
+          (myCompany.tipo_empresa === 'transportista' || myCompany.roles?.includes('transportista'))
+      );
+
+      setFormData((prev) => ({
+        ...prev,
+        transportista_matricula: plate || prev.transportista_matricula || '',
+        transportista_razon_social:
+          prev.transportista_razon_social || (isOwnCarrier ? myCompany?.razon_social || '' : ''),
+        transportista_cif: prev.transportista_cif || (isOwnCarrier ? myCompany?.cif || '' : ''),
+        transportista_nima: prev.transportista_nima || (isOwnCarrier ? myCompany?.nima || '' : ''),
+        transportista_direccion:
+          prev.transportista_direccion ||
+          (isOwnCarrier ? myCompany?.domicilio_social || myCompany?.domicilio_instalacion || '' : ''),
+        transportista_codigo_postal:
+          prev.transportista_codigo_postal ||
+          (isOwnCarrier ? myCompany?.codigo_postal_social || myCompany?.codigo_postal_instalacion || '' : ''),
+        transportista_municipio:
+          prev.transportista_municipio ||
+          (isOwnCarrier ? myCompany?.municipio_social || myCompany?.municipio_instalacion || '' : ''),
+        transportista_provincia:
+          prev.transportista_provincia ||
+          (isOwnCarrier ? myCompany?.provincia_social || myCompany?.provincia_instalacion || '' : ''),
+        transportista_telefono:
+          prev.transportista_telefono || drv.telefono || (isOwnCarrier ? myCompany?.telefono || '' : ''),
+      }));
+    };
+
+    const handleSelectFleetVehicleForDi = (vehicleId: string) => {
+      const veh = fleetVehicles.find((v) => String(v.id) === vehicleId);
+      if (!veh) return;
+      setFormData((prev) => ({
+        ...prev,
+        transportista_matricula: veh.matricula,
+      }));
+    };
+
+    const matchedDiFleetVehicle = fleetVehicles.find(
+      (v) =>
+        formData.transportista_matricula &&
+        v.matricula.replace(/\s+/g, '').toUpperCase() ===
+          formData.transportista_matricula.replace(/\s+/g, '').toUpperCase()
+    );
+    const matchedDiFleetDriver = fleetDrivers.find(
+      (d) =>
+        formData.transportista_matricula &&
+        d.vehiculo_asignado &&
+        d.vehiculo_asignado.replace(/\s+/g, '').toUpperCase() ===
+          formData.transportista_matricula.replace(/\s+/g, '').toUpperCase()
+    );
+    const diFleetAlerts = [
+      ...(matchedDiFleetVehicle ? getVehicleComplianceAlerts(matchedDiFleetVehicle) : []),
+      ...(matchedDiFleetDriver ? getDriverComplianceAlerts(matchedDiFleetDriver) : []),
+    ];
 
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -1406,6 +1487,59 @@ function NuevoDocumentoIdentificacionContent() {
                     placeholder="Selecciona uno de tus transportistas"
                   />
                 </div>
+
+                {(fleetDrivers.length > 0 || fleetVehicles.length > 0) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 rounded-lg bg-sky-50/70 dark:bg-sky-950/25 border border-sky-200/80 dark:border-sky-900/60">
+                    {fleetDrivers.length > 0 && (
+                      <div>
+                        <label htmlFor="di_fleet_driver_select" className="block text-xs font-semibold text-sky-900 dark:text-sky-200 mb-1.5">
+                          Conductor de Mi Flota (autorrellena matrícula)
+                        </label>
+                        <select
+                          id="di_fleet_driver_select"
+                          defaultValue=""
+                          onChange={(e) => handleSelectFleetDriverForDi(e.target.value)}
+                          className="w-full h-10 text-xs rounded-lg border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900 px-3 text-slate-800 dark:text-slate-200"
+                        >
+                          <option value="">-- Seleccionar conductor --</option>
+                          {fleetDrivers.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.nombre}{d.vehiculo_asignado ? ` · ${d.vehiculo_asignado}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {fleetVehicles.length > 0 && (
+                      <div>
+                        <label htmlFor="di_fleet_vehicle_select" className="block text-xs font-semibold text-sky-900 dark:text-sky-200 mb-1.5">
+                          Vehículo de Mi Flota
+                        </label>
+                        <select
+                          id="di_fleet_vehicle_select"
+                          value={matchedDiFleetVehicle ? String(matchedDiFleetVehicle.id) : ''}
+                          onChange={(e) => handleSelectFleetVehicleForDi(e.target.value)}
+                          className="w-full h-10 text-xs rounded-lg border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900 px-3 text-slate-800 dark:text-slate-200"
+                        >
+                          <option value="">-- Seleccionar vehículo --</option>
+                          {fleetVehicles.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.matricula} ({v.tipo})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {diFleetAlerts.length > 0 && (
+                  <Alert
+                    variant="warning"
+                    title="Aviso de documentación de flota"
+                    message={diFleetAlerts.map((a) => a.message).join(' · ')}
+                  />
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>

@@ -11,8 +11,13 @@ import { decaService } from '@/services/decaService';
 import { useTenant } from '@/context/TenantContext';
 import { companyService } from '@/services/companyService';
 import { carrierService } from '@/services/carrierService';
+import fleetService from '@/services/fleetService';
+import {
+  getDriverComplianceAlerts,
+  getVehicleComplianceAlerts,
+} from '@/lib/validations/fleetValidation';
 import type { DecaDocument, DecaFormData } from '@/types/deca';
-import type { Company, Carrier } from '@/types/wasteManagement';
+import type { Company, Carrier, CarrierDriver, CarrierVehicle } from '@/types/wasteManagement';
 import { toast } from '@/context/ToastContext';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import { Modal, ConfirmModal } from '@/components/ui/modal';
@@ -41,7 +46,8 @@ import {
   Copy,
   Check,
   Calendar,
-  X
+  X,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function DecaManagementPage() {
@@ -49,6 +55,8 @@ export default function DecaManagementPage() {
   const [documents, setDocuments] = useState<DecaDocument[]>([]);
   const [availableCompanies, setAvailableCompanies] = useState<Company[]>([]);
   const [availableCarriers, setAvailableCarriers] = useState<Carrier[]>([]);
+  const [fleetDrivers, setFleetDrivers] = useState<CarrierDriver[]>([]);
+  const [fleetVehicles, setFleetVehicles] = useState<CarrierVehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -116,14 +124,18 @@ export default function DecaManagementPage() {
   const loadDocuments = async () => {
     try {
       setLoading(true);
-      const [data, comps, carriers] = await Promise.all([
+      const [data, comps, carriers, drivers, vehicles] = await Promise.all([
         decaService.getAll().catch(() => [] as DecaDocument[]),
         companyService.getAll().catch(() => [] as Company[]),
         carrierService.getAll().catch(() => [] as Carrier[]),
+        fleetService.getDrivers().catch(() => [] as CarrierDriver[]),
+        fleetService.getVehicles().catch(() => [] as CarrierVehicle[]),
       ]);
       setDocuments(data);
       setAvailableCompanies(comps);
       setAvailableCarriers(carriers);
+      setFleetDrivers(drivers);
+      setFleetVehicles(vehicles);
     } catch (err: any) {
       console.error('Error al cargar documentos DeCA:', err);
       toast.error(`Error al cargar documentos: ${err.message}`);
@@ -182,12 +194,19 @@ export default function DecaManagementPage() {
     );
 
     const defaultTractora =
+      fleetVehicles[0]?.matricula ||
       activeCompany?.matricula ||
       currentCarrier?.matricula ||
       currentCarrier?.flota_vehiculos?.[0]?.matricula ||
       '';
 
+    const defaultRemolque =
+      fleetVehicles[0]?.remolque_habitual ||
+      currentCarrier?.flota_vehiculos?.[0]?.remolque ||
+      '';
+
     const defaultConductor =
+      fleetDrivers[0]?.nombre ||
       currentCarrier?.flota_conductores?.[0]?.nombre ||
       activeCompany?.persona_contacto ||
       '';
@@ -203,6 +222,7 @@ export default function DecaManagementPage() {
       transportista_provincia: activeCompany?.provincia_social || activeCompany?.provincia_instalacion || currentCarrier?.provincia || '',
       transportista_codigo_postal: activeCompany?.codigo_postal_social || activeCompany?.codigo_postal_instalacion || currentCarrier?.codigo_postal || '',
       matricula_tractora: defaultTractora,
+      matricula_remolque: defaultRemolque,
       conductor_nombre: defaultConductor,
       fecha_transporte: new Date().toISOString().split('T')[0],
       estado: 'vigente',
@@ -213,6 +233,56 @@ export default function DecaManagementPage() {
     setCreateSubmitError(null);
     setCreateModalOpen(true);
   };
+
+  const handleSelectFleetDriver = (driverId: string) => {
+    const drv = fleetDrivers.find((d) => String(d.id) === driverId);
+    if (!drv) return;
+    const linkedVehicle = drv.vehicle_id
+      ? fleetVehicles.find((v) => v.id === drv.vehicle_id)
+      : fleetVehicles.find(
+          (v) =>
+            drv.vehiculo_asignado &&
+            v.matricula.replace(/\s+/g, '').toUpperCase() ===
+              drv.vehiculo_asignado.replace(/\s+/g, '').toUpperCase()
+        );
+
+    setFormData((prev) => ({
+      ...prev,
+      conductor_nombre: drv.nombre,
+      matricula_tractora: drv.vehiculo_asignado || linkedVehicle?.matricula || prev.matricula_tractora || '',
+      matricula_remolque: drv.remolque_asignado || linkedVehicle?.remolque_habitual || prev.matricula_remolque || '',
+    }));
+    clearCreateError('matricula_tractora');
+    clearVersionError('matricula_tractora');
+  };
+
+  const handleSelectFleetVehicle = (vehicleId: string) => {
+    const veh = fleetVehicles.find((v) => String(v.id) === vehicleId);
+    if (!veh) return;
+    setFormData((prev) => ({
+      ...prev,
+      matricula_tractora: veh.matricula,
+      matricula_remolque: veh.remolque_habitual || prev.matricula_remolque || '',
+    }));
+    clearCreateError('matricula_tractora');
+    clearVersionError('matricula_tractora');
+  };
+
+  const matchedFleetDriver = fleetDrivers.find(
+    (d) =>
+      formData.conductor_nombre &&
+      d.nombre.trim().toLowerCase() === formData.conductor_nombre.trim().toLowerCase()
+  );
+  const matchedFleetVehicle = fleetVehicles.find(
+    (v) =>
+      formData.matricula_tractora &&
+      v.matricula.replace(/\s+/g, '').toUpperCase() ===
+        formData.matricula_tractora.replace(/\s+/g, '').toUpperCase()
+  );
+  const activeFleetComplianceAlerts = [
+    ...(matchedFleetDriver ? getDriverComplianceAlerts(matchedFleetDriver) : []),
+    ...(matchedFleetVehicle ? getVehicleComplianceAlerts(matchedFleetVehicle) : []),
+  ];
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -909,6 +979,11 @@ export default function DecaManagementPage() {
 
               {/* Datalists para medios y conductores de la flota */}
               <datalist id="deca_vehiculos_datalist">
+                {fleetVehicles.map((v) => (
+                  <option key={`fv-${v.id}`} value={v.matricula}>
+                    {v.matricula} ({v.tipo}){v.remolque_habitual ? ` · R: ${v.remolque_habitual}` : ''}
+                  </option>
+                ))}
                 {availableCarriers.flatMap((c) => c.flota_vehiculos || []).map((v, i) => (
                   <option key={`v-${v.matricula}-${i}`} value={v.matricula}>
                     {v.matricula} {v.tipo ? `(${v.tipo})` : ''}
@@ -916,6 +991,11 @@ export default function DecaManagementPage() {
                 ))}
               </datalist>
               <datalist id="deca_conductores_datalist">
+                {fleetDrivers.map((d) => (
+                  <option key={`fd-${d.id}`} value={d.nombre}>
+                    {d.nombre} {d.dni ? `(${d.dni})` : ''} {d.vehiculo_asignado ? `· ${d.vehiculo_asignado}` : ''}
+                  </option>
+                ))}
                 {availableCarriers.flatMap((c) => c.flota_conductores || []).map((d, i) => (
                   <option key={`d-${d.nombre}-${i}`} value={d.nombre}>
                     {d.nombre} {d.dni ? `(${d.dni})` : ''}
@@ -933,6 +1013,67 @@ export default function DecaManagementPage() {
                     Datos propios precargados
                   </span>
                 </div>
+
+                {(fleetDrivers.length > 0 || fleetVehicles.length > 0) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-2.5 rounded-xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200/80 dark:border-sky-900/60">
+                    {fleetDrivers.length > 0 && (
+                      <div>
+                        <label htmlFor="deca_quick_driver" className="block text-[11px] font-semibold text-sky-900 dark:text-sky-200 mb-1">
+                          Recuperar Conductor de Mi Flota
+                        </label>
+                        <select
+                          id="deca_quick_driver"
+                          value={matchedFleetDriver ? String(matchedFleetDriver.id) : ''}
+                          onChange={(e) => handleSelectFleetDriver(e.target.value)}
+                          className="w-full text-xs rounded-lg border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900 px-2.5 py-2 text-slate-800 dark:text-slate-200"
+                        >
+                          <option value="">-- Seleccionar conductor --</option>
+                          {fleetDrivers.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.nombre}{d.vehiculo_asignado ? ` (${d.vehiculo_asignado})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {fleetVehicles.length > 0 && (
+                      <div>
+                        <label htmlFor="deca_quick_vehicle" className="block text-[11px] font-semibold text-sky-900 dark:text-sky-200 mb-1">
+                          Recuperar Vehículo de Mi Flota
+                        </label>
+                        <select
+                          id="deca_quick_vehicle"
+                          value={matchedFleetVehicle ? String(matchedFleetVehicle.id) : ''}
+                          onChange={(e) => handleSelectFleetVehicle(e.target.value)}
+                          className="w-full text-xs rounded-lg border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900 px-2.5 py-2 text-slate-800 dark:text-slate-200"
+                        >
+                          <option value="">-- Seleccionar vehículo --</option>
+                          {fleetVehicles.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.matricula} ({v.tipo}){v.remolque_habitual ? ` · R: ${v.remolque_habitual}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeFleetComplianceAlerts.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                    <div className="flex items-center gap-1.5 font-semibold">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>Aviso de documentación de flota:</span>
+                    </div>
+                    <ul className="list-disc pl-5 space-y-0.5 text-[11px]">
+                      {activeFleetComplianceAlerts.map((a, idx) => (
+                        <li key={idx} className={a.status === 'caducado' ? 'text-red-700 dark:text-red-300 font-semibold' : ''}>
+                          {a.message}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <Label htmlFor="deca_create_transportista_razon_social" required>Transportista</Label>
@@ -1214,6 +1355,67 @@ export default function DecaManagementPage() {
                   hint={versionErrors.motivo}
                 />
               </div>
+
+              {(fleetDrivers.length > 0 || fleetVehicles.length > 0) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-2.5 rounded-xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200/80 dark:border-sky-900/60">
+                  {fleetDrivers.length > 0 && (
+                    <div>
+                      <label htmlFor="deca_version_quick_driver" className="block text-[11px] font-semibold text-sky-900 dark:text-sky-200 mb-1">
+                        Cambiar Conductor (Mi Flota)
+                      </label>
+                      <select
+                        id="deca_version_quick_driver"
+                        value={matchedFleetDriver ? String(matchedFleetDriver.id) : ''}
+                        onChange={(e) => handleSelectFleetDriver(e.target.value)}
+                        className="w-full text-xs rounded-lg border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900 px-2.5 py-2 text-slate-800 dark:text-slate-200"
+                      >
+                        <option value="">-- Seleccionar conductor --</option>
+                        {fleetDrivers.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.nombre}{d.vehiculo_asignado ? ` (${d.vehiculo_asignado})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {fleetVehicles.length > 0 && (
+                    <div>
+                      <label htmlFor="deca_version_quick_vehicle" className="block text-[11px] font-semibold text-sky-900 dark:text-sky-200 mb-1">
+                        Cambiar Vehículo (Mi Flota)
+                      </label>
+                      <select
+                        id="deca_version_quick_vehicle"
+                        value={matchedFleetVehicle ? String(matchedFleetVehicle.id) : ''}
+                        onChange={(e) => handleSelectFleetVehicle(e.target.value)}
+                        className="w-full text-xs rounded-lg border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900 px-2.5 py-2 text-slate-800 dark:text-slate-200"
+                      >
+                        <option value="">-- Seleccionar vehículo --</option>
+                        {fleetVehicles.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.matricula} ({v.tipo})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeFleetComplianceAlerts.length > 0 && (
+                <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                  <div className="flex items-center gap-1.5 font-semibold">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>Aviso de documentación de flota:</span>
+                  </div>
+                  <ul className="list-disc pl-5 space-y-0.5 text-[11px]">
+                    {activeFleetComplianceAlerts.map((a, idx) => (
+                      <li key={idx} className={a.status === 'caducado' ? 'text-red-700 dark:text-red-300 font-semibold' : ''}>
+                        {a.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>

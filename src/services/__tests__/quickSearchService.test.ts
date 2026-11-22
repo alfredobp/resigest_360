@@ -416,6 +416,92 @@ describe('quickSearchService - Servicio de búsqueda global multi-tenant', () =>
       expect(mockSupabase.from).not.toHaveBeenCalledWith('waste_contracts');
       expect(mockSupabase.from).not.toHaveBeenCalledWith('treatment_managers');
       expect(mockSupabase.from).not.toHaveBeenCalledWith('carriers');
+      expect(mockSupabase.from).not.toHaveBeenCalledWith('carrier_drivers');
+      expect(mockSupabase.from).not.toHaveBeenCalledWith('carrier_vehicles');
+    });
+
+    it('debe buscar conductores y vehículos cuando el módulo flota_transporte está habilitado', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-fleet-search' } },
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'carrier_drivers') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            or: jest.fn().mockReturnThis(),
+            limit: jest.fn().mockResolvedValue({
+              data: [
+                {
+                  id: 301,
+                  nombre: 'Carlos Conductor',
+                  dni: '12345678Z',
+                  vehiculo_asignado: '1234-BBB',
+                },
+                {
+                  id: 302,
+                  nombre: 'Sin Meta',
+                  dni: null,
+                  vehiculo_asignado: null,
+                },
+              ],
+              error: null,
+            }),
+          };
+        }
+        if (table === 'carrier_vehicles') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            or: jest.fn().mockReturnThis(),
+            limit: jest.fn().mockResolvedValue({
+              data: [
+                {
+                  id: 401,
+                  matricula: '1234-BBB',
+                  tipo: 'Tractora',
+                  marca_modelo: 'Volvo FH',
+                  remolque_habitual: 'R-1234-BBB',
+                },
+              ],
+              error: null,
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockReturnThis(),
+          or: jest.fn().mockReturnThis(),
+          limit: jest.fn().mockResolvedValue({ data: [], error: null }),
+        };
+      });
+
+      const results = await quickSearchService.searchRecords('1234', 4, {
+        allowedModules: ['flota_transporte'],
+      });
+
+      const driverRes = results.find((r) => r.id === 'driver-301');
+      const driverNoMeta = results.find((r) => r.id === 'driver-302');
+      const vehicleRes = results.find((r) => r.id === 'vehicle-401');
+
+      expect(driverRes).toEqual({
+        id: 'driver-301',
+        title: 'Carlos Conductor',
+        subtitle: 'DNI: 12345678Z · Vehículo: 1234-BBB',
+        category: 'drivers',
+        href: '/residuos/flota?tab=conductores&q=12345678Z',
+        badge: 'Conductor',
+      });
+      expect(driverNoMeta?.subtitle).toBe('Conductor de flota');
+      expect(vehicleRes).toEqual({
+        id: 'vehicle-401',
+        title: '1234-BBB',
+        subtitle: 'Tractora · Volvo FH · Remolque: R-1234-BBB',
+        category: 'vehicles',
+        href: '/residuos/flota?tab=vehiculos&q=1234-BBB',
+        badge: 'Vehículo',
+      });
     });
   });
 });

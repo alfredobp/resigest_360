@@ -587,6 +587,7 @@ const ALL_SHORTCUTS: ShortcutItem[] = [
   { label: 'Operaciones Comerciales y Báscula', href: '/residuos/operaciones', module: 'operaciones_comerciales' },
   { label: 'Memorias Anuales de Residuos', href: '/residuos/memorias-anuales', module: 'memorias_anuales' },
   { label: 'Control DeCA y Conductores', href: '/residuos/deca', module: 'deca' },
+  { label: 'Mi Flota (Conductores y Vehículos)', href: '/residuos/flota', module: 'flota_transporte' },
   { label: 'Empresas, Roles y Autorizaciones', href: '/residuos/empresas', module: 'empresas' },
   { label: 'Configuración de Mi Empresa', href: '/residuos/mi-empresa' },
 ];

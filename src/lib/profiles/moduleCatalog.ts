@@ -115,6 +115,7 @@ export const ROUTE_MODULE_RULES: Array<{ prefix: string; module: AppModule }> = 
   { prefix: '/residuos/memorias-anuales', module: 'memorias_anuales' },
   { prefix: '/residuos/integraciones', module: 'sira_integraciones' },
   { prefix: '/residuos/gestores', module: 'gestores' },
+  { prefix: '/residuos/flota', module: 'flota_transporte' },
   { prefix: '/residuos/transportistas', module: 'flota_transporte' },
   { prefix: '/residuos/contratos', module: 'contratos' },
   { prefix: '/residuos/archivo-cronologico', module: 'archivo_cronologico' },
