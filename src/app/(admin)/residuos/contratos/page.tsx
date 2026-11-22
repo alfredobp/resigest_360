@@ -391,7 +391,7 @@ export default function ContratosPage() {
           className="mb-0"
           actions={
             canWrite ? (
-              <Button variant="outline" size="sm" onClick={() => setShowNewContractModal(true)}>
+              <Button variant="primary" size="sm" onClick={() => setShowNewContractModal(true)}>
                 + Nuevo Contrato
               </Button>
             ) : undefined
