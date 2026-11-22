@@ -16,6 +16,10 @@ import {
   Ban,
   CheckCircle2,
   ClipboardList,
+  Send,
+  QrCode,
+  FileDown,
+  History,
   Loader2,
   type LucideIcon,
 } from 'lucide-react';
@@ -34,7 +38,11 @@ export type TableActionType =
   | 'revoke'
   | 'block'
   | 'activate'
-  | 'audit';
+  | 'audit'
+  | 'send'
+  | 'qr'
+  | 'download'
+  | 'version';
 
 export type TableActionTone =
   | 'neutral'
@@ -66,6 +74,10 @@ export const TABLE_ACTION_CONFIG: Record<TableActionType, TableActionPreset> = {
   block: { icon: Ban, defaultLabel: 'Bloquear', tone: 'danger' },
   activate: { icon: CheckCircle2, defaultLabel: 'Activar', tone: 'success' },
   audit: { icon: ClipboardList, defaultLabel: 'Auditar', tone: 'neutral' },
+  send: { icon: Send, defaultLabel: 'Enviar', tone: 'success' },
+  qr: { icon: QrCode, defaultLabel: 'QR', tone: 'info' },
+  download: { icon: FileDown, defaultLabel: 'PDF', tone: 'neutral' },
+  version: { icon: History, defaultLabel: 'Versión', tone: 'neutral' },
 };
 
 const TONE_CLASSES: Record<TableActionTone, string> = {
