@@ -491,6 +491,7 @@ describe('dashboardService - Dashboard Ejecutivo e Indicadores', () => {
       expect(res.conformidad.porcentaje).toBeLessThan(100);
       expect(res.alertas.disSinContratoCount).toBe(1);
       expect(res.alertas.disTratamientoNoAutorizadoCount).toBe(2);
+      expect(Object.keys(res.alertas.tratamientoNoAutorizadoByDiId || {}).length).toBe(2);
       expect(res.alertas.totalCriticas).toBeGreaterThanOrEqual(3);
     });
 
@@ -536,6 +537,7 @@ describe('dashboardService - Dashboard Ejecutivo e Indicadores', () => {
 
       const res = await dashboardService.getExecutiveOverview();
       expect(res.alertas.disTratamientoNoAutorizadoCount).toBe(1);
+      expect(res.alertas.tratamientoNoAutorizadoByDiId?.[117]).toContain('no figura en la matriz autorizada');
       expect(res.alertas.lista.some((a) => a.descripcion.includes('no figura en la matriz autorizada'))).toBe(true);
     });
 

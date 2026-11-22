@@ -13,7 +13,8 @@ import Label from '@/components/form/Label';
 import TextArea from '@/components/form/input/TextArea';
 import { toast } from '@/context/ToastContext';
 import { useTenant } from '@/context/TenantContext';
-import identificationDocumentService, { getTrackingStatusMeta } from '@/services/identificationDocumentService';
+import identificationDocumentService, { getTrackingStatusMeta, normalizeOperationCode } from '@/services/identificationDocumentService';
+import dashboardService from '@/services/dashboardService';
 import siraService from '@/services/siraService';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
@@ -37,6 +38,7 @@ export default function DocumentosIdentificacionPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterCenter, setFilterCenter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [unauthorizedTreatmentReasons, setUnauthorizedTreatmentReasons] = useState<Record<number, string>>({});
 
   // Modal DeCA rápido
   const [decaModalDoc, setDecaModalDoc] = useState<IdentificationDocument | null>(null);
@@ -120,13 +122,16 @@ export default function DocumentosIdentificacionPage() {
       setMyCompany(company);
 
       if (company) {
-        // Cargar centros de producción
-        const centersData = await productionCenterService.getByCompanyId(company.id);
+        const [centersData, data, overview] = await Promise.all([
+          productionCenterService.getByCompanyId(company.id),
+          identificationDocumentService.getAll(),
+          dashboardService
+            .getExecutiveOverview({ companyId: company.id, includeCommercial: false })
+            .catch(() => null),
+        ]);
         setProductionCenters(centersData);
-
-        // Cargar documentos
-        const data = await identificationDocumentService.getAll();
         setDocuments(data);
+        setUnauthorizedTreatmentReasons(overview?.alertas.tratamientoNoAutorizadoByDiId || {});
       }
     } catch (err: any) {
       setError(err.message);
@@ -248,16 +253,50 @@ export default function DocumentosIdentificacionPage() {
     }
   };
 
+  const isExecutedOrActive = (d: IdentificationDocument): boolean =>
+    d.estado === 'completado' ||
+    ['en_transito', 'recepcionado', 'aceptado', 'rechazado_parcial', 'rechazado_total', 'tratado'].includes(
+      d.estado_traslado || ''
+    );
+
+  const hasNoContract = (d: IdentificationDocument): boolean =>
+    isExecutedOrActive(d) && !d.contract_id && !d.contrato_externo_referencia;
+
+  const getUnauthorizedTreatmentReason = (d: IdentificationDocument): string | null => {
+    if (unauthorizedTreatmentReasons[d.id]) {
+      return unauthorizedTreatmentReasons[d.id];
+    }
+    if (!isExecutedOrActive(d)) return null;
+    const effectiveOp = normalizeOperationCode(d.operacion_tratamiento_ejecutada || d.operacion_tratamiento);
+    if (effectiveOp.startsWith('D') && d.tipo_notificacion === 'sin-notificacion') {
+      return `La operación ${effectiveOp} es de eliminación y requiere Notificación Previa (el DI consta como 'Sin Notificación').`;
+    }
+    return null;
+  };
+
+  const hasIncident = (d: IdentificationDocument): boolean => {
+    const tracking = getTrackingStatusMeta(d);
+    return (
+      d.estado_traslado === 'rechazado_parcial' ||
+      d.estado_traslado === 'rechazado_total' ||
+      (tracking.hasDiscrepancy && !tracking.isDiscrepancyJustified) ||
+      hasNoContract(d) ||
+      Boolean(getUnauthorizedTreatmentReason(d))
+    );
+  };
+
   const filteredDocuments = documents.filter(d => {
     let matchStatus = true;
     if (filterStatus === 'all') {
       matchStatus = true;
     } else if (filterStatus === 'sin_contrato') {
-      matchStatus = Boolean(d.estado_traslado && d.estado_traslado !== 'borrador' && !d.contract_id && !d.contrato_externo_referencia);
+      matchStatus = hasNoContract(d);
+    } else if (filterStatus === 'tratamiento_no_autorizado') {
+      matchStatus = Boolean(getUnauthorizedTreatmentReason(d));
     } else if (filterStatus === 'discrepancias') {
       matchStatus = getTrackingStatusMeta(d).hasDiscrepancy;
     } else if (filterStatus === 'incidencias') {
-      matchStatus = d.estado_traslado === 'rechazado_parcial' || d.estado_traslado === 'rechazado_total';
+      matchStatus = hasIncident(d);
     } else if (filterStatus === 'borrador') {
       matchStatus = !d.estado_traslado || d.estado_traslado === 'borrador';
     } else {
@@ -285,7 +324,8 @@ export default function DocumentosIdentificacionPage() {
       className: 'max-w-[185px]',
       cell: ({ row }) => {
         const tracking = getTrackingStatusMeta(row);
-        const hasNoContract = row.estado_traslado && row.estado_traslado !== 'borrador' && !row.contract_id && !row.contrato_externo_referencia;
+        const missingContract = hasNoContract(row);
+        const unauthorizedReason = getUnauthorizedTreatmentReason(row);
 
         return (
           <div className="space-y-1">
@@ -307,9 +347,14 @@ export default function DocumentosIdentificacionPage() {
                 Discrepancia: {(row.diferencia_peso_kg || 0) > 0 ? '+' : ''}{row.diferencia_peso_kg} kg
               </div>
             )}
-            {hasNoContract && (
+            {missingContract && (
               <div className="text-[10px] font-bold text-red-600 dark:text-red-400">
                 Sin contrato acreditado
+              </div>
+            )}
+            {unauthorizedReason && (
+              <div className="text-[10px] font-bold text-red-600 dark:text-red-400" title={unauthorizedReason}>
+                Tratamiento no autorizado
               </div>
             )}
           </div>
@@ -326,10 +371,10 @@ export default function DocumentosIdentificacionPage() {
         <span className="text-slate-500 dark:text-slate-400 text-[11.5px]" title={formatDate(row.fecha_documento)}>
           {row.fecha_documento
             ? new Date(row.fecha_documento).toLocaleDateString('es-ES', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-              })
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+            })
             : '-'}
         </span>
       ),
@@ -473,7 +518,7 @@ export default function DocumentosIdentificacionPage() {
         );
       },
     },
-  ], [canWrite, canCreateOrDeleteDi, myCompany, router, sendingSiraId, actionMenu?.doc.id]);
+  ], [canWrite, canCreateOrDeleteDi, myCompany, router, sendingSiraId, actionMenu?.doc.id, unauthorizedTreatmentReasons]);
 
   if (loading) {
     return (
@@ -582,7 +627,7 @@ export default function DocumentosIdentificacionPage() {
               size="sm"
               onClick={() => handleFilterStatusChange('incidencias')}
             >
-              Incidencias ({documents.filter(d => d.estado_traslado === 'rechazado_parcial' || d.estado_traslado === 'rechazado_total').length})
+              Incidencias ({documents.filter(hasIncident).length})
             </Button>
             <Button
               variant={filterStatus === 'tratado' ? 'primary' : 'outline'}
@@ -608,14 +653,24 @@ export default function DocumentosIdentificacionPage() {
                 Discrepancia Báscula ({documents.filter(d => getTrackingStatusMeta(d).hasDiscrepancy).length})
               </Button>
             )}
-            {documents.some(d => d.estado_traslado && d.estado_traslado !== 'borrador' && !d.contract_id && !d.contrato_externo_referencia) && (
+            {documents.some(hasNoContract) && (
               <Button
                 variant={filterStatus === 'sin_contrato' ? 'primary' : 'outline'}
                 size="sm"
                 onClick={() => handleFilterStatusChange('sin_contrato')}
-                className={filterStatus === 'sin_contrato' ? '!bg-red-600' : 'text-red-600 border-red-200 dark:border-red-900'}
+                className={filterStatus === 'sin_contrato' ? '!bg-red-600' : 'text-red-600 border-red-200 dark:text-red-400 dark:border-red-900'}
               >
-                Sin Contrato ({documents.filter(d => d.estado_traslado && d.estado_traslado !== 'borrador' && !d.contract_id && !d.contrato_externo_referencia).length})
+                Sin Contrato ({documents.filter(hasNoContract).length})
+              </Button>
+            )}
+            {documents.some(d => Boolean(getUnauthorizedTreatmentReason(d))) && (
+              <Button
+                variant={filterStatus === 'tratamiento_no_autorizado' ? 'primary' : 'outline'}
+                size="sm"
+                onClick={() => handleFilterStatusChange('tratamiento_no_autorizado')}
+                className={filterStatus === 'tratamiento_no_autorizado' ? '!bg-red-600' : 'text-red-600 border-red-200 dark:text-red-400 dark:border-red-900'}
+              >
+                Tratamiento No Autorizado ({documents.filter(d => Boolean(getUnauthorizedTreatmentReason(d))).length})
               </Button>
             )}
           </div>
@@ -650,11 +705,10 @@ export default function DocumentosIdentificacionPage() {
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === 'table'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${viewMode === 'table'
                   ? 'bg-white dark:bg-gray-700 text-primary shadow-xs'
                   : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
-              }`}
+                }`}
             >
               <TableIcon className="w-3.5 h-3.5" />
               Vista Tabla
@@ -662,11 +716,10 @@ export default function DocumentosIdentificacionPage() {
             <button
               type="button"
               onClick={() => setViewMode('cards')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === 'cards'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${viewMode === 'cards'
                   ? 'bg-white dark:bg-gray-700 text-primary shadow-xs'
                   : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
-              }`}
+                }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" />
               Vista Tarjetas
@@ -753,9 +806,17 @@ export default function DocumentosIdentificacionPage() {
                                 Discrepancia Báscula: {(doc.diferencia_peso_kg || 0) > 0 ? '+' : ''}{doc.diferencia_peso_kg} kg
                               </span>
                             )}
-                            {doc.estado_traslado && doc.estado_traslado !== 'borrador' && !doc.contract_id && !doc.contrato_externo_referencia && (
+                            {hasNoContract(doc) && (
                               <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30">
                                 Sin contrato acreditado (Art. 5)
+                              </span>
+                            )}
+                            {getUnauthorizedTreatmentReason(doc) && (
+                              <span
+                                className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30"
+                                title={getUnauthorizedTreatmentReason(doc) || undefined}
+                              >
+                                Tratamiento no autorizado
                               </span>
                             )}
                           </div>
@@ -991,7 +1052,7 @@ export default function DocumentosIdentificacionPage() {
                   </span>
                   <span className="text-[10px] text-slate-400">Orden FOM/2861/2012</span>
                 </div>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label htmlFor="deca_cargador_razon_social" required>Razón Social</Label>

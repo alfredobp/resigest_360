@@ -427,7 +427,7 @@ export default function ExecutiveDashboardPage() {
 
                     {alertas.disTratamientoNoAutorizadoCount > 0 && (
                       <Link
-                        href="/residuos/documentos-identificacion?status=incidencias"
+                        href="/residuos/documentos-identificacion?status=tratamiento_no_autorizado"
                         className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-red-400 dark:hover:border-red-700 transition-all"
                       >
                         <div>

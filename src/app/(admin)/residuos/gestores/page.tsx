@@ -143,105 +143,105 @@ export default function GestoresPage() {
 
     if (loading) {
         return (
-            <div className="max-w-6xl mx-auto space-y-6 animate-pulse" aria-busy="true" aria-label="Cargando gestores">
-                <div className="flex justify-between items-center">
-                    <div className="space-y-2">
-                        <div className="h-7 w-60 rounded-lg bg-slate-200 dark:bg-slate-800" />
-                        <div className="h-4 w-80 max-w-full rounded bg-slate-200/80 dark:bg-slate-800/80" />
-                    </div>
-                    <div className="h-9 w-36 rounded-lg bg-slate-200 dark:bg-slate-800" />
-                </div>
-                <div className="rounded-[10px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] overflow-hidden">
-                    <div className="h-12 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40" />
-                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {[0, 1, 2, 3, 4].map((i) => (
-                            <div key={i} className="px-4 py-3.5 flex items-center justify-between gap-4">
-                                <div className="h-4 w-48 rounded bg-slate-200 dark:bg-slate-800" />
-                                <div className="h-4 w-24 rounded bg-slate-200/80 dark:bg-slate-800/80" />
-                                <div className="h-4 w-36 rounded bg-slate-100 dark:bg-slate-800/60" />
-                                <div className="h-7 w-24 rounded bg-slate-200 dark:bg-slate-800" />
+                    <div className="max-w-6xl mx-auto space-y-6 animate-pulse" aria-busy="true" aria-label="Cargando gestores">
+                        <div className="flex justify-between items-center">
+                            <div className="space-y-2">
+                                <div className="h-7 w-60 rounded-lg bg-slate-200 dark:bg-slate-800" />
+                                <div className="h-4 w-80 max-w-full rounded bg-slate-200/80 dark:bg-slate-800/80" />
                             </div>
-                        ))}
+                            <div className="h-9 w-36 rounded-lg bg-slate-200 dark:bg-slate-800" />
+                        </div>
+                        <div className="rounded-[10px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] overflow-hidden">
+                            <div className="h-12 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40" />
+                            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {[0, 1, 2, 3, 4].map((i) => (
+                                    <div key={i} className="px-4 py-3.5 flex items-center justify-between gap-4">
+                                        <div className="h-4 w-48 rounded bg-slate-200 dark:bg-slate-800" />
+                                        <div className="h-4 w-24 rounded bg-slate-200/80 dark:bg-slate-800/80" />
+                                        <div className="h-4 w-36 rounded bg-slate-100 dark:bg-slate-800/60" />
+                                        <div className="h-7 w-24 rounded bg-slate-200 dark:bg-slate-800" />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
-        );
+                    );
     }
 
-    return (
-        <>
-            <PageBreadCrumb pageTitle="Gestores de Tratamiento" />
+                    return (
+                    <>
+                        <PageBreadCrumb pageTitle="Gestores de Tratamiento" />
 
-            <div className="max-w-6xl mx-auto space-y-6">
-                {/* Banner Directorio Unificado */}
-                <div className="p-4 rounded-xl border border-brand-200 bg-brand-50/60 dark:bg-brand-950/20 dark:border-brand-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-                    <div>
-                        <h4 className="font-semibold text-brand-900 dark:text-brand-300 text-sm flex items-center gap-1.5">
-                            Nuevo Directorio Unificado de Empresas
-                        </h4>
-                        <p className="text-xs text-brand-700 dark:text-brand-400 mt-0.5">
-                            Ahora puedes gestionar gestores, transportistas y productores bajo un mismo CIF sin duplicados.
-                        </p>
-                    </div>
-                    <Link
-                        href="/residuos/empresas?rol=gestor"
-                        className="inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition shadow-sm whitespace-nowrap"
-                    >
-                        Ver en Directorio Unificado →
-                    </Link>
-                </div>
+                        <div className="max-w-6xl mx-auto space-y-6">
+                            {/* Banner Directorio Unificado */}
+                            <div className="p-4 rounded-xl border border-brand-200 bg-brand-50/60 dark:bg-brand-950/20 dark:border-brand-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                                <div>
+                                    <h4 className="font-semibold text-brand-900 dark:text-brand-300 text-sm flex items-center gap-1.5">
+                                        Nuevo Directorio Unificado de Empresas
+                                    </h4>
+                                    <p className="text-xs text-brand-700 dark:text-brand-400 mt-0.5">
+                                        Ahora puedes gestionar gestores, transportistas y productores bajo un mismo CIF sin duplicados.
+                                    </p>
+                                </div>
+                                <Link
+                                    href="/residuos/empresas?rol=gestor"
+                                    className="inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition shadow-sm whitespace-nowrap"
+                                >
+                                    Ver en Directorio Unificado →
+                                </Link>
+                            </div>
 
-                {/* Header */}
-                <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-bold text-foreground">
-                        Mis Gestores de Tratamiento
-                    </h2>
-                    {canWrite && (
-                        <Button onClick={handleAddNew}>
-                            + Nuevo Gestor
-                        </Button>
-                    )}
-                </div>
+                            {/* Header */}
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-2xl font-bold text-foreground">
+                                    Mis Gestores de Tratamiento
+                                </h2>
+                                {canWrite && (
+                                    <Button onClick={handleAddNew}>
+                                        + Nuevo Gestor
+                                    </Button>
+                                )}
+                            </div>
 
-                {error && (
-                    <Alert variant="error" title="Error" message={error} />
-                )}
-
-                {/* Tabla de Gestores */}
-                <DataTable
-                    data={gestores}
-                    columns={columns}
-                    searchPlaceholder="Buscar gestor por nombre, CIF, NIMA o autorización..."
-                    emptyState={
-                        <div className="py-8 text-center">
-                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No tienes gestores registrados</p>
-                            <p className="mt-1 text-xs text-slate-500">
-                                Registra tus gestores habituales para usarlos en contratos y documentos de identificación.
-                            </p>
-                            {canWrite && (
-                                <Button size="sm" className="mt-3" onClick={handleAddNew}>
-                                    + Añadir Primer Gestor
-                                </Button>
+                            {error && (
+                                <Alert variant="error" title="Error" message={error} />
                             )}
+
+                            {/* Tabla de Gestores */}
+                            <DataTable
+                                data={gestores}
+                                columns={columns}
+                                searchPlaceholder="Buscar gestor por nombre, CIF, NIMA o autorización..."
+                                emptyState={
+                                    <div className="py-8 text-center">
+                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No tienes gestores registrados</p>
+                                        <p className="mt-1 text-xs text-slate-500">
+                                            Registra tus gestores habituales para usarlos en contratos y documentos de identificación.
+                                        </p>
+                                        {canWrite && (
+                                            <Button size="sm" className="mt-3" onClick={handleAddNew}>
+                                                + Añadir Primer Gestor
+                                            </Button>
+                                        )}
+                                    </div>
+                                }
+                            />
+
+                            <GestorModal
+                                isOpen={showModal}
+                                onClose={() => setShowModal(false)}
+                                onSuccess={loadData}
+                                gestor={selectedGestor}
+                            />
+
+                            <ConfirmModal
+                                isOpen={gestorToDelete !== null}
+                                onClose={() => setGestorToDelete(null)}
+                                onConfirm={confirmDelete}
+                                title="Eliminar gestor"
+                                message="¿Estás seguro de que deseas eliminar este gestor? Esta acción no se puede deshacer."
+                            />
                         </div>
-                    }
-                />
-
-                <GestorModal
-                    isOpen={showModal}
-                    onClose={() => setShowModal(false)}
-                    onSuccess={loadData}
-                    gestor={selectedGestor}
-                />
-
-                <ConfirmModal
-                    isOpen={gestorToDelete !== null}
-                    onClose={() => setGestorToDelete(null)}
-                    onConfirm={confirmDelete}
-                    title="Eliminar gestor"
-                    message="¿Estás seguro de que deseas eliminar este gestor? Esta acción no se puede deshacer."
-                />
-            </div>
-        </>
-    );
+                    </>
+                    );
 }

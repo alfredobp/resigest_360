@@ -53,6 +53,7 @@ export interface ExecutiveDashboardData {
     disDiscrepanciaCount: number;
     disSinContratoCount: number;
     disTratamientoNoAutorizadoCount: number;
+    tratamientoNoAutorizadoByDiId?: Record<number, string>;
     contratosCaducadosCount: number;
     contratosPorVencerCount: number;
     autorizacionesPorVencerCount: number;
@@ -142,6 +143,7 @@ export const dashboardService = {
     let disDiscrepanciaCount = 0;
     let disSinContratoCount = 0;
     let disTratamientoNoAutorizadoCount = 0;
+    const tratamientoNoAutorizadoByDiId: Record<number, string> = {};
     let contratosCaducadosCount = 0;
     let contratosPorVencerCount = 0;
     let autorizacionesPorVencerCount = 0;
@@ -235,6 +237,7 @@ export const dashboardService = {
 
         if (opNonCompliantReason) {
           disTratamientoNoAutorizadoCount++;
+          tratamientoNoAutorizadoByDiId[d.id] = opNonCompliantReason;
           diHasComplianceFailure = true;
           listaAlertas.push({
             id: `di-op-no-auth-${d.id}`,
@@ -479,6 +482,7 @@ export const dashboardService = {
         disDiscrepanciaCount,
         disSinContratoCount,
         disTratamientoNoAutorizadoCount,
+        tratamientoNoAutorizadoByDiId,
         contratosCaducadosCount,
         contratosPorVencerCount,
         autorizacionesPorVencerCount
