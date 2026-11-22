@@ -104,6 +104,22 @@ describe('fleetValidation - Validaciones y alertas de Conductores y Vehículos',
         ref
       );
       expect(okAlerts).toHaveLength(0);
+
+      // Cubrir ramas inversas: ADR próximo en 1 día y CAP caducado
+      const reversedAlerts = getDriverComplianceAlerts(
+        {
+          id: 3,
+          nombre: 'Pedro',
+          tiene_adr: true,
+          fecha_caducidad_adr: '2026-06-02',
+          fecha_caducidad_cap: '2026-05-01',
+        },
+        30,
+        ref
+      );
+      expect(reversedAlerts).toHaveLength(2);
+      expect(reversedAlerts[0].message).toContain('en 1 día');
+      expect(reversedAlerts[1].status).toBe('caducado');
     });
 
     it('debe generar alertas de ITV, Seguro y ADR para vehículos', () => {
@@ -238,6 +254,35 @@ describe('fleetValidation - Validaciones y alertas de Conductores y Vehículos',
       expect(vehText).toContain('ITV: 2027-03-01');
       expect(vehText).toContain('Seguro: 2027-04-01');
       expect(vehText).toContain('Tarjeta Transporte: MDP-123');
+
+      // Ramas con campos opcionales mínimos / sin fechas
+      const minimalDriver: CarrierDriver = {
+        id: 3,
+        user_id: 'u-1',
+        nombre: 'Mario',
+        vehiculo_asignado: '9999-ZZZ',
+        tiene_adr: true,
+        activo: true,
+        created_at: '',
+        updated_at: '',
+      };
+      expect(formatDriverQuickCopy(minimalDriver)).toBe(
+        'Conductor: Mario | Vehículo: 9999-ZZZ | ADR: Sí'
+      );
+
+      const minimalVehicle: CarrierVehicle = {
+        id: 4,
+        user_id: 'u-1',
+        matricula: '9999-ZZZ',
+        tipo: 'Rígido',
+        tiene_adr: true,
+        activo: true,
+        created_at: '',
+        updated_at: '',
+      };
+      expect(formatVehicleQuickCopy(minimalVehicle)).toBe(
+        'Matrícula: 9999-ZZZ (Rígido) | ADR: Sí'
+      );
     });
   });
 });
