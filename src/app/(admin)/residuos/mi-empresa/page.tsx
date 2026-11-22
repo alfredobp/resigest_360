@@ -3,7 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
+import PageSkeleton from '@/components/common/PageSkeleton';
 import ComponentCard from '@/components/common/ComponentCard';
+import { Tabs } from '@/components/ui/tabs/Tabs';
+import { ArrowRight } from 'lucide-react';
 import Input from '@/components/form/input/InputField';
 import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFields';
 import TextArea from '@/components/form/input/TextArea';
@@ -457,12 +460,11 @@ export default function MiEmpresaPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
-          <p className="text-muted">Cargando datos de la empresa...</p>
-        </div>
-      </div>
+      <PageSkeleton
+        variant="form"
+        label="Cargando datos de la empresa"
+        className="max-w-5xl mx-auto pb-12"
+      />
     );
   }
 
@@ -522,89 +524,62 @@ export default function MiEmpresaPage() {
               </div>
               <a
                 href="/residuos/flota"
-                className="inline-flex items-center text-xs font-semibold px-3.5 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition shadow-sm whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-md bg-brand-500 text-white hover:bg-brand-600 transition-colors shadow-xs whitespace-nowrap"
               >
-                Gestionar Mi Flota →
+                <span>Gestionar Mi Flota</span>
+                <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
               </a>
             </div>
           )}
 
         {/* Navegación por Pestañas sobria */}
-        <div className="mb-6 border-b border-gray-200 dark:border-gray-800 flex flex-wrap gap-6">
-          <button
-            type="button"
-            onClick={() => setActiveTab('identidad')}
-            className={`pb-3.5 text-sm font-medium border-b-2 transition-colors ${activeTab === 'identidad'
-                ? 'border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400'
-                : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
-          >
-            Datos Fiscales y Contacto
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('sedes')}
-            className={`pb-3.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'sedes'
-                ? 'border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400'
-                : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
-          >
-            <span>Domicilios y Centros</span>
-            {productionCenters.length > 0 && (
-              <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                {productionCenters.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('integraciones')}
-            className={`pb-3.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'integraciones'
-                ? 'border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400'
-                : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
-          >
-            <span>Integraciones y Firma Digital</span>
-            {(formData.sira_activo || Boolean(formData.holded_api_key?.trim()) || formData.firma_electronica_activa) && (
-              <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-                Activo
-              </span>
-            )}
-          </button>
-
-          {showAuthorizationsTab && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('autorizaciones')}
-              className={`pb-3.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'autorizaciones'
-                  ? 'border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-                }`}
-            >
-              <span>Autorizaciones Ambientales</span>
-              {authorizations.length > 0 && (
-                <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                  {authorizations.length}
-                </span>
-              )}
-            </button>
-          )}
-
-          {company && (membershipRole === 'owner' || isPlatformAdmin) && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('delegacion')}
-              className={`pb-3.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'delegacion'
-                  ? 'border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-                }`}
-            >
-              <span>Delegación y Acceso</span>
-            </button>
-          )}
-        </div>
+        <Tabs<ActiveTab>
+          className="mb-6"
+          activeTab={activeTab}
+          onChange={setActiveTab}
+          items={[
+            {
+              id: 'identidad',
+              label: 'Datos Fiscales y Contacto',
+            },
+            {
+              id: 'sedes',
+              label: 'Domicilios y Centros',
+              badge:
+                productionCenters.length > 0 ? (
+                  <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                    {productionCenters.length}
+                  </span>
+                ) : undefined,
+            },
+            {
+              id: 'integraciones',
+              label: 'Integraciones y Firma Digital',
+              badge:
+                formData.sira_activo || Boolean(formData.holded_api_key?.trim()) || formData.firma_electronica_activa ? (
+                  <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    Activo
+                  </span>
+                ) : undefined,
+            },
+            {
+              id: 'autorizaciones',
+              label: 'Autorizaciones Ambientales',
+              hidden: !showAuthorizationsTab,
+              badge:
+                authorizations.length > 0 ? (
+                  <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                    {authorizations.length}
+                  </span>
+                ) : undefined,
+            },
+            {
+              id: 'delegacion',
+              label: 'Delegación y Acceso',
+              hidden: !(company && (membershipRole === 'owner' || isPlatformAdmin)),
+            },
+          ]}
+        />
 
         <form onSubmit={handleSubmit} noValidate>
           {/* =========================================================
@@ -702,7 +677,7 @@ export default function MiEmpresaPage() {
                         className="font-mono"
                       />
                       {nimaTrimmed !== '' && (
-                        <div className="w-full bg-gray-100 dark:bg-gray-800 h-1.5 rounded-full overflow-hidden mt-2">
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-2">
                           <div
                             className={`h-full transition-all duration-300 ${isNimaValid ? 'bg-emerald-500' : 'bg-amber-500'
                               }`}
@@ -710,14 +685,14 @@ export default function MiEmpresaPage() {
                           />
                         </div>
                       )}
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">
                         2 dígitos de provincia INE + 8 dígitos correlativos requeridos por SIRA.
                       </p>
                     </div>
                   </div>
 
                   {/* Selector de Tipo de Empresa sin iconos */}
-                  <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+                  <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
                     <label className="block text-sm font-medium mb-2.5">
                       Tipo de Empresa <span className="text-red-500">*</span>
                     </label>
@@ -731,18 +706,18 @@ export default function MiEmpresaPage() {
                             onClick={() => handleCompanyTypeChange(tipo.value)}
                             className={`flex flex-col items-start p-3 rounded-lg border text-left transition-colors ${isSelected
                                 ? 'border-brand-600 bg-brand-50/50 dark:bg-brand-950/30 dark:border-brand-400'
-                                : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50'
                               }`}
                           >
                             <span
                               className={`text-sm font-semibold ${isSelected
                                   ? 'text-brand-700 dark:text-brand-300'
-                                  : 'text-gray-900 dark:text-white'
+                                  : 'text-slate-900 dark:text-white'
                                 }`}
                             >
                               {tipo.label}
                             </span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                               {tipo.description}
                             </span>
                           </button>
@@ -827,7 +802,7 @@ export default function MiEmpresaPage() {
                       value={formData.perfil_operativo || 'productor'}
                       disabled={!canManageCompany}
                       onChange={(e) => handleProfileChange(e.target.value as OperationalProfile)}
-                      className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {(Object.keys(PROFILE_DEFINITIONS) as OperationalProfile[]).map((key) => (
                         <option key={key} value={key}>
@@ -844,7 +819,7 @@ export default function MiEmpresaPage() {
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <label className="block text-sm font-medium">Módulos Activos en el Menú y Panel</label>
                       {!isPlatformAdmin && (
-                        <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
                           Asignados automáticamente según el perfil operativo
                         </span>
                       )}
@@ -858,7 +833,7 @@ export default function MiEmpresaPage() {
                             className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs transition ${isPlatformAdmin ? 'cursor-pointer' : 'cursor-default opacity-85'
                               } ${checked
                                 ? 'border-brand-400 bg-brand-50/60 dark:bg-brand-950/30 text-brand-900 dark:text-brand-200 font-semibold'
-                                : 'border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400'
+                                : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
                               }`}
                           >
                             <input
@@ -866,7 +841,7 @@ export default function MiEmpresaPage() {
                               checked={checked}
                               disabled={!isPlatformAdmin}
                               onChange={() => handleToggleModule(mod)}
-                              className="rounded border-gray-300 disabled:opacity-60"
+                              className="rounded border-slate-300 disabled:opacity-60"
                             />
                             <span>{MODULE_LABELS[mod]}</span>
                           </label>
@@ -886,8 +861,8 @@ export default function MiEmpresaPage() {
             <div className="space-y-6">
               <ComponentCard title="Domicilio Social e Instalación">
                 <div className="space-y-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-4 border-b border-gray-100 dark:border-gray-800">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-4 border-b border-slate-100 dark:border-slate-800">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       Dirección fiscal de la empresa y ubicación de la instalación principal.
                     </p>
                     <label className="inline-flex items-center gap-2 cursor-pointer select-none">
@@ -895,9 +870,9 @@ export default function MiEmpresaPage() {
                         type="checkbox"
                         checked={sameInstallationAddress}
                         onChange={(e) => setSameInstallationAddress(e.target.checked)}
-                        className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                        className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                       />
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
                         La instalación principal coincide con el Domicilio Social
                       </span>
                     </label>
@@ -934,7 +909,7 @@ export default function MiEmpresaPage() {
                       municipio={formData.municipio_social || ''}
                       provinciaBadge={
                         detectedProvSocial && (
-                          <span className="text-xs text-gray-400">CP {cpPrefixSocial}</span>
+                          <span className="text-xs text-slate-400">CP {cpPrefixSocial}</span>
                         )
                       }
                       onChange={({ provincia, municipio }) =>
@@ -949,8 +924,8 @@ export default function MiEmpresaPage() {
 
                   {/* Domicilio de Instalación */}
                   {!sameInstallationAddress && (
-                    <div className="pt-6 border-t border-gray-100 dark:border-gray-800 space-y-4">
-                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    <div className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-4">
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
                         Domicilio de la Instalación
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
@@ -1007,8 +982,8 @@ export default function MiEmpresaPage() {
               {/* Configuración Telemática e-SIR / SIRA */}
               <ComponentCard title="Integración Telemática e-SIR / SIRA (Protocolo E3L)">
                 <div className="space-y-4">
-                  <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800 text-xs text-gray-600 dark:text-gray-300 leading-relaxed space-y-1.5">
-                    <div className="font-semibold text-gray-900 dark:text-white">
+                  <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 leading-relaxed space-y-1.5">
+                    <div className="font-semibold text-slate-900 dark:text-white">
                       Enrutado automático según ubicación de la instalación (RD 553/2020)
                     </div>
                     <p>
@@ -1032,10 +1007,10 @@ export default function MiEmpresaPage() {
 
                   <div className="flex items-center justify-between py-2">
                     <div>
-                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
                         Conexión con el Web Service (SOAP / E3L)
                       </h4>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
                         Habilita el envío directo de DI y Notificaciones Previas a SIRA o e-SIR.
                       </p>
                     </div>
@@ -1050,7 +1025,7 @@ export default function MiEmpresaPage() {
                             setFormData((prev) => ({ ...prev, sira_activo: e.target.checked }))
                           }
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary" />
+                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-primary" />
                       </label>
                       <span className="text-xs font-medium text-foreground">Activado</span>
                     </div>
@@ -1085,7 +1060,7 @@ export default function MiEmpresaPage() {
               {/* Configuración Holded */}
               <ComponentCard title="Integración con Holded">
                 <div className="space-y-4">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Sincroniza tus contactos (gestores y transportistas) y automatiza la creación de facturas.
                   </p>
 
@@ -1104,8 +1079,8 @@ export default function MiEmpresaPage() {
               {/* Firma Electrónica con Certificado Digital (AutoFirma / PAdES) */}
               <ComponentCard title="Firma Electrónica con Certificado Digital (AutoFirma / PAdES)">
                 <div className="space-y-4">
-                  <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800 text-xs text-gray-600 dark:text-gray-300 leading-relaxed space-y-1.5">
-                    <div className="font-semibold text-gray-900 dark:text-white">
+                  <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 leading-relaxed space-y-1.5">
+                    <div className="font-semibold text-slate-900 dark:text-white">
                       Firma criptográfica oficial PAdES-BES (FNMT, Camerfirma o DNIe)
                     </div>
                     <p>
@@ -1115,10 +1090,10 @@ export default function MiEmpresaPage() {
 
                   <div className="flex items-center justify-between py-2">
                     <div>
-                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
                         Habilitar firma electrónica con AutoFirma
                       </h4>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
                         Si está desactivado, el bloque de firma con certificado digital permanecerá oculto en tus documentos.
                       </p>
                     </div>
@@ -1137,7 +1112,7 @@ export default function MiEmpresaPage() {
                             }))
                           }
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary peer-disabled:opacity-60" />
+                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-primary peer-disabled:opacity-60" />
                       </label>
                       <span className="text-xs font-medium text-foreground">Activado</span>
                     </div>
@@ -1150,7 +1125,7 @@ export default function MiEmpresaPage() {
           {/* Barra de Acciones del Formulario Principal */}
           {activeTab !== 'autorizaciones' && activeTab !== 'delegacion' && (
             <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="text-xs text-gray-500 dark:text-gray-400">
+              <div className="text-xs text-slate-500 dark:text-slate-400">
                 {canManageCompany
                   ? 'Los cambios realizados en cualquiera de las pestañas de ficha se guardan conjuntamente.'
                   : 'Modo de consulta: no tienes permisos para modificar los datos fiscales de esta empresa.'}
@@ -1244,14 +1219,14 @@ export default function MiEmpresaPage() {
                   return (
                     <div
                       key={auth.id}
-                      className="p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col sm:flex-row sm:items-start justify-between gap-4 text-xs"
+                      className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row sm:items-start justify-between gap-4 text-xs"
                     >
                       <div className="space-y-2 flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono font-bold text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700">
+                          <span className="font-mono font-bold text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
                             Nº {auth.numero_autorizacion}
                           </span>
-                          <span className="font-semibold text-sm text-gray-800 dark:text-gray-200">
+                          <span className="font-semibold text-sm text-slate-800 dark:text-slate-200">
                             {auth.titulo}
                           </span>
                           {auth.es_indefinida ? (
@@ -1285,7 +1260,7 @@ export default function MiEmpresaPage() {
                             {auth.waste_codes.slice(0, 12).map((wc, idx) => (
                               <span
                                 key={idx}
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 font-mono text-[11px] text-gray-700 dark:text-gray-300"
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-[11px] text-slate-700 dark:text-slate-300"
                                 title={wc.descripcion_ler || undefined}
                               >
                                 <span className={wc.codigo_ler.includes('*') ? 'text-red-600 font-bold' : ''}>
@@ -1453,26 +1428,26 @@ export default function MiEmpresaPage() {
                 {productionCenters.map((center) => (
                   <div
                     key={center.id}
-                    className="bg-white dark:bg-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-800"
+                    className="bg-white dark:bg-slate-900 rounded-xl p-5 border border-slate-200 dark:border-slate-800"
                   >
                     <div className="flex justify-between items-start gap-4">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-semibold text-base text-gray-900 dark:text-white">
+                          <h3 className="font-semibold text-base text-slate-900 dark:text-white">
                             {center.nombre}
                           </h3>
-                          <span className="px-2 py-0.5 text-xs font-mono rounded bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                          <span className="px-2 py-0.5 text-xs font-mono rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                             NIMA: {center.nima}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1.5">
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1.5">
                           {center.direccion}
                           {(center.municipio || center.provincia) && (
                             <>, {[center.municipio, center.provincia].filter(Boolean).join(', ')}</>
                           )}
                         </p>
                         {center.descripcion && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                             {center.descripcion}
                           </p>
                         )}
@@ -1492,7 +1467,7 @@ export default function MiEmpresaPage() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-10 bg-gray-50 dark:bg-dark-2 rounded-xl border border-dashed border-stroke dark:border-strokedark">
+              <div className="text-center py-10 bg-slate-50 dark:bg-dark-2 rounded-xl border border-dashed border-stroke dark:border-strokedark">
                 <p className="text-muted text-sm">No hay otros centros de producción registrados.</p>
                 <p className="text-xs text-muted mt-1">
                   Los centros añadidos aquí podrán seleccionarse en los contratos y documentos.

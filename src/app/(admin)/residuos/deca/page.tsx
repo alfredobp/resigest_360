@@ -5,7 +5,7 @@
 // Normativa: Ley 9/2025, Orden FOM/2861/2012 y Resolución de 5 de junio de 2026.
 // ==============================================================================
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { decaService } from '@/services/decaService';
 import { useTenant } from '@/context/TenantContext';
@@ -24,7 +24,11 @@ import {
 import type { DecaDocument, DecaFormData } from '@/types/deca';
 import type { Company, Carrier, CarrierDriver, CarrierVehicle } from '@/types/wasteManagement';
 import { toast } from '@/context/ToastContext';
-import PageBreadCrumb from '@/components/common/PageBreadCrumb';
+import PageHeader from '@/components/common/PageHeader';
+import PageSkeleton from '@/components/common/PageSkeleton';
+import Button from '@/components/ui/button/Button';
+import Badge from '@/components/ui/badge/Badge';
+import { DataTable, DataTableActionButton, type ColumnDef } from '@/components/ui/table';
 import { Modal, ConfirmModal } from '@/components/ui/modal';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
@@ -43,7 +47,6 @@ import {
   Download,
   CheckCircle2,
   Clock,
-  Search,
   RefreshCw,
   ExternalLink,
   History,
@@ -66,7 +69,6 @@ export default function DecaManagementPage() {
   const [fleetDrivers, setFleetDrivers] = useState<CarrierDriver[]>([]);
   const [fleetVehicles, setFleetVehicles] = useState<CarrierVehicle[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   // Modales
@@ -410,67 +412,244 @@ export default function DecaManagementPage() {
     setVersionErrors({});
   };
 
-  // Filtrado
-  const filteredDocs = documents.filter((doc) => {
-    const matchesSearch =
-      doc.numero_deca.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.matricula_tractora.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.cargador_razon_social.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.transportista_razon_social.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (doc.codigo_ler && doc.codigo_ler.includes(searchTerm));
+  // Filtrado por estado (el buscador de texto lo gestiona DataTable)
+  const filteredDocs = useMemo(
+    () => documents.filter((doc) => statusFilter === 'all' || doc.estado === statusFilter),
+    [documents, statusFilter]
+  );
 
-    const matchesStatus = statusFilter === 'all' || doc.estado === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const isLatestInFamily = (doc: DecaDocument) => {
+    const baseNum = (doc.numero_deca || '').replace(/-v\d+$/, '').trim();
+    return !documents.some(
+      (d) =>
+        (d.numero_deca || '').replace(/-v\d+$/, '').trim() === baseNum &&
+        (d.version > doc.version || (d.version === doc.version && d.id > doc.id))
+    );
+  };
+
+  const decaColumns = useMemo<ColumnDef<DecaDocument>[]>(
+    () => [
+      {
+        id: 'numero_deca',
+        header: 'Nº DeCA',
+        accessorKey: 'numero_deca',
+        sortable: true,
+        cell: ({ row: doc }) => (
+          <div>
+            <div
+              className="font-mono font-bold text-slate-900 dark:text-white truncate max-w-[140px]"
+              title={doc.numero_deca}
+            >
+              {doc.numero_deca}
+            </div>
+            <div className="flex items-center gap-1 mt-0.5">
+              <span className="text-[10.5px] font-semibold text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/50 px-1.5 py-0.5 rounded">
+                v{doc.version}
+              </span>
+              {!doc.is_vigente && (
+                <span className="text-[10px] text-slate-400 uppercase tracking-tight">Histórica</span>
+              )}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: 'fecha_transporte',
+        header: 'Fecha',
+        accessorKey: 'fecha_transporte',
+        sortable: true,
+        className: 'whitespace-nowrap',
+        cell: ({ row: doc }) => (
+          <div>
+            <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-medium">
+              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              {new Date(doc.fecha_transporte).toLocaleDateString('es-ES')}
+            </div>
+            {doc.hora_salida && <div className="text-slate-400 text-[11px]">{doc.hora_salida}</div>}
+          </div>
+        ),
+      },
+      {
+        id: 'matricula',
+        header: 'Matrícula',
+        accessorFn: (row) => `${row.matricula_tractora || ''} ${row.matricula_remolque || ''} ${row.conductor_nombre || ''}`,
+        sortable: true,
+        cell: ({ row: doc }) => (
+          <div>
+            <div className="font-mono font-semibold text-slate-900 dark:text-white">{doc.matricula_tractora}</div>
+            {doc.matricula_remolque && (
+              <div className="text-[10.5px] font-mono text-slate-400">R: {doc.matricula_remolque}</div>
+            )}
+            <div className="text-[11px] text-slate-500 truncate max-w-[110px]" title={doc.conductor_nombre || 'No asignado'}>
+              {doc.conductor_nombre || 'No asignado'}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: 'cargador',
+        header: 'Cargador',
+        accessorFn: (row) => `${row.cargador_razon_social || ''} ${row.cargador_nif || ''}`,
+        sortable: true,
+        cell: ({ row: doc }) => (
+          <div>
+            <div className="font-medium text-slate-900 dark:text-white truncate max-w-[140px]" title={doc.cargador_razon_social}>
+              {doc.cargador_razon_social}
+            </div>
+            <div className="text-[11px] text-slate-400 font-mono">{doc.cargador_nif}</div>
+          </div>
+        ),
+      },
+      {
+        id: 'transportista',
+        header: 'Transportista',
+        accessorFn: (row) => `${row.transportista_razon_social || ''} ${row.transportista_nif || ''}`,
+        sortable: true,
+        cell: ({ row: doc }) => (
+          <div>
+            <div className="text-slate-800 dark:text-slate-200 truncate max-w-[130px]" title={doc.transportista_razon_social}>
+              {doc.transportista_razon_social}
+            </div>
+            <div className="text-[11px] text-slate-400 font-mono">{doc.transportista_nif}</div>
+          </div>
+        ),
+      },
+      {
+        id: 'mercancia',
+        header: 'Mercancía / DI',
+        accessorFn: (row) => `${row.naturaleza_mercancia || ''} ${row.codigo_ler || ''} ${row.numero_di || ''}`,
+        cell: ({ row: doc }) => (
+          <div>
+            <div className="text-xs text-slate-800 dark:text-slate-200 font-medium truncate max-w-[140px]" title={doc.naturaleza_mercancia}>
+              {doc.naturaleza_mercancia}
+            </div>
+            <div className="text-[11px] text-slate-400">
+              {doc.peso_kg ? `${doc.peso_kg.toLocaleString('es-ES')} kg` : doc.magnitud_alternativa}
+            </div>
+            {doc.numero_di && (
+              <span className="block truncate max-w-[140px] text-[10px] text-emerald-600 dark:text-emerald-400 font-mono" title={`DI: ${doc.numero_di}`}>
+                DI: {doc.numero_di}
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'estado',
+        header: 'Estado',
+        accessorKey: 'estado',
+        sortable: true,
+        className: 'whitespace-nowrap',
+        cell: ({ row: doc }) => {
+          if (!isLatestInFamily(doc) || doc.is_vigente === false || doc.estado === 'sustituido') {
+            return <Badge variant="light" color="light" size="sm">Sustituida</Badge>;
+          }
+          if (doc.estado === 'vigente') {
+            return <Badge variant="light" color="success" size="sm">Vigente</Badge>;
+          }
+          if (doc.estado === 'finalizado') {
+            return <Badge variant="light" color="light" size="sm">Finalizado</Badge>;
+          }
+          return <Badge variant="light" color="warning" size="sm">{doc.estado}</Badge>;
+        },
+      },
+      {
+        id: 'acciones',
+        header: 'Acciones',
+        headerClassName: 'text-right',
+        className: 'text-right whitespace-nowrap',
+        cell: ({ row: doc }) => {
+          const canModifyOrFinalize =
+            isLatestInFamily(doc) &&
+            doc.is_vigente !== false &&
+            doc.estado !== 'finalizado' &&
+            doc.estado !== 'sustituido' &&
+            doc.estado !== 'anulado';
+
+          return (
+            <div className="inline-flex items-center justify-end gap-1">
+              <DataTableActionButton
+                action="qr"
+                iconOnly
+                title="Ver QR y Enlaces Oficiales"
+                onClick={() => handleOpenQrModal(doc)}
+              />
+              <DataTableActionButton
+                action="download"
+                iconOnly
+                title="Descargar PDF DeCA Oficial"
+                onClick={() => window.open(`/api/deca/${doc.token}`, '_blank', 'noopener,noreferrer')}
+              />
+              {canModifyOrFinalize && (
+                <DataTableActionButton
+                  action="version"
+                  iconOnly
+                  title="Modificar (Crear Nueva Versión)"
+                  onClick={() => openVersionModal(doc)}
+                />
+              )}
+              {canModifyOrFinalize && doc.estado === 'vigente' && (
+                <DataTableActionButton
+                  action="activate"
+                  iconOnly
+                  title="Finalizar Servicio de Transporte"
+                  onClick={() => handleFinalize(doc.id)}
+                />
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [documents]
+  );
 
   const originUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
-  return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
-      <PageBreadCrumb pageTitle="Documentos de Control (DeCA)" />
-      {/* Cabecera Principal */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
-        <div>
-          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-semibold text-sm mb-1">
-            <Truck className="w-4 h-4" />
-            <span>Módulo de Transporte de Mercancías por Carretera</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
-            Documento Electrónico de Control (DeCA)
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-3xl">
-            Emisión, versionado inmutable, código QR y enlace directo para inspección en carretera según la
-            <strong> Orden FOM/2861/2012</strong>, la <strong>Ley 9/2025 de Movilidad Sostenible</strong> y la
-            <strong> Resolución de 5 de junio de 2026</strong>.
-          </p>
-        </div>
+  if (loading && documents.length === 0) {
+    return <PageSkeleton variant="table-with-stats" label="Cargando documentos DeCA" />;
+  }
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => loadDocuments()}
-            className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
-            title="Refrescar lista"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-          <button
-            onClick={openCreateModal}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2.5 rounded-xl shadow-sm shadow-blue-600/30 transition text-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Nuevo DeCA Autónomo
-          </button>
-        </div>
-      </div>
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Documento Electrónico de Control (DeCA)"
+        breadcrumbTitle="Documentos de Control (DeCA)"
+        badge={
+          <Badge variant="light" color="info">
+            Transporte por Carretera
+          </Badge>
+        }
+        description="Emisión, versionado inmutable, código QR y enlace directo para inspección en carretera (Orden FOM/2861/2012 y Ley 9/2025)."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => loadDocuments()}
+              title="Refrescar lista"
+              aria-label="Refrescar lista"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button
+              startIcon={<Plus className="w-4 h-4" />}
+              onClick={openCreateModal}
+            >
+              Nuevo DeCA Autónomo
+            </Button>
+          </>
+        }
+      />
 
       {/* Tarjetas de Métricas Rápidas */}
       {(() => {
         const { activeDecas, finishedDecas, allLatest } = decaService.filterVigenteServices(documents);
         return (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center gap-3">
-              <div className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl">
-                <FileText className="w-6 h-6" />
+            <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-[10px] p-4 flex items-center gap-3">
+              <div className="p-2.5 bg-brand-50 dark:bg-brand-950/40 text-brand-600 dark:text-brand-400 rounded-lg">
+                <FileText className="w-5 h-5" />
               </div>
               <div>
                 <div className="text-2xl font-bold text-slate-900 dark:text-white">{allLatest.length}</div>
@@ -478,9 +657,9 @@ export default function DecaManagementPage() {
               </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center gap-3">
-              <div className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl">
-                <CheckCircle2 className="w-6 h-6" />
+            <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-[10px] p-4 flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-lg">
+                <CheckCircle2 className="w-5 h-5" />
               </div>
               <div>
                 <div className="text-2xl font-bold text-slate-900 dark:text-white">
@@ -490,9 +669,9 @@ export default function DecaManagementPage() {
               </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center gap-3">
-              <div className="p-3 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl">
-                <Clock className="w-6 h-6" />
+            <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-[10px] p-4 flex items-center gap-3">
+              <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-lg">
+                <Clock className="w-5 h-5" />
               </div>
               <div>
                 <div className="text-2xl font-bold text-slate-900 dark:text-white">
@@ -502,9 +681,9 @@ export default function DecaManagementPage() {
               </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center gap-3">
-              <div className="p-3 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl">
-                <History className="w-6 h-6" />
+            <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-[10px] p-4 flex items-center gap-3">
+              <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-lg">
+                <History className="w-5 h-5" />
               </div>
               <div>
                 <div className="text-2xl font-bold text-slate-900 dark:text-white">
@@ -517,219 +696,35 @@ export default function DecaManagementPage() {
         );
       })()}
 
-      {/* Barra de Filtros y Búsqueda */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
-        <div className="relative w-full sm:w-96">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Buscar por Nº DeCA, matrícula, cargador o LER..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm pl-9 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+      {/* Tabla de Documentos DeCA */}
+      <DataTable
+        data={filteredDocs}
+        columns={decaColumns}
+        keyExtractor={(row) => row.id}
+        searchPlaceholder="Buscar por Nº DeCA, matrícula, cargador, transportista o LER..."
+        syncUrlParams
+        toolbarActions={
           <select
+            aria-label="Estado DeCA"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="h-9 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 text-xs px-3 rounded-md border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500"
           >
             <option value="all">Todos los estados</option>
             <option value="vigente">Vigentes</option>
             <option value="finalizado">Finalizados</option>
             <option value="borrador">Borradores</option>
           </select>
-        </div>
-      </div>
-
-      {/* Tabla de Documentos DeCA */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
-            <thead className="bg-slate-50 dark:bg-slate-800/60 text-[10.5px] uppercase font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
-              <tr>
-                <th className="py-2.5 px-2.5">Nº DeCA</th>
-                <th className="py-2.5 px-2.5">Fecha</th>
-                <th className="py-2.5 px-2.5">Matrícula</th>
-                <th className="py-2.5 px-2.5">Cargador</th>
-                <th className="py-2.5 px-2.5">Transportista</th>
-                <th className="py-2.5 px-2.5">Mercancía / DI</th>
-                <th className="py-2.5 px-2.5">Estado</th>
-                <th className="py-2.5 px-2.5 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {loading ? (
-                <tr>
-                  <td colSpan={8} className="text-center py-10 text-slate-400">
-                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-2 align-middle" />
-                    Cargando documentos de control...
-                  </td>
-                </tr>
-              ) : filteredDocs.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="text-center py-12 text-slate-400">
-                    <Truck className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                    No se encontraron documentos DeCA con los filtros seleccionados.
-                  </td>
-                </tr>
-              ) : (
-                filteredDocs.map((doc) => (
-                  <tr key={doc.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                    <td className="py-2.5 px-2.5">
-                      <div className="font-mono font-bold text-slate-900 dark:text-white truncate max-w-[130px]" title={doc.numero_deca}>{doc.numero_deca}</div>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <span className="text-[10.5px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded">
-                          v{doc.version}
-                        </span>
-                        {!doc.is_vigente && (
-                          <span className="text-[10px] text-slate-400 uppercase tracking-tight">Histórica</span>
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="py-2.5 px-2.5 text-xs whitespace-nowrap">
-                      <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-medium">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        {new Date(doc.fecha_transporte).toLocaleDateString('es-ES')}
-                      </div>
-                      {doc.hora_salida && <div className="text-slate-400 text-[11px]">{doc.hora_salida}</div>}
-                    </td>
-
-                    <td className="py-2.5 px-2.5">
-                      <div className="font-mono font-semibold text-slate-900 dark:text-white">
-                        {doc.matricula_tractora}
-                      </div>
-                      {doc.matricula_remolque && (
-                        <div className="text-[10.5px] font-mono text-slate-400">R: {doc.matricula_remolque}</div>
-                      )}
-                      <div className="text-[11px] text-slate-500 truncate max-w-[100px]" title={doc.conductor_nombre || 'No asignado'}>
-                        {doc.conductor_nombre || 'No asignado'}
-                      </div>
-                    </td>
-
-                    <td className="py-2.5 px-2.5">
-                      <div className="font-medium text-slate-900 dark:text-white truncate max-w-[125px]" title={doc.cargador_razon_social}>
-                        {doc.cargador_razon_social}
-                      </div>
-                      <div className="text-[11px] text-slate-400 font-mono">{doc.cargador_nif}</div>
-                    </td>
-
-                    <td className="py-2.5 px-2.5">
-                      <div className="text-slate-800 dark:text-slate-200 truncate max-w-[120px]" title={doc.transportista_razon_social}>
-                        {doc.transportista_razon_social}
-                      </div>
-                      <div className="text-[11px] text-slate-400">{doc.transportista_nif}</div>
-                    </td>
-
-                    <td className="py-2.5 px-2.5">
-                      <div className="text-xs text-slate-800 dark:text-slate-200 font-medium truncate max-w-[125px]" title={doc.naturaleza_mercancia}>
-                        {doc.naturaleza_mercancia}
-                      </div>
-                      <div className="text-[11px] text-slate-400">
-                        {doc.peso_kg ? `${doc.peso_kg.toLocaleString('es-ES')} kg` : doc.magnitud_alternativa}
-                      </div>
-                      {doc.numero_di && (
-                        <span className="block truncate max-w-[125px] text-[10px] text-emerald-600 dark:text-emerald-400 font-mono" title={`DI: ${doc.numero_di}`}>
-                          DI: {doc.numero_di}
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="py-2.5 px-2.5 whitespace-nowrap">
-                      {(() => {
-                        const baseNum = (doc.numero_deca || '').replace(/-v\d+$/, '').trim();
-                        const isLatestInFamily = !documents.some(
-                          (d) =>
-                            (d.numero_deca || '').replace(/-v\d+$/, '').trim() === baseNum &&
-                            (d.version > doc.version || (d.version === doc.version && d.id > doc.id))
-                        );
-
-                        if (!isLatestInFamily || doc.is_vigente === false || doc.estado === 'sustituido') {
-                          return (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                              SUSTITUIDA
-                            </span>
-                          );
-                        }
-
-                        return (
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold ${doc.estado === 'vigente'
-                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
-                                : doc.estado === 'finalizado'
-                                  ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                                  : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
-                              }`}
-                          >
-                            {doc.estado.toUpperCase()}
-                          </span>
-                        );
-                      })()}
-                    </td>
-
-                    <td className="py-2.5 px-2.5 text-right whitespace-nowrap">
-                      {(() => {
-                        const baseNum = (doc.numero_deca || '').replace(/-v\d+$/, '').trim();
-                        const isLatestInFamily = !documents.some(
-                          (d) =>
-                            (d.numero_deca || '').replace(/-v\d+$/, '').trim() === baseNum &&
-                            (d.version > doc.version || (d.version === doc.version && d.id > doc.id))
-                        );
-                        const canModifyOrFinalize = isLatestInFamily && doc.is_vigente !== false && doc.estado !== 'finalizado' && doc.estado !== 'sustituido' && doc.estado !== 'anulado';
-
-                        return (
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => handleOpenQrModal(doc)}
-                              className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition"
-                              title="Ver QR y Enlaces Oficiales"
-                            >
-                              <QrCode className="w-4 h-4" />
-                            </button>
-
-                            <a
-                              href={`/api/deca/${doc.token}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition"
-                              title="Descargar PDF DeCA Oficial"
-                            >
-                              <Download className="w-4 h-4" />
-                            </a>
-
-                            {canModifyOrFinalize && (
-                              <button
-                                onClick={() => openVersionModal(doc)}
-                                className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition"
-                                title="Modificar (Crear Nueva Versión)"
-                              >
-                                <History className="w-4 h-4" />
-                              </button>
-                            )}
-
-                            {canModifyOrFinalize && doc.estado === 'vigente' && (
-                              <button
-                                onClick={() => handleFinalize(doc.id)}
-                                className="p-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 rounded-lg transition"
-                                title="Finalizar Servicio de Transporte"
-                              >
-                                <CheckCircle2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        }
+        emptyState={
+          <div className="text-center py-10 text-slate-400">
+            <Truck className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              No se encontraron documentos DeCA con los filtros seleccionados.
+            </p>
+          </div>
+        }
+      />
 
       {/* MODAL: Visualización de QR y Enlaces de Inspección / Móvil Conductor */}
       <Modal

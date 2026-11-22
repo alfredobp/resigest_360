@@ -322,10 +322,10 @@ export default function ArchivoCronologicoPage() {
       className: 'whitespace-nowrap',
       cell: ({ row }) => (
         <div>
-          <div className="font-semibold text-gray-900 dark:text-gray-100 font-mono">
+          <div className="font-semibold text-slate-900 dark:text-slate-100 font-mono">
             {row.numero_asiento}
           </div>
-          <div className="text-gray-500 text-[11px] whitespace-nowrap">
+          <div className="text-slate-500 text-[11px] whitespace-nowrap">
             {formatDateTime(row.fecha, row.created_at)}
           </div>
         </div>
@@ -356,7 +356,7 @@ export default function ArchivoCronologicoPage() {
         return (
           <div>
             <div className="flex items-center gap-1">
-              <span className={`font-mono font-bold ${isPeligroso ? 'text-amber-700 dark:text-amber-400' : 'text-gray-800 dark:text-gray-200'}`}>
+              <span className={`font-mono font-bold ${isPeligroso ? 'text-amber-700 dark:text-amber-400' : 'text-slate-800 dark:text-slate-200'}`}>
                 {row.codigo_ler}
               </span>
               {isPeligroso && (
@@ -365,7 +365,7 @@ export default function ArchivoCronologicoPage() {
                 </span>
               )}
             </div>
-            <div className="text-gray-500 text-[11px] truncate" title={row.descripcion_residuo}>
+            <div className="text-slate-500 text-[11px] truncate" title={row.descripcion_residuo}>
               {row.descripcion_residuo}
             </div>
           </div>
@@ -381,10 +381,10 @@ export default function ArchivoCronologicoPage() {
       className: 'text-right whitespace-nowrap',
       cell: ({ row }) => (
         <div>
-          <div className="font-bold text-gray-900 dark:text-gray-100">
+          <div className="font-bold text-slate-900 dark:text-slate-100">
             {row.cantidad_kg.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 2 })} kg
           </div>
-          <div className="text-gray-500 text-[11px]">
+          <div className="text-slate-500 text-[11px]">
             {((row.cantidad_kg || 0) / 1000).toFixed(3)} t
           </div>
         </div>
@@ -398,10 +398,10 @@ export default function ArchivoCronologicoPage() {
       className: 'max-w-[115px]',
       cell: ({ row }) => (
         <div>
-          <div className="font-medium text-gray-800 dark:text-gray-200 truncate" title={row.origen_razon_social || '-'}>
+          <div className="font-medium text-slate-800 dark:text-slate-200 truncate" title={row.origen_razon_social || '-'}>
             {row.origen_razon_social || '-'}
           </div>
-          <div className="text-gray-400 text-[10px] truncate" title={`NIF: ${row.origen_nif || '-'}${row.origen_nima ? ` | NIMA: ${row.origen_nima}` : ''}`}>
+          <div className="text-slate-400 text-[10px] truncate" title={`NIF: ${row.origen_nif || '-'}${row.origen_nima ? ` | NIMA: ${row.origen_nima}` : ''}`}>
             {row.origen_nif || '-'}
           </div>
         </div>
@@ -415,10 +415,10 @@ export default function ArchivoCronologicoPage() {
       className: 'max-w-[115px]',
       cell: ({ row }) => (
         <div>
-          <div className="font-medium text-gray-800 dark:text-gray-200 truncate" title={row.destino_razon_social || '-'}>
+          <div className="font-medium text-slate-800 dark:text-slate-200 truncate" title={row.destino_razon_social || '-'}>
             {row.destino_razon_social || '-'}
           </div>
-          <div className="text-gray-400 text-[10px] truncate" title={row.destino_autorizacion ? `Aut: ${row.destino_autorizacion}` : `NIF: ${row.destino_nif || '-'}`}>
+          <div className="text-slate-400 text-[10px] truncate" title={row.destino_autorizacion ? `Aut: ${row.destino_autorizacion}` : `NIF: ${row.destino_nif || '-'}`}>
             {row.destino_autorizacion ? `Aut: ${row.destino_autorizacion}` : (row.destino_nif || '-')}
           </div>
         </div>
@@ -450,7 +450,7 @@ export default function ArchivoCronologicoPage() {
           {row.numero_documento_referencia || `DI #${row.identification_document_id}`} →
         </Link>
       ) : (
-        <span className="block truncate text-gray-600 dark:text-gray-400 font-mono text-[11px]" title={row.numero_documento_referencia || 'Asiento Directo'}>
+        <span className="block truncate text-slate-600 dark:text-slate-400 font-mono text-[11px]" title={row.numero_documento_referencia || 'Asiento Directo'}>
           {row.numero_documento_referencia || 'Asiento Directo'}
         </span>
       ),
@@ -467,7 +467,7 @@ export default function ArchivoCronologicoPage() {
           onClick={() => handleDeleteEntry(row.id)}
         />
       ) : (
-        <span className="text-[10px] text-gray-400" title="Asiento protegido vinculado a DI oficial">
+        <span className="text-[10px] text-slate-400" title="Asiento protegido vinculado a DI oficial">
           Sincronizado
         </span>
       ),
@@ -481,14 +481,14 @@ export default function ArchivoCronologicoPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
               Archivo Cronológico de Residuos
             </h1>
             <Badge variant="light" color="success">
               Art. 64 Ley 7/2022
             </Badge>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Registro cronológico obligatorio de operaciones de producción y gestión de residuos. Custodia legal obligatoria de 5 años.
           </p>
         </div>
@@ -500,7 +500,7 @@ export default function ArchivoCronologicoPage() {
             size="sm"
             onClick={handleSyncDIs}
             disabled={syncing}
-            className="text-gray-700 hover:text-gray-900 font-medium"
+            className="text-slate-700 hover:text-slate-900 font-medium"
           >
             {syncing ? 'Sincronizando DIs...' : 'Sincronizar DIs'}
           </Button>
@@ -520,7 +520,7 @@ export default function ArchivoCronologicoPage() {
             size="sm"
             onClick={() => exportChronologicalToCSV(entries)}
             disabled={entries.length === 0}
-            className="text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 font-medium"
+            className="text-slate-700 hover:text-slate-900 hover:bg-slate-50 dark:text-slate-300 font-medium"
           >
             CSV Art. 64
           </Button>
@@ -556,10 +556,10 @@ export default function ArchivoCronologicoPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <ComponentCard title="Total Asientos">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Asientos Registrados</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.total_asientos}</p>
-              <p className="text-xs text-gray-500 mt-1">
-                Total computado: <span className="font-semibold text-gray-700 dark:text-gray-300">{stats.total_t.toFixed(3)} t</span>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Asientos Registrados</p>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{stats.total_asientos}</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Total computado: <span className="font-semibold text-slate-700 dark:text-slate-300">{stats.total_t.toFixed(3)} t</span>
               </p>
             </div>
           </ComponentCard>
@@ -568,9 +568,9 @@ export default function ArchivoCronologicoPage() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Residuos Peligrosos</p>
               <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
-                {(stats.kg_peligrosos / 1000).toFixed(3)} <span className="text-sm font-normal text-gray-500">t</span>
+                {(stats.kg_peligrosos / 1000).toFixed(3)} <span className="text-sm font-normal text-slate-500">t</span>
               </p>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-slate-500 mt-1">
                 {stats.kg_peligrosos.toLocaleString('es-ES')} kg
               </p>
             </div>
@@ -580,9 +580,9 @@ export default function ArchivoCronologicoPage() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">No Peligrosos</p>
               <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                {(stats.kg_no_peligrosos / 1000).toFixed(3)} <span className="text-sm font-normal text-gray-500">t</span>
+                {(stats.kg_no_peligrosos / 1000).toFixed(3)} <span className="text-sm font-normal text-slate-500">t</span>
               </p>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-slate-500 mt-1">
                 {stats.kg_no_peligrosos.toLocaleString('es-ES')} kg
               </p>
             </div>
@@ -590,7 +590,7 @@ export default function ArchivoCronologicoPage() {
 
           <ComponentCard title="Flujos de Movimiento">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Flujos Registrados</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Flujos Registrados</p>
               <div className="flex items-center gap-3 mt-1.5 text-xs">
                 <span className="text-brand-600 dark:text-brand-400 font-semibold">
                   Salidas: {stats.por_operacion.salida_traslado.count}
@@ -599,7 +599,7 @@ export default function ArchivoCronologicoPage() {
                   Entradas: {stats.por_operacion.entrada_recepcion.count}
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-slate-500 mt-1">
                 Producción interna: {stats.por_operacion.produccion_interna.count}
               </p>
             </div>
@@ -608,15 +608,15 @@ export default function ArchivoCronologicoPage() {
       )}
 
       {/* Barra de Filtros Principales */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/80">
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/80">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           {/* Año */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Ejercicio</label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Ejercicio</label>
             <select
               value={selectedYear || ''}
               onChange={(e) => setSelectedYear(e.target.value ? Number(e.target.value) : undefined)}
-              className="w-full text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 px-3 py-2 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+              className="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 px-3 py-2 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
             >
               <option value="">Todos los años</option>
               <option value={CURRENT_YEAR}>{CURRENT_YEAR}</option>
@@ -629,11 +629,11 @@ export default function ArchivoCronologicoPage() {
 
           {/* Centro de Producción */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Centro de Producción</label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Centro de Producción</label>
             <select
               value={selectedCenter}
               onChange={(e) => setSelectedCenter(e.target.value)}
-              className="w-full text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 px-3 py-2 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+              className="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 px-3 py-2 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
             >
               <option value="todos">Todos los centros</option>
               {centers.map(c => (
@@ -644,11 +644,11 @@ export default function ArchivoCronologicoPage() {
 
           {/* Tipo de Operación */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Tipo Operación</label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Tipo Operación</label>
             <select
               value={selectedTipo}
               onChange={(e) => setSelectedTipo(e.target.value)}
-              className="w-full text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 px-3 py-2 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+              className="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 px-3 py-2 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
             >
               <option value="todas">Todas las operaciones</option>
               <option value="salida_traslado">Salida Traslado (DI)</option>
@@ -661,11 +661,11 @@ export default function ArchivoCronologicoPage() {
 
           {/* Peligrosidad */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Peligrosidad</label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Peligrosidad</label>
             <select
               value={selectedPeligrosidad}
               onChange={(e) => setSelectedPeligrosidad(e.target.value)}
-              className="w-full text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 px-3 py-2 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+              className="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 px-3 py-2 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
             >
               <option value="todas">Todos</option>
               <option value="peligroso">Peligrosos (*)</option>
@@ -676,17 +676,17 @@ export default function ArchivoCronologicoPage() {
       </div>
 
       {/* Pestañas de Vista: Libro Oficial vs Traslados en Tránsito (UXDEV-06 / UX-09) */}
-      <div className="flex border-b border-gray-200 dark:border-gray-800 gap-4 mb-2">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-4 mb-2">
         <button
           type="button"
           onClick={() => setActiveTab('consolidado')}
           className={`pb-3 px-1 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 ${activeTab === 'consolidado'
               ? 'border-primary text-primary dark:text-white'
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
         >
           <span>Libro Cronológico Consolidado (Art. 64)</span>
-          <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-bold">
+          <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">
             {entries.length}
           </span>
         </button>
@@ -696,7 +696,7 @@ export default function ArchivoCronologicoPage() {
           onClick={() => setActiveTab('pendientes')}
           className={`pb-3 px-1 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 ${activeTab === 'pendientes'
               ? 'border-brand-500 text-brand-600 dark:text-brand-400'
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
         >
           <span>Traslados en Curso / Pendientes de Justificante</span>
@@ -725,14 +725,14 @@ export default function ArchivoCronologicoPage() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/80 overflow-x-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/80 overflow-x-auto">
             {pendingDispatches.length === 0 ? (
-              <div className="p-12 text-center text-gray-500 text-sm">
+              <div className="p-12 text-center text-slate-500 text-sm">
                 No hay traslados en curso pendientes de justificante para los filtros seleccionados.
               </div>
             ) : (
               <table className="w-full text-left text-xs">
-                <thead className="bg-gray-50 dark:bg-gray-900/60 text-gray-600 dark:text-gray-400 uppercase font-semibold border-b border-gray-100 dark:border-gray-800">
+                <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-600 dark:text-slate-400 uppercase font-semibold border-b border-slate-100 dark:border-slate-800">
                   <tr>
                     <th className="px-4 py-3">Fecha Salida</th>
                     <th className="px-4 py-3">Nº Documento (DI)</th>
@@ -744,28 +744,28 @@ export default function ArchivoCronologicoPage() {
                     <th className="px-4 py-3 text-right">Acción</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {pendingDispatches.map((d) => (
-                    <tr key={d.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
-                      <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900 dark:text-white">
+                    <tr key={d.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30 transition-colors">
+                      <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-900 dark:text-white">
                         {d.fecha_inicio_traslado || d.fecha_documento}
                       </td>
                       <td className="px-4 py-3 font-mono font-semibold text-brand-600 dark:text-brand-400">
                         {d.numero_documento}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="font-mono font-bold text-gray-800 dark:text-gray-200 mr-1.5">{d.codigo_ler}</span>
-                        <span className="text-gray-500 truncate block max-w-xs">{d.descripcion_residuo}</span>
+                        <span className="font-mono font-bold text-slate-800 dark:text-slate-200 mr-1.5">{d.codigo_ler}</span>
+                        <span className="text-slate-500 truncate block max-w-xs">{d.descripcion_residuo}</span>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="font-bold text-gray-900 dark:text-white">{d.cantidad_kg.toLocaleString('es-ES')} kg</span>
-                        <span className="text-[11px] text-gray-400 ml-1">({(d.cantidad_kg / 1000).toFixed(3)} t)</span>
+                        <span className="font-bold text-slate-900 dark:text-white">{d.cantidad_kg.toLocaleString('es-ES')} kg</span>
+                        <span className="text-[11px] text-slate-400 ml-1">({(d.cantidad_kg / 1000).toFixed(3)} t)</span>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="font-semibold text-gray-800 dark:text-gray-200">{d.gestor_razon_social}</p>
-                        <p className="text-[10px] text-gray-400 font-mono">{d.gestor_cif}</p>
+                        <p className="font-semibold text-slate-800 dark:text-slate-200">{d.gestor_razon_social}</p>
+                        <p className="text-[10px] text-slate-400 font-mono">{d.gestor_cif}</p>
                       </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                         {d.transportista_razon_social || '-'}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
@@ -794,9 +794,9 @@ export default function ArchivoCronologicoPage() {
       ) : (
         /* Tabla de Registros con DataTable y Paginación */
         loading ? (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/80 p-12 text-center">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/80 p-12 text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3" />
-            <p className="text-sm text-gray-500">Cargando libro cronológico oficial...</p>
+            <p className="text-sm text-slate-500">Cargando libro cronológico oficial...</p>
           </div>
         ) : (
           <DataTable
@@ -809,10 +809,10 @@ export default function ArchivoCronologicoPage() {
             initialSortOrder="desc"
             emptyState={
               <div className="p-8 text-center space-y-3">
-                <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">
+                <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200">
                   No hay asientos cronológicos para los filtros seleccionados
                 </h3>
-                <p className="text-xs text-gray-500 max-w-md mx-auto">
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
                   Puede sincronizar automáticamente las operaciones desde sus Documentos de Identificación cerrados o registrar un asiento manual.
                 </p>
                 <div className="flex justify-center gap-2 pt-2">
@@ -838,11 +838,11 @@ export default function ArchivoCronologicoPage() {
       >
         <div className="space-y-5">
           {/* Header del Modal */}
-          <div className="border-b border-gray-100 dark:border-gray-800 pb-4 pr-10">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-4 pr-10">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
               Registrar Asiento Manual en Archivo Cronológico
             </h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Conforme a los requisitos legales del Artículo 64 de la Ley 7/2022
             </p>
           </div>
@@ -851,7 +851,7 @@ export default function ArchivoCronologicoPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Fecha */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Fecha del Movimiento *
                 </label>
                 <input
@@ -859,13 +859,13 @@ export default function ArchivoCronologicoPage() {
                   required
                   value={formData.fecha}
                   onChange={(e) => setFormData(prev => ({ ...prev, fecha: e.target.value }))}
-                  className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                  className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-3.5 py-2.5 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                 />
               </div>
 
               {/* Tipo de Operación */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Tipo de Operación *
                 </label>
                 <select
@@ -899,7 +899,7 @@ export default function ArchivoCronologicoPage() {
                       };
                     });
                   }}
-                  className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                  className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-3.5 py-2.5 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                 >
                   <option value="produccion_interna">Producción Interna (Generación en Planta)</option>
                   <option value="salida_traslado">Salida a Traslado (Hacia Gestor)</option>
@@ -912,13 +912,13 @@ export default function ArchivoCronologicoPage() {
 
             {/* Centro de Producción */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                 Instalación / Centro de Producción
               </label>
               <select
                 value={formData.production_center_id || ''}
                 onChange={(e) => setFormData(prev => ({ ...prev, production_center_id: e.target.value ? Number(e.target.value) : undefined }))}
-                className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-3.5 py-2.5 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
               >
                 <option value="">Centro Principal / Sede</option>
                 {centers.map(c => (
@@ -930,7 +930,7 @@ export default function ArchivoCronologicoPage() {
             {/* LER y Descripción */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Código LER *
                 </label>
                 <LerSelector
@@ -940,7 +940,7 @@ export default function ArchivoCronologicoPage() {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Descripción del Residuo *
                 </label>
                 <input
@@ -949,7 +949,7 @@ export default function ArchivoCronologicoPage() {
                   placeholder="Denominación técnica del residuo"
                   value={formData.descripcion_residuo}
                   onChange={(e) => setFormData(prev => ({ ...prev, descripcion_residuo: e.target.value }))}
-                  className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                  className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-3.5 py-2.5 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                 />
               </div>
             </div>
@@ -957,7 +957,7 @@ export default function ArchivoCronologicoPage() {
             {/* Cantidad y Peligrosidad */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Cantidad (kg) *
                 </label>
                 <input
@@ -968,19 +968,19 @@ export default function ArchivoCronologicoPage() {
                   placeholder="0.00"
                   value={formData.cantidad_kg || ''}
                   onChange={(e) => setFormData(prev => ({ ...prev, cantidad_kg: Number(e.target.value) }))}
-                  className="w-full text-sm font-semibold rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                  className="w-full text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-3.5 py-2.5 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Peligrosidad
                 </label>
                 <select
                   disabled={formData.codigo_ler.includes('*')}
                   value={formData.peligrosidad}
                   onChange={(e) => setFormData(prev => ({ ...prev, peligrosidad: e.target.value as any }))}
-                  className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none disabled:opacity-60"
+                  className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-3.5 py-2.5 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none disabled:opacity-60"
                 >
                   <option value="no-peligroso">No Peligroso</option>
                   <option value="peligroso">Peligroso</option>
@@ -988,7 +988,7 @@ export default function ArchivoCronologicoPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Operación R/D
                 </label>
                 <input
@@ -996,7 +996,7 @@ export default function ArchivoCronologicoPage() {
                   placeholder="Ej. R13, D15"
                   value={formData.operacion_rd || ''}
                   onChange={(e) => setFormData(prev => ({ ...prev, operacion_rd: e.target.value.toUpperCase() }))}
-                  className="w-full text-sm font-mono rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                  className="w-full text-sm font-mono rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-3.5 py-2.5 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                 />
               </div>
             </div>
@@ -1004,7 +1004,7 @@ export default function ArchivoCronologicoPage() {
             {/* Referencia y Gestor */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Referencia / Albarán / Documento
                 </label>
                 <input
@@ -1012,12 +1012,12 @@ export default function ArchivoCronologicoPage() {
                   placeholder="Nº DI, albarán o ticket interno"
                   value={formData.numero_documento_referencia || ''}
                   onChange={(e) => setFormData(prev => ({ ...prev, numero_documento_referencia: e.target.value }))}
-                  className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                  className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-3.5 py-2.5 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   {formData.tipo_operacion === 'entrada_recepcion'
                     ? 'Productor / Origen Externo *'
                     : 'Gestor Destinatario (Tercero)'}
@@ -1058,14 +1058,14 @@ export default function ArchivoCronologicoPage() {
                         }
                     );
                   }}
-                  className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                  className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-3.5 py-2.5 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                 />
               </div>
             </div>
 
             {/* Observaciones */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                 Observaciones Técnicas
               </label>
               <textarea
@@ -1073,12 +1073,12 @@ export default function ArchivoCronologicoPage() {
                 placeholder="Detalles sobre el lote, merma, tratamiento o proceso..."
                 value={formData.observaciones || ''}
                 onChange={(e) => setFormData(prev => ({ ...prev, observaciones: e.target.value }))}
-                className="w-full text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 px-3.5 py-2.5 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none resize-none"
+                className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-3.5 py-2.5 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none resize-none"
               />
             </div>
 
             {/* Botones de acción */}
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
               <Button
                 type="button"
                 variant="outline"

@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Badge from '@/components/ui/badge/Badge';
 import Button from '@/components/ui/button/Button';
+import PageSkeleton from '@/components/common/PageSkeleton';
 import Input from '@/components/form/input/InputField';
 import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
@@ -269,12 +270,12 @@ const companyColumns = useMemo<ColumnDef<PlatformCompanyRecord>[]>(() => [
     sortable: true,
     cell: ({ row: c }) => (
       <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center font-bold text-[11px] text-primary shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center font-bold text-[11px] text-primary shrink-0">
           {c.razon_social?.slice(0, 2).toUpperCase()}
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-gray-900 dark:text-white truncate max-w-[190px]" title={c.razon_social}>
+            <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[190px]" title={c.razon_social}>
               {c.razon_social}
             </span>
             {c.is_my_company && (
@@ -283,7 +284,7 @@ const companyColumns = useMemo<ColumnDef<PlatformCompanyRecord>[]>(() => [
               </span>
             )}
           </div>
-          <p className="text-[11px] text-gray-400 truncate max-w-[200px]">
+          <p className="text-[11px] text-slate-400 truncate max-w-[200px]">
             {c.municipio_social ? `${c.municipio_social} (${c.provincia_social || ''})` : 'Sin ubicación'}
           </p>
         </div>
@@ -298,11 +299,11 @@ const companyColumns = useMemo<ColumnDef<PlatformCompanyRecord>[]>(() => [
     className: 'font-mono text-[11px] whitespace-nowrap',
     cell: ({ row: c }) => (
       <div>
-        <span className="font-bold text-gray-800 dark:text-gray-200 block">{c.cif}</span>
+        <span className="font-bold text-slate-800 dark:text-slate-200 block">{c.cif}</span>
         {c.nima ? (
-          <span className="text-gray-500 block">NIMA: {c.nima}</span>
+          <span className="text-slate-500 block">NIMA: {c.nima}</span>
         ) : (
-          <span className="text-gray-400 block italic">Sin NIMA</span>
+          <span className="text-slate-400 block italic">Sin NIMA</span>
         )}
       </div>
     ),
@@ -333,10 +334,10 @@ const companyColumns = useMemo<ColumnDef<PlatformCompanyRecord>[]>(() => [
     sortable: true,
     cell: ({ row: c }) => (
       <div>
-        <span className="font-medium text-gray-800 dark:text-gray-200 block truncate max-w-[140px]">
+        <span className="font-medium text-slate-800 dark:text-slate-200 block truncate max-w-[140px]">
           {c.user_name || 'Usuario'}
         </span>
-        <span className="text-gray-500 text-[11px] block truncate max-w-[140px]" title={c.user_email || ''}>
+        <span className="text-slate-500 text-[11px] block truncate max-w-[140px]" title={c.user_email || ''}>
           {c.user_email || 'N/A'}
         </span>
       </div>
@@ -348,7 +349,7 @@ const companyColumns = useMemo<ColumnDef<PlatformCompanyRecord>[]>(() => [
     header: 'Centros',
     sortable: true,
     headerClassName: 'text-right',
-    className: 'text-right font-mono tabular-nums text-gray-800 dark:text-gray-200',
+    className: 'text-right font-mono tabular-nums text-slate-800 dark:text-slate-200',
     cell: ({ row: c }) => c.centers_count || 0,
   },
   {
@@ -357,7 +358,7 @@ const companyColumns = useMemo<ColumnDef<PlatformCompanyRecord>[]>(() => [
     header: 'DIs',
     sortable: true,
     headerClassName: 'text-right',
-    className: 'text-right font-mono tabular-nums font-semibold text-gray-900 dark:text-white',
+    className: 'text-right font-mono tabular-nums font-semibold text-slate-900 dark:text-white',
     cell: ({ row: c }) => c.dis_count || 0,
   },
   {
@@ -366,7 +367,7 @@ const companyColumns = useMemo<ColumnDef<PlatformCompanyRecord>[]>(() => [
     header: 'Contratos',
     sortable: true,
     headerClassName: 'text-right',
-    className: 'text-right font-mono tabular-nums text-gray-800 dark:text-gray-200',
+    className: 'text-right font-mono tabular-nums text-slate-800 dark:text-slate-200',
     cell: ({ row: c }) => c.contracts_count || 0,
   },
   {
@@ -387,7 +388,7 @@ const companyColumns = useMemo<ColumnDef<PlatformCompanyRecord>[]>(() => [
     accessorKey: 'last_operation_at',
     header: 'Últ. Operación',
     sortable: true,
-    className: 'whitespace-nowrap text-gray-500 dark:text-gray-400',
+    className: 'whitespace-nowrap text-slate-500 dark:text-slate-400',
     cell: ({ row: c }) =>
       c.last_operation_at ? new Date(c.last_operation_at).toLocaleDateString('es-ES') : '—',
   },
@@ -476,12 +477,11 @@ const companyColumns = useMemo<ColumnDef<PlatformCompanyRecord>[]>(() => [
 
 if (checkingAuth) {
   return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="text-center space-y-3">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto" />
-        <p className="text-sm text-gray-500">Verificando credenciales de Superadministrador...</p>
-      </div>
-    </div>
+    <PageSkeleton
+      variant="table-with-stats"
+      label="Verificando credenciales de Superadministrador"
+      className="pb-12"
+    />
   );
 }
 
@@ -495,14 +495,14 @@ return (
     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
             Supervisión Global de Plataforma
           </h1>
           <Badge variant="solid" color="primary">
             Modo Administrador
           </Badge>
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
           Auditoría de empresas, cuentas de clientes, centros de producción y extracción de expedientes normativos.
         </p>
       </div>
@@ -543,75 +543,75 @@ return (
 
     {/* Tarjetas de Métricas Globales */}
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 p-4 shadow-xs">
-        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Total Empresas</p>
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 p-4 shadow-xs">
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Empresas</p>
         <div className="flex items-baseline gap-2 mt-1">
-          <span className="text-2xl font-bold text-gray-900 dark:text-white">
+          <span className="text-2xl font-bold text-slate-900 dark:text-white">
             {loading ? '...' : (stats?.totalCompanies || companies.length)}
           </span>
         </div>
-        <p className="text-[11px] text-gray-400 mt-0.5">
+        <p className="text-[11px] text-slate-400 mt-0.5">
           {stats?.myCompanies || 0} cuentas titulares
         </p>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 p-4 shadow-xs">
-        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Cuentas Usuario</p>
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 p-4 shadow-xs">
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Cuentas Usuario</p>
         <div className="flex items-baseline gap-2 mt-1">
           <span className="text-2xl font-bold text-primary">
             {loading ? '...' : (stats?.totalUsers || 0)}
           </span>
         </div>
-        <p className="text-[11px] text-gray-400 mt-0.5">Perfiles registrados</p>
+        <p className="text-[11px] text-slate-400 mt-0.5">Perfiles registrados</p>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 p-4 shadow-xs">
-        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">DIs Globales</p>
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 p-4 shadow-xs">
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">DIs Globales</p>
         <div className="flex items-baseline gap-2 mt-1">
           <span className="text-2xl font-bold text-success-600">
             {loading ? '...' : (stats?.totalDIs || 0)}
           </span>
         </div>
-        <p className="text-[11px] text-gray-400 mt-0.5">Docs. Identificación</p>
+        <p className="text-[11px] text-slate-400 mt-0.5">Docs. Identificación</p>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 p-4 shadow-xs">
-        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Toneladas Est.</p>
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 p-4 shadow-xs">
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Toneladas Est.</p>
         <div className="flex items-baseline gap-2 mt-1">
           <span className="text-2xl font-bold text-warning-600">
             {loading ? '...' : (stats?.totalToneladas || 0)}
           </span>
-          <span className="text-xs font-medium text-gray-400">t</span>
+          <span className="text-xs font-medium text-slate-400">t</span>
         </div>
-        <p className="text-[11px] text-gray-400 mt-0.5">Volumen declarado</p>
+        <p className="text-[11px] text-slate-400 mt-0.5">Volumen declarado</p>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 p-4 shadow-xs">
-        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Contratos</p>
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 p-4 shadow-xs">
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Contratos</p>
         <div className="flex items-baseline gap-2 mt-1">
-          <span className="text-2xl font-bold text-gray-900 dark:text-white">
+          <span className="text-2xl font-bold text-slate-900 dark:text-white">
             {loading ? '...' : (stats?.totalContracts || 0)}
           </span>
         </div>
-        <p className="text-[11px] text-gray-400 mt-0.5">RD 553/2020</p>
+        <p className="text-[11px] text-slate-400 mt-0.5">RD 553/2020</p>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 p-4 shadow-xs">
-        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Centros Registrados</p>
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 p-4 shadow-xs">
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Centros Registrados</p>
         <div className="flex items-baseline gap-2 mt-1">
-          <span className="text-2xl font-bold text-gray-900 dark:text-white">
+          <span className="text-2xl font-bold text-slate-900 dark:text-white">
             {loading ? '...' : (stats?.totalCenters || 0)}
           </span>
         </div>
-        <p className="text-[11px] text-gray-400 mt-0.5">Instalaciones</p>
+        <p className="text-[11px] text-slate-400 mt-0.5">Instalaciones</p>
       </div>
     </div>
 
       {/* DataTable Maestra de Empresas con Buscador, Filtros, Ordenación y Paginación */}
               {loading ? (
-                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 py-20 text-center shadow-xs">
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 py-20 text-center shadow-xs">
                   <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                  <p className="text-sm text-gray-500">Cargando directorio de empresas de la plataforma...</p>
+                  <p className="text-sm text-slate-500">Cargando directorio de empresas de la plataforma...</p>
                 </div>
               ) : (
                 <DataTable<PlatformCompanyRecord>
@@ -639,14 +639,14 @@ return (
                   emptyMessage="No se encontraron empresas con los criterios seleccionados."
                   toolbarActions={
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1 text-xs bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
+              <div className="flex items-center gap-1 text-xs bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
                 <button
                   type="button"
                   onClick={() => setSelectedType('all')}
                   className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
                     selectedType === 'all'
-                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-xs'
-                      : 'text-gray-500 hover:text-gray-800 dark:text-gray-400'
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
                   }`}
                 >
                   Todas
@@ -656,8 +656,8 @@ return (
                   onClick={() => setSelectedType('my')}
                   className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
                     selectedType === 'my'
-                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-xs'
-                      : 'text-gray-500 hover:text-gray-800 dark:text-gray-400'
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
                   }`}
                 >
                   Titulares
@@ -667,8 +667,8 @@ return (
                   onClick={() => setSelectedType('contacts')}
                   className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
                     selectedType === 'contacts'
-                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-xs'
-                      : 'text-gray-500 hover:text-gray-800 dark:text-gray-400'
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
                   }`}
                 >
                   Colaboradoras
@@ -678,7 +678,7 @@ return (
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value as 'all' | 'active' | 'blocked')}
-            className="h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2.5 text-xs font-medium text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="h-9 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
           <option value="all">Todos los Estados</option>
           <option value="active">Solo Activas</option>
@@ -688,7 +688,7 @@ return (
         <select
           value={selectedRole}
           onChange={(e) => setSelectedRole(e.target.value)}
-          className="h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2.5 text-xs font-medium text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20"
+          className="h-9 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20"
         >
           <option value="all">Todos los Roles</option>
           <option value="gestor">Gestor de Residuos</option>
@@ -716,12 +716,12 @@ loading = { loadingAudit }
 {
   delegatingCompany && (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-6 shadow-2xl space-y-4">
+      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-2xl space-y-4">
         <div>
-          <h3 className="text-base font-bold text-gray-900 dark:text-white">
+          <h3 className="text-base font-bold text-slate-900 dark:text-white">
             Activar Delegación Temporal
           </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Empresa: <strong>{delegatingCompany.razon_social}</strong> ({delegatingCompany.cif}).
             Esta acción quedará registrada en auditoría y visible para el titular.
           </p>
@@ -729,7 +729,7 @@ loading = { loadingAudit }
 
         <form onSubmit={handleSubmitDelegation} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
               Motivo / Referencia de autorización <span className="text-red-500">*</span>
             </label>
             <Input
@@ -741,13 +741,13 @@ loading = { loadingAudit }
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Rol delegado
               </label>
               <select
                 value={delegationRole}
                 onChange={(e) => setDelegationRole(e.target.value as Exclude<MembershipRole, 'owner'>)}
-                className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2.5 text-xs text-gray-800 dark:text-gray-200"
+                className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 text-xs text-slate-800 dark:text-slate-200"
               >
                 <option value="consultor_admin">Consultor Admin</option>
                 <option value="consultor_operador">Consultor Operador</option>
@@ -756,13 +756,13 @@ loading = { loadingAudit }
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Caducidad
               </label>
               <select
                 value={delegationDays}
                 onChange={(e) => setDelegationDays(Number(e.target.value))}
-                className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2.5 text-xs text-gray-800 dark:text-gray-200"
+                className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 text-xs text-slate-800 dark:text-slate-200"
               >
                 <option value={1}>24 horas</option>
                 <option value={7}>7 días</option>
@@ -777,9 +777,9 @@ loading = { loadingAudit }
               type="checkbox"
               checked={delegationCommercial}
               onChange={(e) => setDelegationCommercial(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600"
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600"
             />
-            <span className="text-[11px] text-gray-700 dark:text-gray-300">
+            <span className="text-[11px] text-slate-700 dark:text-slate-300">
               Incluir acceso a <strong>Operaciones Comerciales</strong> (desactivado por defecto)
             </span>
           </label>
@@ -819,18 +819,18 @@ loading = { loadingAudit }
 {
   blockingCompany && (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 border border-red-200 dark:border-red-900/60 p-6 shadow-2xl space-y-4">
+      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-red-200 dark:border-red-900/60 p-6 shadow-2xl space-y-4">
         <div>
           <h3 className="text-base font-bold text-red-700 dark:text-red-400">
             Bloquear Acceso de Empresa
           </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Se suspenderá inmediatamente el acceso operativo de <strong>{blockingCompany.razon_social}</strong> ({blockingCompany.cif}) tanto en la interfaz como en las políticas RLS.
           </p>
         </div>
         <form onSubmit={handleSubmitBlockCompany} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
               Motivo del bloqueo <span className="text-red-500">*</span>
             </label>
             <Input

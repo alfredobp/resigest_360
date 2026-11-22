@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
+import PageSkeleton from '@/components/common/PageSkeleton';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
@@ -458,12 +459,11 @@ function FlotaHubContent() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center space-y-3">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto" />
-          <p className="text-sm text-slate-500">Cargando conductores y vehículos...</p>
-        </div>
-      </div>
+      <PageSkeleton
+        variant="table-with-stats"
+        label="Cargando conductores y vehículos"
+        className="max-w-6xl mx-auto pb-12"
+      />
     );
   }
 

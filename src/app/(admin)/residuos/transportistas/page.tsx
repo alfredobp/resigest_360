@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
+import PageSkeleton from '@/components/common/PageSkeleton';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
@@ -167,12 +168,11 @@ export default function TransportistasPage() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
-                    <p className="text-muted">Cargando transportistas...</p>
-                </div>
-            </div>
+            <PageSkeleton
+                variant="table"
+                label="Cargando transportistas"
+                className="max-w-6xl mx-auto"
+            />
         );
     }
 
