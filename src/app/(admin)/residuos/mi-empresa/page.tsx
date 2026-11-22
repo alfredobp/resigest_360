@@ -715,14 +715,14 @@ export default function MiEmpresaPage() {
                             type="button"
                             onClick={() => handleCompanyTypeChange(tipo.value)}
                             className={`flex flex-col items-start p-3 rounded-lg border text-left transition-colors ${isSelected
-                                ? 'border-brand-600 bg-brand-50/50 dark:bg-brand-950/30 dark:border-brand-400'
-                                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                              ? 'border-brand-600 bg-brand-50/50 dark:bg-brand-950/30 dark:border-brand-400'
+                              : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50'
                               }`}
                           >
                             <span
                               className={`text-sm font-semibold ${isSelected
-                                  ? 'text-brand-700 dark:text-brand-300'
-                                  : 'text-slate-900 dark:text-white'
+                                ? 'text-brand-700 dark:text-brand-300'
+                                : 'text-slate-900 dark:text-white'
                                 }`}
                             >
                               {tipo.label}
@@ -1045,8 +1045,8 @@ export default function MiEmpresaPage() {
                       });
                       return (
                         <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-semibold ${detected.supported
-                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                            : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                          : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
                           }`}>
                           <span>Plataforma detectada para esta empresa: {detected.name}</span>
                         </div>
