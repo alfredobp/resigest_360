@@ -390,6 +390,194 @@ describe('dashboardService - Dashboard Ejecutivo e Indicadores', () => {
     });
   });
 
+  describe('getDashboardChartsData', () => {
+    it('debe fallar si no hay usuario autenticado', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
+
+      await expect(dashboardService.getDashboardChartsData()).rejects.toThrow('Usuario no autenticado');
+    });
+
+    it('debe agregar residuos RP/RNP, flujo de planta, comercial, estados DI y resumen', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      const mockDis = [
+        {
+          fecha_documento: '2026-01-10',
+          peso_destino_kg: 2000,
+          peligrosidad: 'peligroso',
+          codigo_ler: '15 01 10*',
+          estado: 'completado',
+          estado_traslado: 'tratado',
+        },
+        {
+          fecha_documento: '2026-01-18',
+          peso_origen_kg: 1000,
+          peligrosidad: 'no-peligroso',
+          codigo_ler: '20 01 01',
+          estado: 'activo',
+          estado_traslado: 'en_transito',
+        },
+        {
+          fecha_documento: '2026-02-05',
+          cantidad: 4.5,
+          unidad: 'toneladas',
+          peligrosidad: 'no-peligroso',
+          codigo_ler: '17 04 05',
+          estado: 'borrador',
+          estado_traslado: '',
+        },
+        {
+          fecha_documento: '2026-02-12',
+          cantidad: 1500,
+          unidad: 'kg',
+          codigo_ler: '16 06 01*',
+          estado: 'activo',
+          estado_traslado: 'rechazado_total',
+        },
+        {
+          fecha_documento: null,
+          cantidad: 1,
+          unidad: 'toneladas',
+          estado: 'borrador',
+        },
+      ];
+
+      const mockChrono = [
+        { fecha: '2026-01-12', tipo_operacion: 'entrada_recepcion', cantidad_kg: 5000 },
+        { fecha: '2026-01-20', tipo_operacion: 'produccion_interna', cantidad_kg: 1000 },
+        { fecha: '2026-01-25', tipo_operacion: 'salida_traslado', cantidad_kg: 2500 },
+        // Intermediación de terceros no debe computar como salida de planta
+        {
+          fecha: '2026-01-28',
+          tipo_operacion: 'salida_traslado',
+          cantidad_kg: 9000,
+          origen_tipo: 'tercero_productor',
+          destino_tipo: 'tercero_gestor',
+        },
+      ];
+
+      const mockOps = [
+        {
+          fecha: '2026-01-15',
+          estado: 'completada',
+          ingreso_venta_total: 4000,
+          coste_compra_total: 2000,
+          coste_transporte: 500,
+          otros_costes: 100,
+          margen_bruto_total: 1400,
+        },
+        {
+          fecha: '2026-01-20',
+          estado: 'cancelada',
+          ingreso_venta_total: 9999,
+          coste_compra_total: 1000,
+          margen_bruto_total: 8999,
+        },
+      ];
+
+      const buildChain = (data: any[]) => ({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockReturnThis(),
+        order: jest.fn().mockResolvedValue({ data, error: null }),
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'identification_documents') return buildChain(mockDis);
+        if (table === 'chronological_registry') return buildChain(mockChrono);
+        if (table === 'commercial_operations') return buildChain(mockOps);
+        return buildChain([]);
+      });
+
+      const res = await dashboardService.getDashboardChartsData({ year: 2026 });
+
+      expect(res.year).toBe(2026);
+      expect(res.monthlyWaste).toHaveLength(12);
+      expect(res.monthlyWaste[0]).toEqual({
+        name: 'Ene',
+        total: 3,
+        peligrosos: 2,
+        noPeligrosos: 1,
+        diCount: 2,
+      });
+      expect(res.monthlyWaste[1]).toEqual({
+        name: 'Feb',
+        total: 6,
+        peligrosos: 1.5,
+        noPeligrosos: 4.5,
+        diCount: 2,
+      });
+
+      expect(res.monthlyPlantFlow[0]).toEqual({
+        name: 'Ene',
+        entradas: 6,
+        salidas: 2.5,
+        neto: 3.5,
+      });
+
+      expect(res.monthlyCommercial[0]).toEqual({
+        name: 'Ene',
+        ingresos: 4000,
+        costes: 2600,
+        margen: 1400,
+      });
+
+      expect(res.diStatusDistribution).toEqual({
+        completados: 1,
+        enTransito: 1,
+        borradores: 2,
+        incidencias: 1,
+        total: 5,
+      });
+
+      expect(res.summary.totalToneladas).toBe(9);
+      expect(res.summary.promedioMensual).toBe(4.5);
+      expect(res.summary.mesPico).toEqual({ name: 'Feb', value: 6 });
+      expect(res.summary.porcentajePeligrosos).toBe(38.9);
+      expect(res.summary.variacionUltimoMesPct).toBe(100);
+    });
+
+    it('debe filtrar por companyId, omitir comercial cuando includeCommercial es false y manejar ejercicio vacío', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      const eqCalls: Array<[string, any]> = [];
+      const queriedTables: string[] = [];
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        queriedTables.push(table);
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn((col: string, val: any) => {
+            eqCalls.push([col, val]);
+            return {
+              gte: jest.fn().mockReturnThis(),
+              lte: jest.fn().mockReturnThis(),
+              order: jest.fn().mockResolvedValue({ data: [], error: null }),
+            };
+          }),
+        };
+      });
+
+      const res = await dashboardService.getDashboardChartsData({
+        companyId: 42,
+        year: 2025,
+        includeCommercial: false,
+      });
+
+      expect(eqCalls).toContainEqual(['company_id', 42]);
+      expect(queriedTables).not.toContain('commercial_operations');
+      expect(res.year).toBe(2025);
+      expect(res.summary).toEqual({
+        totalToneladas: 0,
+        promedioMensual: 0,
+        mesPico: null,
+        porcentajePeligrosos: 0,
+        variacionUltimoMesPct: null,
+      });
+    });
+  });
+
   describe('getRecentActivity', () => {
     it('debe fallar si no hay usuario autenticado', async () => {
       mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });

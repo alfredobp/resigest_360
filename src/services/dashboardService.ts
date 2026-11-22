@@ -36,6 +36,92 @@ export interface ExecutiveOverviewOptions {
   includeCommercial?: boolean;
 }
 
+export interface DashboardChartsOptions {
+  companyId?: number | null;
+  year?: number;
+  includeCommercial?: boolean;
+}
+
+export interface MonthlyWastePoint {
+  name: string;
+  total: number;
+  peligrosos: number;
+  noPeligrosos: number;
+  diCount: number;
+}
+
+export interface MonthlyPlantFlowPoint {
+  name: string;
+  entradas: number;
+  salidas: number;
+  neto: number;
+}
+
+export interface MonthlyCommercialPoint {
+  name: string;
+  ingresos: number;
+  costes: number;
+  margen: number;
+}
+
+export interface DiStatusDistribution {
+  completados: number;
+  enTransito: number;
+  borradores: number;
+  incidencias: number;
+  total: number;
+}
+
+export interface DashboardChartsSummary {
+  totalToneladas: number;
+  promedioMensual: number;
+  mesPico: { name: string; value: number } | null;
+  porcentajePeligrosos: number;
+  variacionUltimoMesPct: number | null;
+}
+
+export interface DashboardChartsData {
+  year: number;
+  availableYears: number[];
+  monthlyWaste: MonthlyWastePoint[];
+  monthlyPlantFlow: MonthlyPlantFlowPoint[];
+  monthlyCommercial: MonthlyCommercialPoint[];
+  diStatusDistribution: DiStatusDistribution;
+  summary: DashboardChartsSummary;
+}
+
+const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+function extractMonthIndex(dateValue?: string | null): number | null {
+  if (!dateValue) return null;
+  const isoMatch = String(dateValue).match(/^\d{4}-(\d{2})/);
+  if (isoMatch) {
+    const monthIdx = Number(isoMatch[1]) - 1;
+    return monthIdx >= 0 && monthIdx <= 11 ? monthIdx : null;
+  }
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.getMonth();
+}
+
+function computeDiWeightTonnes(di: {
+  peso_destino_kg?: number | null;
+  peso_origen_kg?: number | null;
+  unidad?: string | null;
+  cantidad?: number | null;
+}): number {
+  if (di.peso_destino_kg && Number(di.peso_destino_kg) > 0) {
+    return Number(di.peso_destino_kg) / 1000;
+  }
+  if (di.peso_origen_kg && Number(di.peso_origen_kg) > 0) {
+    return Number(di.peso_origen_kg) / 1000;
+  }
+  if (di.unidad === 'kg' || di.unidad === 'litros' || di.unidad === 'unidades') {
+    return (Number(di.cantidad) || 0) / 1000;
+  }
+  return Number(di.cantidad) || 0;
+}
+
 export interface ExecutiveDashboardData {
   conformidad: {
     estado: 'pendiente' | 'conforme' | 'incidencias';
@@ -597,6 +683,215 @@ export const dashboardService = {
       name,
       value: parseFloat((monthlyData[name] || 0).toFixed(2))
     }));
+  },
+
+  /**
+   * Obtener series analíticas completas para las gráficas del dashboard
+   * (Residuos RP vs RNP, Balance de Planta, Evolución Comercial y Estado de DIs)
+   */
+  async getDashboardChartsData(options: DashboardChartsOptions = {}): Promise<DashboardChartsData> {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuario no autenticado');
+
+    const currentYear = new Date().getFullYear();
+    const targetYear = options.year ?? currentYear;
+    const availableYears = [currentYear, currentYear - 1, currentYear - 2];
+    const filterColumn = options.companyId ? 'company_id' : 'user_id';
+    const filterValue = options.companyId ?? user.id;
+    const includeCommercial = options.includeCommercial !== false;
+
+    const yearStart = `${targetYear}-01-01`;
+    const yearEnd = `${targetYear}-12-31`;
+
+    const [disRes, chronoRes, opsRes] = await Promise.all([
+      supabase
+        .from('identification_documents')
+        .select('cantidad, unidad, peso_destino_kg, peso_origen_kg, fecha_documento, peligrosidad, codigo_ler, estado, estado_traslado')
+        .eq(filterColumn, filterValue)
+        .gte('fecha_documento', yearStart)
+        .lte('fecha_documento', yearEnd)
+        .order('fecha_documento', { ascending: true }),
+      supabase
+        .from('chronological_registry')
+        .select('fecha, tipo_operacion, cantidad_kg, origen_tipo, destino_tipo')
+        .eq(filterColumn, filterValue)
+        .gte('fecha', yearStart)
+        .lte('fecha', yearEnd)
+        .order('fecha', { ascending: true }),
+      includeCommercial
+        ? supabase
+            .from('commercial_operations')
+            .select('fecha, estado, ingreso_venta_total, coste_compra_total, coste_transporte, otros_costes, margen_bruto_total')
+            .eq(filterColumn, filterValue)
+            .gte('fecha', yearStart)
+            .lte('fecha', yearEnd)
+            .order('fecha', { ascending: true })
+        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+    ]);
+
+    const dis = disRes.data || [];
+    const chronoEntries = chronoRes.data || [];
+    const ops = opsRes.data || [];
+
+    const wasteBuckets = MONTH_NAMES.map((name) => ({
+      name,
+      peligrosos: 0,
+      noPeligrosos: 0,
+      diCount: 0,
+    }));
+
+    const diStatusDistribution: DiStatusDistribution = {
+      completados: 0,
+      enTransito: 0,
+      borradores: 0,
+      incidencias: 0,
+      total: dis.length,
+    };
+
+    dis.forEach((di) => {
+      const estadoTraslado = di.estado_traslado || '';
+      if (['rechazado_parcial', 'rechazado_total'].includes(estadoTraslado)) {
+        diStatusDistribution.incidencias++;
+      } else if (di.estado === 'completado' || ['aceptado', 'tratado', 'recepcionado'].includes(estadoTraslado)) {
+        diStatusDistribution.completados++;
+      } else if (estadoTraslado === 'en_transito') {
+        diStatusDistribution.enTransito++;
+      } else {
+        diStatusDistribution.borradores++;
+      }
+
+      const monthIdx = extractMonthIndex(di.fecha_documento);
+      if (monthIdx === null) return;
+
+      const weightTon = computeDiWeightTonnes(di);
+      const esPeligroso = di.peligrosidad === 'peligroso' || String(di.codigo_ler || '').includes('*');
+
+      if (esPeligroso) {
+        wasteBuckets[monthIdx].peligrosos += weightTon;
+      } else {
+        wasteBuckets[monthIdx].noPeligrosos += weightTon;
+      }
+      wasteBuckets[monthIdx].diCount += 1;
+    });
+
+    const monthlyWaste: MonthlyWastePoint[] = wasteBuckets.map((b) => {
+      const peligrosos = Number(b.peligrosos.toFixed(2));
+      const noPeligrosos = Number(b.noPeligrosos.toFixed(2));
+      const total = Number((b.peligrosos + b.noPeligrosos).toFixed(2));
+      return {
+        name: b.name,
+        total,
+        peligrosos,
+        noPeligrosos,
+        diCount: b.diCount,
+      };
+    });
+
+    const plantBuckets = MONTH_NAMES.map((name) => ({
+      name,
+      entradasKg: 0,
+      salidasKg: 0,
+    }));
+
+    chronoEntries.forEach((entry) => {
+      const monthIdx = extractMonthIndex(entry.fecha);
+      if (monthIdx === null) return;
+
+      const kg = Number(entry.cantidad_kg) || 0;
+      const isThirdPartyBrokerage =
+        entry.origen_tipo === 'tercero_productor' && entry.destino_tipo === 'tercero_gestor';
+
+      if (entry.tipo_operacion === 'entrada_recepcion' || entry.tipo_operacion === 'produccion_interna') {
+        plantBuckets[monthIdx].entradasKg += kg;
+      } else if (
+        (entry.tipo_operacion === 'salida_traslado' || entry.tipo_operacion === 'merma_ajuste') &&
+        !isThirdPartyBrokerage
+      ) {
+        plantBuckets[monthIdx].salidasKg += kg;
+      }
+    });
+
+    const monthlyPlantFlow: MonthlyPlantFlowPoint[] = plantBuckets.map((b) => {
+      const entradas = Number((b.entradasKg / 1000).toFixed(2));
+      const salidas = Number((b.salidasKg / 1000).toFixed(2));
+      return {
+        name: b.name,
+        entradas,
+        salidas,
+        neto: Number((entradas - salidas).toFixed(2)),
+      };
+    });
+
+    const commercialBuckets = MONTH_NAMES.map((name) => ({
+      name,
+      ingresos: 0,
+      costes: 0,
+      margen: 0,
+    }));
+
+    ops.forEach((op) => {
+      if (op.estado === 'cancelada' || op.estado === 'borrador') return;
+      const monthIdx = extractMonthIndex(op.fecha as string | null | undefined);
+      if (monthIdx === null) return;
+
+      commercialBuckets[monthIdx].ingresos += Number(op.ingreso_venta_total) || 0;
+      commercialBuckets[monthIdx].costes +=
+        (Number(op.coste_compra_total) || 0) +
+        (Number(op.coste_transporte) || 0) +
+        (Number(op.otros_costes) || 0);
+      commercialBuckets[monthIdx].margen += Number(op.margen_bruto_total) || 0;
+    });
+
+    const monthlyCommercial: MonthlyCommercialPoint[] = commercialBuckets.map((b) => ({
+      name: b.name,
+      ingresos: Number(b.ingresos.toFixed(2)),
+      costes: Number(b.costes.toFixed(2)),
+      margen: Number(b.margen.toFixed(2)),
+    }));
+
+    const totalToneladas = Number(
+      monthlyWaste.reduce((acc, m) => acc + m.total, 0).toFixed(2)
+    );
+    const totalPeligrosos = monthlyWaste.reduce((acc, m) => acc + m.peligrosos, 0);
+    const activeMonths = monthlyWaste.filter((m) => m.total > 0);
+    const promedioMensual =
+      activeMonths.length > 0 ? Number((totalToneladas / activeMonths.length).toFixed(2)) : 0;
+
+    let mesPico: { name: string; value: number } | null = null;
+    monthlyWaste.forEach((m) => {
+      if (m.total > 0 && (!mesPico || m.total > mesPico.value)) {
+        mesPico = { name: m.name, value: m.total };
+      }
+    });
+
+    const porcentajePeligrosos =
+      totalToneladas > 0 ? Number(((totalPeligrosos / totalToneladas) * 100).toFixed(1)) : 0;
+
+    // Variación porcentual entre los dos últimos meses con actividad (o último mes vs anterior)
+    let variacionUltimoMesPct: number | null = null;
+    const lastActiveIdx = monthlyWaste.reduce((last, m, idx) => (m.total > 0 ? idx : last), -1);
+    if (lastActiveIdx > 0 && monthlyWaste[lastActiveIdx - 1].total > 0) {
+      const prev = monthlyWaste[lastActiveIdx - 1].total;
+      const curr = monthlyWaste[lastActiveIdx].total;
+      variacionUltimoMesPct = Number((((curr - prev) / prev) * 100).toFixed(1));
+    }
+
+    return {
+      year: targetYear,
+      availableYears,
+      monthlyWaste,
+      monthlyPlantFlow,
+      monthlyCommercial,
+      diStatusDistribution,
+      summary: {
+        totalToneladas,
+        promedioMensual,
+        mesPico,
+        porcentajePeligrosos,
+        variacionUltimoMesPct,
+      },
+    };
   },
 
   /**
