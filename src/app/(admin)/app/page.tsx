@@ -412,7 +412,7 @@ export default function ExecutiveDashboardPage() {
                       </Link>
                     )}
 
-                    {alertas.contratosCaducadosCount > 0 && (
+                    {effectiveHasModule('contratos') && alertas.contratosCaducadosCount > 0 && (
                       <Link
                         href="/residuos/contratos?status=caducado"
                         className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-red-400 dark:hover:border-red-700 transition-all"
@@ -451,7 +451,7 @@ export default function ExecutiveDashboardPage() {
                       </Link>
                     )}
 
-                    {alertas.contratosPorVencerCount > 0 && (
+                    {effectiveHasModule('contratos') && alertas.contratosPorVencerCount > 0 && (
                       <Link
                         href="/residuos/contratos?status=vigente"
                         className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-amber-400 dark:hover:border-amber-600 transition-all"

@@ -56,6 +56,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     canWrite,
     activeModules,
     isPlatformAdmin,
+    isDelegated,
     perfilOperativo,
   } = useTenant();
 
@@ -83,7 +84,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
           onClose();
         },
       },
-      ...(isPlatformAdmin || perfilOperativo === "transportista"
+      ...((isPlatformAdmin && !isDelegated) || perfilOperativo === "transportista"
         ? [
             {
               id: "nav-transporte-movil",
@@ -220,7 +221,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     ];
 
     return items.filter((item) => !item.path || canAccessRoute(item.path));
-  }, [router, onClose, canAccessRoute, perfilOperativo, isPlatformAdmin]);
+  }, [router, onClose, canAccessRoute, perfilOperativo, isPlatformAdmin, isDelegated]);
 
   // Acciones directas del sistema filtradas por permisos de escritura y módulo
   const systemActions = useMemo<PaletteActionItem[]>(() => {
@@ -290,7 +291,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         const records = await quickSearchService.searchRecords(
           trimmed,
           4,
-          isPlatformAdmin ? undefined : { allowedModules: activeModules }
+          isPlatformAdmin && !isDelegated ? undefined : { allowedModules: activeModules }
         );
         if (!cancelled) {
           setDbResults(records.filter((r) => canAccessRoute(r.href)));
