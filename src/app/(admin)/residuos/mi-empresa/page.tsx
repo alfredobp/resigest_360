@@ -69,7 +69,17 @@ const PROVINCIAS_POR_CP: Record<string, string> = {
 
 export default function MiEmpresaPage() {
   const router = useRouter();
-  const { refreshTenant, canManageCompany, canWrite, isPlatformAdmin, membershipRole, activeCompanyId, tenant } = useTenant();
+  const {
+    refreshTenant,
+    canManageCompany,
+    canWrite,
+    isPlatformAdmin,
+    membershipRole,
+    activeCompanyId,
+    tenant,
+    hasModule,
+    canAccessRoute,
+  } = useTenant();
   const [activeTab, setActiveTab] = useState<ActiveTab>('identidad');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -493,6 +503,8 @@ export default function MiEmpresaPage() {
         )}
 
         {company &&
+          hasModule('flota_transporte') &&
+          canAccessRoute('/residuos/flota') &&
           (formData.tipo_empresa === 'transportista' ||
             formData.roles?.includes('transportista') ||
             company.roles?.includes('transportista')) && (
