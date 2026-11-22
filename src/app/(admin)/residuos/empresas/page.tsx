@@ -7,7 +7,7 @@ import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import { Modal, ConfirmModal } from '@/components/ui/modal';
-import { DataTable, type ColumnDef } from '@/components/ui/table';
+import { DataTable, DataTableActionButton, type ColumnDef } from '@/components/ui/table';
 import { toast } from '@/context/ToastContext';
 import { useTenant } from '@/context/TenantContext';
 import EmpresaModal from '@/components/residuos/EmpresaModal';
@@ -244,35 +244,24 @@ function EmpresasContent() {
           const showAuthorizations = supportsAuthorizations(row) || companyAuths.length > 0;
           return (
             <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
-              <Button
-                variant="outline"
-                size="sm"
+              <DataTableActionButton
+                action="edit"
                 onClick={() => {
                   setEditingCompany(row);
                   setIsModalOpen(true);
                 }}
-              >
-                Editar
-              </Button>
+              />
               {showAuthorizations && (
-                <Button
-                  variant="outline"
-                  size="sm"
+                <DataTableActionButton
+                  action="authorizations"
                   onClick={() => setViewingAuthsCompany(row)}
-                  className="border-brand-200 text-brand-700 hover:bg-brand-50 dark:border-brand-800 dark:text-brand-300"
-                >
-                  Autorizaciones
-                </Button>
+                />
               )}
               {canWrite && !row.is_my_company && (
-                <Button
-                  variant="outline"
-                  size="sm"
+                <DataTableActionButton
+                  action="delete"
                   onClick={() => handleDelete(row.id, row.razon_social)}
-                  className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
-                >
-                  Eliminar
-                </Button>
+                />
               )}
             </div>
           );

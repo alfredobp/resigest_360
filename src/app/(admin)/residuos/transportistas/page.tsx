@@ -6,7 +6,7 @@ import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
-import { DataTable, type ColumnDef } from '@/components/ui/table';
+import { DataTable, DataTableActionButton, type ColumnDef } from '@/components/ui/table';
 import { toast } from '@/context/ToastContext';
 import { useTenant } from '@/context/TenantContext';
 import carrierService from '@/services/carrierService';
@@ -151,25 +151,9 @@ export default function TransportistasPage() {
                     <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
                         {canWrite ? (
                             <>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleManageFleet(row)}
-                                    className="text-sky-700 border-sky-200 dark:text-sky-400 dark:border-sky-900 hover:bg-sky-50 dark:hover:bg-sky-950/40"
-                                >
-                                    Flota
-                                </Button>
-                                <Button variant="outline" size="sm" onClick={() => handleEdit(row)}>
-                                    Editar
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleDelete(row)}
-                                    className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
-                                >
-                                    Eliminar
-                                </Button>
+                                <DataTableActionButton action="fleet" onClick={() => handleManageFleet(row)} />
+                                <DataTableActionButton action="edit" onClick={() => handleEdit(row)} />
+                                <DataTableActionButton action="delete" onClick={() => handleDelete(row)} />
                             </>
                         ) : (
                             <span className="text-xs text-slate-400">Solo lectura</span>

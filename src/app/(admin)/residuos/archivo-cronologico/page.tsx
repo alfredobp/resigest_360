@@ -30,7 +30,7 @@ import { toast } from '@/context/ToastContext';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import { Modal, ConfirmModal } from '@/components/ui/modal';
-import { DataTable, type ColumnDef } from '@/components/ui/table';
+import { DataTable, DataTableActionButton, type ColumnDef } from '@/components/ui/table';
 import LerSelector from '@/components/residuos/LerSelector';
 import { useTenant } from '@/context/TenantContext';
 
@@ -461,13 +461,11 @@ export default function ArchivoCronologicoPage() {
       headerClassName: 'text-center',
       className: 'text-center whitespace-nowrap',
       cell: ({ row }) => !row.identification_document_id ? (
-        <button
-          onClick={() => handleDeleteEntry(row.id)}
+        <DataTableActionButton
+          action="delete"
           title="Eliminar asiento manual"
-          className="text-xs text-red-600 hover:underline font-medium"
-        >
-          Eliminar
-        </button>
+          onClick={() => handleDeleteEntry(row.id)}
+        />
       ) : (
         <span className="text-[10px] text-gray-400" title="Asiento protegido vinculado a DI oficial">
           Sincronizado

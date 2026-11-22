@@ -7,7 +7,7 @@ import Button from '@/components/ui/button/Button';
 import Input from '@/components/form/input/InputField';
 import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
-import { DataTable, type ColumnDef } from '@/components/ui/table/DataTable';
+import { DataTable, DataTableActionButton, type ColumnDef } from '@/components/ui/table';
 import { toast } from '@/context/ToastContext';
 import { useTenant } from '@/context/TenantContext';
 import CompanyAuditModal from '@/components/admin/CompanyAuditModal';
@@ -432,56 +432,43 @@ const companyColumns = useMemo<ColumnDef<PlatformCompanyRecord>[]>(() => [
         {c.is_my_company && c.activo !== false && (
           delegationsMap[c.id]?.is_active ? (
             <>
-              <Button size="sm" onClick={() => handleActOnBehalf(c)} className="text-xs">
-                {activeCompanyId === c.id ? 'Activa' : 'Actuar'}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
+              <DataTableActionButton
+                action="act"
+                label={activeCompanyId === c.id ? 'Activa' : 'Actuar'}
+                onClick={() => handleActOnBehalf(c)}
+              />
+              <DataTableActionButton
+                action="revoke"
                 onClick={() => setRevokingCompany(c)}
-                className="text-xs text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900/60"
-              >
-                Revocar
-              </Button>
+              />
             </>
           ) : (
-            <Button
-              size="sm"
-              variant="outline"
+            <DataTableActionButton
+              action="delegate"
               onClick={() => handleOpenDelegateModal(c)}
-              className="text-xs"
-            >
-              Delegar
-            </Button>
+            />
           )
         )}
         {c.is_my_company && (
           c.activo !== false ? (
-            <Button
-              size="sm"
-              variant="outline"
+            <DataTableActionButton
+              action="block"
               onClick={() => {
                 setBlockingCompany(c);
                 setBlockReason('');
               }}
-              className="text-xs text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900/60"
-            >
-              Bloquear
-            </Button>
+            />
           ) : (
-            <Button
-              size="sm"
-              variant="outline"
+            <DataTableActionButton
+              action="activate"
               onClick={() => setActivatingCompany(c)}
-              className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50 dark:border-emerald-900/60"
-            >
-              Activar
-            </Button>
+            />
           )
         )}
-        <Button size="sm" variant="outline" onClick={() => handleOpenAudit(c.id)} className="text-xs">
-          Auditar
-        </Button>
+        <DataTableActionButton
+          action="audit"
+          onClick={() => handleOpenAudit(c.id)}
+        />
       </div>
     ),
   },

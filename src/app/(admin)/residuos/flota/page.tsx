@@ -6,7 +6,7 @@ import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
-import { DataTable, type ColumnDef } from '@/components/ui/table';
+import { DataTable, DataTableActionButton, type ColumnDef } from '@/components/ui/table';
 import { toast } from '@/context/ToastContext';
 import { useTenant } from '@/context/TenantContext';
 import fleetService from '@/services/fleetService';
@@ -29,12 +29,8 @@ import {
   Truck,
   User,
   Plus,
-  Copy,
   AlertTriangle,
   ShieldCheck,
-  Pencil,
-  Trash2,
-  Power,
 } from 'lucide-react';
 
 function ExpiryBadge({ label, date }: { label: string; date?: string | null }) {
@@ -305,43 +301,35 @@ function FlotaHubContent() {
         className: 'text-right',
         cell: ({ row }) => (
           <div className="inline-flex items-center justify-end gap-1">
-            <button
-              type="button"
-              onClick={() => handleCopyText(formatDriverQuickCopy(row), `Ficha de ${row.nombre}`)}
-              className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            <DataTableActionButton
+              action="copy"
+              iconOnly
               title="Copiar ficha completa"
-            >
-              <Copy className="w-4 h-4" />
-            </button>
+              onClick={() => handleCopyText(formatDriverQuickCopy(row), `Ficha de ${row.nombre}`)}
+            />
             {canWrite && (
               <>
-                <button
-                  type="button"
+                <DataTableActionButton
+                  action="edit"
+                  iconOnly
+                  title="Editar conductor"
                   onClick={() => {
                     setSelectedDriver(row);
                     setDriverModalOpen(true);
                   }}
-                  className="p-1.5 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition"
-                  title="Editar conductor"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleToggleDriver(row)}
-                  className="p-1.5 rounded-lg text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition"
+                />
+                <DataTableActionButton
+                  action="toggle"
+                  iconOnly
                   title={row.activo ? 'Desactivar conductor' : 'Reactivar conductor'}
-                >
-                  <Power className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDriverToDelete(row)}
-                  className="p-1.5 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                  onClick={() => handleToggleDriver(row)}
+                />
+                <DataTableActionButton
+                  action="delete"
+                  iconOnly
                   title="Eliminar conductor"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                  onClick={() => setDriverToDelete(row)}
+                />
               </>
             )}
           </div>
@@ -430,43 +418,35 @@ function FlotaHubContent() {
         className: 'text-right',
         cell: ({ row }) => (
           <div className="inline-flex items-center justify-end gap-1">
-            <button
-              type="button"
-              onClick={() => handleCopyText(formatVehicleQuickCopy(row), `Ficha de ${row.matricula}`)}
-              className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            <DataTableActionButton
+              action="copy"
+              iconOnly
               title="Copiar ficha completa"
-            >
-              <Copy className="w-4 h-4" />
-            </button>
+              onClick={() => handleCopyText(formatVehicleQuickCopy(row), `Ficha de ${row.matricula}`)}
+            />
             {canWrite && (
               <>
-                <button
-                  type="button"
+                <DataTableActionButton
+                  action="edit"
+                  iconOnly
+                  title="Editar vehículo"
                   onClick={() => {
                     setSelectedVehicle(row);
                     setVehicleModalOpen(true);
                   }}
-                  className="p-1.5 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition"
-                  title="Editar vehículo"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleToggleVehicle(row)}
-                  className="p-1.5 rounded-lg text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition"
+                />
+                <DataTableActionButton
+                  action="toggle"
+                  iconOnly
                   title={row.activo ? 'Desactivar vehículo' : 'Reactivar vehículo'}
-                >
-                  <Power className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVehicleToDelete(row)}
-                  className="p-1.5 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                  onClick={() => handleToggleVehicle(row)}
+                />
+                <DataTableActionButton
+                  action="delete"
+                  iconOnly
                   title="Eliminar vehículo"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                  onClick={() => setVehicleToDelete(row)}
+                />
               </>
             )}
           </div>

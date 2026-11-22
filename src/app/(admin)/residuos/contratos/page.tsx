@@ -7,7 +7,7 @@ import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
 import { ConfirmModal } from '@/components/ui/modal';
-import { DataTable, type ColumnDef } from '@/components/ui/table';
+import { DataTable, DataTableActionButton, type ColumnDef } from '@/components/ui/table';
 import { toast } from '@/context/ToastContext';
 import { useTenant } from '@/context/TenantContext';
 import NuevoContratoModal from '@/components/residuos/NuevoContratoModal';
@@ -15,7 +15,7 @@ import wasteContractService, { getContractEffectiveStatus } from '@/services/was
 import companyService from '@/services/companyService';
 import type { WasteContract, Company } from '@/types/wasteManagement';
 import { generateContractPDF } from '@/lib/pdfUtils';
-import { MoreHorizontal, FileDown, CheckCircle2, Archive, Trash2, Loader2 } from 'lucide-react';
+import { FileDown, CheckCircle2, Archive, Trash2 } from 'lucide-react';
 
 const STATUS_COLORS = {
   borrador: 'info',
@@ -305,17 +305,13 @@ export default function ContratosPage() {
           const isDownloadingThis = downloadingId === row.id;
           return (
             <div className="inline-flex items-center justify-end gap-1">
-              <Button
-                variant="outline"
-                size="sm"
+              <DataTableActionButton
+                action="view"
                 onClick={() => router.push(`/residuos/contratos/${row.id}`)}
-                className="text-[11px] py-1 px-2.5 h-auto"
-              >
-                Ver
-              </Button>
-              <button
-                type="button"
-                disabled={isDownloadingThis}
+              />
+              <DataTableActionButton
+                action="more"
+                loading={isDownloadingThis}
                 aria-label={`Más acciones para contrato ${row.numero_contrato || row.id}`}
                 aria-haspopup="menu"
                 aria-expanded={actionMenu?.contract.id === row.id}
@@ -334,14 +330,7 @@ export default function ContratosPage() {
                   const right = Math.max(8, window.innerWidth - rect.right);
                   setActionMenu({ contract: row, top, right });
                 }}
-                className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
-              >
-                {isDownloadingThis ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-600" />
-                ) : (
-                  <MoreHorizontal className="w-4 h-4" />
-                )}
-              </button>
+              />
             </div>
           );
         },

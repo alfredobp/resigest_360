@@ -20,8 +20,8 @@ import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import { decaService } from '@/services/decaService';
 import { validateRequired, validateCIF, scrollToFirstError } from '@/lib/validations/formValidation';
-import { Truck, X, AlertTriangle, FilePlus, Table as TableIcon, LayoutGrid, Copy, MoreHorizontal, Send, Trash2, Loader2 } from 'lucide-react';
-import { DataTable, type ColumnDef } from '@/components/ui/table';
+import { Truck, X, AlertTriangle, FilePlus, Table as TableIcon, LayoutGrid, Copy, Send, Trash2 } from 'lucide-react';
+import { DataTable, DataTableActionButton, type ColumnDef } from '@/components/ui/table';
 import type { IdentificationDocument, Company, ProductionCenter } from '@/types/wasteManagement';
 import type { DecaDocument } from '@/types/deca';
 
@@ -474,19 +474,15 @@ export default function DocumentosIdentificacionPage() {
 
         return (
           <div className="inline-flex items-center gap-1 justify-end">
-            <Button
-              variant="outline"
-              size="sm"
+            <DataTableActionButton
+              action="view"
               onClick={() => router.push(`/residuos/documentos-identificacion/${row.id}`)}
-              className="text-[11px] py-1 px-2.5 h-auto"
-            >
-              Ver
-            </Button>
+            />
 
             {hasSecondaryActions && (
-              <button
-                type="button"
-                disabled={isSendingThis}
+              <DataTableActionButton
+                action="more"
+                loading={isSendingThis}
                 aria-label={`Más acciones para DI ${row.numero_documento}`}
                 aria-haspopup="menu"
                 aria-expanded={actionMenu?.doc.id === row.id}
@@ -505,14 +501,7 @@ export default function DocumentosIdentificacionPage() {
                   const right = Math.max(8, window.innerWidth - rect.right);
                   setActionMenu({ doc: row, top, right });
                 }}
-                className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
-              >
-                {isSendingThis ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-600" />
-                ) : (
-                  <MoreHorizontal className="w-4 h-4" />
-                )}
-              </button>
+              />
             )}
           </div>
         );
