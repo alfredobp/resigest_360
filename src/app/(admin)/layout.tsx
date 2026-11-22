@@ -8,6 +8,7 @@ import type { AppModule } from "@/types/wasteManagement";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
+import LegalAssistantWidget from "@/components/assistant/LegalAssistantWidget";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, Suspense } from "react";
@@ -151,6 +152,8 @@ export default function AdminLayout({
         {/* Page Content */}
         <div className="p-4 mx-auto max-w-[1520px] md:p-6">{children}</div>
       </div>
+      {/* Asistente Legal RAG flotante */}
+      <LegalAssistantWidget />
     </div>
   );
 }

@@ -86,6 +86,10 @@ module.exports = {
     'src/lib/validations/treatmentOperations.ts',
     'src/lib/ui/tipsPreference.ts',
     'src/lib/diCenterFilter.ts',
+    'src/lib/validations/legalAssistant.ts',
+    'src/services/legalAssistantService.ts',
+    'src/app/api/assistant/legal/route.ts',
+    'src/app/api/assistant/legal/feedback/route.ts',
     '!src/**/*.d.ts',
   ],
   coverageReporters: ['text', 'lcov', 'clover'],
@@ -421,6 +425,30 @@ module.exports = {
       statements: 80
     },
     './src/lib/diCenterFilter.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/lib/validations/legalAssistant.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/services/legalAssistantService.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/app/api/assistant/legal/route.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/app/api/assistant/legal/feedback/route.ts': {
       branches: 80,
       functions: 80,
       lines: 80,
