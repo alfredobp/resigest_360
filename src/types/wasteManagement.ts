@@ -389,6 +389,9 @@ export interface Company {
   // Firma electrónica con Certificado Digital (AutoFirma / PAdES)
   firma_electronica_activa?: boolean;
 
+  // Preferencias de interfaz (false = modo simplificado por defecto)
+  mostrar_ayudas_ui?: boolean;
+
   // Relaciones
   production_centers?: ProductionCenter[];
 }
@@ -484,6 +487,9 @@ export interface CompanyFormData {
 
   // Firma electrónica con Certificado Digital (AutoFirma / PAdES)
   firma_electronica_activa?: boolean;
+
+  // Preferencias de interfaz (false = modo simplificado por defecto)
+  mostrar_ayudas_ui?: boolean;
 }
 
 // =====================================================

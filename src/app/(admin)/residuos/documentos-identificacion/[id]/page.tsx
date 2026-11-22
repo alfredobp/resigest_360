@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
+import UiTip from '@/components/common/UiTip';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
@@ -896,9 +897,11 @@ return (
             <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex-1">
                 <p className="font-semibold">Atención: Desviación detectada por control de calidad ({tracking.discrepancyMessage})</p>
-                <p className="opacity-90 mt-0.5">
-                  ResiGest 360 aplica un umbral interno del 5% o 200 kg para detectar anomalías operativas. Conforme al Art. 6 del RD 553/2020, las divergencias entre el peso estimado en origen y el verificado en destino deben quedar justificadas documentalmente en el DI para la inspección ambiental.
-                </p>
+                <UiTip>
+                  <p className="opacity-90 mt-0.5">
+                    ResiGest 360 aplica un umbral interno del 5% o 200 kg para detectar anomalías operativas. Conforme al Art. 6 del RD 553/2020, las divergencias entre el peso estimado en origen y el verificado en destino deben quedar justificadas documentalmente en el DI para la inspección ambiental.
+                  </p>
+                </UiTip>
               </div>
               <button
                 type="button"
@@ -1674,9 +1677,11 @@ return (
         <div className="border-b pb-3 border-gray-200 dark:border-gray-800">
           <h3 className="text-lg font-bold text-foreground">Iniciar Traslado / Registro de Salida</h3>
         </div>
-        <p className="text-xs text-muted">
-          Registre la salida efectiva del centro productor acreditando contrato previo vigente (o contrato externo) y datos del transporte (arts. 5 y 6 RD 553/2020).
-        </p>
+        <UiTip>
+          <p className="text-xs text-muted">
+            Registre la salida efectiva del centro productor acreditando contrato previo vigente (o contrato externo) y datos del transporte (arts. 5 y 6 RD 553/2020).
+          </p>
+        </UiTip>
 
         {modalActionError && (
           <Alert variant="error" title="Validación de Salida" message={modalActionError} />
@@ -1915,9 +1920,11 @@ return (
               <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
                 Desviación de pesaje detectada por control de calidad ({tracking.discrepancyMessage || 'margen 5% o 200 kg'})
               </p>
-              <p className="text-xs text-amber-800/90 dark:text-amber-300/90">
-                ResiGest 360 monitoriza divergencias de pesaje para la trazabilidad exigida por el Art. 6 del RD 553/2020. Puede justificar la causa ahora o más tarde desde la ficha del DI.
-              </p>
+              <UiTip>
+                <p className="text-xs text-amber-800/90 dark:text-amber-300/90">
+                  ResiGest 360 monitoriza divergencias de pesaje para la trazabilidad exigida por el Art. 6 del RD 553/2020. Puede justificar la causa ahora o más tarde desde la ficha del DI.
+                </p>
+              </UiTip>
               <div>
                 <label className="block text-xs text-muted mb-1">Causa de la discrepancia</label>
                 <select

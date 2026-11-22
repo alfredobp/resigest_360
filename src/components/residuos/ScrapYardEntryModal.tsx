@@ -8,6 +8,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from '@/components/ui/modal';
+import UiTip from '@/components/common/UiTip';
 import Input from '@/components/form/input/InputField';
 import Label from '@/components/form/Label';
 import Button from '@/components/ui/button/Button';
@@ -212,9 +213,11 @@ export default function ScrapYardEntryModal({
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                 Nueva Entrada (Báscula / Recepción)
               </h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                Recepción multimaterial y compraventa en báscula de chatarrería (RD 553/2020 & Art. 64 Ley 7/2022).
-              </p>
+              <UiTip>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Recepción multimaterial y compraventa en báscula de chatarrería (RD 553/2020 & Art. 64 Ley 7/2022).
+                </p>
+              </UiTip>
             </div>
           </div>
           <div className="text-right">

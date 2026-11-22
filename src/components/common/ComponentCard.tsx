@@ -1,10 +1,15 @@
+'use client';
+
 import React from "react";
+import { useTenant } from "@/context/TenantContext";
+import { shouldRenderUiHint } from "@/lib/ui/tipsPreference";
 
 interface ComponentCardProps {
   title?: string;
   children: React.ReactNode;
   className?: string; // Additional custom classes for styling
   desc?: string; // Description text
+  alwaysShowDesc?: boolean;
 }
 
 const ComponentCard: React.FC<ComponentCardProps> = ({
@@ -12,8 +17,11 @@ const ComponentCard: React.FC<ComponentCardProps> = ({
   children,
   className = "",
   desc = "",
+  alwaysShowDesc = false,
 }) => {
-  const hasHeader = Boolean(title?.trim() || desc?.trim());
+  const { showUiTips } = useTenant();
+  const visibleDesc = desc?.trim() && shouldRenderUiHint(showUiTips, alwaysShowDesc) ? desc : "";
+  const hasHeader = Boolean(title?.trim() || visibleDesc);
 
   return (
     <div
@@ -27,9 +35,9 @@ const ComponentCard: React.FC<ComponentCardProps> = ({
               {title}
             </h3>
           )}
-          {desc && (
+          {visibleDesc && (
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              {desc}
+              {visibleDesc}
             </p>
           )}
         </div>

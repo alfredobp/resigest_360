@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
+import UiTip from '@/components/common/UiTip';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
@@ -421,36 +422,38 @@ export default function IntegracionesAuditoriaPage() {
               </div>
 
               {/* Guía Operativa de Enlace Holded */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-2">
-                  <div className="text-emerald-800 dark:text-emerald-300 font-bold text-sm">
-                    <span>Facturación desde Operaciones Comerciales</span>
+              <UiTip>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-2">
+                    <div className="text-emerald-800 dark:text-emerald-300 font-bold text-sm">
+                      <span>Facturación desde Operaciones Comerciales</span>
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                      Las operaciones del Bloque 6 (Negociante y Agente) disponen del botón <strong>Emitir Factura Holded</strong>. 
+                      Al pulsarlo, RESIGEST crea la factura oficial de venta en Holded, vincula el cliente automáticamente y guarda el número de factura en la ficha de la operación.
+                    </p>
+                    <div className="pt-2">
+                      <Link href="/residuos/operaciones" className="text-emerald-700 dark:text-emerald-400 font-bold text-xs hover:underline inline-flex items-center gap-1">
+                        Ir a Operaciones Comerciales →
+                      </Link>
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                    Las operaciones del Bloque 6 (Negociante y Agente) disponen del botón <strong>Emitir Factura Holded</strong>. 
-                    Al pulsarlo, RESIGEST crea la factura oficial de venta en Holded, vincula el cliente automáticamente y guarda el número de factura en la ficha de la operación.
-                  </p>
-                  <div className="pt-2">
-                    <Link href="/residuos/operaciones" className="text-emerald-700 dark:text-emerald-400 font-bold text-xs hover:underline inline-flex items-center gap-1">
-                      Ir a Operaciones Comerciales →
-                    </Link>
-                  </div>
-                </div>
 
-                <div className="p-4 rounded-xl border border-blue-100 dark:border-blue-900/40 bg-blue-50/40 dark:bg-blue-950/20 space-y-2">
-                  <div className="text-blue-800 dark:text-blue-300 font-bold text-sm">
-                    <span>Sincronización de Contactos y Gestores</span>
-                  </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                    Los gestores y transportistas dados de alta en el maestro único pueden sincronizarse con el directorio de contactos de Holded conservando su CIF, dirección fiscal y NIMA.
-                  </p>
-                  <div className="pt-2">
-                    <Link href="/residuos/empresas" className="text-blue-700 dark:text-blue-400 font-bold text-xs hover:underline inline-flex items-center gap-1">
-                      Gestionar Directorio de Empresas →
-                    </Link>
+                  <div className="p-4 rounded-xl border border-blue-100 dark:border-blue-900/40 bg-blue-50/40 dark:bg-blue-950/20 space-y-2">
+                    <div className="text-blue-800 dark:text-blue-300 font-bold text-sm">
+                      <span>Sincronización de Contactos y Gestores</span>
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                      Los gestores y transportistas dados de alta en el maestro único pueden sincronizarse con el directorio de contactos de Holded conservando su CIF, dirección fiscal y NIMA.
+                    </p>
+                    <div className="pt-2">
+                      <Link href="/residuos/empresas" className="text-blue-700 dark:text-blue-400 font-bold text-xs hover:underline inline-flex items-center gap-1">
+                        Gestionar Directorio de Empresas →
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </UiTip>
             </div>
           </ComponentCard>
         )}

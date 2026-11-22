@@ -1,6 +1,10 @@
+'use client';
+
 import Link from "next/link";
 import React from "react";
 import { ChevronRight } from "lucide-react";
+import { useTenant } from "@/context/TenantContext";
+import { shouldRenderUiHint } from "@/lib/ui/tipsPreference";
 
 interface BreadcrumbProps {
   pageTitle: string;
@@ -9,6 +13,8 @@ interface BreadcrumbProps {
   badge?: React.ReactNode;
   actions?: React.ReactNode;
   className?: string;
+  alwaysShowSubtitle?: boolean;
+  alwaysShowBadge?: boolean;
 }
 
 const PageBreadcrumb: React.FC<BreadcrumbProps> = ({
@@ -18,7 +24,12 @@ const PageBreadcrumb: React.FC<BreadcrumbProps> = ({
   badge,
   actions,
   className = "",
+  alwaysShowSubtitle = false,
+  alwaysShowBadge = false,
 }) => {
+  const { showUiTips } = useTenant();
+  const visibleSubtitle = subtitle && shouldRenderUiHint(showUiTips, alwaysShowSubtitle) ? subtitle : undefined;
+  const visibleBadge = badge && shouldRenderUiHint(showUiTips, alwaysShowBadge) ? badge : undefined;
   const hasUnifiedHeader = Boolean(title || subtitle || badge || actions);
   const heading = title || pageTitle;
 
@@ -56,11 +67,11 @@ const PageBreadcrumb: React.FC<BreadcrumbProps> = ({
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
             {heading}
           </h1>
-          {badge}
+          {visibleBadge}
         </div>
-        {subtitle && (
+        {visibleSubtitle && (
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            {subtitle}
+            {visibleSubtitle}
           </p>
         )}
       </div>

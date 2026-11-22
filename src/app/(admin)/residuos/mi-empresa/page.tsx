@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import PageSkeleton from '@/components/common/PageSkeleton';
 import ComponentCard from '@/components/common/ComponentCard';
+import UiTip from '@/components/common/UiTip';
 import { Tabs } from '@/components/ui/tabs/Tabs';
 import { ArrowRight } from 'lucide-react';
 import Input from '@/components/form/input/InputField';
@@ -139,6 +140,7 @@ export default function MiEmpresaPage() {
     sira_activo: false,
     holded_api_key: '',
     firma_electronica_activa: false,
+    mostrar_ayudas_ui: false,
   });
 
   useEffect(() => {
@@ -195,6 +197,7 @@ export default function MiEmpresaPage() {
           sira_activo: data.sira_activo || false,
           holded_api_key: data.holded_api_key || '',
           firma_electronica_activa: Boolean(data.firma_electronica_activa),
+          mostrar_ayudas_ui: Boolean(data.mostrar_ayudas_ui),
         });
 
         const [centers, auths] = await Promise.all([
@@ -516,23 +519,25 @@ export default function MiEmpresaPage() {
           (formData.tipo_empresa === 'transportista' ||
             formData.roles?.includes('transportista') ||
             company.roles?.includes('transportista')) && (
-            <div className="mb-6 p-4 rounded-xl border border-sky-200 bg-sky-50/70 dark:bg-sky-950/25 dark:border-sky-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h4 className="font-semibold text-sky-900 dark:text-sky-200 text-sm">
-                  Mi Flota: Conductores y Vehículos
-                </h4>
-                <p className="text-xs text-sky-700 dark:text-sky-300 mt-0.5">
-                  Da de alta tus conductores (DNI, ADR, CAP) y vehículos (matrículas, ITV, seguro) para autorrellenar DeCA y DI al instante.
-                </p>
+            <UiTip>
+              <div className="mb-6 p-4 rounded-xl border border-sky-200 bg-sky-50/70 dark:bg-sky-950/25 dark:border-sky-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="font-semibold text-sky-900 dark:text-sky-200 text-sm">
+                    Mi Flota: Conductores y Vehículos
+                  </h4>
+                  <p className="text-xs text-sky-700 dark:text-sky-300 mt-0.5">
+                    Da de alta tus conductores (DNI, ADR, CAP) y vehículos (matrículas, ITV, seguro) para autorrellenar DeCA y DI al instante.
+                  </p>
+                </div>
+                <a
+                  href="/residuos/flota"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-md bg-brand-500 text-white hover:bg-brand-600 transition-colors shadow-xs whitespace-nowrap"
+                >
+                  <span>Gestionar Mi Flota</span>
+                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                </a>
               </div>
-              <a
-                href="/residuos/flota"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-md bg-brand-500 text-white hover:bg-brand-600 transition-colors shadow-xs whitespace-nowrap"
-              >
-                <span>Gestionar Mi Flota</span>
-                <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-              </a>
-            </div>
+            </UiTip>
           )}
 
         {/* Navegación por Pestañas sobria */}
@@ -688,9 +693,11 @@ export default function MiEmpresaPage() {
                           />
                         </div>
                       )}
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">
-                        2 dígitos de provincia INE + 8 dígitos correlativos requeridos por SIRA.
-                      </p>
+                      <UiTip>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">
+                          2 dígitos de provincia INE + 8 dígitos correlativos requeridos por SIRA.
+                        </p>
+                      </UiTip>
                     </div>
                   </div>
 
@@ -778,9 +785,11 @@ export default function MiEmpresaPage() {
                       onChange={handleLogoUpload}
                       folder="company-logos"
                     />
-                    <p className="mt-1.5 text-xs text-muted">
-                      El logo aparecerá en los contratos y documentos generados.
-                    </p>
+                    <UiTip>
+                      <p className="mt-1.5 text-xs text-muted">
+                        El logo aparecerá en los contratos y documentos generados.
+                      </p>
+                    </UiTip>
                   </div>
 
                   <div>
@@ -813,9 +822,11 @@ export default function MiEmpresaPage() {
                         </option>
                       ))}
                     </select>
-                    <p className="text-xs text-muted-foreground mt-1.5">
-                      Cambiar de perfil ajusta los módulos activos por defecto recomendados para tu actividad.
-                    </p>
+                    <UiTip>
+                      <p className="text-xs text-muted-foreground mt-1.5">
+                        Cambiar de perfil ajusta los módulos activos por defecto recomendados para tu actividad.
+                      </p>
+                    </UiTip>
                   </div>
 
                   <div>
@@ -851,6 +862,39 @@ export default function MiEmpresaPage() {
                         );
                       })}
                     </div>
+                  </div>
+                </div>
+              </ComponentCard>
+
+              {/* Preferencias de Interfaz */}
+              <ComponentCard title="Preferencias de Interfaz">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-1">
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+                      Mostrar tips, coletillas normativas e instrucciones
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      En modo simplificado (por defecto) se ocultan subtítulos explicativos, badges legales de cabecera y cajas de ayuda para ofrecer una vista más limpia.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-muted">Simplificado</span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        disabled={!canManageCompany}
+                        checked={Boolean(formData.mostrar_ayudas_ui)}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            mostrar_ayudas_ui: e.target.checked,
+                          }))
+                        }
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-primary peer-disabled:opacity-60" />
+                    </label>
+                    <span className="text-xs font-medium text-foreground">Con ayudas</span>
                   </div>
                 </div>
               </ComponentCard>
@@ -986,19 +1030,21 @@ export default function MiEmpresaPage() {
               <ComponentCard title="Integración Telemática e-SIR / SIRA (Protocolo E3L)">
                 <div className="space-y-4">
                   <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 leading-relaxed space-y-1.5">
-                    <div className="font-semibold text-slate-900 dark:text-white">
-                      Enrutado automático según ubicación de la instalación (RD 553/2020)
-                    </div>
-                    <p>
-                      ResiGest 360 detecta automáticamente la plataforma oficial correspondiente en función de la provincia/NIMA de cada centro: <strong>SIRA</strong> en Andalucía y <strong>e-SIR (MITECO)</strong> en las Comunidades Autónomas adheridas.
-                    </p>
+                    <UiTip>
+                      <div className="font-semibold text-slate-900 dark:text-white">
+                        Enrutado automático según ubicación de la instalación (RD 553/2020)
+                      </div>
+                      <p>
+                        ResiGest 360 detecta automáticamente la plataforma oficial correspondiente en función de la provincia/NIMA de cada centro: <strong>SIRA</strong> en Andalucía y <strong>e-SIR (MITECO)</strong> en las Comunidades Autónomas adheridas.
+                      </p>
+                    </UiTip>
                     {(() => {
                       const detected = resolveTelematicPlatform({
                         province: formData.provincia_instalacion || formData.provincia_social,
                         nima: formData.nima,
                       });
                       return (
-                        <div className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-semibold ${detected.supported
+                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-semibold ${detected.supported
                             ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
                             : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
                           }`}>
@@ -1063,9 +1109,11 @@ export default function MiEmpresaPage() {
               {/* Configuración Holded */}
               <ComponentCard title="Integración con Holded">
                 <div className="space-y-4">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Sincroniza tus contactos (gestores y transportistas) y automatiza la creación de facturas.
-                  </p>
+                  <UiTip>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Sincroniza tus contactos (gestores y transportistas) y automatiza la creación de facturas.
+                    </p>
+                  </UiTip>
 
                   <div>
                     <label className="block text-sm font-medium mb-2">API Key de Holded</label>
@@ -1082,14 +1130,16 @@ export default function MiEmpresaPage() {
               {/* Firma Electrónica con Certificado Digital (AutoFirma / PAdES) */}
               <ComponentCard title="Firma Electrónica con Certificado Digital (AutoFirma / PAdES)">
                 <div className="space-y-4">
-                  <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 leading-relaxed space-y-1.5">
-                    <div className="font-semibold text-slate-900 dark:text-white">
-                      Firma criptográfica oficial PAdES-BES (FNMT, Camerfirma o DNIe)
+                  <UiTip>
+                    <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 leading-relaxed space-y-1.5">
+                      <div className="font-semibold text-slate-900 dark:text-white">
+                        Firma criptográfica oficial PAdES-BES (FNMT, Camerfirma o DNIe)
+                      </div>
+                      <p>
+                        Al activar esta opción se mostrará el bloque de firma electrónica con AutoFirma en Contratos de Tratamiento y Documentos de Identificación (DI), conviviendo con la firma manuscrita actual. El certificado nunca sale del equipo del usuario.
+                      </p>
                     </div>
-                    <p>
-                      Al activar esta opción se mostrará el bloque de firma electrónica con AutoFirma en Contratos de Tratamiento y Documentos de Identificación (DI), conviviendo con la firma manuscrita actual. El certificado nunca sale del equipo del usuario.
-                    </p>
-                  </div>
+                  </UiTip>
 
                   <div className="flex items-center justify-between py-2">
                     <div>

@@ -8,6 +8,7 @@ import productionCenterService from '@/services/productionCenterService';
 import { type Company, type TipoMemoria, type ProductionCenter } from '@/types/wasteManagement';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
+import UiTip from '@/components/common/UiTip';
 import Alert from '@/components/ui/alert/Alert';
 import Button from '@/components/ui/button/Button';
 import { Check } from 'lucide-react';
@@ -166,11 +167,13 @@ export default function NuevaMemoriaPage() {
       )}
 
       {/* Información importante */}
-      <Alert
-        variant="info"
-        title="Información importante"
-        message="La memoria anual se generará automáticamente a partir de todos los documentos de identificación completados durante el año seleccionado. Asegúrate de que todos los documentos de identificación del año estén completados y firmados."
-      />
+      <UiTip>
+        <Alert
+          variant="info"
+          title="Información importante"
+          message="La memoria anual se generará automáticamente a partir de todos los documentos de identificación completados durante el año seleccionado. Asegúrate de que todos los documentos de identificación del año estén completados y firmados."
+        />
+      </UiTip>
 
       {/* Formulario */}
       <form onSubmit={handleSubmit} noValidate>

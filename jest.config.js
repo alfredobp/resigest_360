@@ -84,6 +84,7 @@ module.exports = {
     'src/app/api/pdf/signed/[id]/route.ts',
     'src/app/api/public/sign-contract-pades/route.ts',
     'src/lib/validations/treatmentOperations.ts',
+    'src/lib/ui/tipsPreference.ts',
     '!src/**/*.d.ts',
   ],
   coverageReporters: ['text', 'lcov', 'clover'],
@@ -407,6 +408,12 @@ module.exports = {
       statements: 80
     },
     './src/lib/validations/treatmentOperations.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/lib/ui/tipsPreference.ts': {
       branches: 80,
       functions: 80,
       lines: 80,

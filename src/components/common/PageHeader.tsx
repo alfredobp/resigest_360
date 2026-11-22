@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import Button from '@/components/ui/button/Button';
+import { useTenant } from '@/context/TenantContext';
+import { shouldRenderUiHint } from '@/lib/ui/tipsPreference';
 
 export interface PageHeaderProps {
   title: string;
@@ -17,6 +19,8 @@ export interface PageHeaderProps {
   onBack?: () => void;
   actions?: React.ReactNode;
   className?: string;
+  alwaysShowDescription?: boolean;
+  alwaysShowBadge?: boolean;
 }
 
 const PageHeader: React.FC<PageHeaderProps> = ({
@@ -30,7 +34,15 @@ const PageHeader: React.FC<PageHeaderProps> = ({
   onBack,
   actions,
   className = '',
+  alwaysShowDescription = false,
+  alwaysShowBadge = false,
 }) => {
+  const { showUiTips } = useTenant();
+  const visibleDescription =
+    description && shouldRenderUiHint(showUiTips, alwaysShowDescription) ? description : undefined;
+  const visibleBadge =
+    badge && shouldRenderUiHint(showUiTips, alwaysShowBadge) ? badge : undefined;
+
   return (
     <div className={`flex flex-col sm:flex-row sm:items-start justify-between gap-3 ${className}`}>
       <div className="flex items-start sm:items-center gap-3 min-w-0">
@@ -60,11 +72,11 @@ const PageHeader: React.FC<PageHeaderProps> = ({
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white truncate">
               {title}
             </h1>
-            {badge}
+            {visibleBadge}
           </div>
-          {description && (
+          {visibleDescription && (
             <p className="mt-0.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-              {description}
+              {visibleDescription}
             </p>
           )}
         </div>

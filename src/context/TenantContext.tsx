@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { canAccessPath } from '@/lib/profiles/moduleCatalog';
+import { isUiTipsEnabled } from '@/lib/ui/tipsPreference';
 import { createClient } from '@/lib/supabase/client';
 import {
   tenantContextService,
@@ -28,6 +29,7 @@ interface TenantContextValue {
   activeDelegationExpiresAt: string | null;
   isAccountBlocked: boolean;
   blockedReason: string | null;
+  showUiTips: boolean;
   hasModule: (module: AppModule) => boolean;
   canAccessRoute: (path?: string) => boolean;
   switchCompany: (companyId: number) => Promise<void>;
@@ -154,6 +156,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         activeDelegationExpiresAt,
         isAccountBlocked: tenant?.isAccountBlocked ?? false,
         blockedReason: tenant?.blockedReason ?? null,
+        showUiTips: isUiTipsEnabled(tenant?.activeCompany),
         hasModule,
         canAccessRoute,
         switchCompany,
@@ -186,6 +189,7 @@ export const useTenant = (): TenantContextValue => {
       activeDelegationExpiresAt: null,
       isAccountBlocked: false,
       blockedReason: null,
+      showUiTips: false,
       hasModule: () => true,
       canAccessRoute: () => true,
       switchCompany: async () => { },

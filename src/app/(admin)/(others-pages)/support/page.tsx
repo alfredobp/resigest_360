@@ -424,6 +424,7 @@ export default function SupportPage() {
               <ComponentCard
                 title="Abrir Ticket de Soporte Técnico"
                 desc="Envíe su consulta o incidencia directamente a nuestro equipo de ingenieros de medio ambiente y soporte de Resigest 360."
+                alwaysShowDesc
               >
                 {ticketGenerated && (
                   <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
@@ -733,6 +734,7 @@ export default function SupportPage() {
           <ComponentCard
             title="1. Términos y Condiciones Generales de Uso del Servicio (SaaS)"
             desc="Marco general de uso de la plataforma Resigest 360 aplicable salvo pacto contractual expreso en contrario."
+            alwaysShowDesc
           >
             <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
               <p>
@@ -754,6 +756,7 @@ export default function SupportPage() {
           <ComponentCard
             title="2. Política de Privacidad y Protección de Datos (RGPD y LOPDGDD)"
             desc="Tratamiento de datos personales de acuerdo con el Reglamento (UE) 2016/679 (RGPD) y la Ley Orgánica 3/2018 (LOPDGDD)."
+            alwaysShowDesc
           >
             <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
               <p>
@@ -775,6 +778,7 @@ export default function SupportPage() {
           <ComponentCard
             title="3. Responsabilidad Medioambiental y Validez de las Declaraciones"
             desc="Régimen de responsabilidad sobre los traslados y exactitud de la información técnica declarada."
+            alwaysShowDesc
           >
             <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
               <p>
@@ -793,6 +797,7 @@ export default function SupportPage() {
           <ComponentCard
             title="4. Medidas de Seguridad, Cifrado y Copias de Seguridad"
             desc="Garantías técnicas de confidencialidad, integridad y disponibilidad de la información."
+            alwaysShowDesc
           >
             <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
               <p>
