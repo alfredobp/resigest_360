@@ -47,104 +47,131 @@ const adminNavItems: NavItem[] = [
   },
 ];
 
-const navItems: NavItem[] = [
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
+const navGroups: NavGroup[] = [
   {
-    icon: <GridIcon />,
-    name: "Dashboard",
-    path: "/app",
+    label: "Operativa",
+    items: [
+      {
+        icon: <GridIcon />,
+        name: "Dashboard",
+        path: "/app",
+      },
+      {
+        icon: (
+          <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+        ),
+        name: "Vista Conductor (Móvil)",
+        path: "/transporte",
+      },
+      {
+        icon: <PaperPlaneIcon />,
+        name: "Documentos de Identificación",
+        path: "/residuos/documentos-identificacion",
+      },
+      {
+        icon: (
+          <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        ),
+        name: "Notificaciones Previas (NT)",
+        path: "/residuos/notificaciones-previas",
+      },
+      {
+        icon: (
+          <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 17a2 2 0 100 4 2 2 0 000-4zm10 0a2 2 0 100 4 2 2 0 000-4zM3 4h11v11H3V4zm11 4h4l3 3v4h-7V8z" />
+          </svg>
+        ),
+        name: "Control DeCA",
+        path: "/residuos/deca",
+      },
+      {
+        icon: <DollarLineIcon />,
+        name: "Operaciones Comerciales",
+        path: "/residuos/operaciones",
+      },
+    ],
   },
   {
-    icon: (
-      <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-      </svg>
-    ),
-    name: "Vista Conductor (Móvil)",
-    path: "/transporte",
+    label: "Cumplimiento y Registros",
+    items: [
+      {
+        icon: <HorizontaLDots />,
+        name: "Contratos",
+        path: "/residuos/contratos",
+      },
+      {
+        icon: <ListIcon />,
+        name: "Archivo Cronológico",
+        path: "/residuos/archivo-cronologico",
+      },
+      {
+        icon: <TableIcon />,
+        name: "Memorias Anuales",
+        path: "/residuos/memorias-anuales",
+      },
+    ],
   },
   {
-    icon: <DocsIcon />,
-    name: "Mi Empresa",
-    path: "/residuos/mi-empresa"
+    label: "Red y Maestros",
+    items: [
+      {
+        icon: <DocsIcon />,
+        name: "Mi Empresa",
+        path: "/residuos/mi-empresa",
+      },
+      {
+        icon: <UserCircleIcon />,
+        name: "Empresas y Contactos",
+        path: "/residuos/empresas",
+      },
+      {
+        icon: <TaskIcon />,
+        name: "Gestores",
+        path: "/residuos/gestores",
+      },
+      {
+        icon: (
+          <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        ),
+        name: "Mi Flota",
+        path: "/residuos/flota",
+      },
+      {
+        icon: <CalenderIcon />,
+        name: "Transportistas",
+        path: "/residuos/transportistas",
+      },
+    ],
   },
   {
-    icon: <UserCircleIcon />,
-    name: "Empresas y Contactos",
-    path: "/residuos/empresas"
-  },
-  {
-    icon: <HorizontaLDots />,
-    name: "Contratos",
-    path: "/residuos/contratos"
-  },
-  {
-    icon: <TaskIcon />,
-    name: "Gestores",
-    path: "/residuos/gestores",
-  },
-  {
-    icon: (
-      <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    ),
-    name: "Mi Flota",
-    path: "/residuos/flota",
-  },
-  {
-    icon: <CalenderIcon />,
-    name: "Transportistas",
-    path: "/residuos/transportistas",
-  },
-  {
-    icon: (
-      <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 17a2 2 0 100 4 2 2 0 000-4zm10 0a2 2 0 100 4 2 2 0 000-4zM3 4h11v11H3V4zm11 4h4l3 3v4h-7V8z" />
-      </svg>
-    ),
-    name: "Control DeCA",
-    path: "/residuos/deca",
-  },
-  {
-    icon: (
-      <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>
-    ),
-    name: "Notificaciones Previas (NT)",
-    path: "/residuos/notificaciones-previas",
-  },
-  {
-    icon: <PaperPlaneIcon />,
-    name: "Documentos de Identificación",
-    path: "/residuos/documentos-identificacion",
-  },
-  {
-    icon: <DollarLineIcon />,
-    name: "Operaciones Comerciales",
-    path: "/residuos/operaciones",
-  },
-  {
-    icon: <ListIcon />,
-    name: "Archivo Cronológico",
-    path: "/residuos/archivo-cronologico",
-  },
-  {
-    icon: <TableIcon />,
-    name: "Memorias Anuales",
-    path: "/residuos/memorias-anuales",
-  },
-  {
-    icon: <PlugInIcon />,
-    name: "Integraciones y Auditoría",
-    path: "/residuos/integraciones",
-  },
-  {
-    icon: <InfoIcon />,
-    name: "Soporte y Manual",
-    path: "/support",
+    label: "Sistema",
+    items: [
+      {
+        icon: <PlugInIcon />,
+        name: "Integraciones y Auditoría",
+        path: "/residuos/integraciones",
+      },
+      {
+        icon: <InfoIcon />,
+        name: "Soporte y Manual",
+        path: "/support",
+      },
+    ],
   },
 ];
+
+const navItems: NavItem[] = navGroups.flatMap((g) => g.items);
 
 const othersItems: NavItem[] = [
   {
@@ -260,7 +287,7 @@ const AppSidebar: React.FC = () => {
     return () => {
       cancelled = true;
     };
-}, [tenantLoading, isAdminControlOnlyMode, activeCompanyId, isPlatformAdmin, canViewCommercial, pathname]);
+}, [tenantLoading, isAdminControlOnlyMode, activeCompanyId, isPlatformAdmin, canViewCommercial]);
 
 const checkMenuPathVisible = useCallback(
   (path?: string): boolean => {
@@ -443,8 +470,11 @@ const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>(
 );
 const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-// const isActive = (path: string) => path === pathname;
-const isActive = useCallback((path: string) => path === pathname, [pathname]);
+const isActive = useCallback(
+  (path: string) =>
+    pathname === path || (path !== "/app" && pathname.startsWith(`${path}/`)),
+  [pathname]
+);
 
 useEffect(() => {
   // Check if the current path matches any submenu item
@@ -551,20 +581,40 @@ return (
             )}
 
                     {!isAdminControlOnlyMode && (
-                      <div>
-                        <h2
-                          className={`mb-2 px-2.5 text-[10.5px] font-semibold uppercase tracking-wider flex leading-[18px] text-slate-400 dark:text-slate-500 ${!isExpanded && !isHovered
-                            ? "lg:justify-center"
-                            : "justify-start"
-                            }`}
-                        >
-                          {isExpanded || isHovered || isMobileOpen ? (
-                            isDelegated ? "Operativa Delegada" : "Navegación"
-                          ) : (
-                            <HorizontaLDots />
-                          )}
-                        </h2>
-                        {renderMenuItems(navItems, "main")}
+                      <div className="flex flex-col gap-4">
+                        {navGroups.map((group, groupIdx) => {
+                          const visibleItems = group.items.filter((nav) => {
+                            if (nav.path) return checkMenuPathVisible(nav.path);
+                            if (nav.subItems) return nav.subItems.some((s) => checkMenuPathVisible(s.path));
+                            return true;
+                          });
+                          if (visibleItems.length === 0) return null;
+                          const groupLabel =
+                            groupIdx === 0 && isDelegated ? `${group.label} · Delegada` : group.label;
+                          return (
+                            <div
+                              key={group.label}
+                              className={
+                                groupIdx > 0
+                                  ? "pt-3 border-t border-slate-100 dark:border-slate-800/70"
+                                  : ""
+                              }
+                            >
+                              <h2
+                                className={`mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-wider flex leading-[18px] text-slate-400 dark:text-slate-500 ${
+                                  !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
+                                }`}
+                              >
+                                {isExpanded || isHovered || isMobileOpen ? (
+                                  groupLabel
+                                ) : (
+                                  <HorizontaLDots />
+                                )}
+                              </h2>
+                              {renderMenuItems(visibleItems, "main")}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
 

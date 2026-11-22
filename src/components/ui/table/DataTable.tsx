@@ -163,39 +163,54 @@ export function DataTable<T extends Record<string, any>>({
       {/* Contenedor de la tabla responsiva */}
       <div className="overflow-x-auto">
         <table className={`w-full text-left text-[12.5px] border-collapse ${tableClassName}`}>
-          <thead className="bg-slate-50 dark:bg-slate-900/70 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold tracking-wider uppercase text-[10.5px] select-none">
+          <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold tracking-wider uppercase text-[10.5px] select-none">
             <tr>
               {columns.map((column, colIdx) => {
                 const colId = column.id || String(column.accessorKey || colIdx);
                 const isSorted = sortKey === colId;
                 const isSortable = !!column.sortable;
+                const ariaSort = isSortable
+                  ? isSorted
+                    ? sortOrder === 'asc'
+                      ? 'ascending'
+                      : 'descending'
+                    : 'none'
+                  : undefined;
 
                 return (
                   <th
                     key={colId}
                     scope="col"
-                    onClick={() => handleSort(column, colId)}
+                    aria-sort={ariaSort}
                     className={`py-2.5 px-2.5 transition-colors ${isSortable
-                        ? 'cursor-pointer hover:bg-gray-100/70 dark:hover:bg-gray-800'
+                        ? 'hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
                         : ''
                       } ${column.headerClassName || ''}`}
                   >
-                    <div className="inline-flex items-center gap-1">
-                      <span>{column.header}</span>
-                      {isSortable && (
-                        <span className="text-gray-400">
+                    {isSortable ? (
+                      <button
+                        type="button"
+                        onClick={() => handleSort(column, colId)}
+                        className="inline-flex items-center gap-1 uppercase tracking-wider font-semibold text-inherit focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 rounded"
+                      >
+                        <span>{column.header}</span>
+                        <span className="text-slate-400" aria-hidden="true">
                           {isSorted ? (
                             sortOrder === 'asc' ? (
-                              <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                              <ArrowUp className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
                             ) : (
-                              <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                              <ArrowDown className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
                             )
                           ) : (
                             <ArrowUpDown className="w-3 h-3 opacity-60" />
                           )}
                         </span>
-                      )}
-                    </div>
+                      </button>
+                    ) : (
+                      <div className="inline-flex items-center gap-1">
+                        <span>{column.header}</span>
+                      </div>
+                    )}
                   </th>
                 );
               })}

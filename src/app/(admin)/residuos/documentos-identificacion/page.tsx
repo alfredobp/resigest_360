@@ -19,7 +19,7 @@ import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import { decaService } from '@/services/decaService';
 import { validateRequired, validateCIF, scrollToFirstError } from '@/lib/validations/formValidation';
-import { Truck, X, AlertTriangle, FilePlus, Table as TableIcon, LayoutGrid, Copy } from 'lucide-react';
+import { Truck, X, AlertTriangle, FilePlus, Table as TableIcon, LayoutGrid, Copy, MoreHorizontal, Send, Trash2, Loader2 } from 'lucide-react';
 import { DataTable, type ColumnDef } from '@/components/ui/table';
 import type { IdentificationDocument, Company, ProductionCenter } from '@/types/wasteManagement';
 import type { DecaDocument } from '@/types/deca';
@@ -53,6 +53,37 @@ export default function DocumentosIdentificacionPage() {
   const [observacionesDeCA, setObservacionesDeCA] = useState('');
   const [docToDelete, setDocToDelete] = useState<number | null>(null);
   const [docToSendSira, setDocToSendSira] = useState<number | null>(null);
+  const [sendingSiraId, setSendingSiraId] = useState<number | null>(null);
+  const [actionMenu, setActionMenu] = useState<{
+    doc: IdentificationDocument;
+    top: number;
+    right: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const statusParam = new URLSearchParams(window.location.search).get('status');
+      if (statusParam) {
+        setFilterStatus(statusParam);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!actionMenu) return;
+    const close = () => setActionMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActionMenu(null);
+    };
+    window.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [actionMenu]);
 
   const clearDecaFieldError = (field: string) => {
     if (decaFieldErrors[field]) {
@@ -189,10 +220,11 @@ export default function DocumentosIdentificacionPage() {
 
   const confirmSendToSira = async () => {
     if (docToSendSira === null) return;
+    const targetId = docToSendSira;
 
     try {
-      setLoading(true);
-      const result = await siraService.sendDI(docToSendSira);
+      setSendingSiraId(targetId);
+      const result = await siraService.sendDI(targetId);
 
       if (result.success) {
         toast.success(`Documento enviado con éxito a ${result.platformName || 'e-SIR / SIRA'}.\nID de Registro: ${result.siraId}`);
@@ -201,7 +233,7 @@ export default function DocumentosIdentificacionPage() {
     } catch (err: any) {
       toast.error(`Error en el envío telemático: ${err.message}`);
     } finally {
-      setLoading(false);
+      setSendingSiraId(null);
     }
   };
 
@@ -211,6 +243,8 @@ export default function DocumentosIdentificacionPage() {
       matchStatus = true;
     } else if (filterStatus === 'sin_contrato') {
       matchStatus = Boolean(d.estado_traslado && d.estado_traslado !== 'borrador' && !d.contract_id && !d.contrato_externo_referencia);
+    } else if (filterStatus === 'discrepancias') {
+      matchStatus = getTrackingStatusMeta(d).hasDiscrepancy;
     } else if (filterStatus === 'incidencias') {
       matchStatus = d.estado_traslado === 'rechazado_parcial' || d.estado_traslado === 'rechazado_total';
     } else if (filterStatus === 'borrador') {
@@ -244,12 +278,14 @@ export default function DocumentosIdentificacionPage() {
 
         return (
           <div className="space-y-1">
-            <div
-              className="font-semibold text-foreground font-mono text-[11.5px] truncate"
-              title={`DI ${row.numero_documento}`}
+            <button
+              type="button"
+              onClick={() => router.push(`/residuos/documentos-identificacion/${row.id}`)}
+              className="font-semibold text-slate-900 dark:text-slate-100 hover:text-brand-600 dark:hover:text-brand-400 font-mono text-[11.5px] truncate block max-w-full text-left transition-colors"
+              title={`Ver DI ${row.numero_documento}`}
             >
               DI {row.numero_documento}
-            </div>
+            </button>
             <div>
               <Badge color={tracking.badgeColor} size="sm">
                 {tracking.label}
@@ -276,7 +312,7 @@ export default function DocumentosIdentificacionPage() {
       accessorKey: 'fecha_documento',
       className: 'whitespace-nowrap',
       cell: ({ row }) => (
-        <span className="text-muted text-[11.5px]" title={formatDate(row.fecha_documento)}>
+        <span className="text-slate-500 dark:text-slate-400 text-[11.5px]" title={formatDate(row.fecha_documento)}>
           {row.fecha_documento
             ? new Date(row.fecha_documento).toLocaleDateString('es-ES', {
                 day: '2-digit',
@@ -298,15 +334,15 @@ export default function DocumentosIdentificacionPage() {
         return (
           <div>
             <div className="flex items-center gap-1 flex-wrap">
-              <span className={`font-mono font-bold text-[11.5px] ${isPeligroso ? 'text-amber-700 dark:text-amber-400' : 'text-gray-800 dark:text-gray-200'}`}>
+              <span className={`font-mono font-bold text-[11.5px] ${isPeligroso ? 'text-amber-700 dark:text-amber-400' : 'text-slate-800 dark:text-slate-200'}`}>
                 {row.codigo_ler}
               </span>
-              <span className={`text-[9.5px] px-1 rounded font-semibold ${isPeligroso ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}>
+              <span className={`text-[9.5px] px-1 rounded font-semibold ${isPeligroso ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>
                 {isPeligroso ? 'Peligroso' : 'No Pelig.'}
               </span>
             </div>
             {row.descripcion_residuo && (
-              <div className="text-muted text-[11px] truncate mt-0.5" title={row.descripcion_residuo}>
+              <div className="text-slate-500 dark:text-slate-400 text-[11px] truncate mt-0.5" title={row.descripcion_residuo}>
                 {row.descripcion_residuo}
               </div>
             )}
@@ -321,7 +357,7 @@ export default function DocumentosIdentificacionPage() {
       accessorFn: (doc) => doc.production_center?.nombre || '',
       className: 'max-w-[115px]',
       cell: ({ row }) => (
-        <span className="text-[11.5px] text-foreground truncate block" title={row.production_center?.nombre || '-'}>
+        <span className="text-[11.5px] text-slate-800 dark:text-slate-200 truncate block" title={row.production_center?.nombre || '-'}>
           {row.production_center?.nombre || '-'}
         </span>
       ),
@@ -334,11 +370,11 @@ export default function DocumentosIdentificacionPage() {
       className: 'max-w-[135px]',
       cell: ({ row }) => (
         <div className="truncate" title={row.gestor_razon_social}>
-          <span className="text-[11.5px] font-medium text-foreground block truncate">
+          <span className="text-[11.5px] font-medium text-slate-900 dark:text-slate-100 block truncate">
             {row.gestor_razon_social}
           </span>
           {row.gestor_cif && (
-            <span className="text-[10px] text-muted font-mono">
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
               NIF: {row.gestor_cif}
             </span>
           )}
@@ -356,15 +392,15 @@ export default function DocumentosIdentificacionPage() {
         return (
           <div className="text-[11px]">
             <div>
-              <span className="text-muted">Orig: </span>
-              <strong className="font-mono text-foreground">{pesoOrigen.toLocaleString('es-ES')} kg</strong>
+              <span className="text-slate-500 dark:text-slate-400">Orig: </span>
+              <strong className="font-mono text-slate-900 dark:text-slate-100">{pesoOrigen.toLocaleString('es-ES')} kg</strong>
             </div>
             <div className="mt-0.5">
-              <span className="text-muted">Básc: </span>
+              <span className="text-slate-500 dark:text-slate-400">Básc: </span>
               {row.peso_destino_kg ? (
-                <strong className="font-mono text-foreground">{row.peso_destino_kg.toLocaleString('es-ES')} kg</strong>
+                <strong className="font-mono text-slate-900 dark:text-slate-100">{row.peso_destino_kg.toLocaleString('es-ES')} kg</strong>
               ) : (
-                <span className="italic text-muted">Pendiente</span>
+                <span className="italic text-slate-400 dark:text-slate-500">Pendiente</span>
               )}
             </div>
           </div>
@@ -375,86 +411,82 @@ export default function DocumentosIdentificacionPage() {
       id: 'acciones',
       header: 'Acciones',
       headerClassName: 'text-right',
-      className: 'text-right',
-      cell: ({ row }) => (
-        <div className="inline-flex flex-wrap items-center gap-1 justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push(`/residuos/documentos-identificacion/${row.id}`)}
-            className="text-[11px] py-1 px-2 h-auto"
-          >
-            Ver
-          </Button>
+      className: 'text-right whitespace-nowrap',
+      cell: ({ row }) => {
+        const hasSecondaryActions = canCreateOrDeleteDi || canWrite;
+        const isSendingThis = sendingSiraId === row.id;
 
-          {canCreateOrDeleteDi && (
-            <span title="Repetir retirada similar (precarga centro, gestor, transportista y LER)">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.push(`/residuos/documentos-identificacion/nuevo?duplicate_from=${row.id}`)}
-                className="text-[11px] py-1 px-2 h-auto text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+        return (
+          <div className="inline-flex items-center gap-1 justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/residuos/documentos-identificacion/${row.id}`)}
+              className="text-[11px] py-1 px-2.5 h-auto"
+            >
+              Ver
+            </Button>
+
+            {hasSecondaryActions && (
+              <button
+                type="button"
+                disabled={isSendingThis}
+                aria-label={`Más acciones para DI ${row.numero_documento}`}
+                aria-haspopup="menu"
+                aria-expanded={actionMenu?.doc.id === row.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (actionMenu?.doc.id === row.id) {
+                    setActionMenu(null);
+                    return;
+                  }
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const menuHeight = 176;
+                  const top =
+                    rect.bottom + menuHeight > window.innerHeight
+                      ? Math.max(8, rect.top - menuHeight)
+                      : rect.bottom + 4;
+                  const right = Math.max(8, window.innerWidth - rect.right);
+                  setActionMenu({ doc: row, top, right });
+                }}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
               >
-                <Copy className="w-3 h-3 mr-1" />
-                Repetir
-              </Button>
-            </span>
-          )}
-
-          {canWrite && (
-            <span title="Generar DeCA">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleOpenDecaModal(row)}
-                className="text-[11px] py-1 px-2 h-auto bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-100"
-              >
-                <FilePlus className="w-3 h-3 mr-1" />
-                DeCA
-              </Button>
-            </span>
-          )}
-
-          {canCreateOrDeleteDi && (!row.estado_traslado || row.estado_traslado === 'borrador') && (() => {
-            const platform = siraService.resolvePlatformForDI(row);
-            return (
-              <span title={`Enviar a ${platform.name}`}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleSendToSira(row.id)}
-                  disabled={!myCompany?.sira_usuario || !myCompany?.sira_password || !platform.supported}
-                  className={`text-[11px] py-1 px-1.5 h-auto ${!myCompany?.sira_usuario || !myCompany?.sira_password || !platform.supported ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {platform.shortLabel}
-                </Button>
-              </span>
-            );
-          })()}
-
-          {canCreateOrDeleteDi && (!row.estado_traslado || row.estado_traslado === 'borrador') && (
-            <span title="Eliminar borrador">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDelete(row.id)}
-                className="text-[11px] py-1 px-1.5 h-auto text-red-600 hover:text-red-700 border-red-200 dark:border-red-800"
-              >
-                Eliminar
-              </Button>
-            </span>
-          )}
-        </div>
-      ),
+                {isSendingThis ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-600" />
+                ) : (
+                  <MoreHorizontal className="w-4 h-4" />
+                )}
+              </button>
+            )}
+          </div>
+        );
+      },
     },
-  ], [canWrite, canCreateOrDeleteDi, myCompany, router]);
+  ], [canWrite, canCreateOrDeleteDi, myCompany, router, sendingSiraId, actionMenu?.doc.id]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
-          <p className="text-muted">Cargando documentos...</p>
+      <div className="space-y-6 animate-pulse" aria-busy="true" aria-label="Cargando documentos de identificación">
+        <div className="flex justify-between items-center">
+          <div className="space-y-2">
+            <div className="h-7 w-72 rounded-lg bg-slate-200 dark:bg-slate-800" />
+            <div className="h-4 w-96 max-w-full rounded bg-slate-200/80 dark:bg-slate-800/80" />
+          </div>
+          <div className="h-9 w-36 rounded-lg bg-slate-200 dark:bg-slate-800" />
+        </div>
+        <div className="h-24 rounded-[10px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] p-4" />
+        <div className="rounded-[10px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] overflow-hidden">
+          <div className="h-12 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40" />
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="px-4 py-3.5 flex items-center justify-between gap-4">
+                <div className="h-4 w-36 rounded bg-slate-200 dark:bg-slate-800" />
+                <div className="h-4 w-28 rounded bg-slate-200/80 dark:bg-slate-800/80" />
+                <div className="h-4 w-44 rounded bg-slate-100 dark:bg-slate-800/60" />
+                <div className="h-7 w-20 rounded bg-slate-200 dark:bg-slate-800" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -491,8 +523,8 @@ export default function DocumentosIdentificacionPage() {
         {/* Acciones Principales */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-foreground">Documentos de Identificación (DI)</h2>
-            <p className="text-muted mt-1">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Documentos de Identificación (DI)</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
               Control oficial de traslados, pesajes en báscula, incidencias y tratamiento (RD 553/2020)
             </p>
           </div>
@@ -555,6 +587,16 @@ export default function DocumentosIdentificacionPage() {
             >
               Borradores ({documents.filter(d => !d.estado_traslado || d.estado_traslado === 'borrador').length})
             </Button>
+            {documents.some(d => getTrackingStatusMeta(d).hasDiscrepancy) && (
+              <Button
+                variant={filterStatus === 'discrepancias' ? 'primary' : 'outline'}
+                size="sm"
+                onClick={() => setFilterStatus('discrepancias')}
+                className={filterStatus === 'discrepancias' ? '!bg-amber-600' : 'text-amber-700 border-amber-200 dark:text-amber-400 dark:border-amber-900'}
+              >
+                Discrepancia Báscula ({documents.filter(d => getTrackingStatusMeta(d).hasDiscrepancy).length})
+              </Button>
+            )}
             {documents.some(d => d.estado_traslado && d.estado_traslado !== 'borrador' && !d.contract_id && !d.contrato_externo_referencia) && (
               <Button
                 variant={filterStatus === 'sin_contrato' ? 'primary' : 'outline'}
@@ -1052,6 +1094,87 @@ export default function DocumentosIdentificacionPage() {
           </div>
         )}
       </Modal>
+
+      {actionMenu && (() => {
+        const doc = actionMenu.doc;
+        const isDraft = !doc.estado_traslado || doc.estado_traslado === 'borrador';
+        const platform = siraService.resolvePlatformForDI(doc);
+        const canSendPlatform = Boolean(myCompany?.sira_usuario && myCompany?.sira_password && platform.supported);
+
+        return (
+          <div
+            role="menu"
+            style={{ top: actionMenu.top, right: actionMenu.right }}
+            onClick={(e) => e.stopPropagation()}
+            className="fixed z-50 w-52 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg py-1.5 text-xs"
+          >
+            {canCreateOrDeleteDi && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setActionMenu(null);
+                  router.push(`/residuos/documentos-identificacion/nuevo?duplicate_from=${doc.id}`);
+                }}
+                className="w-full px-3 py-2 text-left flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                <Copy className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Repetir retirada</span>
+              </button>
+            )}
+
+            {canWrite && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setActionMenu(null);
+                  handleOpenDecaModal(doc);
+                }}
+                className="w-full px-3 py-2 text-left flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                <FilePlus className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>Generar DeCA</span>
+              </button>
+            )}
+
+            {canCreateOrDeleteDi && isDraft && (
+              <button
+                type="button"
+                role="menuitem"
+                disabled={!canSendPlatform}
+                title={canSendPlatform ? `Enviar a ${platform.name}` : `Configura credenciales para enviar a ${platform.name}`}
+                onClick={() => {
+                  setActionMenu(null);
+                  handleSendToSira(doc.id);
+                }}
+                className="w-full px-3 py-2 text-left flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-45 disabled:cursor-not-allowed"
+              >
+                <Send className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+                <span>Enviar a {platform.shortLabel}</span>
+              </button>
+            )}
+
+            {canCreateOrDeleteDi && isDraft && (
+              <>
+                <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setActionMenu(null);
+                    handleDelete(doc.id);
+                  }}
+                  className="w-full px-3 py-2 text-left flex items-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Eliminar borrador</span>
+                </button>
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       <ConfirmModal
         isOpen={docToDelete !== null}

@@ -54,6 +54,8 @@ function dispatchToastEvent(type: ToastType, message: string, title?: string, du
   }
 }
 
+const MAX_VISIBLE_TOASTS = 4;
+
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
@@ -74,15 +76,9 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         duration: defaultDuration,
       };
 
-      setToasts((prev) => [...prev, newToast]);
-
-      if (defaultDuration > 0) {
-        setTimeout(() => {
-          removeToast(id);
-        }, defaultDuration);
-      }
+      setToasts((prev) => [...prev, newToast].slice(-MAX_VISIBLE_TOASTS));
     },
-    [removeToast]
+    []
   );
 
   const success = useCallback(
@@ -195,6 +191,17 @@ const ToastCard: React.FC<{
   item: ToastItem;
   onDismiss: () => void;
 }> = ({ item, onDismiss }) => {
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    const duration = item.duration ?? 4500;
+    if (duration <= 0 || paused) return;
+    const timer = setTimeout(() => {
+      onDismiss();
+    }, duration);
+    return () => clearTimeout(timer);
+  }, [item.id, item.duration, paused, onDismiss]);
+
   const config = {
     success: {
       border: 'border-emerald-500/30 dark:border-emerald-500/30',
@@ -233,6 +240,8 @@ const ToastCard: React.FC<{
   return (
     <div
       role="alert"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
       className={`pointer-events-auto relative overflow-hidden rounded-xl border shadow-xl backdrop-blur-md transition-all duration-300 ease-out transform translate-y-0 opacity-100 flex items-start p-4 gap-3.5 ${config.bg} ${config.border}`}
     >
       {/* Accent left line */}

@@ -109,10 +109,40 @@ export default function ExecutiveDashboardPage() {
 
   if (loading || tenantLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center space-y-3">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto" />
-          <p className="text-sm text-gray-500">Cargando panel operativo adaptado...</p>
+      <div className="space-y-6 pb-12 animate-pulse" aria-busy="true" aria-label="Cargando panel operativo">
+        {/* Cabecera skeleton */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <div className="h-7 w-64 rounded-lg bg-slate-200 dark:bg-slate-800" />
+            <div className="h-4 w-96 max-w-full rounded bg-slate-200/80 dark:bg-slate-800/80" />
+          </div>
+          <div className="flex gap-2">
+            <div className="h-9 w-36 rounded-lg bg-slate-200 dark:bg-slate-800" />
+            <div className="h-9 w-32 rounded-lg bg-slate-200 dark:bg-slate-800" />
+          </div>
+        </div>
+        {/* KPIs skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-28 rounded-[10px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] p-4 space-y-3">
+              <div className="h-3.5 w-28 rounded bg-slate-200 dark:bg-slate-800" />
+              <div className="h-7 w-24 rounded bg-slate-200 dark:bg-slate-800" />
+              <div className="h-3 w-40 rounded bg-slate-100 dark:bg-slate-800/70" />
+            </div>
+          ))}
+        </div>
+        {/* Gráfico y Top LER skeleton */}
+        <div className="grid grid-cols-12 gap-6">
+          <div className="col-span-12 xl:col-span-8 h-80 rounded-[10px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] p-5" />
+          <div className="col-span-12 xl:col-span-4 h-80 rounded-[10px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] p-5 space-y-4">
+            <div className="h-4 w-44 rounded bg-slate-200 dark:bg-slate-800" />
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="space-y-1.5">
+                <div className="h-3 w-full rounded bg-slate-200/80 dark:bg-slate-800/80" />
+                <div className="h-1.5 w-3/4 rounded-full bg-slate-100 dark:bg-slate-800" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -200,8 +230,8 @@ export default function ExecutiveDashboardPage() {
               {effectiveProfile === 'productor'
                 ? 'Nueva Retirada (DI)'
                 : effectiveProfile === 'chatarreria'
-                ? 'Nueva Salida (Expedición)'
-                : 'Nuevo Traslado (DI)'}
+                  ? 'Nueva Salida (Expedición)'
+                  : 'Nuevo Traslado (DI)'}
             </Button>
           )}
 
@@ -269,11 +299,10 @@ export default function ExecutiveDashboardPage() {
               <Link
                 key={`${alert.entityType}-${alert.entityId ?? idx}-${alert.documentType}`}
                 href={`/residuos/flota?tab=${alert.entityType === 'vehicle' ? 'vehiculos' : 'conductores'}&q=${encodeURIComponent(alert.entityLabel)}`}
-                className={`px-3 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 bg-white dark:bg-[#111827] transition hover:-translate-y-[1px] ${
-                  alert.status === 'caducado'
+                className={`px-3 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 bg-white dark:bg-[#111827] transition hover:-translate-y-[1px] ${alert.status === 'caducado'
                     ? 'border-red-200 dark:border-red-900/70 text-red-700 dark:text-red-300'
                     : 'border-amber-200 dark:border-amber-900/70 text-amber-800 dark:text-amber-300'
-                }`}
+                  }`}
               >
                 <span className="truncate font-medium">{alert.message}</span>
                 <span className="text-[10px] font-bold uppercase shrink-0">
@@ -302,7 +331,7 @@ export default function ExecutiveDashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-0.5">
             {alertas.disEnTransitoCount > 0 && (
               <Link
-                href="/residuos/documentos-identificacion"
+                href="/residuos/documentos-identificacion?status=en_transito"
                 className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-amber-400 dark:hover:border-amber-600 transition-all"
               >
                 <div>
@@ -315,7 +344,7 @@ export default function ExecutiveDashboardPage() {
 
             {alertas.disDiscrepanciaCount > 0 && (
               <Link
-                href="/residuos/documentos-identificacion"
+                href="/residuos/documentos-identificacion?status=discrepancias"
                 className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-red-400 dark:hover:border-red-700 transition-all"
               >
                 <div>
@@ -328,7 +357,7 @@ export default function ExecutiveDashboardPage() {
 
             {alertas.contratosCaducadosCount > 0 && (
               <Link
-                href="/residuos/contratos"
+                href="/residuos/contratos?status=caducado"
                 className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-red-400 dark:hover:border-red-700 transition-all"
               >
                 <div>
@@ -341,7 +370,7 @@ export default function ExecutiveDashboardPage() {
 
             {alertas.disTratamientoNoAutorizadoCount > 0 && (
               <Link
-                href="/residuos/documentos-identificacion"
+                href="/residuos/documentos-identificacion?status=incidencias"
                 className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-red-400 dark:hover:border-red-700 transition-all"
               >
                 <div>
@@ -354,7 +383,7 @@ export default function ExecutiveDashboardPage() {
 
             {alertas.disSinContratoCount > 0 && (
               <Link
-                href="/residuos/documentos-identificacion"
+                href="/residuos/documentos-identificacion?status=sin_contrato"
                 className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-red-400 dark:hover:border-red-700 transition-all"
               >
                 <div>
@@ -367,7 +396,7 @@ export default function ExecutiveDashboardPage() {
 
             {alertas.contratosPorVencerCount > 0 && (
               <Link
-                href="/residuos/contratos"
+                href="/residuos/contratos?status=vigente"
                 className="px-3.5 py-2.5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:-translate-y-[1px] hover:border-amber-400 dark:hover:border-amber-600 transition-all"
               >
                 <div>

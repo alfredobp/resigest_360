@@ -44,11 +44,18 @@ export const Modal: React.FC<ModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
+    // Enfocar el modal para navegación por teclado accesible
+    requestAnimationFrame(() => {
+      modalRef.current?.focus();
+    });
+
     return () => {
       document.body.style.overflow = previousOverflow || "unset";
+      previouslyFocused?.focus?.();
     };
   }, [isOpen]);
 
@@ -56,19 +63,25 @@ export const Modal: React.FC<ModalProps> = ({
 
   const contentClasses = isFullscreen
     ? "w-full h-full"
-    : "relative w-full max-h-[90vh] overflow-y-auto rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-100 dark:border-gray-800";
+    : "relative w-full max-h-[90vh] overflow-y-auto rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-100 dark:border-gray-800 focus:outline-none";
 
   const modalElement = (
-    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto modal z-[999999] p-4 sm:p-6">
+    <div
+      className="fixed inset-0 flex items-center justify-center overflow-y-auto modal z-[999999] p-4 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+    >
       {!isFullscreen && (
         <div
           className="fixed inset-0 h-full w-full bg-gray-900/60 backdrop-blur-sm transition-opacity"
           onClick={onClose}
+          aria-hidden="true"
         />
       )}
       <div
         ref={modalRef}
-        className={`${contentClasses} ${className}`}
+        tabIndex={-1}
+        className={`${contentClasses} ${className || ""}`}
         onClick={(e) => e.stopPropagation()}
       >
         {showCloseButton && (
