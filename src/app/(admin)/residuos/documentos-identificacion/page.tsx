@@ -20,6 +20,11 @@ import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import { decaService } from '@/services/decaService';
 import { validateRequired, validateCIF, scrollToFirstError } from '@/lib/validations/formValidation';
+import {
+  CENTER_FILTER_ALL,
+  buildCenterFilterOptions,
+  matchesCenterFilter,
+} from '@/lib/diCenterFilter';
 import { Truck, X, AlertTriangle, FilePlus, Table as TableIcon, LayoutGrid, Copy, Send, Trash2 } from 'lucide-react';
 import { DataTable, DataTableActionButton, type ColumnDef } from '@/components/ui/table';
 import type { IdentificationDocument, Company, ProductionCenter } from '@/types/wasteManagement';
@@ -27,7 +32,7 @@ import type { DecaDocument } from '@/types/deca';
 
 export default function DocumentosIdentificacionPage() {
   const router = useRouter();
-  const { canWrite, perfilOperativo, isPlatformAdmin } = useTenant();
+  const { canWrite, perfilOperativo, isPlatformAdmin, activeCompanyId } = useTenant();
   const canCreateOrDeleteDi = canWrite && (isPlatformAdmin || perfilOperativo !== 'transportista');
   const [loading, setLoading] = useState(true);
   const [documents, setDocuments] = useState<IdentificationDocument[]>([]);
@@ -109,8 +114,9 @@ export default function DocumentosIdentificacionPage() {
   };
 
   useEffect(() => {
+    setFilterCenter(CENTER_FILTER_ALL);
     loadData();
-  }, []);
+  }, [activeCompanyId]);
 
   const loadData = async () => {
     try {
@@ -285,26 +291,31 @@ export default function DocumentosIdentificacionPage() {
     );
   };
 
-  const filteredDocuments = documents.filter(d => {
-    let matchStatus = true;
-    if (filterStatus === 'all') {
-      matchStatus = true;
-    } else if (filterStatus === 'sin_contrato') {
-      matchStatus = hasNoContract(d);
-    } else if (filterStatus === 'tratamiento_no_autorizado') {
-      matchStatus = Boolean(getUnauthorizedTreatmentReason(d));
-    } else if (filterStatus === 'discrepancias') {
-      matchStatus = getTrackingStatusMeta(d).hasDiscrepancy;
-    } else if (filterStatus === 'incidencias') {
-      matchStatus = hasIncident(d);
-    } else if (filterStatus === 'borrador') {
-      matchStatus = !d.estado_traslado || d.estado_traslado === 'borrador';
-    } else {
-      matchStatus = d.estado_traslado === filterStatus || d.estado === filterStatus;
-    }
+  const centerFilterOptions = useMemo(
+    () => buildCenterFilterOptions(documents, productionCenters),
+    [documents, productionCenters]
+  );
 
-    const matchCenter = filterCenter === 'all' || d.production_center_id === parseInt(filterCenter);
-    return matchStatus && matchCenter;
+  const documentsByCenter = useMemo(
+    () => documents.filter((d) => matchesCenterFilter(d, filterCenter)),
+    [documents, filterCenter]
+  );
+
+  const filteredDocuments = documentsByCenter.filter(d => {
+    if (filterStatus === 'all') {
+      return true;
+    } else if (filterStatus === 'sin_contrato') {
+      return hasNoContract(d);
+    } else if (filterStatus === 'tratamiento_no_autorizado') {
+      return Boolean(getUnauthorizedTreatmentReason(d));
+    } else if (filterStatus === 'discrepancias') {
+      return getTrackingStatusMeta(d).hasDiscrepancy;
+    } else if (filterStatus === 'incidencias') {
+      return hasIncident(d);
+    } else if (filterStatus === 'borrador') {
+      return !d.estado_traslado || d.estado_traslado === 'borrador';
+    }
+    return d.estado_traslado === filterStatus || d.estado === filterStatus;
   });
 
   const formatDate = (dateString: string) => {
@@ -585,78 +596,78 @@ export default function DocumentosIdentificacionPage() {
               size="sm"
               onClick={() => handleFilterStatusChange('all')}
             >
-              Todos ({documents.length})
+              Todos ({documentsByCenter.length})
             </Button>
             <Button
               variant={filterStatus === 'en_transito' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => handleFilterStatusChange('en_transito')}
             >
-              En Tránsito ({documents.filter(d => d.estado_traslado === 'en_transito').length})
+              En Tránsito ({documentsByCenter.filter(d => d.estado_traslado === 'en_transito').length})
             </Button>
             <Button
               variant={filterStatus === 'recepcionado' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => handleFilterStatusChange('recepcionado')}
             >
-              En Báscula ({documents.filter(d => d.estado_traslado === 'recepcionado').length})
+              En Báscula ({documentsByCenter.filter(d => d.estado_traslado === 'recepcionado').length})
             </Button>
             <Button
               variant={filterStatus === 'aceptado' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => handleFilterStatusChange('aceptado')}
             >
-              Aceptados ({documents.filter(d => d.estado_traslado === 'aceptado').length})
+              Aceptados ({documentsByCenter.filter(d => d.estado_traslado === 'aceptado').length})
             </Button>
             <Button
               variant={filterStatus === 'incidencias' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => handleFilterStatusChange('incidencias')}
             >
-              Incidencias ({documents.filter(hasIncident).length})
+              Incidencias ({documentsByCenter.filter(hasIncident).length})
             </Button>
             <Button
               variant={filterStatus === 'tratado' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => handleFilterStatusChange('tratado')}
             >
-              Tratados ({documents.filter(d => d.estado_traslado === 'tratado').length})
+              Tratados ({documentsByCenter.filter(d => d.estado_traslado === 'tratado').length})
             </Button>
             <Button
               variant={filterStatus === 'borrador' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => handleFilterStatusChange('borrador')}
             >
-              Borradores ({documents.filter(d => !d.estado_traslado || d.estado_traslado === 'borrador').length})
+              Borradores ({documentsByCenter.filter(d => !d.estado_traslado || d.estado_traslado === 'borrador').length})
             </Button>
-            {documents.some(d => getTrackingStatusMeta(d).hasDiscrepancy) && (
+            {documentsByCenter.some(d => getTrackingStatusMeta(d).hasDiscrepancy) && (
               <Button
                 variant={filterStatus === 'discrepancias' ? 'primary' : 'outline'}
                 size="sm"
                 onClick={() => handleFilterStatusChange('discrepancias')}
                 className={filterStatus === 'discrepancias' ? '!bg-amber-600' : 'text-amber-700 border-amber-200 dark:text-amber-400 dark:border-amber-900'}
               >
-                Discrepancia Báscula ({documents.filter(d => getTrackingStatusMeta(d).hasDiscrepancy).length})
+                Discrepancia Báscula ({documentsByCenter.filter(d => getTrackingStatusMeta(d).hasDiscrepancy).length})
               </Button>
             )}
-            {documents.some(hasNoContract) && (
+            {documentsByCenter.some(hasNoContract) && (
               <Button
                 variant={filterStatus === 'sin_contrato' ? 'primary' : 'outline'}
                 size="sm"
                 onClick={() => handleFilterStatusChange('sin_contrato')}
                 className={filterStatus === 'sin_contrato' ? '!bg-red-600' : 'text-red-600 border-red-200 dark:text-red-400 dark:border-red-900'}
               >
-                Sin Contrato ({documents.filter(hasNoContract).length})
+                Sin Contrato ({documentsByCenter.filter(hasNoContract).length})
               </Button>
             )}
-            {documents.some(d => Boolean(getUnauthorizedTreatmentReason(d))) && (
+            {documentsByCenter.some(d => Boolean(getUnauthorizedTreatmentReason(d))) && (
               <Button
                 variant={filterStatus === 'tratamiento_no_autorizado' ? 'primary' : 'outline'}
                 size="sm"
                 onClick={() => handleFilterStatusChange('tratamiento_no_autorizado')}
                 className={filterStatus === 'tratamiento_no_autorizado' ? '!bg-red-600' : 'text-red-600 border-red-200 dark:text-red-400 dark:border-red-900'}
               >
-                Tratamiento No Autorizado ({documents.filter(d => Boolean(getUnauthorizedTreatmentReason(d))).length})
+                Tratamiento No Autorizado ({documentsByCenter.filter(d => Boolean(getUnauthorizedTreatmentReason(d))).length})
               </Button>
             )}
           </div>
@@ -668,11 +679,22 @@ export default function DocumentosIdentificacionPage() {
               onChange={(e) => setFilterCenter(e.target.value)}
               className="text-sm border border-stroke dark:border-strokedark bg-transparent rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
-              <option value="all">Todos los centros</option>
-              {productionCenters.map(pc => (
-                <option key={pc.id} value={pc.id}>{pc.nombre}</option>
+              <option value={CENTER_FILTER_ALL}>Todos los centros ({documents.length})</option>
+              {centerFilterOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label} ({opt.count})
+                </option>
               ))}
             </select>
+            {filterCenter !== CENTER_FILTER_ALL && (
+              <button
+                type="button"
+                onClick={() => setFilterCenter(CENTER_FILTER_ALL)}
+                className="text-xs font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 underline"
+              >
+                Limpiar centro
+              </button>
+            )}
           </div>
         </ComponentCard>
 
