@@ -229,7 +229,15 @@ describe('adminPlatformService - Administración y Auditoría de Plataforma', ()
         select: jest.fn().mockResolvedValue({ data: [{ id: 10, company_id: 1 }], error: null }),
       };
       const disChain = {
-        select: jest.fn().mockResolvedValue({ data: [{ id: 20, company_id: 1, gestor_id: 2 }], error: null }),
+        select: jest.fn().mockResolvedValue({
+          data: [
+            { id: 20, company_id: 1, gestor_company_id: 2, cantidad: 2500, unidad: 'kg', fecha_documento: '2026-11-20' },
+            { id: 21, company_id: 1, transportista_company_id: 2, cantidad: 1.5, unidad: 'toneladas', created_at: '2026-11-21T10:00:00Z' },
+            { id: 22, company_id: 1, cantidad: 5, unidad: 'unidades', created_at: '2026-11-19T10:00:00Z' },
+            { id: 23, company_id: 1, cantidad: 'invalido', unidad: 'kg' },
+          ],
+          error: null,
+        }),
       };
       const contractsChain = {
         select: jest.fn().mockResolvedValue({ data: [{ id: 30, company_id: 1, gestor_company_id: 2 }], error: null }),
@@ -255,7 +263,9 @@ describe('adminPlatformService - Administración y Auditoría de Plataforma', ()
       expect(resAll[0].user_email).toBe('admin@resigest.com');
       expect(resAll[0].user_name).toBe('Admin Total');
       expect(resAll[0].centers_count).toBe(1);
-      expect(resAll[0].dis_count).toBe(1);
+      expect(resAll[0].dis_count).toBe(4);
+      expect(resAll[0].total_toneladas).toBe(4);
+      expect(resAll[0].last_operation_at).toBe('2026-11-21T10:00:00Z');
       expect(resAll[0].contracts_count).toBe(1);
     });
 

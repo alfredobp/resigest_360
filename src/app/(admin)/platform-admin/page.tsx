@@ -499,13 +499,17 @@ export default function PlatformAdminPage() {
             <table className="w-full text-left text-xs">
               <thead className="bg-gray-50 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-800 text-gray-500 uppercase tracking-wider font-semibold">
                 <tr>
-                  <th className="px-5 py-3.5">Empresa</th>
-                  <th className="px-4 py-3.5">Identificación Fiscal</th>
-                  <th className="px-4 py-3.5">Roles Activos</th>
-                  <th className="px-4 py-3.5">Cuenta Propietaria</th>
-                  <th className="px-4 py-3.5 text-center">Datos de Operación</th>
-                  <th className="px-4 py-3.5">Estado</th>
-                  <th className="px-5 py-3.5 text-right">Acciones</th>
+                  <th className="px-4 py-3.5">Empresa</th>
+                  <th className="px-3 py-3.5">CIF / NIMA</th>
+                  <th className="px-3 py-3.5">Roles</th>
+                  <th className="px-3 py-3.5">Cuenta</th>
+                  <th className="px-3 py-3.5 text-right">Centros</th>
+                  <th className="px-3 py-3.5 text-right">DIs</th>
+                  <th className="px-3 py-3.5 text-right">Contratos</th>
+                  <th className="px-3 py-3.5 text-right">Toneladas</th>
+                  <th className="px-3 py-3.5">Últ. Operación</th>
+                  <th className="px-3 py-3.5">Estado</th>
+                  <th className="px-4 py-3.5 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800 font-normal">
@@ -520,36 +524,31 @@ export default function PlatformAdminPage() {
                       className="hover:bg-gray-50/80 dark:hover:bg-gray-800/40 transition-colors"
                     >
                       {/* Empresa */}
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center font-bold text-xs text-primary shrink-0">
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center font-bold text-[11px] text-primary shrink-0">
                             {c.razon_social?.slice(0, 2).toUpperCase()}
                           </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-gray-900 dark:text-white">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-gray-900 dark:text-white truncate max-w-[190px]" title={c.razon_social}>
                                 {c.razon_social}
                               </span>
                               {c.is_my_company && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/50">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/50 shrink-0">
                                   Titular
                                 </span>
                               )}
                             </div>
-                            {c.nombre_comercial && (
-                              <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                                {c.nombre_comercial}
-                              </p>
-                            )}
-                            <p className="text-[11px] text-gray-400">
-                              {c.municipio_social ? `${c.municipio_social} (${c.provincia_social || ''})` : 'Ubicación no especificada'}
+                            <p className="text-[11px] text-gray-400 truncate max-w-[200px]">
+                              {c.municipio_social ? `${c.municipio_social} (${c.provincia_social || ''})` : 'Sin ubicación'}
                             </p>
                           </div>
                         </div>
                       </td>
 
                       {/* CIF & NIMA */}
-                      <td className="px-4 py-4 font-mono text-[11px]">
+                      <td className="px-3 py-3.5 font-mono text-[11px] whitespace-nowrap">
                         <span className="font-bold text-gray-800 dark:text-gray-200 block">
                           {c.cif}
                         </span>
@@ -561,8 +560,8 @@ export default function PlatformAdminPage() {
                       </td>
 
                       {/* Roles */}
-                      <td className="px-4 py-4">
-                        <div className="flex flex-wrap gap-1 max-w-[180px]">
+                      <td className="px-3 py-3.5">
+                        <div className="flex flex-wrap gap-1 max-w-[140px]">
                           {roles.map(r => (
                             <Badge key={r} variant="light" color={ROLE_BADGE_CONFIG[r]?.color || 'primary'} size="sm">
                               {ROLE_BADGE_CONFIG[r]?.label || r}
@@ -572,49 +571,50 @@ export default function PlatformAdminPage() {
                       </td>
 
                       {/* Cuenta Propietaria */}
-                      <td className="px-4 py-4">
-                        <span className="font-medium text-gray-800 dark:text-gray-200 block truncate max-w-[160px]">
+                      <td className="px-3 py-3.5">
+                        <span className="font-medium text-gray-800 dark:text-gray-200 block truncate max-w-[140px]">
                           {c.user_name || 'Usuario'}
                         </span>
-                        <span className="text-gray-500 text-[11px] block truncate max-w-[160px]">
+                        <span className="text-gray-500 text-[11px] block truncate max-w-[140px]" title={c.user_email || ''}>
                           {c.user_email || 'N/A'}
                         </span>
                       </td>
 
-                      {/* Datos de Operación */}
-                      <td className="px-4 py-4">
-                        <div className="flex flex-col items-center gap-1.5">
-                          <div className="flex flex-wrap items-center justify-center gap-1.5">
-                            <span title="Centros registrados" className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-mono text-[11px]">
-                              Centros: {c.centers_count || 0}
-                            </span>
-                            <span title="Documentos de identificación" className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-mono text-[11px]">
-                              DIs: {c.dis_count || 0}
-                            </span>
-                            <span title="Contratos de tratamiento" className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-mono text-[11px]">
-                              Contratos: {c.contracts_count || 0}
-                            </span>
-                            <span title="Volumen total declarado" className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-mono text-[11px]">
-                              {c.total_toneladas || 0} t
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-gray-400">
-                            Últ. operación:{' '}
-                            {c.last_operation_at
-                              ? new Date(c.last_operation_at).toLocaleDateString('es-ES')
-                              : 'Sin actividad'}
-                          </span>
-                        </div>
+                      {/* Centros */}
+                      <td className="px-3 py-3.5 text-right font-mono tabular-nums text-gray-800 dark:text-gray-200">
+                        {c.centers_count || 0}
+                      </td>
+
+                      {/* DIs */}
+                      <td className="px-3 py-3.5 text-right font-mono tabular-nums font-semibold text-gray-900 dark:text-white">
+                        {c.dis_count || 0}
+                      </td>
+
+                      {/* Contratos */}
+                      <td className="px-3 py-3.5 text-right font-mono tabular-nums text-gray-800 dark:text-gray-200">
+                        {c.contracts_count || 0}
+                      </td>
+
+                      {/* Toneladas */}
+                      <td className="px-3 py-3.5 text-right font-mono tabular-nums whitespace-nowrap text-amber-700 dark:text-amber-300 font-medium">
+                        {(c.total_toneladas || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} t
+                      </td>
+
+                      {/* Última Operación */}
+                      <td className="px-3 py-3.5 whitespace-nowrap text-gray-500 dark:text-gray-400">
+                        {c.last_operation_at
+                          ? new Date(c.last_operation_at).toLocaleDateString('es-ES')
+                          : '—'}
                       </td>
 
                       {/* Estado */}
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3.5 whitespace-nowrap">
                         <div className="flex flex-col gap-1 items-start">
                           <Badge variant="light" color={c.activo !== false ? 'success' : 'error'} size="sm">
                             {c.activo !== false ? 'Activa' : 'Bloqueada'}
                           </Badge>
                           {c.activo === false && c.blocked_reason && (
-                            <span className="text-[10px] text-red-500 max-w-[160px] truncate" title={c.blocked_reason}>
+                            <span className="text-[10px] text-red-500 max-w-[140px] truncate" title={c.blocked_reason}>
                               {c.blocked_reason}
                             </span>
                           )}
@@ -633,8 +633,8 @@ export default function PlatformAdminPage() {
                       </td>
 
                       {/* Acciones */}
-                      <td className="px-5 py-4 text-right">
-                        <div className="flex flex-wrap items-center justify-end gap-2">
+                      <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center justify-end gap-1.5">
                           {c.is_my_company && c.activo !== false && (
                             delegationsMap[c.id]?.is_active ? (
                               <>
@@ -643,7 +643,7 @@ export default function PlatformAdminPage() {
                                   onClick={() => handleActOnBehalf(c)}
                                   className="text-xs"
                                 >
-                                  {activeCompanyId === c.id ? 'Activa ahora' : 'Actuar en nombre de'}
+                                  {activeCompanyId === c.id ? 'Activa' : 'Actuar'}
                                 </Button>
                                 <Button
                                   size="sm"
@@ -661,7 +661,7 @@ export default function PlatformAdminPage() {
                                 onClick={() => handleOpenDelegateModal(c)}
                                 className="text-xs"
                               >
-                                Delegar y Actuar
+                                Delegar
                               </Button>
                             )
                           )}

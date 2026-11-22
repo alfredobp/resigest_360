@@ -27,6 +27,22 @@ const ADMIN_EMAILS = [
   process.env.NOTIFICATION_ADMIN_EMAIL || ''
 ].filter(Boolean).map(e => e.toLowerCase().trim());
 
+/**
+ * Convierte la cantidad declarada en un DI a toneladas según su unidad ('kg' -> /1000, 'toneladas'/'t' -> *1).
+ */
+function toMetricTons(rawQty: unknown, unit?: string | null): number {
+  const val = parseFloat(String(rawQty ?? ''));
+  if (Number.isNaN(val) || !Number.isFinite(val)) return 0;
+  const normalizedUnit = (unit || 'kg').toLowerCase().trim();
+  if (normalizedUnit === 't' || normalizedUnit === 'tm' || normalizedUnit === 'toneladas' || normalizedUnit === 'tonelada') {
+    return val;
+  }
+  if (normalizedUnit === 'kg' || normalizedUnit === 'kilogramos' || normalizedUnit === 'kilos') {
+    return val / 1000;
+  }
+  return 0;
+}
+
 export const adminPlatformService = {
   /**
    * Verificar si el usuario actual tiene permisos de Administrador de Plataforma
@@ -84,12 +100,12 @@ export const adminPlatformService = {
       // Continuar al fallback si el RPC no está creado aún
     }
 
-    // Fallback: consultas directas paralelas
+    // Fallback: consultas directas paralelas usando columnas reales del esquema
     try {
       const [compRes, usersRes, disRes, contractsRes, centersRes] = await Promise.all([
         supabase.from('companies').select('id, is_my_company', { count: 'exact' }),
         supabase.from('profiles').select('id', { count: 'exact' }),
-        supabase.from('identification_documents').select('id, cantidad, cantidad_estimada', { count: 'exact' }),
+        supabase.from('identification_documents').select('id, cantidad, unidad', { count: 'exact' }),
         supabase.from('waste_contracts').select('id', { count: 'exact' }),
         supabase.from('production_centers').select('id', { count: 'exact' })
       ]);
@@ -103,8 +119,9 @@ export const adminPlatformService = {
       const totalCenters = centersRes.count ?? (centersRes.data || []).length;
 
       const totalToneladas = (disRes.data || []).reduce((acc, curr: any) => {
-        const val = parseFloat(curr.cantidad ?? curr.cantidad_estimada);
-        return isNaN(val) ? acc : acc + val;
+        const rawQty = curr.cantidad ?? curr.cantidad_estimada;
+        const unit = curr.unidad ?? (curr.cantidad_estimada !== undefined && curr.cantidad === undefined ? 'toneladas' : 'toneladas');
+        return acc + toMetricTons(rawQty, curr.unidad ? curr.unidad : unit);
       }, 0);
 
       return {
@@ -183,12 +200,12 @@ export const adminPlatformService = {
       }
     }
 
-    // 3. Cargar conteos agregados y métricas de operación (centros, DIs, toneladas, última actividad y contratos)
+    // 3. Cargar conteos agregados y métricas de operación (usando columnas reales del esquema)
     const [centersRes, disRes, contractsRes] = await Promise.all([
       supabase.from('production_centers').select('id, company_id'),
       supabase
         .from('identification_documents')
-        .select('id, company_id, gestor_id, cantidad, cantidad_estimada, created_at, fecha_documento'),
+        .select('id, company_id, gestor_company_id, transportista_company_id, cantidad, unidad, created_at, fecha_documento'),
       supabase.from('waste_contracts').select('id, company_id, gestor_company_id, created_at')
     ]);
 
@@ -212,19 +229,19 @@ export const adminPlatformService = {
     };
 
     (disRes.data || []).forEach((d: any) => {
-      const qty = parseFloat(d.cantidad ?? d.cantidad_estimada);
-      const validQty = Number.isNaN(qty) ? 0 : qty;
+      const validTons = toMetricTons(d.cantidad ?? d.cantidad_estimada, d.unidad);
       const opDate = d.fecha_documento || d.created_at || null;
-      if (d.company_id) {
-        disByCompany.set(d.company_id, (disByCompany.get(d.company_id) || 0) + 1);
-        tonsByCompany.set(d.company_id, (tonsByCompany.get(d.company_id) || 0) + validQty);
-        updateLastOp(d.company_id, opDate);
-      }
-      if (d.gestor_id && d.gestor_id !== d.company_id) {
-        disByCompany.set(d.gestor_id, (disByCompany.get(d.gestor_id) || 0) + 1);
-        tonsByCompany.set(d.gestor_id, (tonsByCompany.get(d.gestor_id) || 0) + validQty);
-        updateLastOp(d.gestor_id, opDate);
-      }
+      const participantIds = new Set<number>();
+      if (d.company_id) participantIds.add(Number(d.company_id));
+      if (d.gestor_company_id) participantIds.add(Number(d.gestor_company_id));
+      if (d.gestor_id) participantIds.add(Number(d.gestor_id));
+      if (d.transportista_company_id) participantIds.add(Number(d.transportista_company_id));
+
+      participantIds.forEach((cid) => {
+        disByCompany.set(cid, (disByCompany.get(cid) || 0) + 1);
+        tonsByCompany.set(cid, (tonsByCompany.get(cid) || 0) + validTons);
+        updateLastOp(cid, opDate);
+      });
     });
 
     const contractsByCompany = new Map<number, number>();
@@ -317,11 +334,11 @@ export const adminPlatformService = {
       .eq('company_id', companyId)
       .order('nombre', { ascending: true });
 
-    // 4. Obtener DIs donde interviene la empresa
+    // 4. Obtener DIs donde interviene la empresa (productor, gestor o transportista)
     const { data: dis } = await supabase
       .from('identification_documents')
       .select('*')
-      .or(`company_id.eq.${companyId},gestor_id.eq.${companyId}`)
+      .or(`company_id.eq.${companyId},gestor_company_id.eq.${companyId},transportista_company_id.eq.${companyId}`)
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -345,8 +362,9 @@ export const adminPlatformService = {
     }
 
     const totalTons = (dis || []).reduce((acc, curr: any) => {
-      const val = parseFloat(curr.cantidad ?? curr.cantidad_estimada);
-      return isNaN(val) ? acc : acc + val;
+      const rawQty = curr.cantidad ?? curr.cantidad_estimada;
+      const unit = curr.unidad ?? 'toneladas';
+      return acc + toMetricTons(rawQty, unit);
     }, 0);
 
     return {
