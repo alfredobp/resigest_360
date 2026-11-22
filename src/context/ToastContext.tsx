@@ -242,7 +242,7 @@ const ToastCard: React.FC<{
       role="alert"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
-      className={`pointer-events-auto relative overflow-hidden rounded-xl border shadow-xl backdrop-blur-md transition-all duration-300 ease-out transform translate-y-0 opacity-100 flex items-start p-4 gap-3.5 ${config.bg} ${config.border}`}
+      className={`pointer-events-auto relative overflow-hidden rounded-xl border shadow-xl backdrop-blur-md transition-all duration-300 ease-out animate-[toastSlideIn_180ms_ease-out] flex items-start p-4 gap-3.5 ${config.bg} ${config.border}`}
     >
       {/* Accent left line */}
       <div className={`absolute left-0 top-0 bottom-0 w-1 ${config.accentBar}`} />

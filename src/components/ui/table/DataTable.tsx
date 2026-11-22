@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   ArrowUpDown,
   ArrowUp,
@@ -98,12 +98,15 @@ export function DataTable<T extends Record<string, any>>({
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const isFirstMountRef = React.useRef(true);
 
-  const getRowKey = (row: T, index: number): string =>
-    keyExtractor
-      ? String(keyExtractor(row, index))
-      : row.id !== undefined
-        ? String(row.id)
-        : String(index);
+  const getRowKey = useCallback(
+    (row: T, index: number): string =>
+      keyExtractor
+        ? String(keyExtractor(row, index))
+        : row.id !== undefined
+          ? String(row.id)
+          : String(index),
+    [keyExtractor]
+  );
 
   // Sincronizar búsqueda y página con la URL para preservar estado al volver atrás
   useEffect(() => {
@@ -174,7 +177,7 @@ export function DataTable<T extends Record<string, any>>({
   const selectedRows = useMemo(() => {
     if (!selectable || selectedKeys.size === 0) return [];
     return sortedData.filter((row, idx) => selectedKeys.has(getRowKey(row, idx)));
-  }, [selectable, selectedKeys, sortedData]);
+  }, [selectable, selectedKeys, sortedData, getRowKey]);
 
   const allPageSelected =
     selectable &&

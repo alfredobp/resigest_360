@@ -143,10 +143,26 @@ export default function GestoresPage() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
-                    <p className="text-muted">Cargando gestores...</p>
+            <div className="max-w-6xl mx-auto space-y-6 animate-pulse" aria-busy="true" aria-label="Cargando gestores">
+                <div className="flex justify-between items-center">
+                    <div className="space-y-2">
+                        <div className="h-7 w-60 rounded-lg bg-slate-200 dark:bg-slate-800" />
+                        <div className="h-4 w-80 max-w-full rounded bg-slate-200/80 dark:bg-slate-800/80" />
+                    </div>
+                    <div className="h-9 w-36 rounded-lg bg-slate-200 dark:bg-slate-800" />
+                </div>
+                <div className="rounded-[10px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] overflow-hidden">
+                    <div className="h-12 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40" />
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {[0, 1, 2, 3, 4].map((i) => (
+                            <div key={i} className="px-4 py-3.5 flex items-center justify-between gap-4">
+                                <div className="h-4 w-48 rounded bg-slate-200 dark:bg-slate-800" />
+                                <div className="h-4 w-24 rounded bg-slate-200/80 dark:bg-slate-800/80" />
+                                <div className="h-4 w-36 rounded bg-slate-100 dark:bg-slate-800/60" />
+                                <div className="h-7 w-24 rounded bg-slate-200 dark:bg-slate-800" />
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         );

@@ -293,9 +293,20 @@ export default function OperacionesComercialesPage() {
       {/* Tabla de Operaciones */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3" />
-            <p className="text-sm text-gray-500">Cargando operaciones comerciales...</p>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 animate-pulse" aria-busy="true" aria-label="Cargando operaciones comerciales">
+            <div className="h-10 bg-slate-50 dark:bg-slate-900/50" />
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="px-4 py-3.5 flex items-center justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="h-3.5 w-28 rounded bg-slate-200 dark:bg-slate-700" />
+                  <div className="h-2.5 w-20 rounded bg-slate-100 dark:bg-slate-800" />
+                </div>
+                <div className="h-5 w-20 rounded-full bg-slate-200 dark:bg-slate-700" />
+                <div className="h-3.5 w-36 rounded bg-slate-200/80 dark:bg-slate-700/80 hidden sm:block" />
+                <div className="h-3.5 w-24 rounded bg-slate-100 dark:bg-slate-800 hidden md:block" />
+                <div className="h-4 w-16 rounded bg-slate-200 dark:bg-slate-700" />
+              </div>
+            ))}
           </div>
         ) : operations.length === 0 ? (
           <div className="p-12 text-center space-y-3">
