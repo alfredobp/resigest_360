@@ -10,6 +10,7 @@ import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
 import Button from '@/components/ui/button/Button';
+import { Check } from 'lucide-react';
 
 export default function NuevaMemoriaPage() {
   const router = useRouter();
@@ -295,12 +296,12 @@ export default function NuevaMemoriaPage() {
             {/* Información sobre el proceso */}
             <div className="border-t pt-6">
               <h3 className="text-lg font-semibold mb-4">¿Qué incluirá esta memoria?</h3>
-              <div className="space-y-2 text-sm text-gray-600">
-                <p>✓ Todos los documentos de identificación completados del año {año}</p>
-                <p>✓ Resumen de movimientos por código LER</p>
-                <p>✓ Total de toneladas gestionadas</p>
-                <p>✓ Datos de productores, gestores y transportistas involucrados</p>
-                <p>✓ Información lista para exportar al formato Excel oficial</p>
+              <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" /><span>Todos los documentos de identificación completados del año {año}</span></p>
+                <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" /><span>Resumen de movimientos por código LER</span></p>
+                <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" /><span>Total de toneladas gestionadas</span></p>
+                <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" /><span>Datos de productores, gestores y transportistas involucrados</span></p>
+                <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" /><span>Información lista para exportar al formato Excel oficial</span></p>
               </div>
             </div>
 

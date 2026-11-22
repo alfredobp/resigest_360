@@ -20,6 +20,7 @@ import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
 import { useTenant } from '@/context/TenantContext';
 import ScrapYardEntryModal from '@/components/residuos/ScrapYardEntryModal';
+import { ArrowRight, Check } from 'lucide-react';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -331,7 +332,7 @@ export default function OperacionesComercialesPage() {
                   <th className="py-3 px-3">Estado</th>
                   <th className="py-3 px-3">Residuo (LER)</th>
                   <th className="py-3 px-3 text-right">Toneladas</th>
-                  <th className="py-3 px-3">Flujo Comercial (Compra ➔ Venta)</th>
+                  <th className="py-3 px-3">Flujo Comercial (Compra → Venta)</th>
                   <th className="py-3 px-3 text-right">Margen Bruto</th>
                   <th className="py-3 px-3 text-right">Margen (€/t)</th>
                   <th className="py-3 px-3">Trazabilidad DI</th>
@@ -381,8 +382,15 @@ export default function OperacionesComercialesPage() {
                         <div className="font-bold text-gray-900 dark:text-gray-100">
                           {ton.toFixed(3)} t
                         </div>
-                        <div className="text-[10px] text-gray-400">
-                          {op.cantidad_real_t ? '✓ Báscula' : 'Estimado'}
+                        <div className="text-[10px] text-slate-400 inline-flex items-center gap-1 justify-end">
+                          {op.cantidad_real_t ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                              <span>Báscula</span>
+                            </>
+                          ) : (
+                            'Estimado'
+                          )}
                         </div>
                       </td>
 
@@ -392,7 +400,7 @@ export default function OperacionesComercialesPage() {
                           <span className="text-red-700 dark:text-red-400 truncate max-w-[100px]" title={op.proveedor_razon_social || op.proveedor_comercial?.razon_social || 'Proveedor'}>
                             {op.proveedor_razon_social || op.proveedor_comercial?.razon_social || 'Proveedor'}
                           </span>
-                          <span className="text-gray-400 shrink-0">→</span>
+                          <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" aria-hidden="true" />
                           <span className="text-emerald-700 dark:text-emerald-400 font-semibold truncate max-w-[100px]" title={op.cliente_razon_social || op.cliente_comercial?.razon_social || 'Cliente'}>
                             {op.cliente_razon_social || op.cliente_comercial?.razon_social || 'Cliente'}
                           </span>

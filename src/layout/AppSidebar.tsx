@@ -5,22 +5,29 @@ import LogoReduced from "@/components/common/LogoReduced";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
 import {
-  BoxCubeIcon,
-  CalenderIcon,
-  ChevronDownIcon,
-  GridIcon,
-  HorizontaLDots,
-  ListIcon,
-  PieChartIcon,
-  PlugInIcon,
-  TableIcon,
-  UserCircleIcon,
-  TaskIcon,
-  DocsIcon,
-  PaperPlaneIcon,
-  DollarLineIcon,
-  InfoIcon
-} from "../icons/index";
+  LayoutDashboard,
+  Smartphone,
+  Send,
+  FileText,
+  ClipboardCheck,
+  CircleDollarSign,
+  FileSignature,
+  ClipboardList,
+  BarChart3,
+  Building2,
+  Users,
+  Factory,
+  Truck,
+  Route,
+  Plug,
+  LifeBuoy,
+  ShieldCheck,
+  ChevronDown,
+  MoreHorizontal,
+  PieChart,
+  Box,
+  ArrowLeft,
+} from "lucide-react";
 import Logo from "@/components/common/Logo";
 import adminPlatformService from "@/services/adminPlatformService";
 import dashboardService from "@/services/dashboardService";
@@ -35,13 +42,11 @@ type NavItem = {
   subItems?: Array<{ name: string; path: string; pro?: boolean; new?: boolean }>;
 };
 
+const SIDEBAR_ICON_CLASS = "w-[18px] h-[18px] shrink-0";
+
 const adminNavItems: NavItem[] = [
   {
-    icon: (
-      <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-      </svg>
-    ),
+    icon: <ShieldCheck className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
     name: "Modo Admin / Empresas",
     path: "/platform-admin",
   },
@@ -57,44 +62,32 @@ const navGroups: NavGroup[] = [
     label: "Operativa",
     items: [
       {
-        icon: <GridIcon />,
+        icon: <LayoutDashboard className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Dashboard",
         path: "/app",
       },
       {
-        icon: (
-          <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-          </svg>
-        ),
+        icon: <Smartphone className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Vista Conductor (Móvil)",
         path: "/transporte",
       },
       {
-        icon: <PaperPlaneIcon />,
+        icon: <Send className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Documentos de Identificación",
         path: "/residuos/documentos-identificacion",
       },
       {
-        icon: (
-          <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        ),
+        icon: <FileText className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Notificaciones Previas (NT)",
         path: "/residuos/notificaciones-previas",
       },
       {
-        icon: (
-          <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 17a2 2 0 100 4 2 2 0 000-4zm10 0a2 2 0 100 4 2 2 0 000-4zM3 4h11v11H3V4zm11 4h4l3 3v4h-7V8z" />
-          </svg>
-        ),
+        icon: <ClipboardCheck className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Control DeCA",
         path: "/residuos/deca",
       },
       {
-        icon: <DollarLineIcon />,
+        icon: <CircleDollarSign className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Operaciones Comerciales",
         path: "/residuos/operaciones",
       },
@@ -104,17 +97,17 @@ const navGroups: NavGroup[] = [
     label: "Cumplimiento y Registros",
     items: [
       {
-        icon: <HorizontaLDots />,
+        icon: <FileSignature className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Contratos",
         path: "/residuos/contratos",
       },
       {
-        icon: <ListIcon />,
+        icon: <ClipboardList className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Archivo Cronológico",
         path: "/residuos/archivo-cronologico",
       },
       {
-        icon: <TableIcon />,
+        icon: <BarChart3 className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Memorias Anuales",
         path: "/residuos/memorias-anuales",
       },
@@ -124,31 +117,27 @@ const navGroups: NavGroup[] = [
     label: "Red y Maestros",
     items: [
       {
-        icon: <DocsIcon />,
+        icon: <Building2 className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Mi Empresa",
         path: "/residuos/mi-empresa",
       },
       {
-        icon: <UserCircleIcon />,
+        icon: <Users className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Empresas y Contactos",
         path: "/residuos/empresas",
       },
       {
-        icon: <TaskIcon />,
+        icon: <Factory className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Gestores",
         path: "/residuos/gestores",
       },
       {
-        icon: (
-          <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        ),
+        icon: <Truck className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Mi Flota",
         path: "/residuos/flota",
       },
       {
-        icon: <CalenderIcon />,
+        icon: <Route className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Transportistas",
         path: "/residuos/transportistas",
       },
@@ -158,12 +147,12 @@ const navGroups: NavGroup[] = [
     label: "Sistema",
     items: [
       {
-        icon: <PlugInIcon />,
+        icon: <Plug className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Integraciones y Auditoría",
         path: "/residuos/integraciones",
       },
       {
-        icon: <InfoIcon />,
+        icon: <LifeBuoy className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Soporte y Manual",
         path: "/support",
       },
@@ -175,7 +164,7 @@ const navItems: NavItem[] = navGroups.flatMap((g) => g.items);
 
 const othersItems: NavItem[] = [
   {
-    icon: <PieChartIcon />,
+    icon: <PieChart className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
     name: "Gráficos",
     subItems: [
       { name: "Gráfico de líneas", path: "/line-chart", pro: false },
@@ -183,7 +172,7 @@ const othersItems: NavItem[] = [
     ],
   },
   {
-    icon: <BoxCubeIcon />,
+    icon: <Box className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
     name: "Elementos UI",
     subItems: [
       { name: "Alertas", path: "/alerts", pro: false },
@@ -195,7 +184,7 @@ const othersItems: NavItem[] = [
     ],
   },
   {
-    icon: <PlugInIcon />,
+    icon: <Plug className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
     name: "Autenticación",
     subItems: [
       { name: "Iniciar Sesión", path: "/signin", pro: false },
@@ -349,8 +338,8 @@ const renderMenuItems = (
                 <span className="menu-item-text">{nav.name}</span>
               )}
               {(isExpanded || isHovered || isMobileOpen) && (
-                <ChevronDownIcon
-                  className={`ml-auto w-5 h-5 transition-transform duration-200  ${openSubmenu?.type === menuType &&
+                <ChevronDown
+                  className={`ml-auto w-4 h-4 transition-transform duration-200  ${openSubmenu?.type === menuType &&
                     openSubmenu?.index === index
                     ? "rotate-180 text-brand-500"
                     : ""
@@ -571,7 +560,7 @@ return (
                   {isExpanded || isHovered || isMobileOpen ? (
                     "Control de Plataforma"
                   ) : (
-                  <HorizontaLDots />
+                  <MoreHorizontal className="w-4 h-4" />
                   )}
                 </h2>
                 {renderMenuItems(adminNavItems, "main")}
@@ -611,7 +600,7 @@ return (
                                 {isExpanded || isHovered || isMobileOpen ? (
                                   groupLabel
                                 ) : (
-                                  <HorizontaLDots />
+                                  <MoreHorizontal className="w-4 h-4" />
                                 )}
                               </h2>
                               {renderMenuItems(visibleItems, "main")}
@@ -637,9 +626,10 @@ return (
                               await exitDelegationContext();
                               window.location.href = "/platform-admin";
                             }}
-                            className="w-full text-left text-[11px] font-semibold text-amber-700 dark:text-amber-400 hover:underline pt-1"
+                            className="w-full inline-flex items-center gap-1.5 text-left text-[11px] font-semibold text-amber-700 dark:text-amber-400 hover:underline pt-1"
                           >
-                            ← Salir y volver a Control Admin
+                            <ArrowLeft className="w-3 h-3 shrink-0" />
+                            <span>Salir y volver a Control Admin</span>
                           </button>
                         )}
                       </div>

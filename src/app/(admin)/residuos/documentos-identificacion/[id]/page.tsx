@@ -28,6 +28,7 @@ import SignatureModal from '@/components/ui/signature/SignatureModal';
 import AutoFirmaModal from '@/components/ui/signature/AutoFirmaModal';
 import SignedDocumentsCard from '@/components/ui/signature/SignedDocumentsCard';
 import pdfSignatureService from '@/services/pdfSignatureService';
+import { Check, X, Circle, CircleDot } from 'lucide-react';
 import type { SignedDocumentRecord, SignerRole } from '@/lib/validations/digitalSignature';
 import type { JsPDFWithSignatureBoxes } from '@/lib/pdf/pdfComponents';
 import type {
@@ -750,7 +751,7 @@ return (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 1</span>
-                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{tracking.step > 1 ? '✓' : '●'}</span>
+                  <span className="text-emerald-600 dark:text-emerald-400">{tracking.step > 1 ? <Check className="w-3.5 h-3.5" /> : <CircleDot className="w-3.5 h-3.5" />}</span>
                 </div>
                 <p className="text-xs font-semibold text-foreground">Registrado / Origen</p>
                 <p className="text-[11px] text-muted mt-1">{formatDate(document.fecha_documento)}</p>
@@ -762,7 +763,7 @@ return (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 2</span>
-                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{tracking.step > 2 ? '✓' : (tracking.step === 2 ? '●' : '○')}</span>
+                  <span className="text-emerald-600 dark:text-emerald-400">{tracking.step > 2 ? <Check className="w-3.5 h-3.5" /> : (tracking.step === 2 ? <CircleDot className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5 text-slate-400" />)}</span>
                 </div>
                 <p className="text-xs font-semibold text-foreground">En Tránsito</p>
                 <p className="text-[11px] text-muted mt-1">{document.fecha_salida ? formatDateTime(document.fecha_salida) : 'Pendiente salida'}</p>
@@ -774,7 +775,7 @@ return (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 3</span>
-                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{tracking.step > 3 ? '✓' : (tracking.step === 3 ? '●' : '○')}</span>
+                  <span className="text-emerald-600 dark:text-emerald-400">{tracking.step > 3 ? <Check className="w-3.5 h-3.5" /> : (tracking.step === 3 ? <CircleDot className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5 text-slate-400" />)}</span>
                 </div>
                 <p className="text-xs font-semibold text-foreground">Pesaje en Báscula</p>
                 <p className="text-[11px] text-muted mt-1">{document.peso_destino_kg ? `${document.peso_destino_kg} kg` : 'Pendiente pesaje'}</p>
@@ -786,7 +787,7 @@ return (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 4</span>
-                  <span className="text-xs font-bold">{document.resultado_recepcion?.includes('rechazado') ? '✕' : (tracking.step >= 4 ? '✓' : '○')}</span>
+                  <span>{document.resultado_recepcion?.includes('rechazado') ? <X className="w-3.5 h-3.5 text-red-600 dark:text-red-400" /> : (tracking.step >= 4 ? <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> : <Circle className="w-3.5 h-3.5 text-slate-400" />)}</span>
                 </div>
                 <p className="text-xs font-semibold text-foreground">Dictamen Gestor</p>
                 <p className="text-[11px] text-muted mt-1">{document.resultado_recepcion ? document.resultado_recepcion.replace('_', ' ').toUpperCase() : 'Pendiente'}</p>
@@ -803,7 +804,7 @@ return (
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Paso 5</span>
-                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{isStep5Done ? '✓' : '○'}</span>
+                      <span className="text-emerald-600 dark:text-emerald-400">{isStep5Done ? <Check className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5 text-slate-400" />}</span>
                     </div>
                     <p className="text-xs font-semibold text-foreground">
                       {isProducerClosedExternally ? 'Seguimiento Completado' : 'Tratado y Cerrado'}

@@ -21,7 +21,7 @@ import {
   getDriverComplianceAlerts,
   getVehicleComplianceAlerts,
 } from '@/lib/validations/fleetValidation';
-import { AlertTriangle, Truck, ChevronDown, ChevronUp, Plus, Smartphone, Scale, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Truck, ChevronDown, ChevronUp, Plus, Smartphone, Scale, CheckCircle2, ArrowRight } from 'lucide-react';
 import type { AppModule, FleetComplianceAlert, OperationalProfile } from '@/types/wasteManagement';
 
 export default function ExecutiveDashboardPage() {
@@ -618,8 +618,10 @@ export default function ExecutiveDashboardPage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-gray-500">
-                        {di.productor_razon_social} ➔ {di.gestor_razon_social}
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 flex-wrap">
+                        <span>{di.productor_razon_social}</span>
+                        <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" aria-hidden="true" />
+                        <span>{di.gestor_razon_social}</span>
                       </p>
                     </Link>
 

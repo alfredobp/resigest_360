@@ -19,6 +19,7 @@ import pdfSignatureService from '@/services/pdfSignatureService';
 import type { SignedDocumentRecord, SignerRole } from '@/lib/validations/digitalSignature';
 import type { JsPDFWithSignatureBoxes } from '@/lib/pdf/pdfComponents';
 import { generateContractPDF } from '@/lib/pdfUtils';
+import { Check, X } from 'lucide-react';
 
 const STATUS_COLORS = {
   borrador: 'info',
@@ -106,24 +107,24 @@ export default function ContractDetailPage() {
     const previewContract: WasteContract =
       role === 'productor'
         ? {
+          ...contractToPrint,
+          firmado_productor: true,
+          fecha_firma_productor: contractToPrint.fecha_firma_productor || nowIso,
+          estado:
+            contractToPrint.firmado_gestor && contractToPrint.estado !== 'cancelado'
+              ? 'vigente'
+              : contractToPrint.estado,
+        }
+        : role === 'gestor'
+          ? {
             ...contractToPrint,
-            firmado_productor: true,
-            fecha_firma_productor: contractToPrint.fecha_firma_productor || nowIso,
+            firmado_gestor: true,
+            fecha_firma_gestor: contractToPrint.fecha_firma_gestor || nowIso,
             estado:
-              contractToPrint.firmado_gestor && contractToPrint.estado !== 'cancelado'
+              contractToPrint.firmado_productor && contractToPrint.estado !== 'cancelado'
                 ? 'vigente'
                 : contractToPrint.estado,
           }
-        : role === 'gestor'
-          ? {
-              ...contractToPrint,
-              firmado_gestor: true,
-              fecha_firma_gestor: contractToPrint.fecha_firma_gestor || nowIso,
-              estado:
-                contractToPrint.firmado_productor && contractToPrint.estado !== 'cancelado'
-                  ? 'vigente'
-                  : contractToPrint.estado,
-            }
           : contractToPrint;
 
     const doc = (await generateContractPDF(previewContract, undefined, {
@@ -137,12 +138,12 @@ export default function ContractDetailPage() {
       buffer: doc.output('arraybuffer'),
       stampBox: matchedBox
         ? {
-            page: matchedBox.page,
-            llx: matchedBox.llx,
-            lly: matchedBox.lly,
-            urx: matchedBox.urx,
-            ury: matchedBox.ury,
-          }
+          page: matchedBox.page,
+          llx: matchedBox.llx,
+          lly: matchedBox.lly,
+          urx: matchedBox.urx,
+          ury: matchedBox.ury,
+        }
         : undefined,
     };
   };
@@ -348,7 +349,7 @@ export default function ContractDetailPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${activation.checklist.hasProducer ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-800 dark:text-red-300'}`}>
-                    <span className="font-bold text-sm shrink-0">{activation.checklist.hasProducer ? '✓' : '✕'}</span>
+                    <span className="mt-0.5 shrink-0">{activation.checklist.hasProducer ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}</span>
                     <div className="text-xs">
                       <p className="font-semibold">Empresa Productora</p>
                       <p className="opacity-80">{activation.checklist.hasProducer ? (contract.company?.razon_social || 'Asignada') : 'Falta productor'}</p>
@@ -356,7 +357,7 @@ export default function ContractDetailPage() {
                   </div>
 
                   <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${activation.checklist.hasGestor ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-800 dark:text-red-300'}`}>
-                    <span className="font-bold text-sm shrink-0">{activation.checklist.hasGestor ? '✓' : '✕'}</span>
+                    <span className="mt-0.5 shrink-0">{activation.checklist.hasGestor ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}</span>
                     <div className="text-xs">
                       <p className="font-semibold">Gestor de Tratamiento</p>
                       <p className="opacity-80">{activation.checklist.hasGestor ? (contract.treatment_manager?.razon_social || contract.gestor_company?.razon_social || 'Asignado') : 'Falta gestor'}</p>
@@ -364,7 +365,7 @@ export default function ContractDetailPage() {
                   </div>
 
                   <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${activation.checklist.hasValidDates ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-800 dark:text-red-300'}`}>
-                    <span className="font-bold text-sm shrink-0">{activation.checklist.hasValidDates ? '✓' : '✕'}</span>
+                    <span className="mt-0.5 shrink-0">{activation.checklist.hasValidDates ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}</span>
                     <div className="text-xs">
                       <p className="font-semibold">Fechas de Vigencia</p>
                       <p className="opacity-80">{activation.checklist.hasValidDates ? 'Inicio y fin especificados' : 'Faltan fechas'}</p>
@@ -372,7 +373,7 @@ export default function ContractDetailPage() {
                   </div>
 
                   <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${activation.checklist.isNotExpired ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-800 dark:text-red-300'}`}>
-                    <span className="font-bold text-sm shrink-0">{activation.checklist.isNotExpired ? '✓' : '✕'}</span>
+                    <span className="mt-0.5 shrink-0">{activation.checklist.isNotExpired ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}</span>
                     <div className="text-xs">
                       <p className="font-semibold">Vigencia Temporal</p>
                       <p className="opacity-80">{activation.checklist.isNotExpired ? 'No caducado' : 'Fecha fin superada'}</p>
@@ -380,7 +381,7 @@ export default function ContractDetailPage() {
                   </div>
 
                   <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${activation.checklist.hasWasteCodes ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-800 dark:text-red-300'}`}>
-                    <span className="font-bold text-sm shrink-0">{activation.checklist.hasWasteCodes ? '✓' : '✕'}</span>
+                    <span className="mt-0.5 shrink-0">{activation.checklist.hasWasteCodes ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}</span>
                     <div className="text-xs">
                       <p className="font-semibold">Códigos LER Incluidos</p>
                       <p className="opacity-80">{activation.checklist.hasWasteCodes ? `${(contract.contract_waste_codes?.length || contract.codigos_ler?.length || 0)} residuo(s)` : 'Ningún LER'}</p>
@@ -388,7 +389,7 @@ export default function ContractDetailPage() {
                   </div>
 
                   <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${activation.checklist.hasOperations ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-800 dark:text-red-300'}`}>
-                    <span className="font-bold text-sm shrink-0">{activation.checklist.hasOperations ? '✓' : '✕'}</span>
+                    <span className="mt-0.5 shrink-0">{activation.checklist.hasOperations ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}</span>
                     <div className="text-xs">
                       <p className="font-semibold">Operación R/D Definida</p>
                       <p className="opacity-80">{activation.checklist.hasOperations ? 'Operación autorizada' : 'Falta operación R/D'}</p>
