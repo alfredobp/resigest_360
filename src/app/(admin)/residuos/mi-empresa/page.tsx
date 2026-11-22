@@ -46,12 +46,12 @@ const TIPOS_EMPRESA: Array<{
   label: string;
   description: string;
 }> = [
-  { value: 'productor', label: 'Productor', description: 'Genera residuos' },
-  { value: 'gestor', label: 'Gestor', description: 'Planta / Valorización' },
-  { value: 'transportista', label: 'Transportista', description: 'Recogida y porte' },
-  { value: 'negociante', label: 'Negociante', description: 'Cuenta propia' },
-  { value: 'agente', label: 'Agente', description: 'Cuenta de terceros' },
-];
+    { value: 'productor', label: 'Productor', description: 'Genera residuos' },
+    { value: 'gestor', label: 'Gestor', description: 'Planta / Valorización' },
+    { value: 'transportista', label: 'Transportista', description: 'Recogida y porte' },
+    { value: 'negociante', label: 'Negociante', description: 'Cuenta propia' },
+    { value: 'agente', label: 'Agente', description: 'Cuenta de terceros' },
+  ];
 
 const PROVINCIAS_POR_CP: Record<string, string> = {
   '01': 'Álava', '02': 'Albacete', '03': 'Alicante', '04': 'Almería', '05': 'Ávila',
@@ -76,6 +76,7 @@ export default function MiEmpresaPage() {
     isPlatformAdmin,
     membershipRole,
     activeCompanyId,
+    activeModules,
     tenant,
     hasModule,
     canAccessRoute,
@@ -503,6 +504,8 @@ export default function MiEmpresaPage() {
         )}
 
         {company &&
+          activeModules.includes('flota_transporte') &&
+          (formData.modulos_activos || []).includes('flota_transporte') &&
           hasModule('flota_transporte') &&
           canAccessRoute('/residuos/flota') &&
           (formData.tipo_empresa === 'transportista' ||
@@ -531,11 +534,10 @@ export default function MiEmpresaPage() {
           <button
             type="button"
             onClick={() => setActiveTab('identidad')}
-            className={`pb-3.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'identidad'
+            className={`pb-3.5 text-sm font-medium border-b-2 transition-colors ${activeTab === 'identidad'
                 ? 'border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400'
                 : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
+              }`}
           >
             Datos Fiscales y Contacto
           </button>
@@ -543,11 +545,10 @@ export default function MiEmpresaPage() {
           <button
             type="button"
             onClick={() => setActiveTab('sedes')}
-            className={`pb-3.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'sedes'
+            className={`pb-3.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'sedes'
                 ? 'border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400'
                 : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
+              }`}
           >
             <span>Domicilios y Centros</span>
             {productionCenters.length > 0 && (
@@ -560,11 +561,10 @@ export default function MiEmpresaPage() {
           <button
             type="button"
             onClick={() => setActiveTab('integraciones')}
-            className={`pb-3.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'integraciones'
+            className={`pb-3.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'integraciones'
                 ? 'border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400'
                 : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
+              }`}
           >
             <span>Integraciones y Firma Digital</span>
             {(formData.sira_activo || Boolean(formData.holded_api_key?.trim()) || formData.firma_electronica_activa) && (
@@ -578,11 +578,10 @@ export default function MiEmpresaPage() {
             <button
               type="button"
               onClick={() => setActiveTab('autorizaciones')}
-              className={`pb-3.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-                activeTab === 'autorizaciones'
+              className={`pb-3.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'autorizaciones'
                   ? 'border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400'
                   : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
+                }`}
             >
               <span>Autorizaciones Ambientales</span>
               {authorizations.length > 0 && (
@@ -597,11 +596,10 @@ export default function MiEmpresaPage() {
             <button
               type="button"
               onClick={() => setActiveTab('delegacion')}
-              className={`pb-3.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-                activeTab === 'delegacion'
+              className={`pb-3.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'delegacion'
                   ? 'border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400'
                   : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
+                }`}
             >
               <span>Delegación y Acceso</span>
             </button>
@@ -703,12 +701,11 @@ export default function MiEmpresaPage() {
                         placeholder="Ej: 4100012345 (10 dígitos)"
                         className="font-mono"
                       />
-{nimaTrimmed !== '' && (
+                      {nimaTrimmed !== '' && (
                         <div className="w-full bg-gray-100 dark:bg-gray-800 h-1.5 rounded-full overflow-hidden mt-2">
                           <div
-                            className={`h-full transition-all duration-300 ${
-                              isNimaValid ? 'bg-emerald-500' : 'bg-amber-500'
-                            }`}
+                            className={`h-full transition-all duration-300 ${isNimaValid ? 'bg-emerald-500' : 'bg-amber-500'
+                              }`}
                             style={{ width: `${nimaProgressPct}%` }}
                           />
                         </div>
@@ -732,18 +729,16 @@ export default function MiEmpresaPage() {
                             key={tipo.value}
                             type="button"
                             onClick={() => handleCompanyTypeChange(tipo.value)}
-                            className={`flex flex-col items-start p-3 rounded-lg border text-left transition-colors ${
-                              isSelected
+                            className={`flex flex-col items-start p-3 rounded-lg border text-left transition-colors ${isSelected
                                 ? 'border-brand-600 bg-brand-50/50 dark:bg-brand-950/30 dark:border-brand-400'
                                 : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50'
-                            }`}
+                              }`}
                           >
                             <span
-                              className={`text-sm font-semibold ${
-                                isSelected
+                              className={`text-sm font-semibold ${isSelected
                                   ? 'text-brand-700 dark:text-brand-300'
                                   : 'text-gray-900 dark:text-white'
-                              }`}
+                                }`}
                             >
                               {tipo.label}
                             </span>
@@ -860,9 +855,8 @@ export default function MiEmpresaPage() {
                         return (
                           <label
                             key={mod}
-                            className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs transition ${
-                              isPlatformAdmin ? 'cursor-pointer' : 'cursor-default opacity-85'
-                            } ${checked
+                            className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs transition ${isPlatformAdmin ? 'cursor-pointer' : 'cursor-default opacity-85'
+                              } ${checked
                                 ? 'border-brand-400 bg-brand-50/60 dark:bg-brand-950/30 text-brand-900 dark:text-brand-200 font-semibold'
                                 : 'border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400'
                               }`}
@@ -1026,11 +1020,10 @@ export default function MiEmpresaPage() {
                         nima: formData.nima,
                       });
                       return (
-                        <div className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-semibold ${
-                          detected.supported
+                        <div className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-semibold ${detected.supported
                             ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
                             : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
-                        }`}>
+                          }`}>
                           <span>Plataforma detectada para esta empresa: {detected.name}</span>
                         </div>
                       );
@@ -1154,30 +1147,30 @@ export default function MiEmpresaPage() {
             </div>
           )}
 
-{/* Barra de Acciones del Formulario Principal */}
+          {/* Barra de Acciones del Formulario Principal */}
           {activeTab !== 'autorizaciones' && activeTab !== 'delegacion' && (
-          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-xs text-gray-500 dark:text-gray-400">
-              {canManageCompany
-                ? 'Los cambios realizados en cualquiera de las pestañas de ficha se guardan conjuntamente.'
-                : 'Modo de consulta: no tienes permisos para modificar los datos fiscales de esta empresa.'}
-            </div>
-            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => router.push(tenant?.homePath || '/app')}
-                disabled={saving}
-              >
-                Volver
-              </Button>
-              {canManageCompany && (
-                <Button type="submit" disabled={saving}>
-                  {saving ? 'Guardando...' : company ? 'Actualizar Empresa' : 'Crear Empresa'}
+            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {canManageCompany
+                  ? 'Los cambios realizados en cualquiera de las pestañas de ficha se guardan conjuntamente.'
+                  : 'Modo de consulta: no tienes permisos para modificar los datos fiscales de esta empresa.'}
+              </div>
+              <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.push(tenant?.homePath || '/app')}
+                  disabled={saving}
+                >
+                  Volver
                 </Button>
-              )}
+                {canManageCompany && (
+                  <Button type="submit" disabled={saving}>
+                    {saving ? 'Guardando...' : company ? 'Actualizar Empresa' : 'Crear Empresa'}
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
           )}
         </form>
 
@@ -1484,7 +1477,7 @@ export default function MiEmpresaPage() {
                           </p>
                         )}
                       </div>
-{canWrite && (
+                      {canWrite && (
                         <button
                           type="button"
                           onClick={() => handleDeleteCenter(center.id)}

@@ -296,7 +296,10 @@ const checkMenuPathVisible = useCallback(
       if (isPlatformAdmin && profile !== "all") {
         return profile === "transportista";
       }
-      return isPlatformAdmin || perfilOperativo === "transportista";
+      if (!canAccessRoute(path)) {
+        return false;
+      }
+      return perfilOperativo === "transportista" || (isPlatformAdmin && !isDelegated);
     }
     if (isPlatformAdmin && profile !== "all") {
       return isPathVisible(path);
@@ -306,7 +309,7 @@ const checkMenuPathVisible = useCallback(
     }
     return canAccessRoute(path);
   },
-  [isPlatformAdmin, profile, isPathVisible, perfilOperativo, tenantLoading, activeCompany, canAccessRoute]
+  [isPlatformAdmin, isDelegated, profile, isPathVisible, perfilOperativo, tenantLoading, activeCompany, canAccessRoute]
 );
 
 const renderMenuItems = (
