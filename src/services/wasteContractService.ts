@@ -1185,7 +1185,13 @@ export const wasteContractService = {
   async signContract(
     id: number,
     signatureBase64: string,
-    role: 'productor' | 'gestor'
+    role: 'productor' | 'gestor',
+    signerInfo?: {
+      nombre?: string;
+      dni?: string;
+      representacion?: string;
+      modo_captura?: 'sesion_propia' | 'presencial_asistida';
+    }
   ): Promise<WasteContract> {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) {
@@ -1243,8 +1249,20 @@ export const wasteContractService = {
         const prod = current.company;
         const gest = current.gestor_company || current.treatment_manager;
         const snapshot: any = {
+          ...(current.metadata_snapshot || {}),
           version: current.version || 1,
           snapshot_date: now,
+          firmantes: {
+            ...(current.metadata_snapshot?.firmantes || {}),
+            [role]: {
+              nombre: signerInfo?.nombre || undefined,
+              dni: signerInfo?.dni || undefined,
+              representacion: signerInfo?.representacion || undefined,
+              modo_captura: signerInfo?.modo_captura || (role === 'gestor' ? 'presencial_asistida' : 'sesion_propia'),
+              capturado_por: userData.user.email || userData.user.id,
+              fecha: now,
+            },
+          },
         };
         if (prod) {
           snapshot.company = {

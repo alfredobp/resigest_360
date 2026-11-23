@@ -389,14 +389,38 @@ export default function DetalleNotificacionPreviaPage({ params }: PageProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {linkedDIs.map((di) => (
+                  {linkedDIs.map((di) => {
+                    // INC18: Mostrar siempre el estado operativo real del DI (estado_traslado || estado)
+                    const effectiveStatus = (di.estado_traslado || di.estado || 'borrador').toLowerCase();
+                    const statusLabelMap: Record<string, string> = {
+                      borrador: 'Borrador',
+                      en_transito: 'En Tránsito',
+                      recepcionado: 'Recepcionado',
+                      aceptado: 'Aceptado',
+                      tratado: 'Tratado',
+                      rechazado_parcial: 'Rechazo Parcial',
+                      rechazado_total: 'Rechazado',
+                      completado: 'Completado',
+                      'pendiente-firma': 'Pendiente Firma',
+                      cancelado: 'Cancelado',
+                    };
+                    const badgeColor =
+                      effectiveStatus === 'aceptado' || effectiveStatus === 'tratado' || effectiveStatus === 'completado'
+                        ? 'success'
+                        : effectiveStatus === 'en_transito' || effectiveStatus === 'recepcionado'
+                          ? 'info'
+                          : effectiveStatus === 'rechazado_parcial' || effectiveStatus === 'rechazado_total' || effectiveStatus === 'cancelado'
+                            ? 'error'
+                            : 'warning';
+
+                    return (
                     <tr key={di.id} className="hover:bg-muted/20">
                       <td className="px-4 py-2 font-mono font-medium text-foreground">{di.numero_documento}</td>
                       <td className="px-4 py-2 text-muted">{di.fecha_documento}</td>
                       <td className="px-4 py-2 text-foreground font-medium">{Number(di.cantidad).toLocaleString()}</td>
                       <td className="px-4 py-2">
-                        <Badge variant="light" color={di.estado === 'completado' ? 'success' : 'primary'}>
-                          {di.estado}
+                        <Badge variant="light" color={badgeColor}>
+                          {statusLabelMap[effectiveStatus] || effectiveStatus}
                         </Badge>
                       </td>
                       <td className="px-4 py-2 text-right">
@@ -409,7 +433,8 @@ export default function DetalleNotificacionPreviaPage({ params }: PageProps) {
                         </Button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -606,6 +606,15 @@ export interface WasteContract {
   contract_waste_codes?: ContractWasteCode[];
 }
 
+export interface ContractSignerAttribution {
+  nombre?: string;
+  dni?: string;
+  representacion?: string;
+  modo_captura?: 'sesion_propia' | 'presencial_asistida' | 'enlace_publico';
+  capturado_por?: string;
+  fecha?: string;
+}
+
 export interface ContractMetadataSnapshot {
   version?: number;
   snapshot_date?: string;
@@ -615,6 +624,10 @@ export interface ContractMetadataSnapshot {
   producer_center?: Partial<ProductionCenter>;
   gestor_center?: Partial<ProductionCenter>;
   environmental_authorization?: Partial<EnvironmentalAuthorization>;
+  firmantes?: {
+    productor?: ContractSignerAttribution;
+    gestor?: ContractSignerAttribution;
+  };
 }
 
 export interface WasteContractRevision {

@@ -173,26 +173,48 @@ export default function DecaDriverMobilePage({
               <h1 className="text-lg font-bold text-white leading-tight">Control de Transporte</h1>
             </div>
           </div>
-          <div className="text-right">
+          {/* INC11: Separar explícitamente estado de versión documental y estado operativo del servicio */}
+          <div className="flex flex-col items-end gap-1">
             <span
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
                 !deca.is_vigente
                   ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                  : isExpired
-                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                  : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
               }`}
             >
               {!deca.is_vigente ? (
-                <AlertTriangle className="w-3.5 h-3.5" />
+                <AlertTriangle className="w-3 h-3" />
               ) : (
-                <CheckCircle2 className="w-3.5 h-3.5" />
+                <CheckCircle2 className="w-3 h-3" />
               )}
               {!deca.is_vigente
-                ? `v${deca.version} Sustituida (Histórica)`
-                : isExpired
-                ? 'Finalizado (>7d)'
-                : `v${deca.version} Vigente`}
+                ? `v${deca.version} · Histórica (Sustituida)`
+                : `v${deca.version} · Última versión`}
+            </span>
+            <span
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                deca.estado === 'finalizado'
+                  ? 'bg-slate-700/80 text-slate-200 border border-slate-500/50'
+                  : deca.estado === 'anulado'
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+              }`}
+            >
+              {deca.estado === 'finalizado'
+                ? `Servicio finalizado${
+                    deca.fecha_finalizacion
+                      ? ` (${new Date(deca.fecha_finalizacion).toLocaleString('es-ES', {
+                          timeZone: 'Europe/Madrid',
+                          day: '2-digit',
+                          month: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })})`
+                      : ''
+                  }`
+                : deca.estado === 'anulado'
+                  ? 'Servicio anulado'
+                  : 'Servicio en curso'}
             </span>
           </div>
         </div>

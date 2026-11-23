@@ -21,6 +21,9 @@ interface JsPDFExt {
   setGState?: (gState: unknown) => void;
   GState?: new (params: { opacity: number }) => unknown;
   internal?: JsPDFInternalExt;
+  __private__?: {
+    getDocumentProperties?: () => Record<string, string>;
+  };
 }
 
 // =============================================================================
@@ -133,18 +136,17 @@ export function applyDeterministicMetadata(doc: jsPDF, opts: DeterministicMetada
   if (typeof ext.setCreationDate === 'function') {
     ext.setCreationDate(safeCreated);
   }
+  // INC05 (Res. 5/06/2026 ap. segundo.1): Inyectar /ModDate en el diccionario /Info de jsPDF 3.x
+  const rawProps = ext.__private__?.getDocumentProperties?.();
+  if (rawProps && typeof rawProps === 'object') {
+    rawProps.modDate = pdfModDate;
+  }
   if (opts.fileIdSeed && typeof ext.setFileId === 'function') {
     const stableFileId = opts.fileIdSeed
       .replace(/[^0-9a-fA-F]/g, '0')
       .padEnd(32, '0')
       .slice(0, 32);
     ext.setFileId(stableFileId);
-  }
-  if (ext.internal?.events?.subscribe) {
-    ext.internal.events.subscribe('putInfo', function () {
-      this.internal.write(`/CreationDate (${pdfCreatedDate})`);
-      this.internal.write(`/ModDate (${pdfModDate})`);
-    });
   }
 }
 
@@ -285,14 +287,20 @@ export function drawDocumentHeader(doc: jsPDF, opts: DocumentHeaderOptions): num
 
     setText(doc, PDF_COLORS.inkPrimary);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.8);
-    doc.text(fitText(doc, opts.refValue, boxW - qrSize - 8), textRight, boxY + 9.8, { align: 'right' });
+    let refFontSize = 8.8;
+    const maxQrRefW = boxW - qrSize - 8;
+    doc.setFontSize(refFontSize);
+    while (refFontSize > 6.4 && doc.getTextWidth(opts.refValue) > maxQrRefW) {
+      refFontSize -= 0.4;
+      doc.setFontSize(refFontSize);
+    }
+    doc.text(opts.refValue, textRight, boxY + 9.8, { align: 'right' });
 
     if (opts.versionText) {
       setText(doc, PDF_COLORS.inkMuted);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.8);
-      doc.text(fitText(doc, opts.versionText, boxW - qrSize - 8), textRight, boxY + 14.2, { align: 'right' });
+      doc.setFontSize(6.6);
+      doc.text(opts.versionText, textRight, boxY + 14.2, { align: 'right' });
     }
     drawStatusBadge(doc, opts.statusText, textRight, boxY + 16.5, opts.statusTone);
   } else {
@@ -304,17 +312,33 @@ export function drawDocumentHeader(doc: jsPDF, opts: DocumentHeaderOptions): num
 
     setText(doc, PDF_COLORS.inkPrimary);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.5);
-    doc.text(fitText(doc, opts.refValue, boxW - 7), rightEdge, boxY + 10.2, { align: 'right' });
+    let refFontSize = 9.5;
+    const maxRefW = boxW - 7;
+    doc.setFontSize(refFontSize);
+    while (refFontSize > 6.4 && doc.getTextWidth(opts.refValue) > maxRefW) {
+      refFontSize -= 0.4;
+      doc.setFontSize(refFontSize);
+    }
+    if (doc.getTextWidth(opts.refValue) <= maxRefW) {
+      doc.text(opts.refValue, rightEdge, boxY + 10.2, { align: 'right' });
+    } else {
+      const refLines = doc.splitTextToSize(opts.refValue, maxRefW) as string[];
+      doc.text(refLines.slice(0, 2), rightEdge, boxY + 8.6, { align: 'right' });
+    }
 
     const badgeW = drawStatusBadge(doc, opts.statusText, rightEdge, boxY + 12.8, opts.statusTone);
     if (opts.versionText) {
       setText(doc, PDF_COLORS.inkMuted);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7);
+      let verFontSize = 7;
       const maxVerW = boxW - badgeW - 9;
       if (maxVerW > 8) {
-        doc.text(fitText(doc, opts.versionText, maxVerW), rightEdge - badgeW - 2.5, boxY + 16.3, {
+        doc.setFontSize(verFontSize);
+        while (verFontSize > 5.4 && doc.getTextWidth(opts.versionText) > maxVerW) {
+          verFontSize -= 0.3;
+          doc.setFontSize(verFontSize);
+        }
+        doc.text(opts.versionText, rightEdge - badgeW - 2.5, boxY + 16.3, {
           align: 'right',
         });
       }
@@ -357,7 +381,16 @@ export function drawMetadataStrip(doc: jsPDF, items: MetadataStripItem[], yPos: 
   const marginX = PDF_LAYOUT.marginX;
   const contentW = pageWidth - marginX * 2;
   const colW = contentW / Math.max(items.length, 1);
-  const stripH = 12.5;
+
+  // INC08: Envolver valores largos en varias líneas en lugar de truncar con elipsis
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.8);
+  const wrappedValues = items.map((item) => {
+    const maxW = Math.max(colW - 6, 12);
+    return doc.splitTextToSize(item.value || '-', maxW) as string[];
+  });
+  const maxLines = Math.max(1, ...wrappedValues.map((lines) => lines.length));
+  const stripH = Math.max(12.5, 6.8 + maxLines * 3.4 + 2.3);
 
   setFill(doc, PDF_COLORS.surfaceMuted);
   setDraw(doc, PDF_COLORS.border);
@@ -366,7 +399,6 @@ export function drawMetadataStrip(doc: jsPDF, items: MetadataStripItem[], yPos: 
 
   items.forEach((item, idx) => {
     const x = marginX + idx * colW + 3.5;
-    const maxW = colW - 6;
 
     setText(doc, PDF_COLORS.inkMuted);
     doc.setFont('helvetica', 'bold');
@@ -375,8 +407,8 @@ export function drawMetadataStrip(doc: jsPDF, items: MetadataStripItem[], yPos: 
 
     setText(doc, item.highlight ? PDF_COLORS.brandPrimary : PDF_COLORS.inkPrimary);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.2);
-    doc.text(fitText(doc, item.value || '-', maxW), x, yPos + 9.6);
+    doc.setFontSize(7.8);
+    doc.text(wrappedValues[idx] || ['-'], x, yPos + 9.2);
   });
 
   return yPos + stripH + 4.5;

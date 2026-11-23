@@ -187,12 +187,18 @@ export default function ContractDetailPage() {
     setIsSignatureModalOpen(true);
   };
 
-  const handleSaveSignature = async (signatureBase64: string) => {
+  const handleSaveSignature = async (
+    signatureBase64: string,
+    signerData?: { nombre?: string; dni?: string; representacion?: string }
+  ) => {
     if (!contract) return;
     try {
       setLoading(true);
-      await wasteContractService.signContract(contract.id, signatureBase64, signingRole);
-      toast.success('Firma registrada con éxito en el contrato.');
+      await wasteContractService.signContract(contract.id, signatureBase64, signingRole, {
+        ...signerData,
+        modo_captura: signingRole === 'gestor' ? 'presencial_asistida' : 'sesion_propia',
+      });
+      toast.success('Firma gráfica y datos de atribución registrados con éxito en el contrato.');
       await loadContract();
     } catch (err: any) {
       const msg = `Error al guardar firma: ${err.message}`;
@@ -395,11 +401,28 @@ export default function ContractDetailPage() {
                       <p className="opacity-80">{activation.checklist.hasOperations ? 'Operación autorizada' : 'Falta operación R/D'}</p>
                     </div>
                   </div>
+
+                  <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${activation.checklist.hasSignatures ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-800 dark:text-red-300'}`}>
+                    <span className="mt-0.5 shrink-0">{activation.checklist.hasSignatures ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}</span>
+                    <div className="text-xs">
+                      <p className="font-semibold">Firmas / Formalización</p>
+                      <p className="opacity-80">
+                        {activation.checklist.hasSignatures
+                          ? 'Formalizado (ambas partes o documento adjunto)'
+                          : 'Falta firma de productor y gestor o documento adjunto'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 {!activation.valid && (
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs">
-                    <span>Para activar el contrato haga clic en <strong>Editar Contrato</strong> y complete los datos requeridos.</span>
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs space-y-1">
+                    <p className="font-semibold">Requisitos pendientes para activar el contrato:</p>
+                    <ul className="list-disc pl-5 space-y-0.5">
+                      {activation.errors.map((errMsg, idx) => (
+                        <li key={idx}>{errMsg}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>
@@ -841,7 +864,7 @@ export default function ContractDetailPage() {
                         </Button>
                         {!activation.valid && (
                           <span className="text-xs text-amber-600 dark:text-amber-400 italic">
-                            (Requiere completar los 6 puntos del checklist superior)
+                            ({activation.errors[0] || 'Faltan requisitos pendientes en el checklist superior'})
                           </span>
                         )}
                       </div>
@@ -948,8 +971,19 @@ export default function ContractDetailPage() {
         isOpen={isSignatureModalOpen}
         onClose={() => setIsSignatureModalOpen(false)}
         onSave={handleSaveSignature}
-        title={`Firmar Contrato como ${signingRole === 'productor' ? 'Productor' : 'Gestor'}`}
-        description="Al pulsar en 'Confirmar Firma' se guardará su firma digital en el documento."
+        withSignerInputs
+        withRepresentationInput
+        requireSignerInputs
+        title={
+          signingRole === 'productor'
+            ? 'Captura de Firma Gráfica · Productor'
+            : 'Captura Presencial de Firma Gráfica · Gestor'
+        }
+        description={
+          signingRole === 'productor'
+            ? 'Identifique a la persona firmante y su cargo. Esta acción registra una firma gráfica con trazabilidad de usuario y fecha (no es firma criptográfica PAdES).'
+            : 'Para firma remota del gestor utilice «Copiar Enlace Público». Si registra una firma presencial desde esta sesión, identifique obligatoriamente a la persona firmante y su representación.'
+        }
       />
 
       {isDigitalSignatureEnabled && (

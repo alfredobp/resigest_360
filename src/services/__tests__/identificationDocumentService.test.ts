@@ -1130,6 +1130,93 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
           expect(resSub.operacion_tratamiento_ejecutada).toBe('R1201');
           spyUpdate.mockRestore();
         });
+
+        it('INC02: bloquea salida peligrosa con NT en borrador, futura, caducada o inexistente y permite NT aceptada vigente', async () => {
+          const { validatePriorNotificationForDeparture } = await import('../identificationDocumentService');
+          const baseDangerDoc = {
+            id: 164,
+            company_id: 1,
+            user_id: 'user-1',
+            codigo_ler: '15 01 10*',
+            peligrosidad: 'peligroso' as const,
+            operacion_tratamiento: 'R13',
+            tipo_notificacion: 'con-notificacion-previa' as const,
+            numero_notificacion: 'NT10410000000020260000001',
+          };
+
+          const mockNtLookup = (ntData: any) => {
+            mockSupabase.from.mockImplementation((table: string) => {
+              if (table === 'prior_notifications') {
+                const chain: any = {
+                  select: jest.fn().mockReturnThis(),
+                  eq: jest.fn().mockReturnThis(),
+                  maybeSingle: jest.fn().mockResolvedValue({ data: ntData, error: null }),
+                };
+                return chain;
+              }
+              return { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }) };
+            });
+          };
+
+          // 1. Sin código ni ID de NT
+          await expect(
+            validatePriorNotificationForDeparture({ ...baseDangerDoc, numero_notificacion: '' }, 'user-1', '2026-11-23T16:18:00Z')
+          ).rejects.toThrow('falta una Notificación Previa (NT) acreditada');
+
+          // 2. Código manual inexistente / ajeno al tenant
+          mockNtLookup(null);
+          await expect(
+            validatePriorNotificationForDeparture(baseDangerDoc, 'user-1', '2026-11-23T16:18:00Z')
+          ).rejects.toThrow('no existe o no pertenece a tu organización');
+
+          // 3. NT en estado borrador (caso real DI 164 / NT 16)
+          mockNtLookup({
+            id: 16,
+            numero_notificacion: 'NT10410000000020260000001',
+            estado: 'borrador',
+            fecha_inicio: '2026-12-03',
+            fecha_fin: '2027-12-03',
+          });
+          await expect(
+            validatePriorNotificationForDeparture(baseDangerDoc, 'user-1', '2026-11-23T16:18:00Z')
+          ).rejects.toThrow("está en estado 'borrador'");
+
+          // 4. NT aceptada pero con fecha de vigencia futura (03/12/2026 > 23/11/2026)
+          mockNtLookup({
+            id: 16,
+            numero_notificacion: 'NT10410000000020260000001',
+            estado: 'aceptada',
+            fecha_inicio: '2026-12-03',
+            fecha_fin: '2027-12-03',
+          });
+          await expect(
+            validatePriorNotificationForDeparture(baseDangerDoc, 'user-1', '2026-11-23T16:18:00Z')
+          ).rejects.toThrow('no inicia su vigencia hasta el 2026-12-03');
+
+          // 5. NT caducada
+          mockNtLookup({
+            id: 16,
+            numero_notificacion: 'NT10410000000020260000001',
+            estado: 'aceptada',
+            fecha_inicio: '2025-01-01',
+            fecha_fin: '2026-01-01',
+          });
+          await expect(
+            validatePriorNotificationForDeparture(baseDangerDoc, 'user-1', '2026-11-23T16:18:00Z')
+          ).rejects.toThrow('caducó el 2026-01-01');
+
+          // 6. NT aceptada y vigente en la fecha de salida -> pasa
+          mockNtLookup({
+            id: 16,
+            numero_notificacion: 'NT10410000000020260000001',
+            estado: 'aceptada',
+            fecha_inicio: '2026-11-01',
+            fecha_fin: '2027-11-01',
+          });
+          await expect(
+            validatePriorNotificationForDeparture(baseDangerDoc, 'user-1', '2026-11-23T16:18:00Z')
+          ).resolves.toBeUndefined();
+        });
       });
 
       describe('getStats', () => {

@@ -116,7 +116,26 @@ export async function GET(
     const protocol = request.headers.get('x-forwarded-proto') || 'https';
     const inspectionUrl = `${protocol}://${host}/api/deca/${token}`;
 
-    const pdfDoc = await generateDecaPDF(deca, inspectionUrl);
+    // INC12: Si es v2+, recuperar la marca temporal original de v1 para no atribuir la hora de v2 a v1
+    let firstVersionCreatedAt: string | null = null;
+    if (deca.version > 1 && deca.numero_deca) {
+      try {
+        const baseNumero = deca.numero_deca.replace(/-v\d+$/i, '');
+        const { data: v1Row } = await supabase
+          .from('deca_documents')
+          .select('created_at')
+          .eq('numero_deca', baseNumero)
+          .eq('version', 1)
+          .maybeSingle();
+        if (v1Row?.created_at) {
+          firstVersionCreatedAt = v1Row.created_at;
+        }
+      } catch {
+        // Fallback seguro: generateDecaPDF omitirá v1 si no se pudo recuperar
+      }
+    }
+
+    const pdfDoc = await generateDecaPDF(deca, inspectionUrl, { firstVersionCreatedAt });
     const pdfArrayBuffer = pdfDoc.output('arraybuffer');
     const pdfBuffer = Buffer.from(pdfArrayBuffer);
 

@@ -96,6 +96,98 @@ export function requiresPriorNotification(
 }
 
 /**
+ * Evalúa si un traslado sujeto a Notificación Previa (Art. 3.2 y Arts. 8–9 RD 553/2020)
+ * cuenta con una NT real, perteneciente al tenant, acreditada/presentada y vigente en la fecha de salida.
+ * Bloquea expediciones con NT en borrador, futura, caducada o referencia manual inexistente (INC02).
+ */
+export async function validatePriorNotificationForDeparture(
+  doc: Partial<IdentificationDocument>,
+  userId: string,
+  departureDateIso: string,
+  plannedOp?: string | null
+): Promise<void> {
+  const ntCheck = requiresPriorNotification(doc, plannedOp);
+  const needsNt = ntCheck.required || doc.tipo_notificacion === 'con-notificacion-previa';
+  if (!needsNt) return;
+
+  if (doc.tipo_notificacion === 'sin-notificacion' && ntCheck.required) {
+    throw new Error(
+      `No se puede iniciar el traslado: ${ntCheck.reason} exige Notificación Previa (art. 3.2 RD 553/2020).`
+    );
+  }
+
+  const ntId = doc.prior_notification_id;
+  const ntNumber = (doc.numero_notificacion || '').trim();
+  if (!ntId && !ntNumber) {
+    throw new Error(
+      'No se puede iniciar el traslado: falta una Notificación Previa (NT) acreditada y vigente para este traslado (arts. 8 y 9 RD 553/2020).'
+    );
+  }
+
+  let matchedNt: {
+    id?: number;
+    numero_notificacion?: string;
+    estado?: string;
+    fecha_inicio?: string;
+    fecha_fin?: string;
+    company_id?: number;
+    user_id?: string;
+  } | null = null;
+
+  const ntTable = supabase.from('prior_notifications');
+  if (ntTable && typeof ntTable.select === 'function') {
+    let query: any = ntTable.select('id, numero_notificacion, estado, fecha_inicio, fecha_fin, company_id, user_id');
+    if (ntId) {
+      query = query.eq('id', ntId);
+    } else {
+      query = query.eq('numero_notificacion', ntNumber);
+    }
+    if (doc.company_id) {
+      query = query.eq('company_id', doc.company_id);
+    } else if (userId) {
+      query = query.eq('user_id', userId);
+    }
+    const res =
+      typeof query.maybeSingle === 'function'
+        ? await query.maybeSingle()
+        : typeof query.single === 'function'
+          ? await query.single()
+          : await query;
+    matchedNt = res?.data || null;
+  }
+
+  if (!matchedNt) {
+    throw new Error(
+      `No se puede iniciar el traslado: la Notificación Previa ${ntNumber || `#${ntId}`} no existe o no pertenece a tu organización. Un código introducido manualmente no sustituye una NT acreditada (art. 8 RD 553/2020).`
+    );
+  }
+
+  const allowedStates = ['enviada_sira', 'aceptada'];
+  const ntState = (matchedNt.estado || 'borrador').toLowerCase();
+  if (!allowedStates.includes(ntState)) {
+    throw new Error(
+      `No se puede iniciar el traslado: la Notificación Previa ${matchedNt.numero_notificacion || ntNumber || `#${matchedNt.id}`} está en estado '${ntState}' y debe estar presentada o aceptada ante la autoridad competente (arts. 8 y 9 RD 553/2020).`
+    );
+  }
+
+  const departureDay = departureDateIso.split('T')[0];
+  const startDay = matchedNt.fecha_inicio ? String(matchedNt.fecha_inicio).split('T')[0] : null;
+  const endDay = matchedNt.fecha_fin ? String(matchedNt.fecha_fin).split('T')[0] : null;
+
+  if (startDay && departureDay < startDay) {
+    throw new Error(
+      `No se puede iniciar el traslado el ${departureDay}: la Notificación Previa ${matchedNt.numero_notificacion || ntNumber} no inicia su vigencia hasta el ${startDay} (art. 8 RD 553/2020).`
+    );
+  }
+
+  if (endDay && departureDay > endDay) {
+    throw new Error(
+      `No se puede iniciar el traslado el ${departureDay}: la Notificación Previa ${matchedNt.numero_notificacion || ntNumber} caducó el ${endDay} (art. 8 RD 553/2020).`
+    );
+  }
+}
+
+/**
  * Convierte un valor datetime-local ('YYYY-MM-DDTHH:mm') o ISO a ISO UTC conservando el instante local.
  */
 export function normalizeLocalDateTimeToIso(value?: string | null): string {
@@ -905,16 +997,8 @@ export const identificationDocumentService = {
       );
     }
 
-    // Validar operación prevista contra régimen de notificación y autorización ambiental
+    // Validar operación prevista contra autorización ambiental y Notificación Previa (INC02)
     const plannedOp = normalizeOperationCode(doc.operacion_tratamiento);
-    if (doc.tipo_notificacion === 'sin-notificacion') {
-      const ntCheck = requiresPriorNotification(doc, plannedOp);
-      if (ntCheck.required) {
-        throw new Error(
-          `No se puede iniciar el traslado: ${ntCheck.reason} exige Notificación Previa (art. 3.2 RD 553/2020).`
-        );
-      }
-    }
     if (hasAuthConfigured) {
       if (!isAuthValid) {
         throw new Error('No se puede iniciar el traslado: la autorización ambiental del gestor destinatario ha caducado.');
@@ -929,6 +1013,9 @@ export const identificationDocumentService = {
       }
     }
 
+    const fechaSalidaIso = normalizeLocalDateTimeToIso(payload.fecha_salida);
+    await validatePriorNotificationForDeparture(doc, user?.id || doc.user_id, fechaSalidaIso, plannedOp);
+
     const { signatureBase64, ...rest } = payload;
     let firma_transportista_url = payload.firma_transportista_url;
 
@@ -936,13 +1023,12 @@ export const identificationDocumentService = {
       firma_transportista_url = await this.uploadSignatureImage(id, 'transportista', signatureBase64);
     }
 
-    const fechaSalidaIso = normalizeLocalDateTimeToIso(payload.fecha_salida);
-
     const updated = await this.update(id, {
       ...rest,
       fecha_salida: fechaSalidaIso,
       firma_transportista_url,
       estado_traslado: 'en_transito',
+      ...(doc.estado === 'borrador' ? { estado: 'pendiente-firma' as const } : {}),
       firmado_transportista: true,
       fecha_firma_transportista: fechaSalidaIso,
     });

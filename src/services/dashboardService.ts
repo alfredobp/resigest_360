@@ -365,10 +365,13 @@ export const dashboardService = {
       }
     });
 
-    // Alertas de Contratos
+    // Alertas de Contratos (INC09: no contabilizar contratos en borrador/pendientes como "conformes")
     contracts.forEach(c => {
-      totalEvaluados++;
       const statusInfo = getContractEffectiveStatus(c);
+      if (statusInfo.status === 'borrador' || statusInfo.status === 'pendiente_firma' || statusInfo.status === 'cancelado') {
+        return;
+      }
+      totalEvaluados++;
       if (statusInfo.status === 'caducado' || statusInfo.isExpired) {
         contratosCaducadosCount++;
         totalNoConformes++;
@@ -760,6 +763,10 @@ export const dashboardService = {
       } else {
         diStatusDistribution.borradores++;
       }
+
+      const isManagedWaste =
+        di.estado === 'completado' || ['aceptado', 'tratado', 'recepcionado'].includes(estadoTraslado);
+      if (!isManagedWaste) return;
 
       const monthIdx = extractMonthIndex(di.fecha_documento);
       if (monthIdx === null) return;

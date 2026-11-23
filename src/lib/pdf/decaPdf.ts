@@ -17,7 +17,16 @@ import {
   setText,
 } from './pdfComponents';
 
-export async function generateDecaPDF(deca: DecaDocument, inspectionUrl: string): Promise<jsPDF> {
+export interface DecaPdfOptions {
+  /** Marca temporal ISO real de la versión v1 original (INC12: evita sobrescribir la hora histórica de v1 con la de v2). */
+  firstVersionCreatedAt?: string | null;
+}
+
+export async function generateDecaPDF(
+  deca: DecaDocument,
+  inspectionUrl: string,
+  options?: DecaPdfOptions
+): Promise<jsPDF> {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -194,10 +203,12 @@ export async function generateDecaPDF(deca: DecaDocument, inspectionUrl: string)
   setText(doc, PDF_COLORS.inkSecondary);
   doc.text(obsLines, marginX + 4, yPos + 5.2);
 
-  // --- PIE DE PÁGINA NORMATIVO ---
+  // --- PIE DE PÁGINA NORMATIVO (INC12: conservar hora real de v1 sin sobrescribirla con v2) ---
   const footerDateLabel =
     deca.version > 1
-      ? `v1: ${formatSafeDateTime(deterministicCreatedIso)} | v${deca.version}: ${formatSafeDateTime(deterministicUpdatedIso)}`
+      ? options?.firstVersionCreatedAt
+        ? `v1: ${formatSafeDateTime(options.firstVersionCreatedAt)} | v${deca.version}: ${formatSafeDateTime(deterministicCreatedIso)}`
+        : `v${deca.version} emitida: ${formatSafeDateTime(deterministicCreatedIso)} | Mod.: ${formatSafeDateTime(deterministicUpdatedIso)}`
       : `Emitido: ${formatSafeDateTime(deterministicCreatedIso)}`;
 
   drawPageFooters(doc, {

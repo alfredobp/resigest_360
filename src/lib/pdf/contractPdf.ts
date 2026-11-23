@@ -386,6 +386,14 @@ export async function generateContractPDF(
   const showProducerSignedFooter = producerSigned && (!padesMode || Boolean(contract.firma_productor_url));
   const showGestorSignedFooter = gestorSigned && (!padesMode || Boolean(contract.firma_gestor_url));
 
+  const prodAttribution = contract.metadata_snapshot?.firmantes?.productor;
+  const gestAttribution = contract.metadata_snapshot?.firmantes?.gestor;
+  const formatContractSigner = (attr?: { nombre?: string; dni?: string; representacion?: string }) => {
+    if (!attr) return undefined;
+    const parts = [attr.nombre, attr.dni ? `(${attr.dni})` : null, attr.representacion ? `· ${attr.representacion}` : null].filter(Boolean);
+    return parts.length > 0 ? parts.join(' ') : undefined;
+  };
+
   await drawSignatureBlocks(
     doc,
     [
@@ -397,10 +405,15 @@ export async function generateContractPDF(
         hidePendingPlaceholder: padesMode,
         neutralStatus: padesMode,
         statusLabel: showProducerSignedFooter
-          ? 'Firmado digitalmente'
+          ? contract.firma_productor_url
+            ? prodAttribution?.modo_captura === 'presencial_asistida'
+              ? 'Firma gráfica (captura presencial)'
+              : 'Firma gráfica capturada'
+            : 'Conformidad registrada'
           : padesMode
-            ? 'Firma electrónica (PAdES)'
+            ? 'Espacio firma electrónica (PAdES)'
             : 'Pendiente de firma',
+        signerDetails: showProducerSignedFooter ? formatContractSigner(prodAttribution) : undefined,
         timestamp: showProducerSignedFooter && contract.fecha_firma_productor
           ? `Fecha: ${formatSafeDateTime(contract.fecha_firma_productor)}`
           : undefined,
@@ -413,10 +426,15 @@ export async function generateContractPDF(
         hidePendingPlaceholder: padesMode,
         neutralStatus: padesMode,
         statusLabel: showGestorSignedFooter
-          ? 'Firmado digitalmente'
+          ? contract.firma_gestor_url
+            ? gestAttribution?.modo_captura === 'presencial_asistida'
+              ? 'Firma gráfica (captura presencial)'
+              : 'Firma gráfica capturada'
+            : 'Conformidad registrada'
           : padesMode
-            ? 'Firma electrónica (PAdES)'
+            ? 'Espacio firma electrónica (PAdES)'
             : 'Pendiente de firma',
+        signerDetails: showGestorSignedFooter ? formatContractSigner(gestAttribution) : undefined,
         timestamp: showGestorSignedFooter && contract.fecha_firma_gestor
           ? `Fecha: ${formatSafeDateTime(contract.fecha_firma_gestor)}`
           : undefined,

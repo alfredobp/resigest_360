@@ -455,6 +455,43 @@ describe('pdfUtils - generateContractPDF', () => {
                 const doc = await generateIdentificationDocumentPDF(minimalSigned);
                 expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
               });
+
+              it('INC01/INC03/INC08/INC13: nunca declara PAdES sin firma criptográfica, elimina borrador si aceptado, no inventa contrato Asociado y conserva identificadores completos', async () => {
+                const auditDi: IdentificationDocument = {
+                  ...baseDoc,
+                  contract_id: undefined,
+                  contrato_externo_referencia: undefined,
+                  numero_documento: 'DI-2026-4100000004-000162',
+                  numero_albaran_gestor: 'REC162-ALBARAN-COMPLETO',
+                  productor_razon_social: 'Productor Industrial de Prueba Sexta Auditoría Sociedad Limitada',
+                  estado: 'borrador', // campo legacy desactualizado
+                  estado_traslado: 'aceptado',
+                  firmado_productor: true,
+                  firma_productor_url: undefined,
+                  firmado_transportista: true,
+                  firma_transportista_url: undefined,
+                  firmado_gestor: true,
+                  firma_gestor_url: undefined,
+                };
+                const doc = await generateIdentificationDocumentPDF(auditDi);
+                const out = doc.output();
+
+                // INC01: Nunca declarar PAdES sin firma criptográfica
+                expect(out).not.toContain('Firmado digitalmente (PAdES)');
+                expect(out).toContain('Conformidad interna en carga');
+                // INC03: Aceptado no puede llevar marca BORRADOR - NO OFICIAL
+                expect(out).not.toContain('BORRADOR - NO OFICIAL');
+                // INC13: Sin contrato nunca dice "Asociado"
+                expect(out).toContain('Sin contrato');
+                // INC08: Identificadores completos sin truncado con elipsis
+                expect(out).toContain('DI-2026-4100000004-000162');
+                expect(out).toContain('REC162-ALBARAN-CO');
+                expect(out).toContain('MPLETO');
+                expect(out).not.toContain('REC162...');
+                // INC05: Metadatos /CreationDate y /ModDate presentes en /Info
+                expect(out).toContain('/CreationDate');
+                expect(out).toContain('/ModDate (D:20261116120000+00\'00\')');
+              });
             });
 
             describe('pdfUtils - generateMemoriaAnualPDF', () => {
@@ -627,11 +664,18 @@ describe('pdfUtils - generateContractPDF', () => {
                   observaciones_reservas: 'Carga precintada sin incidencias.',
                 };
 
-                it('genera el PDF del DeCA vigente con QR e inmutabilidad de metadatos (RES6-I08)', async () => {
-                  const doc = await generateDecaPDF(baseDeca, 'https://resigest.com/inspect/dummy-token');
+                it('genera el PDF del DeCA vigente con QR e inmutabilidad de metadatos (RES6-I08 / INC05 / INC12)', async () => {
+                  const doc = await generateDecaPDF(baseDeca, 'https://resigest.com/inspect/dummy-token', {
+                    firstVersionCreatedAt: '2026-11-20T09:00:00Z',
+                  });
                   expect(doc).toBeDefined();
                   expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
-                  expect(doc.output()).toContain('DECA-2026-00001');
+                  const out = doc.output();
+                  expect(out).toContain('DECA-2026-00001');
+                  expect(out).toContain('/CreationDate');
+                  expect(out).toContain('/ModDate (D:20261120120000+00\'00\')');
+                  // INC12: v1 conserva su hora original (10:00 Madrid) y v2 muestra la suya (11:00 Madrid)
+                  expect(out).toContain('v1: 20/11/2026, 10:00 | v2: 20/11/2026, 11:00');
                 });
 
                 it('genera DeCA histórico v1 con campos opcionales vacíos', async () => {

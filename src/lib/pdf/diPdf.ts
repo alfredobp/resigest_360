@@ -77,20 +77,28 @@ export async function generateIdentificationDocumentPDF(
   const tipoTraslado =
     docData.tipo_notificacion === 'con-notificacion-previa' ? 'Con Notificación Previa (NT)' : 'Sin Notificación Previa';
 
-  yPos = drawMetadataStrip(
-    doc,
-    [
-      { label: 'Fecha Traslado', value: formatSafeDate(docData.fecha_documento) },
-      { label: 'Régimen de Traslado', value: tipoTraslado },
-      { label: 'Nº Albarán Gestor', value: docData.numero_albaran_gestor || 'Pendiente' },
-      {
-        label: 'Notificación / Contrato',
-        value: docData.numero_notificacion || docData.contrato_externo_referencia || (docData.contract_id ? `CTR #${docData.contract_id}` : 'Asociado'),
-        highlight: true,
-      },
-    ],
-    yPos
-  );
+  // INC13: Derivar la relación contractual real sin inventar "Asociado" cuando falta contrato
+  const contractRef = docData.contrato_externo_referencia
+    ? docData.contrato_externo_referencia
+    : docData.contract_id
+      ? `CTR #${docData.contract_id}`
+      : 'Sin contrato';
+
+  const metadataItems = [
+    { label: 'Fecha Traslado', value: formatSafeDate(docData.fecha_documento) },
+    { label: 'Régimen de Traslado', value: tipoTraslado },
+    { label: 'Nº Albarán Gestor', value: docData.numero_albaran_gestor || 'Pendiente' },
+    {
+      label: 'Contrato de Tratamiento',
+      value: contractRef,
+      highlight: Boolean(docData.contrato_externo_referencia || docData.contract_id),
+    },
+    ...(docData.numero_notificacion
+      ? [{ label: 'Notificación Previa (NT)', value: docData.numero_notificacion, highlight: true }]
+      : []),
+  ];
+
+  yPos = drawMetadataStrip(doc, metadataItems, yPos);
 
   // Operador del traslado si es distinto del productor
   if (
@@ -374,9 +382,8 @@ export async function generateIdentificationDocumentPDF(
 
   const padesMode = Boolean(options?.padesMode);
 
-  // En modo PAdES (AutoFirma), todas las cajas comparten el mismo pie neutro ("Firma electrónica (PAdES)")
-  // salvo que ya exista una firma manuscrita (imagen) previa, para que las co-firmas secuenciales
-  // queden visualmente idénticas y sin duplicar el timestamp que ya estampa AutoFirma.
+  // INC01: Separar conformidad interna, firma gráfica capturada y firma electrónica PAdES.
+  // Nunca declarar "Firmado digitalmente (PAdES)" en un PDF generado sin firma criptográfica incrustada.
   const showProducerSignedFooter =
     Boolean(docData.firmado_productor) && (!padesMode || Boolean(docData.firma_productor_url));
   const showTransportistaSignedFooter =
@@ -396,10 +403,10 @@ export async function generateIdentificationDocumentPDF(
         neutralStatus: padesMode,
         statusLabel: showProducerSignedFooter
           ? docData.firma_productor_url
-            ? 'Firmado en salida'
-            : 'Firmado digitalmente (PAdES)'
+            ? 'Firma gráfica en salida'
+            : 'Conformidad interna en salida'
           : padesMode
-            ? 'Firma electrónica (PAdES)'
+            ? 'Espacio firma electrónica (PAdES)'
             : 'Pendiente de firma',
         signerDetails: showProducerSignedFooter
           ? formatSigner(docData.nombre_productor, docData.dni_productor)
@@ -418,10 +425,10 @@ export async function generateIdentificationDocumentPDF(
         neutralStatus: padesMode,
         statusLabel: showTransportistaSignedFooter
           ? docData.firma_transportista_url
-            ? 'Conforme y firmado en carga'
-            : 'Firmado digitalmente (PAdES)'
+            ? 'Firma gráfica en carga'
+            : 'Conformidad interna en carga'
           : padesMode
-            ? 'Firma electrónica (PAdES)'
+            ? 'Espacio firma electrónica (PAdES)'
             : 'Pendiente de firma',
         signerDetails: showTransportistaSignedFooter
           ? formatSigner(docData.nombre_transportista, docData.dni_transportista)
@@ -440,10 +447,10 @@ export async function generateIdentificationDocumentPDF(
         neutralStatus: padesMode,
         statusLabel: showGestorSignedFooter
           ? docData.firma_gestor_url
-            ? 'Recepcionado y firmado'
-            : 'Firmado digitalmente (PAdES)'
+            ? 'Recepción con firma gráfica'
+            : 'Recepción registrada en plataforma'
           : padesMode
-            ? 'Firma electrónica (PAdES)'
+            ? 'Espacio firma electrónica (PAdES)'
             : 'Pendiente de recepción',
         signerDetails: showGestorSignedFooter
           ? formatSigner(docData.nombre_gestor, docData.dni_gestor)
@@ -457,14 +464,22 @@ export async function generateIdentificationDocumentPDF(
     yPos
   );
 
-  // --- PIE DE PÁGINA Y MARCA DE AGUA BORRADOR (UXDEV-12) ---
+  // --- PIE DE PÁGINA Y MARCA DE AGUA BORRADOR (INC03 / UXDEV-12) ---
+  // Usar estado_traslado como estado efectivo principal para evitar que un DI aceptado o en tránsito
+  // herede la marca "BORRADOR - NO OFICIAL" de un campo legacy estado='borrador'.
+  const effectiveStatus = (docData.estado_traslado || docData.estado || 'borrador').toLowerCase();
+  const isDraft = effectiveStatus === 'borrador' || effectiveStatus === 'pendiente';
+  const isFinalized =
+    effectiveStatus === 'aceptado' || effectiveStatus === 'tratado' || effectiveStatus === 'finalizado';
   const isCompletelySigned = Boolean(docData.firmado_productor && docData.firmado_gestor);
-  const isDraft = !docData.estado_traslado || docData.estado_traslado === 'borrador' || docData.estado === 'borrador';
+
   const legalText = isDraft
     ? 'COPIA DE BORRADOR (Real Decreto 553/2020). No válida como documento oficial de transporte ni control ambiental hasta inicio formal de traslado.'
-    : isCompletelySigned
-      ? 'Documento oficial de control y seguimiento de traslados según art. 6 del Real Decreto 553/2020. Validez legal ante autoridades competentes.'
-      : 'Documento en tramitación de traslado (Real Decreto 553/2020). Pendiente de completar firmas requeridas para formalización documental definitiva.';
+    : isFinalized && isCompletelySigned
+      ? 'Documento de control y seguimiento de traslados (art. 6 Real Decreto 553/2020). Recepción y conformidades registradas según sección 5.'
+      : isFinalized
+        ? 'Documento de traslado con recepción registrada (Real Decreto 553/2020). El alcance de conformidades y firmas consta en la sección 5.'
+        : 'Documento de traslado en curso (Real Decreto 553/2020). Pendiente de recepción y formalización definitiva en destino.';
 
   drawPageFooters(doc, { legalText });
 
