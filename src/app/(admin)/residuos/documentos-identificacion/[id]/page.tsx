@@ -1579,7 +1579,7 @@ const handleCompleteTreatment = async (e: React.FormEvent) => {
                 </span>
               </Button>
 
-              {/* Descargar PDF (distinción Borrador vs Oficial UXDEV-12) */}
+              {/* Descargar PDF (distinción Borrador vs Oficial UXDEV-12 / INC03) */}
               <Button
                 variant="outline"
                 onClick={handleDownloadPDF}
@@ -1588,7 +1588,7 @@ const handleCompleteTreatment = async (e: React.FormEvent) => {
                 <span>
                   {downloading
                     ? 'Generando PDF...'
-                    : !document.estado_traslado || document.estado_traslado === 'borrador' || document.estado === 'borrador'
+                    : !document.estado_traslado || document.estado_traslado === 'borrador'
                       ? 'Descargar Borrador (PDF)'
                       : 'Descargar Documento Oficial (PDF)'}
                 </span>

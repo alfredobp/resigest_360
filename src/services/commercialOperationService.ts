@@ -447,14 +447,14 @@ export const commercialOperationService = {
 
     const finalObservaciones = hasStructuredMeta
       ? serializeCommercialMetaToNotes(data.observaciones, {
-          modalidad_posesion: data.modalidad_posesion || 'intermediacion_sin_posesion',
-          actua_como_operador: Boolean(actua_como_operador),
-          mandato_referencia: mandato_referencia?.trim() || undefined,
-          mandato_fecha: mandato_fecha || undefined,
-          mandato_otorgante: mandato_otorgante?.trim() || undefined,
-          documentos: Array.isArray(documentos_adjuntos) ? documentos_adjuntos : [],
-          lineas_materiales: Array.isArray(lineas_materiales) ? lineas_materiales : undefined,
-        })
+        modalidad_posesion: data.modalidad_posesion || 'intermediacion_sin_posesion',
+        actua_como_operador: Boolean(actua_como_operador),
+        mandato_referencia: mandato_referencia?.trim() || undefined,
+        mandato_fecha: mandato_fecha || undefined,
+        mandato_otorgante: mandato_otorgante?.trim() || undefined,
+        documentos: Array.isArray(documentos_adjuntos) ? documentos_adjuntos : [],
+        lineas_materiales: Array.isArray(lineas_materiales) ? lineas_materiales : undefined,
+      })
       : data.observaciones;
 
     const resolvedCompanyId = dbData.company_id ?? getActiveCompanyCookie() ?? undefined;
