@@ -503,5 +503,70 @@ describe('quickSearchService - Servicio de búsqueda global multi-tenant', () =>
         badge: 'Vehículo',
       });
     });
+
+    it('debe buscar todas las versiones de DeCA cuando el módulo deca está habilitado (Hito C.3)', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-deca-search' } },
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'deca_documents') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            or: jest.fn().mockReturnThis(),
+            limit: jest.fn().mockResolvedValue({
+              data: [
+                {
+                  id: 701,
+                  numero_deca: 'DECA-2026-00001',
+                  version: 1,
+                  is_vigente: false,
+                  matricula_tractora: '2345-ZZZ',
+                  cargador_razon_social: 'Productor Demo',
+                  codigo_ler: '15 01 01',
+                  fecha_transporte: '2026-11-23',
+                  token: 'dca_tok_v1',
+                },
+                {
+                  id: 702,
+                  numero_deca: 'DECA-2026-00001-v2',
+                  version: 2,
+                  is_vigente: true,
+                  matricula_tractora: '4567-ZZZ',
+                  cargador_razon_social: null,
+                  codigo_ler: null,
+                  fecha_transporte: null,
+                  token: null,
+                },
+              ],
+              error: null,
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockReturnThis(),
+          or: jest.fn().mockReturnThis(),
+          limit: jest.fn().mockResolvedValue({ data: [], error: null }),
+        };
+      });
+
+      const results = await quickSearchService.searchRecords('DECA', 4, {
+        allowedModules: ['deca'],
+      });
+
+      expect(results).toHaveLength(2);
+      expect(results[0]).toEqual({
+        id: 'deca-701',
+        title: 'DeCA: DECA-2026-00001 (v1 · Histórica)',
+        subtitle: 'Matrícula: 2345-ZZZ · Productor Demo · LER 15 01 01 · 2026-11-23',
+        category: 'deca',
+        href: '/mobile/deca/dca_tok_v1',
+        badge: 'DeCA v1 (Hist.)',
+      });
+      expect(results[1].href).toBe('/residuos/deca');
+      expect(results[1].badge).toBe('DeCA v2');
+    });
   });
 });

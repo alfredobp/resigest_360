@@ -144,6 +144,41 @@ export async function generateCommercialOperationPDF(op: CommercialOperation): P
 
   yPos = drawDataTable(doc, columns, rows, yPos);
 
+  // --- 2b. DESGLOSE MULTIMATERIAL (JUSTIFICANTE CONJUNTO - Hito C.4 / N04) ---
+  if (Array.isArray(op.lineas_materiales) && op.lineas_materiales.length > 0) {
+    yPos = ensurePageSpace(doc, yPos, 35);
+    yPos = drawSectionHeader(
+      doc,
+      '2b. Desglose Multimaterial de la Operación (Justificante Comercial Conjunto)',
+      yPos
+    );
+
+    const matCols: TableColumn[] = [
+      { header: 'Código LER', width: 26, align: 'left' },
+      { header: 'Material / Residuo', width: 52, align: 'left' },
+      { header: 'Cant. (t)', width: 22, align: 'right' },
+      { header: 'Compra', width: 26, align: 'right' },
+      { header: 'Venta', width: 26, align: 'right' },
+      { header: 'DI Ambiental', width: 28, align: 'left' },
+    ];
+
+    const matRows: TableRow[] = op.lineas_materiales.map((line) => {
+      const unitLbl = line.tipo_precio === 'por_kg' ? '€/kg' : line.tipo_precio === 'lote_fijo' ? 'Lote' : '€/t';
+      return {
+        cells: [
+          { text: line.codigo_ler, bold: true },
+          { text: line.descripcion_residuo || '-', color: PDF_COLORS.inkSecondary },
+          { text: `${Number(line.cantidad_t || 0).toFixed(3)} t`, bold: true },
+          { text: `${Number(line.precio_unitario_compra || 0).toFixed(2)} ${unitLbl}` },
+          { text: `${Number(line.precio_unitario_venta || 0).toFixed(2)} ${unitLbl}` },
+          { text: line.di_referencia || 'DI separado', color: PDF_COLORS.inkSecondary },
+        ],
+      };
+    });
+
+    yPos = drawDataTable(doc, matCols, matRows, yPos);
+  }
+
   // --- 3. RESULTADO Y MARGEN NETO ---
   const esPositivo = (op.margen_bruto_total || 0) >= 0;
   const margenColor = esPositivo ? PDF_COLORS.brandPrimary : PDF_COLORS.danger;

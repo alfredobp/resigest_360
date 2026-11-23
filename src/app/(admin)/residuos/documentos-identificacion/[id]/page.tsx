@@ -12,7 +12,12 @@ import { toast } from '@/context/ToastContext';
 import { Modal, ConfirmModal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
-import identificationDocumentService, { getTrackingStatusMeta, normalizeOperationCode, isCallerTransportistaOnly } from '@/services/identificationDocumentService';
+import identificationDocumentService, {
+  getTrackingStatusMeta,
+  normalizeOperationCode,
+  isCallerTransportistaOnly,
+  parseDIRectificationHistory,
+} from '@/services/identificationDocumentService';
 import wasteContractService from '@/services/wasteContractService';
 import authorizationService from '@/services/authorizationService';
 import siraService from '@/services/siraService';
@@ -92,6 +97,18 @@ export default function DetalleDocumentoIdentificacionPage() {
   const [isTreatmentModalOpen, setIsTreatmentModalOpen] = useState(false);
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
   const [isJustifyModalOpen, setIsJustifyModalOpen] = useState(false);
+  const [isRectifyModalOpen, setIsRectifyModalOpen] = useState(false);
+  const [rectifyForm, setRectifyForm] = useState<{
+    cantidad: string;
+    peso_destino_kg: string;
+    numero_albaran_gestor: string;
+    motivo_rectificacion: string;
+  }>({
+    cantidad: '',
+    peso_destino_kg: '',
+    numero_albaran_gestor: '',
+    motivo_rectificacion: '',
+  });
   const [justifyForm, setJustifyForm] = useState<{ causa: CausaDiscrepancia | ''; texto: string }>({ causa: '', texto: '' });
   const [submittingAction, setSubmittingAction] = useState(false);
   const [modalActionError, setModalActionError] = useState<string | null>(null);
@@ -453,7 +470,45 @@ export default function DetalleDocumentoIdentificacionPage() {
     }
   };
 
-  const handleCompleteTreatment = async (e: React.FormEvent) => {
+  const openRectifyModal = () => {
+  if (!document) return;
+  setModalActionError(null);
+  setRectifyForm({
+    cantidad: String(document.cantidad || ''),
+    peso_destino_kg: document.peso_destino_kg ? String(document.peso_destino_kg) : '',
+    numero_albaran_gestor: document.numero_albaran_gestor || '',
+    motivo_rectificacion: '',
+  });
+  setIsRectifyModalOpen(true);
+};
+
+const handleRectifyDI = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!document) return;
+  try {
+    setSubmittingAction(true);
+    setModalActionError(null);
+    await identificationDocumentService.rectifyDocument(document.id, {
+      cantidad: rectifyForm.cantidad ? Number(rectifyForm.cantidad) : undefined,
+      peso_destino_kg: rectifyForm.peso_destino_kg ? Number(rectifyForm.peso_destino_kg) : undefined,
+      numero_albaran_gestor: rectifyForm.numero_albaran_gestor,
+      motivo_rectificacion: rectifyForm.motivo_rectificacion,
+    });
+    setIsRectifyModalOpen(false);
+    const msg = 'Rectificación versionada registrada en el DI y sincronizada con el Archivo Cronológico.';
+    setSuccess(msg);
+    toast.success(msg);
+    await loadData();
+  } catch (err: any) {
+    const msg = getBusinessErrorMessage(err);
+    setModalActionError(msg);
+    toast.error(msg);
+  } finally {
+    setSubmittingAction(false);
+  }
+};
+
+const handleCompleteTreatment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!document) return;
 
@@ -743,7 +798,13 @@ export default function DetalleDocumentoIdentificacionPage() {
               onClick={handleDownloadPDF}
               disabled={downloading}
             >
-              <span>{downloading ? 'Generando...' : 'Descargar PDF Oficial'}</span>
+              <span>
+                {downloading
+                  ? 'Generando...'
+                  : !document.estado_traslado || document.estado_traslado === 'borrador'
+                    ? 'Descargar Borrador (PDF)'
+                    : 'Descargar Documento Oficial (PDF)'}
+              </span>
             </Button>
             <Button variant="outline" onClick={() => router.push('/residuos/documentos-identificacion')}>
               ← Volver
@@ -1448,13 +1509,6 @@ export default function DetalleDocumentoIdentificacionPage() {
               )}
 
               {/* Acción Repetir Retirada Similar (UXDEV-07) */}
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/residuos/documentos-identificacion/nuevo?duplicate_from=${document.id}`)}
-                className="text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-              >
-                <span>Repetir Retirada Similar</span>
-              </Button>
               {!isTransportistaOnly && (
                 <Button
                   variant="outline"
@@ -1501,7 +1555,19 @@ export default function DetalleDocumentoIdentificacionPage() {
                 </span>
               )}
 
-              {/* Acción Regularizar / Vincular Contrato (Art. 5 RD 553/2020) */}
+              {/* Acción Rectificación Versionada Trazable sobre DI aceptado/cerrado (P09 / X05) */}
+            {!isTransportistaOnly &&
+              ['aceptado', 'rechazado_parcial', 'tratado'].includes(document.estado_traslado || '') && (
+                <Button
+                  variant="outline"
+                  onClick={openRectifyModal}
+                  className="text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                >
+                  <span>Rectificar DI (Nueva Versión)</span>
+                </Button>
+              )}
+
+            {/* Acción Regularizar / Vincular Contrato (Art. 5 RD 553/2020) */}
               <Button
                 variant={!document.contract_id && !document.contrato_externo_referencia ? 'primary' : 'outline'}
                 onClick={() => { setModalActionError(null); setIsContractModalOpen(true); }}
@@ -1557,7 +1623,37 @@ export default function DetalleDocumentoIdentificacionPage() {
           </div>
         </ComponentCard>
 
-        {/* FIRMA ELECTRÓNICA CON CERTIFICADO DIGITAL (AUTOFIRMA / PAdES) */}
+        {/* HISTORIAL DE RECTIFICACIONES VERSIONADAS DEL DI (P09 / X05) */}
+      {(() => {
+        const rectHistory = parseDIRectificationHistory(document.notas);
+        if (rectHistory.length === 0) return null;
+        return (
+          <ComponentCard
+            title={`Historial de Versiones y Rectificaciones del DI (Versión actual: v${rectHistory.length + 1})`}
+            desc="Registro inmutable de modificaciones realizadas tras la recepción, conservando valores previos, fecha/hora y motivo."
+          >
+            <div className="space-y-2.5 text-xs">
+              {rectHistory.map((item) => (
+                <div
+                  key={`rect-v${item.version}-${item.timestamp}`}
+                  className="p-3 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/60 dark:bg-amber-950/20 space-y-1"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-mono font-bold text-amber-900 dark:text-amber-300">
+                      Versión v{item.version} · Rectificación Documental
+                    </span>
+                    <span className="text-[11px] text-muted">{formatDateTime(item.timestamp)}</span>
+                  </div>
+                  <p className="font-semibold text-foreground">Motivo: {item.motivo}</p>
+                  <p className="font-mono text-[11px] text-muted">{item.summary}</p>
+                </div>
+              ))}
+            </div>
+          </ComponentCard>
+        );
+      })()}
+
+      {/* FIRMA ELECTRÓNICA CON CERTIFICADO DIGITAL (AUTOFIRMA / PAdES) */}
         {Boolean(myCompany?.firma_electronica_activa) && (
           <SignedDocumentsCard
             documents={signedDocuments}
@@ -2368,7 +2464,86 @@ export default function DetalleDocumentoIdentificacionPage() {
         </form>
       </Modal>
 
-      <SignatureModal
+      {/* MODAL 6: RECTIFICACIÓN VERSIONADA TRAZABLE DE DI (P09 / X05) */}
+    <Modal isOpen={isRectifyModalOpen} onClose={() => setIsRectifyModalOpen(false)} className="max-w-lg p-6">
+      <form onSubmit={handleRectifyDI} className="space-y-4">
+        <div className="border-b pb-3 border-gray-200 dark:border-gray-800">
+          <h3 className="text-lg font-bold text-foreground">
+            Rectificar Documento de Identificación (Nueva Versión)
+          </h3>
+        </div>
+        <p className="text-xs text-muted">
+          Se conservará una instantánea inmutable de la versión actual (pesos y albarán previos) junto con la fecha, hora y motivo de la rectificación, actualizando automáticamente el asiento en el Archivo Cronológico.
+        </p>
+
+        {modalActionError && (
+          <Alert variant="error" title="Validación de Rectificación" message={modalActionError} />
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-muted uppercase mb-1">
+              Cantidad en Origen ({document.unidad})
+            </label>
+            <Input
+              type="number"
+              step="any"
+              value={rectifyForm.cantidad}
+              onChange={(e) => setRectifyForm({ ...rectifyForm, cantidad: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-muted uppercase mb-1">
+              Peso Recibido en Destino (kg)
+            </label>
+            <Input
+              type="number"
+              step="any"
+              value={rectifyForm.peso_destino_kg}
+              onChange={(e) => setRectifyForm({ ...rectifyForm, peso_destino_kg: e.target.value })}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-muted uppercase mb-1">
+            Nº Albarán / Justificante de Destino
+          </label>
+          <Input
+            type="text"
+            value={rectifyForm.numero_albaran_gestor}
+            onChange={(e) => setRectifyForm({ ...rectifyForm, numero_albaran_gestor: e.target.value })}
+            placeholder="Ej: ALB-2026-102-RECT"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-muted uppercase mb-1">
+            Motivo de la Rectificación * (mín. 10 caracteres)
+          </label>
+          <TextArea
+            value={rectifyForm.motivo_rectificacion}
+            onChange={(val) => setRectifyForm({ ...rectifyForm, motivo_rectificacion: val })}
+            placeholder="Explique la causa de la rectificación (ej. corrección de ticket de báscula remitido por el gestor)..."
+            rows={3}
+          />
+        </div>
+
+        <div className="flex justify-end gap-2 pt-3 border-t border-gray-200 dark:border-gray-800">
+          <Button type="button" variant="outline" onClick={() => setIsRectifyModalOpen(false)} disabled={submittingAction}>
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            disabled={submittingAction || rectifyForm.motivo_rectificacion.trim().length < 10}
+          >
+            {submittingAction ? 'Guardando versión...' : 'Emitir Versión Rectificada'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+
+    <SignatureModal
         isOpen={isSignatureModalOpen}
         onClose={() => setIsSignatureModalOpen(false)}
         onSave={handleSaveSignature}

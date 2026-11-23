@@ -1144,5 +1144,74 @@ describe('commercialOperationService - Operaciones Comerciales', () => {
         })
       ).rejects.toThrow(/mandato/i);
     });
+
+    it('debe calcular rentabilidad y serializar operaciones multimaterial con varias líneas LER (Hito C.4)', () => {
+      const multiProfit = calculateProfitability({
+        coste_transporte: 50,
+        otros_costes: 10,
+        lineas_materiales: [
+          {
+            id: 'l1',
+            codigo_ler: '17 04 05',
+            descripcion_residuo: 'Hierro y acero',
+            peligrosidad: 'no-peligroso',
+            cantidad_t: 2,
+            tipo_precio: 'por_tonelada',
+            precio_unitario_compra: 100, // 200
+            precio_unitario_venta: 180, // 360
+            di_referencia: 'DI-101',
+          },
+          {
+            id: 'l2',
+            codigo_ler: '17 04 01',
+            descripcion_residuo: 'Cobre',
+            peligrosidad: 'no-peligroso',
+            cantidad_t: 0.5, // 500 kg
+            tipo_precio: 'por_kg',
+            precio_unitario_compra: 4, // 2000
+            precio_unitario_venta: 5.5, // 2750
+            di_referencia: 'DI-102',
+          },
+          {
+            id: 'l3',
+            codigo_ler: '17 04 02',
+            descripcion_residuo: 'Aluminio lote',
+            peligrosidad: 'no-peligroso',
+            cantidad_t: 1,
+            tipo_precio: 'lote_fijo',
+            precio_unitario_compra: 100,
+            precio_unitario_venta: 200,
+          },
+        ],
+      });
+
+      expect(multiProfit.toneladas).toBe(3.5);
+      expect(multiProfit.coste_compra_total).toBe(2300);
+      expect(multiProfit.ingreso_venta_total).toBe(3310);
+      expect(multiProfit.margen_bruto_total).toBe(950);
+
+      const notes = serializeCommercialMetaToNotes('Operación conjunta chatarrería', {
+        modalidad_posesion: 'almacenamiento_planta_propia',
+        actua_como_operador: false,
+        documentos: [],
+        lineas_materiales: [
+          {
+            id: 'l1',
+            codigo_ler: '17 04 05',
+            descripcion_residuo: 'Hierro y acero',
+            peligrosidad: 'no-peligroso',
+            cantidad_t: 2,
+            tipo_precio: 'por_tonelada',
+            precio_unitario_compra: 100,
+            precio_unitario_venta: 180,
+          },
+        ],
+      });
+
+      const parsed = parseCommercialMetaFromNotes(notes);
+      expect(parsed.cleanNotes).toBe('Operación conjunta chatarrería');
+      expect(parsed.meta.lineas_materiales).toHaveLength(1);
+      expect(parsed.meta.lineas_materiales?.[0].codigo_ler).toBe('17 04 05');
+    });
   });
 });

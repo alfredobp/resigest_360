@@ -934,5 +934,49 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       expect(created.company_id).toBe(77);
       cookieSpy.mockRestore();
     });
+
+    it('confirmDriverReceipt y getDriverReceiptConfirmation registran y verifican la confirmación de recepción por el conductor (Hito C.2)', async () => {
+      const baseDeca: any = {
+        id: 601,
+        numero_deca: 'DECA-2026-00601',
+        version: 2,
+        is_vigente: true,
+        conductor_nombre: 'Juan Conductor',
+        observaciones_reservas: 'Observación inicial',
+      };
+
+      expect(decaService.getDriverReceiptConfirmation(baseDeca).confirmed).toBe(false);
+
+      const maybeSingleMock = jest.fn().mockImplementation(() => {
+        return Promise.resolve({
+          data: {
+            ...baseDeca,
+            observaciones_reservas: 'Observación inicial\n[CONDUCTOR_CONFIRMA_V2:Juan Conductor|2026-11-23T19:00:00.000Z]',
+          },
+          error: null,
+        });
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'deca_documents') {
+          return {
+            update: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnValue({
+                select: jest.fn().mockReturnValue({
+                  maybeSingle: maybeSingleMock,
+                }),
+              }),
+            }),
+          };
+        }
+        return { insert: jest.fn().mockResolvedValue({ error: null }) };
+      });
+
+      const confirmedDeca = await decaService.confirmDriverReceipt(baseDeca);
+      const parsed = decaService.getDriverReceiptConfirmation(confirmedDeca);
+      expect(parsed.confirmed).toBe(true);
+      expect(parsed.conductorNombre).toBe('Juan Conductor');
+      expect(parsed.version).toBe(2);
+    });
   });
 });

@@ -301,6 +301,27 @@ export default function DocumentosIdentificacionPage() {
     [documents, filterCenter]
   );
 
+  // Hito C.1: Plantillas rápidas de retirada habitual agrupadas por (LER + Gestor Destino)
+  const habitualWithdrawalTemplates = useMemo(() => {
+    const map = new Map<string, { latestDoc: IdentificationDocument; count: number }>();
+    for (const d of documentsByCenter) {
+      if (!d.codigo_ler || !d.gestor_razon_social) continue;
+      const key = `${d.codigo_ler.trim()}|${(d.gestor_cif || d.gestor_razon_social).trim().toUpperCase()}|${d.production_center_id || 'main'}`;
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, { latestDoc: d, count: 1 });
+      } else {
+        existing.count += 1;
+        if (d.id > existing.latestDoc.id) {
+          existing.latestDoc = d;
+        }
+      }
+    }
+    return Array.from(map.values())
+      .sort((a, b) => b.count - a.count || b.latestDoc.id - a.latestDoc.id)
+      .slice(0, 4);
+  }, [documentsByCenter]);
+
   const filteredDocuments = documentsByCenter.filter(d => {
     if (filterStatus === 'all') {
       return true;
@@ -586,6 +607,49 @@ export default function DocumentosIdentificacionPage() {
 
         {error && (
           <Alert variant="error" title="Error" message={error} />
+        )}
+
+        {/* Hito C.1: Preparar Retirada Rápida con Plantillas Habituales */}
+        {canCreateOrDeleteDi && habitualWithdrawalTemplates.length > 0 && (
+          <ComponentCard
+            title="Preparar Retirada Rápida (Plantillas Habituales)"
+            desc="Reutiliza centro, residuo LER y gestor habitual en un clic sin arrastrar firmas, pesadas ni acuses anteriores."
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {habitualWithdrawalTemplates.map(({ latestDoc, count }) => (
+                <div
+                  key={`tpl-${latestDoc.id}`}
+                  className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 flex flex-col justify-between gap-2.5 hover:border-brand-400 transition"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <span className="font-mono text-xs font-bold text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/60 px-2 py-0.5 rounded">
+                        LER {latestDoc.codigo_ler}
+                      </span>
+                      <span className="text-[10px] font-semibold text-slate-500">
+                        {count} {count === 1 ? 'traslado' : 'traslados'}
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-900 dark:text-white line-clamp-1" title={latestDoc.descripcion_residuo}>
+                      {latestDoc.descripcion_residuo}
+                    </p>
+                    <p className="text-[11px] text-slate-500 truncate" title={latestDoc.gestor_razon_social}>
+                      Destino: <strong className="text-slate-700 dark:text-slate-300">{latestDoc.gestor_razon_social}</strong>
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => router.push(`/residuos/documentos-identificacion/nuevo?duplicate_from=${latestDoc.id}`)}
+                    className="w-full text-xs justify-center"
+                  >
+                    <Copy className="w-3.5 h-3.5 mr-1.5" />
+                    Preparar retirada →
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </ComponentCard>
         )}
 
         {/* Filtros por Ciclo de Vida */}

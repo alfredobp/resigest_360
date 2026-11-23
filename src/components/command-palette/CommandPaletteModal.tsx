@@ -319,6 +319,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     return dbResults.map((r) => {
       let icon = <FileText className="w-4 h-4 text-emerald-500" />;
       if (r.category === "documents") icon = <Layers className="w-4 h-4 text-blue-500" />;
+      if (r.category === "deca") icon = <ShieldCheck className="w-4 h-4 text-amber-500" />;
       if (r.category === "companies") icon = <Building2 className="w-4 h-4 text-purple-500" />;
       if (r.category === "gestores") icon = <ShieldCheck className="w-4 h-4 text-teal-500" />;
       if (r.category === "carriers") icon = <Truck className="w-4 h-4 text-orange-500" />;

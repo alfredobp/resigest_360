@@ -641,5 +641,71 @@ export const decaService = {
     const now = new Date();
     const diffDays = (now.getTime() - finishDate.getTime()) / (1000 * 60 * 60 * 24);
     return diffDays > 7;
+  },
+
+  /**
+   * Extrae la confirmación de recepción de la versión vigente por parte del conductor (Hito C.2 / L13)
+   */
+  getDriverReceiptConfirmation(deca: DecaDocument): {
+    confirmed: boolean;
+    conductorNombre?: string;
+    timestamp?: string;
+    version?: number;
+  } {
+    const obs = deca.observaciones_reservas || '';
+    const regex = new RegExp(`\\[CONDUCTOR_CONFIRMA_V${deca.version}:([^|\\]]+)\\|([^\\]]+)\\]`);
+    const match = obs.match(regex);
+    if (!match) {
+      return { confirmed: false };
+    }
+    return {
+      confirmed: true,
+      conductorNombre: match[1].trim(),
+      timestamp: match[2].trim(),
+      version: deca.version,
+    };
+  },
+
+  /**
+   * Registra que el conductor ha recibido y verificado la versión vigente del DeCA (Hito C.2 / L13)
+   */
+  async confirmDriverReceipt(
+    deca: DecaDocument,
+    conductorNombre?: string
+  ): Promise<DecaDocument> {
+    const nombre = (conductorNombre || deca.conductor_nombre || 'Conductor asignado').trim();
+    const nowIso = new Date().toISOString();
+    const tag = `[CONDUCTOR_CONFIRMA_V${deca.version}:${nombre}|${nowIso}]`;
+    const baseObs = (deca.observaciones_reservas || '')
+      .replace(new RegExp(`\\s*\\[CONDUCTOR_CONFIRMA_V${deca.version}:[^\\]]+\\]`, 'g'), '')
+      .trim();
+    const nextObs = baseObs ? `${baseObs}\n${tag}` : tag;
+
+    const { data, error } = await supabase
+      .from('deca_documents')
+      .update({
+        observaciones_reservas: nextObs,
+        updated_at: nowIso,
+      })
+      .eq('id', deca.id)
+      .select()
+      .maybeSingle();
+
+    await this.logAudit(deca.id, 'inspeccion_descarga', deca.version, {
+      evento: 'confirmacion_recepcion_conductor',
+      conductor_nombre: nombre,
+      version: deca.version,
+      confirmed_at: nowIso,
+    });
+
+    if (error || !data) {
+      return {
+        ...deca,
+        observaciones_reservas: nextObs,
+        updated_at: nowIso,
+      };
+    }
+
+    return data as DecaDocument;
   }
 };

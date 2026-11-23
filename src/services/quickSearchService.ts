@@ -10,6 +10,7 @@ import type { AppModule } from '@/types/wasteManagement';
 export type SearchCategory =
   | 'contracts'
   | 'documents'
+  | 'deca'
   | 'companies'
   | 'gestores'
   | 'carriers'
@@ -99,6 +100,7 @@ export const quickSearchService = {
       carriersRes,
       driversRes,
       vehiclesRes,
+      decaRes,
     ] = await Promise.allSettled([
       // 1. Contratos de tratamiento
       (async () => {
@@ -127,25 +129,36 @@ export const quickSearchService = {
         }));
       })(),
 
-      // 2. Documentos de identificación (DI)
+      // 2. Documentos de identificación (DI) — por código, LER, matrícula, contraparte y fecha (Hito C.3)
       (async () => {
         if (!canQueryModule('di')) return [];
         const { data, error } = await supabase
           .from('identification_documents')
-          .select('id, numero_documento, codigo_ler, descripcion_residuo, estado')
+          .select('id, numero_documento, codigo_ler, descripcion_residuo, estado, estado_traslado, transportista_matricula, productor_razon_social, gestor_razon_social, fecha_documento')
           .eq('user_id', userId)
-          .or(`numero_documento.ilike.%${safeQuery}%,codigo_ler.ilike.%${safeQuery}%,descripcion_residuo.ilike.%${safeQuery}%`)
+          .or(
+            `numero_documento.ilike.%${safeQuery}%,codigo_ler.ilike.%${safeQuery}%,descripcion_residuo.ilike.%${safeQuery}%,transportista_matricula.ilike.%${safeQuery}%,productor_razon_social.ilike.%${safeQuery}%,gestor_razon_social.ilike.%${safeQuery}%,transportista_razon_social.ilike.%${safeQuery}%`
+          )
           .limit(limitPerCategory);
 
         if (error || !data) return [];
-        return data.map((d: { id: string | number; numero_documento?: string; tracking_number?: string; document_number?: string; estado?: string }) => ({
-          id: `doc-${d.id}`,
-          title: `DI: ${d.numero_documento || d.tracking_number || d.document_number || d.id}`,
-          subtitle: d.estado ? `Estado: ${d.estado}` : 'Documento de Identificación',
-          category: 'documents' as const,
-          href: `/residuos/documentos-identificacion/${d.id}`,
-          badge: 'DI',
-        }));
+        return data.map((d: any) => {
+          const statusText = d.estado_traslado || d.estado;
+          const metaParts = [
+            statusText ? `Estado: ${statusText}` : null,
+            d.transportista_matricula ? `Matrícula: ${d.transportista_matricula}` : null,
+            d.gestor_razon_social || d.productor_razon_social || null,
+            d.fecha_documento || null,
+          ].filter(Boolean);
+          return {
+            id: `doc-${d.id}`,
+            title: `DI: ${d.numero_documento || d.tracking_number || d.document_number || d.id}`,
+            subtitle: metaParts.length > 0 ? metaParts.join(' · ') : 'Documento de Identificación',
+            category: 'documents' as const,
+            href: `/residuos/documentos-identificacion/${d.id}`,
+            badge: 'DI',
+          };
+        });
       })(),
 
       // 3. Empresas del directorio
@@ -290,11 +303,44 @@ export const quickSearchService = {
           }
         );
       })(),
+
+      // 8. Documentos de Control Administrativo (DeCA) — Todas las versiones por código, matrícula, contraparte y LER (Hito C.3)
+      (async () => {
+        if (!canQueryModule('deca')) return [];
+        const { data, error } = await supabase
+          .from('deca_documents')
+          .select('id, numero_deca, version, is_vigente, estado, matricula_tractora, cargador_razon_social, transportista_razon_social, codigo_ler, fecha_transporte, token')
+          .eq('user_id', userId)
+          .or(
+            `numero_deca.ilike.%${safeQuery}%,matricula_tractora.ilike.%${safeQuery}%,cargador_razon_social.ilike.%${safeQuery}%,transportista_razon_social.ilike.%${safeQuery}%,codigo_ler.ilike.%${safeQuery}%`
+          )
+          .limit(limitPerCategory);
+
+        if (error || !data) return [];
+        return data.map((d: any) => {
+          const verTag = `v${d.version || 1}${d.is_vigente === false ? ' · Histórica' : ''}`;
+          const metaParts = [
+            d.matricula_tractora ? `Matrícula: ${d.matricula_tractora}` : null,
+            d.cargador_razon_social || null,
+            d.codigo_ler ? `LER ${d.codigo_ler}` : null,
+            d.fecha_transporte || null,
+          ].filter(Boolean);
+          return {
+            id: `deca-${d.id}`,
+            title: `DeCA: ${d.numero_deca || d.id} (${verTag})`,
+            subtitle: metaParts.length > 0 ? metaParts.join(' · ') : 'Control de Transporte DeCA',
+            category: 'deca' as const,
+            href: d.token ? `/mobile/deca/${d.token}` : '/residuos/deca',
+            badge: d.is_vigente === false ? `DeCA v${d.version} (Hist.)` : `DeCA v${d.version || 1}`,
+          };
+        });
+      })(),
     ]);
 
     // Combinar resultados exitosos
     if (contractsRes.status === 'fulfilled') results.push(...contractsRes.value);
     if (docsRes.status === 'fulfilled') results.push(...docsRes.value);
+    if (decaRes.status === 'fulfilled') results.push(...decaRes.value);
     if (companiesRes.status === 'fulfilled') results.push(...companiesRes.value);
     if (gestoresRes.status === 'fulfilled') results.push(...gestoresRes.value);
     if (carriersRes.status === 'fulfilled') results.push(...carriersRes.value);

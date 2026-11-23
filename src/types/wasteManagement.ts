@@ -1438,6 +1438,18 @@ export interface CommercialOperationDocument {
   notas?: string;
 }
 
+export interface CommercialMaterialLine {
+  id: string;
+  codigo_ler: string;
+  descripcion_residuo: string;
+  peligrosidad: 'no-peligroso' | 'peligroso';
+  cantidad_t: number;
+  tipo_precio: TipoPrecioOperacion;
+  precio_unitario_compra: number;
+  precio_unitario_venta: number;
+  di_referencia?: string;
+}
+
 export interface CommercialInterventionMeta {
   modalidad_posesion: ModalidadPosesionComercial;
   actua_como_operador: boolean;
@@ -1445,6 +1457,7 @@ export interface CommercialInterventionMeta {
   mandato_fecha?: string;
   mandato_otorgante?: string;
   documentos: CommercialOperationDocument[];
+  lineas_materiales?: CommercialMaterialLine[];
 }
 
 export interface CommercialOperation {
@@ -1460,6 +1473,7 @@ export interface CommercialOperation {
   mandato_fecha?: string | null;
   mandato_otorgante?: string | null;
   documentos_adjuntos?: CommercialOperationDocument[];
+  lineas_materiales?: CommercialMaterialLine[];
 
   // Flujo Físico
   origen_productor_id?: number | null;
@@ -1546,6 +1560,7 @@ export interface CommercialOperationFormData {
   mandato_fecha?: string;
   mandato_otorgante?: string;
   documentos_adjuntos?: CommercialOperationDocument[];
+  lineas_materiales?: CommercialMaterialLine[];
 
   // Flujo Físico
   origen_productor_id?: number | null;

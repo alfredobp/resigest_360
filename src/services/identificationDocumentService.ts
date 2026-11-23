@@ -1482,6 +1482,96 @@ export const identificationDocumentService = {
   },
 
   /**
+   * 5b. Rectificación Versionada Trazable de un DI aceptado o cerrado (P09 / X05)
+   * Conserva en el historial de versiones los valores anteriores (peso, albarán, cantidad, fecha)
+   * junto con el motivo obligatorio de la rectificación y resincroniza el Archivo Cronológico.
+   */
+  async rectifyDocument(
+    id: number,
+    payload: {
+      peso_destino_kg?: number;
+      cantidad?: number;
+      numero_albaran_gestor?: string;
+      motivo_rectificacion: string;
+    }
+  ): Promise<IdentificationDocument> {
+    const userCompany = await companyService.getUserCompany().catch(() => null);
+    if (isCallerTransportistaOnly(userCompany)) {
+      throw new Error('Permiso denegado: El transportista no puede rectificar cantidades o pesadas de un DI.');
+    }
+
+    const motivo = (payload.motivo_rectificacion || '').trim();
+    if (motivo.length < 10) {
+      throw new Error('Debe indicar el motivo de la rectificación documental (mínimo 10 caracteres).');
+    }
+
+    const doc = await this.getById(id);
+    if (doc.estado === 'cancelado') {
+      throw new Error('No se puede rectificar un DI cancelado.');
+    }
+
+    const existingRectifications = parseDIRectificationHistory(doc.notas);
+    const nextVersion = existingRectifications.length + 2;
+    const nowIso = new Date().toISOString();
+
+    const prevPesoOrigen = resolveOriginWeightKg(doc);
+    const prevPesoDestino = doc.peso_destino_kg ?? prevPesoOrigen;
+    const prevAlbaran = doc.numero_albaran_gestor || 'S/N';
+
+    const newCantidad = payload.cantidad || doc.cantidad;
+    const isTonOrM3 = doc.unidad === 'toneladas' || doc.unidad === 'm3';
+    const newPesoOrigen = payload.cantidad ? (isTonOrM3 ? payload.cantidad * 1000 : payload.cantidad) : prevPesoOrigen;
+    const newPesoDestino = payload.peso_destino_kg ?? prevPesoDestino;
+    const newAlbaran = (payload.numero_albaran_gestor ?? doc.numero_albaran_gestor ?? '').trim();
+
+    const diferencia = parseFloat((newPesoDestino - newPesoOrigen).toFixed(3));
+    const porcentaje =
+      newPesoOrigen > 0
+        ? parseFloat((((newPesoDestino - newPesoOrigen) / newPesoOrigen) * 100).toFixed(2))
+        : 0;
+
+    const snapshotLine = `[RECTIFICACIÓN v${nextVersion} | ${nowIso}]: Motivo: ${motivo} | Anterior (v${nextVersion - 1}): Origen=${prevPesoOrigen}kg, Destino=${prevPesoDestino}kg, Albarán=${prevAlbaran} -> Nuevo (v${nextVersion}): Origen=${newPesoOrigen}kg, Destino=${newPesoDestino}kg, Albarán=${newAlbaran || 'S/N'}`;
+    const updatedNotas = doc.notas ? `${doc.notas}\n${snapshotLine}` : snapshotLine;
+
+    const updated = await this.update(id, {
+      cantidad: newCantidad,
+      peso_origen_kg: newPesoOrigen,
+      peso_destino_kg: newPesoDestino,
+      diferencia_peso_kg: diferencia,
+      porcentaje_discrepancia: porcentaje,
+      numero_albaran_gestor: newAlbaran,
+      notas: updatedNotas,
+    });
+
+    if (['aceptado', 'rechazado_parcial', 'tratado'].includes(updated.estado_traslado || '')) {
+      try {
+        await syncEntryFromDI(updated);
+      } catch {
+        // Best-effort sync
+      }
+    }
+
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'rectificar',
+      detalles: {
+        version_resultante: nextVersion,
+        motivo_rectificacion: motivo,
+        peso_origen_anterior_kg: prevPesoOrigen,
+        peso_destino_anterior_kg: prevPesoDestino,
+        albaran_anterior: prevAlbaran,
+        peso_origen_nuevo_kg: newPesoOrigen,
+        peso_destino_nuevo_kg: newPesoDestino,
+        albaran_nuevo: newAlbaran,
+      },
+    });
+
+    return updated;
+  },
+
+  /**
    * Obtener estadísticas de documentos
    */
   async getStats(): Promise<{
@@ -1549,6 +1639,34 @@ export function getTrackingStatusMeta(doc: IdentificationDocument): {
     default:
       return { key: 'borrador', label: 'Borrador / Registrado', badgeColor: 'light', step: 1, ...common };
   }
+}
+
+export interface DIRectificationRecord {
+  version: number;
+  timestamp: string;
+  motivo: string;
+  summary: string;
+}
+
+/**
+ * Extrae el historial inmutable de rectificaciones versionadas registradas sobre un DI (P09 / X05).
+ */
+export function parseDIRectificationHistory(notas?: string | null): DIRectificationRecord[] {
+  if (!notas) return [];
+  const records: DIRectificationRecord[] = [];
+  const lines = notas.split('\n');
+  for (const line of lines) {
+    const match = line.match(/^\[RECTIFICACIÓN v(\d+)\s*\|\s*([^\]]+)\]:\s*Motivo:\s*([^|]+)\|\s*(.+)$/);
+    if (match) {
+      records.push({
+        version: parseInt(match[1], 10),
+        timestamp: match[2].trim(),
+        motivo: match[3].trim(),
+        summary: match[4].trim(),
+      });
+    }
+  }
+  return records;
 }
 
 export default identificationDocumentService;

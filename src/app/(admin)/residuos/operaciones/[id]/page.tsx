@@ -677,6 +677,46 @@ export default function DetalleOperacionComercialPage() {
               <p className="font-medium text-gray-800 dark:text-gray-200">{operation.descripcion_residuo}</p>
             </div>
 
+            {/* Hito C.4 / N04: Tabla de Desglose Multimaterial (Justificante Conjunto) */}
+            {operation.lineas_materiales && operation.lineas_materiales.length > 0 && (
+              <div className="p-3 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-emerald-900 dark:text-emerald-300">
+                    Desglose Multimaterial ({operation.lineas_materiales.length} materiales en justificante conjunto)
+                  </span>
+                  <span className="text-[10.5px] text-emerald-700 dark:text-emerald-400">
+                    DI ambientales diferenciados por traslado
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-[11px] text-left">
+                    <thead className="text-gray-500 border-b border-emerald-200/70 dark:border-emerald-800/50">
+                      <tr>
+                        <th className="py-1 pr-2">LER</th>
+                        <th className="py-1 pr-2">Material</th>
+                        <th className="py-1 pr-2 text-right">Cant. (t)</th>
+                        <th className="py-1 pr-2 text-right">Compra</th>
+                        <th className="py-1 pr-2 text-right">Venta</th>
+                        <th className="py-1">Ref. DI</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-emerald-100 dark:divide-emerald-900/30">
+                      {operation.lineas_materiales.map((line) => (
+                        <tr key={line.id}>
+                          <td className="py-1.5 pr-2 font-mono font-bold text-primary">{line.codigo_ler}</td>
+                          <td className="py-1.5 pr-2">{line.descripcion_residuo}</td>
+                          <td className="py-1.5 pr-2 text-right font-mono font-semibold">{Number(line.cantidad_t || 0).toFixed(3)} t</td>
+                          <td className="py-1.5 pr-2 text-right font-mono">{Number(line.precio_unitario_compra || 0).toFixed(2)} {formatPriceUnitLabel(line.tipo_precio)}</td>
+                          <td className="py-1.5 pr-2 text-right font-mono">{Number(line.precio_unitario_venta || 0).toFixed(2)} {formatPriceUnitLabel(line.tipo_precio)}</td>
+                          <td className="py-1.5 font-mono text-gray-500">{line.di_referencia || 'DI separado'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* Partes físicas */}
             <div className="space-y-3">
               <div>

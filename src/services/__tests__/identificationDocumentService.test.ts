@@ -1797,5 +1797,84 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
           expect(res.estado).toBe('completado');
           spyUpdate.mockRestore();
         });
+
+        it('rectifyDocument y parseDIRectificationHistory registran y extraen versiones inmutables de rectificación (P09 / X05)', async () => {
+          const { parseDIRectificationHistory } = await import('../identificationDocumentService');
+          expect(parseDIRectificationHistory(null)).toEqual([]);
+
+          const spyGetById = jest.spyOn(identificationDocumentService, 'getById').mockResolvedValue({
+            id: 162,
+            company_id: 10,
+            unidad: 'kg',
+            cantidad: 1000,
+            peso_origen_kg: 1000,
+            peso_destino_kg: 980,
+            numero_albaran_gestor: 'ALB-162',
+            estado: 'completado',
+            estado_traslado: 'aceptado',
+            notas: 'Nota inicial',
+          } as any);
+
+          let capturedNotas = '';
+          const spyUpdate = jest.spyOn(identificationDocumentService, 'update').mockImplementation(async (_id, fields) => {
+            capturedNotas = fields.notas || '';
+            return {
+              id: 162,
+              company_id: 10,
+              estado: 'completado',
+              estado_traslado: 'aceptado',
+              ...fields,
+            } as any;
+          });
+
+          await expect(
+            identificationDocumentService.rectifyDocument(162, {
+              motivo_rectificacion: 'corto',
+            })
+          ).rejects.toThrow('mínimo 10 caracteres');
+
+          const updated = await identificationDocumentService.rectifyDocument(162, {
+            cantidad: 1000,
+            peso_destino_kg: 990,
+            numero_albaran_gestor: 'ALB-162-R1',
+            motivo_rectificacion: 'Corrección de pesada en ticket de báscula del gestor',
+          });
+
+          expect(updated.peso_destino_kg).toBe(990);
+          expect(updated.diferencia_peso_kg).toBe(-10);
+          const history = parseDIRectificationHistory(capturedNotas);
+          expect(history).toHaveLength(1);
+          expect(history[0].version).toBe(2);
+          expect(history[0].motivo).toBe('Corrección de pesada en ticket de báscula del gestor');
+
+          // Segunda rectificación en toneladas y sin notas iniciales ni peso_destino previo
+          spyGetById.mockResolvedValueOnce({
+            id: 163,
+            company_id: 10,
+            unidad: 'toneladas',
+            cantidad: 1.5,
+            estado: 'completado',
+            estado_traslado: 'en_transito',
+            notas: '',
+          } as any);
+          await identificationDocumentService.rectifyDocument(163, {
+            cantidad: 2,
+            motivo_rectificacion: 'Ajuste de toneladas declaradas en báscula de salida',
+          });
+
+          // Rechazo si DI está cancelado
+          spyGetById.mockResolvedValueOnce({
+            id: 164,
+            estado: 'cancelado',
+          } as any);
+          await expect(
+            identificationDocumentService.rectifyDocument(164, {
+              motivo_rectificacion: 'Intento de rectificar un documento cancelado',
+            })
+          ).rejects.toThrow('No se puede rectificar un DI cancelado');
+
+          spyGetById.mockRestore();
+          spyUpdate.mockRestore();
+        });
       });
     });

@@ -11,6 +11,7 @@ import productionCenterService from '@/services/productionCenterService';
 import identificationDocumentService from '@/services/identificationDocumentService';
 import {
   type CommercialOperationFormData,
+  type CommercialMaterialLine,
   type Company,
   type ProductionCenter,
   type IdentificationDocument
@@ -99,6 +100,81 @@ export default function NuevaOperacionComercialPage() {
       descripcion_residuo: wt?.descripcion || prev.descripcion_residuo,
       peligrosidad: isPeligroso ? 'peligroso' : 'no-peligroso'
     }));
+  };
+
+  // Hito C.4: Gestión de líneas adicionales en operación comercial multimaterial
+  const handleAddMaterialLine = () => {
+    setFormData((prev) => {
+      const existing = prev.lineas_materiales || [];
+      const baseFirstLine: CommercialMaterialLine[] =
+        existing.length === 0 && prev.codigo_ler
+          ? [
+              {
+                id: `mat-${Date.now()}-1`,
+                codigo_ler: prev.codigo_ler,
+                descripcion_residuo: prev.descripcion_residuo || 'Material principal',
+                peligrosidad: prev.peligrosidad || 'no-peligroso',
+                cantidad_t: prev.cantidad_real_t || prev.cantidad_estimada_t || 1,
+                tipo_precio: prev.tipo_precio_compra || 'por_tonelada',
+                precio_unitario_compra: prev.precio_unitario_compra || 0,
+                precio_unitario_venta: prev.precio_unitario_venta || 0,
+                di_referencia: prev.identification_document_id ? `DI #${prev.identification_document_id}` : '',
+              },
+            ]
+          : existing;
+      const newLine: CommercialMaterialLine = {
+        id: `mat-${Date.now()}-${baseFirstLine.length + 1}`,
+        codigo_ler: '17 04 01',
+        descripcion_residuo: 'Cobre, bronce, latón',
+        peligrosidad: 'no-peligroso',
+        cantidad_t: 1,
+        tipo_precio: prev.tipo_precio_compra || 'por_tonelada',
+        precio_unitario_compra: 0,
+        precio_unitario_venta: 0,
+        di_referencia: '',
+      };
+      const nextLines = [...baseFirstLine, newLine];
+      const totalT = nextLines.reduce((acc, l) => acc + (Number(l.cantidad_t) || 0), 0);
+      return {
+        ...prev,
+        lineas_materiales: nextLines,
+        cantidad_estimada_t: Number(totalT.toFixed(3)),
+      };
+    });
+  };
+
+  const handleUpdateMaterialLine = (idx: number, field: keyof CommercialMaterialLine, value: any) => {
+    setFormData((prev) => {
+      const next = [...(prev.lineas_materiales || [])];
+      next[idx] = { ...next[idx], [field]: value };
+      if (field === 'codigo_ler') {
+        next[idx].peligrosidad = String(value).includes('*') ? 'peligroso' : 'no-peligroso';
+      }
+      const totalT = next.reduce((acc, l) => acc + (Number(l.cantidad_t) || 0), 0);
+      return {
+        ...prev,
+        lineas_materiales: next,
+        ...(idx === 0
+          ? {
+              codigo_ler: next[0].codigo_ler || prev.codigo_ler,
+              descripcion_residuo: next[0].descripcion_residuo || prev.descripcion_residuo,
+            }
+          : {}),
+        cantidad_estimada_t: totalT > 0 ? Number(totalT.toFixed(3)) : prev.cantidad_estimada_t,
+      };
+    });
+  };
+
+  const handleRemoveMaterialLine = (idx: number) => {
+    setFormData((prev) => {
+      const next = (prev.lineas_materiales || []).filter((_, i) => i !== idx);
+      const totalT = next.reduce((acc, l) => acc + (Number(l.cantidad_t) || 0), 0);
+      return {
+        ...prev,
+        lineas_materiales: next.length > 0 ? next : undefined,
+        ...(next.length > 0 && totalT > 0 ? { cantidad_estimada_t: Number(totalT.toFixed(3)) } : {}),
+      };
+    });
   };
 
   // Sincronización desde DI seleccionado
@@ -432,7 +508,7 @@ export default function NuevaOperacionComercialPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                    Cantidad Real en Báscula (Toneladas)
+                    Peso Recibido Declarado / Báscula (Toneladas)
                   </label>
                   <input
                     type="number"
@@ -444,6 +520,109 @@ export default function NuevaOperacionComercialPage() {
                     className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-2 font-mono bg-white dark:bg-gray-700"
                   />
                 </div>
+              </div>
+
+              {/* Hito C.4 / N04: Operación Comercial Multimaterial con Justificante Conjunto */}
+              <div className="p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300">
+                      Desglose Multimaterial (Justificante Comercial Conjunto)
+                    </span>
+                    <p className="text-[11px] text-gray-500">
+                      Permite agrupar varios materiales (LER) en una misma liquidación comercial manteniendo separados los DI ambientales de cada traslado (RD 553/2020).
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleAddMaterialLine}
+                  >
+                    + Añadir Material (LER)
+                  </Button>
+                </div>
+
+                {formData.lineas_materiales && formData.lineas_materiales.length > 0 && (
+                  <div className="space-y-2.5 pt-2">
+                    {formData.lineas_materiales.map((line, idx) => (
+                      <div
+                        key={line.id}
+                        className="p-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 grid grid-cols-1 sm:grid-cols-6 gap-2 items-end text-xs"
+                      >
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-500 mb-1">Código LER</label>
+                          <input
+                            type="text"
+                            value={line.codigo_ler}
+                            onChange={(e) => handleUpdateMaterialLine(idx, 'codigo_ler', e.target.value)}
+                            placeholder="17 04 05"
+                            className="w-full rounded border border-gray-300 dark:border-gray-600 p-1.5 font-mono text-xs bg-white dark:bg-gray-700"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-[10px] font-semibold text-gray-500 mb-1">Material / Descripción</label>
+                          <input
+                            type="text"
+                            value={line.descripcion_residuo}
+                            onChange={(e) => handleUpdateMaterialLine(idx, 'descripcion_residuo', e.target.value)}
+                            placeholder="Hierro, cobre, aluminio..."
+                            className="w-full rounded border border-gray-300 dark:border-gray-600 p-1.5 text-xs bg-white dark:bg-gray-700"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-500 mb-1">Toneladas (t)</label>
+                          <input
+                            type="number"
+                            step="0.001"
+                            min="0.001"
+                            value={line.cantidad_t}
+                            onChange={(e) => handleUpdateMaterialLine(idx, 'cantidad_t', Number(e.target.value))}
+                            className="w-full rounded border border-gray-300 dark:border-gray-600 p-1.5 font-mono text-xs bg-white dark:bg-gray-700"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-500 mb-1">Compra / Venta (€)</label>
+                          <div className="flex gap-1">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={line.precio_unitario_compra}
+                              onChange={(e) => handleUpdateMaterialLine(idx, 'precio_unitario_compra', Number(e.target.value))}
+                              placeholder="Compra"
+                              className="w-1/2 rounded border border-gray-300 dark:border-gray-600 p-1.5 text-xs bg-white dark:bg-gray-700"
+                            />
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={line.precio_unitario_venta}
+                              onChange={(e) => handleUpdateMaterialLine(idx, 'precio_unitario_venta', Number(e.target.value))}
+                              placeholder="Venta"
+                              className="w-1/2 rounded border border-gray-300 dark:border-gray-600 p-1.5 text-xs bg-white dark:bg-gray-700"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={line.di_referencia || ''}
+                            onChange={(e) => handleUpdateMaterialLine(idx, 'di_referencia', e.target.value)}
+                            placeholder="Ref. DI"
+                            className="w-full rounded border border-gray-300 dark:border-gray-600 p-1.5 font-mono text-xs bg-white dark:bg-gray-700"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMaterialLine(idx)}
+                            className="px-2 py-1.5 text-red-600 hover:bg-red-50 rounded text-xs font-bold"
+                            title="Quitar línea"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </ComponentCard>

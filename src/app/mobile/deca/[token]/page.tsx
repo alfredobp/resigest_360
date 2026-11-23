@@ -27,6 +27,7 @@ export default function DecaDriverMobilePage({
   const [error, setError] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [confirmingReceipt, setConfirmingReceipt] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -80,6 +81,17 @@ export default function DecaDriverMobilePage({
       loadData();
     }
   }, [token]);
+
+  const handleConfirmReceipt = async () => {
+    if (!deca || confirmingReceipt) return;
+    try {
+      setConfirmingReceipt(true);
+      const updated = await decaService.confirmDriverReceipt(deca);
+      setDeca(updated);
+    } finally {
+      setConfirmingReceipt(false);
+    }
+  };
 
   const handleShare = async () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -337,6 +349,52 @@ export default function DecaDriverMobilePage({
       <span className="text-slate-400">Naturaleza de la Mercancía:</span>
       <p className="text-slate-200 font-medium line-clamp-2 mt-0.5">{deca.naturaleza_mercancia}</p>
     </div>
+
+    {/* Hito C.2 / L13: Confirmación expresa de recepción de la versión vigente por el conductor */}
+    {deca.is_vigente !== false && (
+      <div className="pt-2.5 border-t border-slate-800">
+        {(() => {
+          const confirmation = decaService.getDriverReceiptConfirmation(deca);
+          if (confirmation.confirmed) {
+            return (
+              <div className="p-2.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <div>
+                  <span className="font-bold">Versión v{deca.version} confirmada por conductor</span>
+                  <span className="block text-[11px] text-emerald-300/80">
+                    {confirmation.conductorNombre} ·{' '}
+                    {confirmation.timestamp
+                      ? new Date(confirmation.timestamp).toLocaleString('es-ES', {
+                          timeZone: 'Europe/Madrid',
+                          day: '2-digit',
+                          month: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : ''}
+                  </span>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <button
+              type="button"
+              disabled={confirmingReceipt}
+              onClick={handleConfirmReceipt}
+              className="w-full py-2.5 px-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-semibold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>
+                {confirmingReceipt
+                  ? 'Confirmando recepción...'
+                  : `Confirmar Recepción de Versión Vigente (v${deca.version})`}
+              </span>
+            </button>
+          );
+        })()}
+      </div>
+    )}
   </div>
       </main >
 

@@ -91,6 +91,7 @@ export function parseCommercialMetaFromNotes(
         mandato_fecha: parsed.mandato_fecha || undefined,
         mandato_otorgante: parsed.mandato_otorgante || undefined,
         documentos: Array.isArray(parsed.documentos) ? parsed.documentos : [],
+        lineas_materiales: Array.isArray(parsed.lineas_materiales) ? parsed.lineas_materiales : undefined,
       },
     };
   } catch {
@@ -114,6 +115,9 @@ export function serializeCommercialMetaToNotes(
     ...(meta.mandato_fecha ? { mandato_fecha: meta.mandato_fecha } : {}),
     ...(meta.mandato_otorgante ? { mandato_otorgante: meta.mandato_otorgante } : {}),
     documentos: Array.isArray(meta.documentos) ? meta.documentos : [],
+    ...(Array.isArray(meta.lineas_materiales) && meta.lineas_materiales.length > 0
+      ? { lineas_materiales: meta.lineas_materiales }
+      : {}),
   })}`;
   return base ? `${base}\n\n${serialized}` : serialized;
 }
@@ -157,6 +161,7 @@ function hydrateCommercialOperation(op: CommercialOperation): CommercialOperatio
     mandato_fecha: meta.mandato_fecha || null,
     mandato_otorgante: meta.mandato_otorgante || null,
     documentos_adjuntos: meta.documentos,
+    lineas_materiales: meta.lineas_materiales,
   };
 }
 
@@ -188,34 +193,50 @@ export interface CommercialOperationFilter {
 
 /**
  * Calcula con precisión los costes, ingresos y márgenes de una operación comercial
+ * (incluyendo soporte multimaterial Hito C.4 / N04 con varias líneas LER).
  */
 export function calculateProfitability(data: Partial<CommercialOperationFormData>) {
-  const toneladas = (data.cantidad_real_t && data.cantidad_real_t > 0)
+  const hasMultiLines = Array.isArray(data.lineas_materiales) && data.lineas_materiales.length > 0;
+
+  let toneladas = (data.cantidad_real_t && data.cantidad_real_t > 0)
     ? Number(data.cantidad_real_t)
     : Number(data.cantidad_estimada_t || 0);
 
-  // Cálculo de coste de compra
-  const precioCompra = Number(data.precio_unitario_compra || 0);
   let costeCompra = 0;
-  if (data.tipo_precio_compra === 'por_tonelada') {
-    costeCompra = precioCompra * toneladas;
-  } else if (data.tipo_precio_compra === 'por_kg') {
-    costeCompra = precioCompra * (toneladas * 1000);
-  } else {
-    // lote_fijo
-    costeCompra = precioCompra;
-  }
-
-  // Cálculo de ingreso de venta
-  const precioVenta = Number(data.precio_unitario_venta || 0);
   let ingresoVenta = 0;
-  if (data.tipo_precio_venta === 'por_tonelada') {
-    ingresoVenta = precioVenta * toneladas;
-  } else if (data.tipo_precio_venta === 'por_kg') {
-    ingresoVenta = precioVenta * (toneladas * 1000);
+
+  if (hasMultiLines) {
+    let sumT = 0;
+    for (const line of data.lineas_materiales!) {
+      const lineT = Number(line.cantidad_t || 0);
+      sumT += lineT;
+      const factor = line.tipo_precio === 'por_kg' ? lineT * 1000 : line.tipo_precio === 'lote_fijo' ? 1 : lineT;
+      costeCompra += Number(line.precio_unitario_compra || 0) * factor;
+      ingresoVenta += Number(line.precio_unitario_venta || 0) * factor;
+    }
+    toneladas = sumT;
   } else {
-    // lote_fijo
-    ingresoVenta = precioVenta;
+    // Cálculo de coste de compra
+    const precioCompra = Number(data.precio_unitario_compra || 0);
+    if (data.tipo_precio_compra === 'por_tonelada') {
+      costeCompra = precioCompra * toneladas;
+    } else if (data.tipo_precio_compra === 'por_kg') {
+      costeCompra = precioCompra * (toneladas * 1000);
+    } else {
+      // lote_fijo
+      costeCompra = precioCompra;
+    }
+
+    // Cálculo de ingreso de venta
+    const precioVenta = Number(data.precio_unitario_venta || 0);
+    if (data.tipo_precio_venta === 'por_tonelada') {
+      ingresoVenta = precioVenta * toneladas;
+    } else if (data.tipo_precio_venta === 'por_kg') {
+      ingresoVenta = precioVenta * (toneladas * 1000);
+    } else {
+      // lote_fijo
+      ingresoVenta = precioVenta;
+    }
   }
 
   const costeTransporte = Number(data.coste_transporte || 0);
@@ -405,13 +426,14 @@ export const commercialOperationService = {
       return `OP-${companyTag}-${year}-${padded}`;
     };
 
-    // Separar campos virtuales de intervención ambiental y carpeta documental
+    // Separar campos virtuales de intervención ambiental, carpeta documental y líneas multimaterial
     const {
       actua_como_operador,
       mandato_referencia,
       mandato_fecha,
       mandato_otorgante,
       documentos_adjuntos,
+      lineas_materiales,
       ...dbData
     } = data;
 
@@ -420,7 +442,8 @@ export const commercialOperationService = {
       mandato_referencia !== undefined ||
       mandato_fecha !== undefined ||
       mandato_otorgante !== undefined ||
-      (Array.isArray(documentos_adjuntos) && documentos_adjuntos.length > 0);
+      (Array.isArray(documentos_adjuntos) && documentos_adjuntos.length > 0) ||
+      (Array.isArray(lineas_materiales) && lineas_materiales.length > 0);
 
     const finalObservaciones = hasStructuredMeta
       ? serializeCommercialMetaToNotes(data.observaciones, {
@@ -430,6 +453,7 @@ export const commercialOperationService = {
           mandato_fecha: mandato_fecha || undefined,
           mandato_otorgante: mandato_otorgante?.trim() || undefined,
           documentos: Array.isArray(documentos_adjuntos) ? documentos_adjuntos : [],
+          lineas_materiales: Array.isArray(lineas_materiales) ? lineas_materiales : undefined,
         })
       : data.observaciones;
 
@@ -526,6 +550,7 @@ export const commercialOperationService = {
       mandato_fecha,
       mandato_otorgante,
       documentos_adjuntos,
+      lineas_materiales,
       ...dbData
     } = data;
 
@@ -534,7 +559,8 @@ export const commercialOperationService = {
       mandato_referencia !== undefined ||
       mandato_fecha !== undefined ||
       mandato_otorgante !== undefined ||
-      documentos_adjuntos !== undefined;
+      documentos_adjuntos !== undefined ||
+      lineas_materiales !== undefined;
 
     const hasFinancialFields =
       data.cantidad_estimada_t !== undefined ||
@@ -581,6 +607,10 @@ export const commercialOperationService = {
             documentos_adjuntos !== undefined
               ? documentos_adjuntos
               : existing?.documentos_adjuntos || [],
+          lineas_materiales:
+            lineas_materiales !== undefined
+              ? lineas_materiales
+              : existing?.lineas_materiales,
         }
       );
     }
