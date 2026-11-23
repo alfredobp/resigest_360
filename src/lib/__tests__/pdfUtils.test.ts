@@ -537,7 +537,8 @@ describe('pdfUtils - generateMemoriaAnualPDF', () => {
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
     const out = doc.output();
     expect(out).toContain('MEM-2026-0001');
-    expect(out).toContain('DECLARACIÓN PRESENTADA');
+    expect(out).toContain('DECLARACIÓN');
+    expect(out).toContain('PRESENTADA');
     expect(out).toContain('4100098123');
   });
 

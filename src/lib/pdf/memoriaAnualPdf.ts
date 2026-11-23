@@ -18,18 +18,25 @@ import {
 
 export interface MemoriaDetalleMovimiento {
   numero_di?: string;
+  codigo_di?: string;
   fecha?: string;
   codigo_ler?: string;
   descripcion?: string;
+  descripcion_residuo?: string;
   cantidad_toneladas?: number;
   operacion_tratamiento?: string;
+  codigo_operacion_rd?: string;
   gestor_nombre?: string;
+  razon_social_destino?: string;
+  razon_social_origen?: string;
   gestor_nima?: string;
+  nima_destino?: string;
+  nima_origen?: string;
 }
 
 export async function generateMemoriaAnualPDF(
   memoria: MemoriaAnual,
-  detalle?: { movimientos?: MemoriaDetalleMovimiento[] } | null
+  detalle?: { movimientos?: MemoriaDetalleMovimiento[]; entradas?: MemoriaDetalleMovimiento[] } | MemoriaDetalleMovimiento[] | null
 ): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const marginX = PDF_LAYOUT.marginX;
@@ -163,7 +170,9 @@ export async function generateMemoriaAnualPDF(
   }
 
   // --- 3. DESGLOSE POR DESTINO Y OPERACIÓN R/D (INC16: conciliar con CSV) ---
-  const movimientos = detalle?.movimientos || [];
+  const movimientos: MemoriaDetalleMovimiento[] = Array.isArray(detalle)
+    ? detalle
+    : detalle?.movimientos || detalle?.entradas || [];
   if (movimientos.length > 0) {
     yPos = drawSectionHeader(doc, '3. Desglose por Destino (Gestor) y Operación de Tratamiento (R/D)', yPos);
     const destColumns: TableColumn[] = [
@@ -173,18 +182,22 @@ export async function generateMemoriaAnualPDF(
       { header: 'Gestor Destinatario (NIMA)', width: 74, align: 'left' },
       { header: 'Cant. (t)', width: 26, align: 'right' },
     ];
-    const destRows: TableRow[] = movimientos.map((m) => ({
-      cells: [
-        { text: m.numero_di || '-', bold: true },
-        { text: m.codigo_ler || '-' },
-        { text: m.operacion_tratamiento || '-', bold: true, color: PDF_COLORS.brandPrimary },
-        {
-          text: [m.gestor_nombre || '-', m.gestor_nima ? `(${m.gestor_nima})` : null].filter(Boolean).join(' '),
-          color: PDF_COLORS.inkSecondary,
-        },
-        { text: `${(Number(m.cantidad_toneladas) || 0).toFixed(3)} t`, bold: true },
-      ],
-    }));
+    const destRows: TableRow[] = movimientos.map((m) => {
+      const gestorName = m.gestor_nombre || m.razon_social_destino || m.razon_social_origen || '-';
+      const gestorNima = m.gestor_nima || m.nima_destino || m.nima_origen;
+      return {
+        cells: [
+          { text: m.numero_di || m.codigo_di || '-', bold: true },
+          { text: m.codigo_ler || '-' },
+          { text: m.operacion_tratamiento || m.codigo_operacion_rd || '-', bold: true, color: PDF_COLORS.brandPrimary },
+          {
+            text: [gestorName, gestorNima ? `(${gestorNima})` : null].filter(Boolean).join(' '),
+            color: PDF_COLORS.inkSecondary,
+          },
+          { text: `${(Number(m.cantidad_toneladas) || 0).toFixed(3)} t`, bold: true },
+        ],
+      };
+    });
     drawDataTable(doc, destColumns, destRows, yPos);
   }
 

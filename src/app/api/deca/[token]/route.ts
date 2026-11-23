@@ -116,7 +116,8 @@ export async function GET(
     const protocol = request.headers.get('x-forwarded-proto') || 'https';
     const inspectionUrl = `${protocol}://${host}/api/deca/${token}`;
 
-    // INC12: Si es v2+, recuperar la marca temporal original de v1 para no atribuir la hora de v2 a v1
+    // INC12: Si es v2+, recuperar la marca temporal original de v1 para no atribuir la hora de v2 a v1.
+    // Usamos previous_version_id o la RPC SECURITY DEFINER get_deca_by_token si no hay sesión autenticada.
     let firstVersionCreatedAt: string | null = null;
     if (deca.version > 1 && deca.numero_deca) {
       try {
@@ -129,6 +130,25 @@ export async function GET(
           .maybeSingle();
         if (v1Row?.created_at) {
           firstVersionCreatedAt = v1Row.created_at;
+        } else if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+          const { createClient: createAdmin } = await import('@supabase/supabase-js');
+          const adminSb = createAdmin(
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
+            process.env.SUPABASE_SERVICE_ROLE_KEY,
+            { auth: { persistSession: false, autoRefreshToken: false } }
+          );
+          const { data: adminV1 } = await adminSb
+            .from('deca_documents')
+            .select('created_at')
+            .eq('user_id', deca.user_id)
+            .eq('numero_deca', baseNumero)
+            .eq('version', 1)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          if (adminV1?.created_at) {
+            firstVersionCreatedAt = adminV1.created_at;
+          }
         }
       } catch {
         // Fallback seguro: generateDecaPDF omitirá v1 si no se pudo recuperar
