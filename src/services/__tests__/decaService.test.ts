@@ -339,6 +339,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       const mockDI: Partial<IdentificationDocument> = {
         id: 77,
         company_id: 2,
+        transportista_company_id: 105,
         numero_documento: 'DI-2026-00077',
         productor_razon_social: 'Productor Origen',
         productor_cif: 'B99999999',
@@ -376,6 +377,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       expect(spyCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           identification_document_id: 77,
+          company_id: 105,
           peso_kg: 5000,
           cargador_razon_social: 'Empresa Cargadora S.L.',
           es_residuo_peligroso: true,

@@ -123,7 +123,6 @@ export function applyDeterministicMetadata(doc: jsPDF, opts: DeterministicMetada
   const createdDate = new Date(opts.createdIso);
   const safeCreated = isNaN(createdDate.getTime()) ? new Date('2026-01-01T00:00:00Z') : createdDate;
   const pdfModDate = toPdfInfoDateString(opts.updatedIso || opts.createdIso, opts.createdIso);
-  const pdfCreatedDate = toPdfInfoDateString(safeCreated.toISOString(), '2026-01-01T00:00:00Z');
 
   doc.setProperties({
     title: opts.title,

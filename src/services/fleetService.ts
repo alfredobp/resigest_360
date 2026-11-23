@@ -296,6 +296,11 @@ export const fleetService = {
       .single();
 
     if (error) {
+      if (error.code === '23505' || error.message?.includes('uq_carrier_vehicles_company_norm_plate')) {
+        throw new Error(
+          `Ya existe un vehículo activo con la matrícula ${normalizedPlate} en tu flota. Edita o selecciona la ficha existente en lugar de duplicarla.`
+        );
+      }
       throw new Error(`Error al crear vehículo: ${error.message}`);
     }
 
@@ -368,6 +373,11 @@ export const fleetService = {
 
     const { data, error } = await query.select().single();
     if (error) {
+      if (error.code === '23505' || error.message?.includes('uq_carrier_vehicles_company_norm_plate')) {
+        throw new Error(
+          'Ya existe un vehículo activo con esa matrícula en tu flota. Edita la ficha existente en lugar de duplicarla.'
+        );
+      }
       throw new Error(`Error al actualizar vehículo: ${error.message}`);
     }
 

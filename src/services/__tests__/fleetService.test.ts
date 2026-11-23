@@ -275,6 +275,25 @@ describe('fleetService - Gestión relacional multi-tenant de Conductores y Vehí
       const deleteErrChain = createQueryChain(null, { message: 'Del err' });
       mockSupabase.from.mockReturnValueOnce(deleteErrChain);
       await expect(fleetService.deleteVehicle(20)).rejects.toThrow('Error al eliminar vehículo: Del err');
+
+      // INC10: Traducción legible de error 23505 / uq_carrier_vehicles_company_norm_plate en create y update
+      const dupCreateChain = createQueryChain(null, {
+        code: '23505',
+        message: 'duplicate key value violates unique constraint "uq_carrier_vehicles_company_norm_plate"',
+      });
+      mockSupabase.from.mockReturnValueOnce(dupCreateChain);
+      await expect(fleetService.createVehicle({ matricula: '2345ZZZ' })).rejects.toThrow(
+        'Ya existe un vehículo activo con la matrícula'
+      );
+
+      const dupUpdateChain = createQueryChain(null, {
+        code: '23505',
+        message: 'duplicate key value violates unique constraint "uq_carrier_vehicles_company_norm_plate"',
+      });
+      mockSupabase.from.mockReturnValueOnce(dupUpdateChain);
+      await expect(fleetService.updateVehicle(20, { matricula: '2345ZZZ' })).rejects.toThrow(
+        'Ya existe un vehículo activo con esa matrícula'
+      );
     });
   });
 

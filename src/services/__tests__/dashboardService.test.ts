@@ -427,6 +427,23 @@ describe('dashboardService - Dashboard Ejecutivo e Indicadores', () => {
           estado_traslado: '',
         },
         {
+          fecha_documento: '2026-02-08',
+          peso_origen_kg: 3000,
+          peligrosidad: 'no-peligroso',
+          codigo_ler: '15 01 01',
+          estado: 'completado',
+          estado_traslado: 'aceptado',
+        },
+        {
+          fecha_documento: '2026-02-09',
+          cantidad: 1000,
+          unidad: 'kg',
+          peligrosidad: 'no-peligroso',
+          codigo_ler: '15 01 01',
+          estado: 'activo',
+          estado_traslado: 'recepcionado',
+        },
+        {
           fecha_documento: '2026-02-12',
           cantidad: 1500,
           unidad: 'kg',
@@ -492,20 +509,21 @@ describe('dashboardService - Dashboard Ejecutivo e Indicadores', () => {
 
       const res = await dashboardService.getDashboardChartsData({ year: 2026 });
 
+      // INC09: Solo DIs efectivamente gestionados (completado/aceptado/tratado/recepcionado) computan en el gráfico
       expect(res.year).toBe(2026);
       expect(res.monthlyWaste).toHaveLength(12);
       expect(res.monthlyWaste[0]).toEqual({
         name: 'Ene',
-        total: 3,
+        total: 2,
         peligrosos: 2,
-        noPeligrosos: 1,
-        diCount: 2,
+        noPeligrosos: 0,
+        diCount: 1,
       });
       expect(res.monthlyWaste[1]).toEqual({
         name: 'Feb',
-        total: 6,
-        peligrosos: 1.5,
-        noPeligrosos: 4.5,
+        total: 4,
+        peligrosos: 0,
+        noPeligrosos: 4,
         diCount: 2,
       });
 
@@ -524,18 +542,41 @@ describe('dashboardService - Dashboard Ejecutivo e Indicadores', () => {
       });
 
       expect(res.diStatusDistribution).toEqual({
-        completados: 1,
+        completados: 3,
         enTransito: 1,
         borradores: 2,
         incidencias: 1,
-        total: 5,
+        total: 7,
       });
 
-      expect(res.summary.totalToneladas).toBe(9);
-      expect(res.summary.promedioMensual).toBe(4.5);
-      expect(res.summary.mesPico).toEqual({ name: 'Feb', value: 6 });
-      expect(res.summary.porcentajePeligrosos).toBe(38.9);
+      expect(res.summary.totalToneladas).toBe(6);
+      expect(res.summary.promedioMensual).toBe(3);
+      expect(res.summary.mesPico).toEqual({ name: 'Feb', value: 4 });
+      expect(res.summary.porcentajePeligrosos).toBe(33.3);
       expect(res.summary.variacionUltimoMesPct).toBe(100);
+    });
+
+    it('INC09: contratos en borrador y DIs en borrador no producen Conformidad 100%', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      const buildSimple = (data: any[]) => ({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockResolvedValue({ data, error: null }),
+      });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'identification_documents') {
+          return buildSimple([{ id: 162, estado: 'borrador', estado_traslado: 'borrador', cantidad: 1000, unidad: 'kg' }]);
+        }
+        if (table === 'waste_contracts') {
+          return buildSimple([{ id: 71, estado: 'borrador', fecha_inicio: '2026-11-23', fecha_fin: '2027-11-23' }]);
+        }
+        return buildSimple([]);
+      });
+
+      const overview = await dashboardService.getExecutiveOverview({ includeCommercial: false });
+      expect(overview.conformidad.estado).toBe('pendiente');
+      expect(overview.conformidad.porcentaje).toBeNull();
+      expect(overview.conformidad.totalEvaluados).toBe(0);
+      expect(overview.residuos.totalToneladas).toBe(0);
     });
 
     it('debe filtrar por companyId, omitir comercial cuando includeCommercial es false y manejar ejercicio vacío', async () => {

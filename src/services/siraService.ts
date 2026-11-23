@@ -1125,8 +1125,8 @@ export const siraService = {
     const dcsPhase = doc.dcs_phase || (isDestinationDCSPhase(doc) ? 'D' : 'R');
     const rawEndDate =
       isDestinationDCSPhase(doc) && (doc.fecha_tratamiento || doc.fecha_llegada_destino || doc.fecha_recepcion)
-      ? String(doc.fecha_tratamiento || doc.fecha_llegada_destino || doc.fecha_recepcion).split('T')[0]
-      : '';
+        ? String(doc.fecha_tratamiento || doc.fecha_llegada_destino || doc.fecha_recepcion).split('T')[0]
+        : '';
     const endDateAttr = /^\d{4}-\d{2}-\d{2}$/.test(rawEndDate)
       ? `\n    DCSEndDate="${rawEndDate}"`
       : '';
@@ -1161,47 +1161,67 @@ export const siraService = {
   },
 
   /**
-   * Genera el mensaje E3L versión 3.6 completo con contenedor <e3l> y <header> reglamentario
-   * para validación directa con esquemas oficiales e3l.xsd (RD 553/2020).
+   * Genera el mensaje E3L versión 3.6 completo con contenedor <e3l:e3l> y <header> reglamentario
+   * 100% conforme con el paquete XSD 3.6 oficial de MITECO (e3l.xsd, e3l-waste.xsd, e3l-common.xsd, e3l-wasteSupport.xsd) (INC04).
    */
   generateE3LMessage(doc: any): string {
-    const dcsXml = this.generateDIXml(doc);
-    const date = new Date(doc.fecha_documento || new Date());
-    const formattedDate = date.toISOString().split('T')[0];
-    const compData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
-    const senderNif = this.escapeXml(doc.operador_cif || compData?.cif || doc.productor_cif || 'B00000000');
-    const senderName = this.escapeXml(doc.operador_razon_social || compData?.razon_social || doc.productor_razon_social || 'RESIGEST');
+    const rawDcsXml = this.generateDIXml(doc);
+    const parsedDate = doc?.fecha_documento ? new Date(doc.fecha_documento) : new Date();
+    const safeDate = isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+    const formattedDate = safeDate.toISOString().split('T')[0];
+    const compData = Array.isArray(doc?.company) ? doc.company[0] : doc?.company;
+    const prodProvCode = getProvinceCodeByName(doc?.productor_provincia || compData?.provincia_instalacion || 'Cádiz');
+    const senderNif = this.escapeXml(doc?.operador_cif || compData?.cif || doc?.productor_cif || 'B00000000');
+    const senderNima = formatNima(doc?.operador_nima || doc?.productor_nima || compData?.nima, prodProvCode);
+    const defaultCp = `${/^(0[1-9]|[1-4][0-9]|5[0-2])$/.test(prodProvCode) ? prodProvCode : '11'}001`;
+
+    // Normalizar el bloque <wasteDCS> para validación estricta contra el XSD 3.6 oficial de MITECO:
+    // 1. <phone> (minLength 9) y <mail> (pattern .*@.*) son obligatorios dentro de <centerContact> en e3l-common.xsd 3.6
+    // 2. <CP> (5 dígitos) es obligatorio dentro de <spanishAddress> en e3l-common.xsd 3.6
+    // 3. <authorizationIdEffects> es enumeración en e3l-wasteSupport.xsd 3.6; texto libre debe ir en <authorizationIdFree>
+    // 4. <DCSNT> es obligatorio en <DCSOtherResidueData> en e3l-waste.xsd 3.6 (valor por defecto oficial: NT + 23 nueves)
+    const validNtPattern = /^((NT)(([01][0-9]9999999999)|([01][0-9]|[235]0)(0[1-9]|[1-4][0-9]|5[0-2])\d{8})\d{4}\d{7})|(NT99999999999999999999999)$/;
+    let dcsXml = rawDcsXml
+      .replace(/<phone><\/phone>/g, '<phone>000000000</phone>')
+      .replace(/<mail><\/mail>/g, '<mail>no-declarado@sin-correo.invalid</mail>')
+      .replace(
+        /<authorizationIdEffects>No disponible<\/authorizationIdEffects>/g,
+        '<authorizationIdFree>No disponible</authorizationIdFree>'
+      )
+      .replace(/(<address>[^<]*<\/address>)(?!\s*<CP>)/g, `$1\n                <CP>${defaultCp}</CP>`);
+
+    const existingNtMatch = dcsXml.match(/<DCSNT>([^<]*)<\/DCSNT>/);
+    if (!existingNtMatch) {
+      dcsXml = dcsXml.replace(
+        /<DCSOtherResidueData>/,
+        '<DCSOtherResidueData>\n            <DCSNT>NT99999999999999999999999</DCSNT>'
+      );
+    } else if (!validNtPattern.test(existingNtMatch[1].trim())) {
+      dcsXml = dcsXml.replace(
+        /<DCSNT>[^<]*<\/DCSNT>/,
+        '<DCSNT>NT99999999999999999999999</DCSNT>'
+      );
+    }
 
     return `<?xml version="1.0" encoding="UTF-8"?>
-<e3l xmlns="e3l://eterproject.org/3.0/e3l"
+<e3l:e3l xmlns:e3l="e3l://eterproject.org/3.0/e3l"
      xmlns:waste="e3l://eterproject.org/3.0/waste"
      xmlns:wassup="e3l://eterproject.org/3.0/wasteSupport"
      xmlns:common="e3l://eterproject.org/3.0/common"
      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-     version="3.6">
+     schemaVersion="3.6">
     <header>
-        <messageID>${this.escapeXml(doc.numero_documento || 'DI-E3L')}-${date.getTime()}</messageID>
+        <test>S</test>
+        <prepared>${formattedDate}</prepared>
         <sender>
-            <entityId>
-                <nationalId>${senderNif}</nationalId>
-            </entityId>
-            <entityName>
-                <reason>
-                    <reasonName>${senderName}</reasonName>
-                </reason>
-            </entityName>
+            <NIF>${senderNif}</NIF>
+            <center centerCode="${senderNima}"/>
         </sender>
-        <recipient>
-            <entityId>
-                <nationalId>SIRA-JUNTA-ANDALUCIA</nationalId>
-            </entityId>
-        </recipient>
-        <creationDate>${formattedDate}</creationDate>
     </header>
     <waste>
         ${dcsXml}
     </waste>
-</e3l>`.trim();
+</e3l:e3l>`.trim();
   },
 
   formatNima(rawNima: string | undefined | null, provCode?: string): string {

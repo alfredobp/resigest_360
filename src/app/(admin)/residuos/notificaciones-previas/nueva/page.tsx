@@ -160,12 +160,13 @@ export default function NuevaNotificacionPreviaPage() {
     const waste = wasteTypes.find((w) => w.codigo_ler === lerCode);
     const isDangerous = lerCode.includes('*') || waste?.categoria === 'peligroso';
 
+    // INC15: No asignar HP4 silenciosamente sin evaluación o confirmación explícita del productor
     setFormData((prev) => ({
       ...prev,
       codigo_ler: lerCode,
       descripcion_residuo: waste?.descripcion || prev.descripcion_residuo || '',
       peligrosidad: isDangerous ? 'peligroso' : 'no-peligroso',
-      caracteristica_peligrosidad: isDangerous ? 'HP4' : undefined,
+      caracteristica_peligrosidad: isDangerous ? prev.caracteristica_peligrosidad : undefined,
     }));
   };
 
@@ -209,10 +210,16 @@ export default function NuevaNotificacionPreviaPage() {
     setError(null);
 
     const isDangerous = (formData.codigo_ler || '').includes('*') || formData.peligrosidad === 'peligroso';
+    if (isDangerous && !formData.caracteristica_peligrosidad) {
+      setError('Para residuos peligrosos (*) debes seleccionar y confirmar expresamente la característica de peligrosidad (HP1 a HP15) resultante de la caracterización del residuo.');
+      toast.error('Selecciona la característica de peligrosidad (HP) del residuo.');
+      return;
+    }
+
     const payloadToSave: Partial<PriorNotification> = {
       ...formData,
       peligrosidad: isDangerous ? 'peligroso' : 'no-peligroso',
-      caracteristica_peligrosidad: isDangerous ? (formData.caracteristica_peligrosidad || 'HP4') : undefined,
+      caracteristica_peligrosidad: isDangerous ? formData.caracteristica_peligrosidad : undefined,
       numero_notificacion: priorNotificationService.formatNTCode(
         formData.numero_notificacion || '',
         formData.productor_nima || formData.operador_nima || '1100000001'
@@ -667,7 +674,7 @@ export default function NuevaNotificacionPreviaPage() {
                     setFormData({
                       ...formData,
                       peligrosidad: newPeligrosidad,
-                      caracteristica_peligrosidad: newPeligrosidad === 'peligroso' ? (formData.caracteristica_peligrosidad || 'HP4') : undefined,
+                      caracteristica_peligrosidad: newPeligrosidad === 'peligroso' ? formData.caracteristica_peligrosidad : undefined,
                     });
                   }}
                   required
@@ -679,12 +686,14 @@ export default function NuevaNotificacionPreviaPage() {
 
               {formData.peligrosidad === 'peligroso' && (
                 <div>
-                  <label className="block text-sm font-medium mb-1">Característica HP (Tabla 5) *</label>
+                  <label className="block text-sm font-medium mb-1">Característica HP Evaluada (Tabla 5) *</label>
                   <select
                     className="w-full h-11 px-3 py-2 border rounded-lg bg-background text-foreground border-border"
-                    value={formData.caracteristica_peligrosidad || 'HP4'}
-                    onChange={(e) => setFormData({ ...formData, caracteristica_peligrosidad: e.target.value })}
+                    value={formData.caracteristica_peligrosidad || ''}
+                    onChange={(e) => setFormData({ ...formData, caracteristica_peligrosidad: e.target.value || undefined })}
+                    required
                   >
+                    <option value="">-- Seleccione característica HP según evaluación --</option>
                     <option value="HP1">HP1 - Explosivo</option>
                     <option value="HP2">HP2 - Comburente</option>
                     <option value="HP3">HP3 - Inflamable</option>

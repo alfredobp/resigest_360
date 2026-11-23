@@ -377,9 +377,15 @@ export const decaService = {
       di.peso_origen_kg ||
       ((di.unidad === 'toneladas' || di.unidad === 'm3') ? di.cantidad * 1000 : di.cantidad);
 
+    const activeCompanyId = getActiveCompanyCookie();
+    const resolvedCompanyId =
+      activeCompanyId ??
+      (di as any).transportista_company_id ??
+      di.company_id;
+
     const formData: DecaFormData = {
       identification_document_id: di.id,
-      company_id: di.company_id,
+      company_id: resolvedCompanyId,
       numero_deca: '', // Se calculará automáticamente
 
       // Cargador Contractual (definido por el usuario o empresa)

@@ -157,9 +157,13 @@ export default function DetalleMemoriaPage() {
   const handleDownloadPDF = async () => {
     if (!memoria) return;
     try {
-      const pdfDoc = await generateMemoriaAnualPDF(memoria);
+      const excelData = await generateExcelData(memoria.id).catch(() => null);
+      const pdfDoc = await generateMemoriaAnualPDF(memoria, excelData);
       pdfDoc.save(`${memoria.numero_memoria}.pdf`);
-      const msg = 'PDF oficial generado y descargado correctamente.';
+      const msg =
+        memoria.estado === 'borrador'
+          ? 'Resumen PDF en borrador generado y descargado correctamente.'
+          : 'Documento PDF de memoria anual generado y descargado correctamente.';
       setSuccess(msg);
       toast.success(msg);
       setTimeout(() => setSuccess(null), 4000);
@@ -416,13 +420,17 @@ export default function DetalleMemoriaPage() {
                 Exportar CSV (.csv)
               </Button>
 
-              {/* Descargar PDF */}
+              {/* Descargar PDF (INC16: no anunciar borrador como PDF Oficial) */}
               <Button
                 className="w-full justify-start text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400"
                 variant="outline"
                 onClick={handleDownloadPDF}
               >
-                Descargar PDF Oficial
+                {memoria.estado === 'borrador'
+                  ? 'Descargar Resumen PDF (Borrador)'
+                  : memoria.estado === 'presentada' || memoria.estado === 'archivada'
+                    ? 'Descargar Memoria PDF (Presentada)'
+                    : 'Descargar Memoria PDF (Revisión)'}
               </Button>
 
               {/* Recalcular y Cambiar Estado */}

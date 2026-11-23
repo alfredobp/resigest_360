@@ -732,15 +732,19 @@ describe('siraService - Integración SIRA / E3L v3.6 (Junta de Andalucía)', () 
       const xml = siraService.generateE3LMessage(mockDoc);
 
       expect(xml).toContain('<?xml version="1.0"');
-      expect(xml).toContain('<e3l');
-      expect(xml).toContain('version="3.6"');
+      expect(xml).toContain('<e3l:e3l');
+      expect(xml).toContain('schemaVersion="3.6"');
+      expect(xml).not.toContain(' version="3.6"');
       expect(xml).toContain('<header>');
+      expect(xml).toContain('<test>S</test>');
+      expect(xml).toContain('<prepared>2026-11-13</prepared>');
       expect(xml).toContain('<sender>');
-      expect(xml).toContain('<recipient>');
+      expect(xml).toContain('<NIF>B12345678</NIF>');
+      expect(xml).toContain('<center centerCode=');
       expect(xml).toContain('<waste>');
       expect(xml).toContain('<wasteDCS');
       expect(xml).toContain('</waste>');
-      expect(xml).toContain('</e3l>');
+      expect(xml).toContain('</e3l:e3l>');
     });
 
     it('debe convertir toneladas o m3 a kg en DCSClearWeight cuando no hay peso de báscula', () => {

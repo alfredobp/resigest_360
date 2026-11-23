@@ -16,7 +16,21 @@ import {
   type TableRow,
 } from './pdfComponents';
 
-export async function generateMemoriaAnualPDF(memoria: MemoriaAnual): Promise<jsPDF> {
+export interface MemoriaDetalleMovimiento {
+  numero_di?: string;
+  fecha?: string;
+  codigo_ler?: string;
+  descripcion?: string;
+  cantidad_toneladas?: number;
+  operacion_tratamiento?: string;
+  gestor_nombre?: string;
+  gestor_nima?: string;
+}
+
+export async function generateMemoriaAnualPDF(
+  memoria: MemoriaAnual,
+  detalle?: { movimientos?: MemoriaDetalleMovimiento[] } | null
+): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const marginX = PDF_LAYOUT.marginX;
 
@@ -30,11 +44,18 @@ export async function generateMemoriaAnualPDF(memoria: MemoriaAnual): Promise<js
     updatedIso: docDateIso,
   });
 
-  const estado = (memoria.estado || 'borrador').toUpperCase();
+  const rawEstado = (memoria.estado || 'borrador').toLowerCase();
+  const isDraft = rawEstado === 'borrador';
+  const isPresented = rawEstado === 'presentada' || rawEstado === 'archivada';
+  const estado = rawEstado.toUpperCase();
 
-  // --- CABECERA EJECUTIVA ---
+  // --- CABECERA EJECUTIVA (INC16: diferenciar resumen en borrador vs modelo completado vs declaración presentada) ---
   let yPos = drawDocumentHeader(doc, {
-    title: 'MEMORIA ANUAL DE RESIDUOS',
+    title: isDraft
+      ? 'RESUMEN DE MEMORIA ANUAL DE RESIDUOS (BORRADOR)'
+      : isPresented
+        ? 'MEMORIA ANUAL DE RESIDUOS (DECLARACIÓN PRESENTADA)'
+        : 'MEMORIA ANUAL DE RESIDUOS (MODELO DE REVISIÓN)',
     subtitle: `Art. 65 Ley 7/2022 · Ejercicio ${memoria.año} · Modalidad: ${memoria.tipo_memoria.toUpperCase()}`,
     refLabel: 'REFERENCIA MEMORIA',
     refValue: memoria.numero_memoria || `MEM-${memoria.año}`,
@@ -138,16 +159,48 @@ export async function generateMemoriaAnualPDF(memoria: MemoriaAnual): Promise<js
       ],
     });
 
-    drawDataTable(doc, columns, rows, yPos);
+    yPos = drawDataTable(doc, columns, rows, yPos);
   }
 
-  // --- PIE DE PÁGINA ---
+  // --- 3. DESGLOSE POR DESTINO Y OPERACIÓN R/D (INC16: conciliar con CSV) ---
+  const movimientos = detalle?.movimientos || [];
+  if (movimientos.length > 0) {
+    yPos = drawSectionHeader(doc, '3. Desglose por Destino (Gestor) y Operación de Tratamiento (R/D)', yPos);
+    const destColumns: TableColumn[] = [
+      { header: 'Nº DI', width: 38, align: 'left' },
+      { header: 'LER', width: 22, align: 'left' },
+      { header: 'Op. R/D', width: 20, align: 'center' },
+      { header: 'Gestor Destinatario (NIMA)', width: 74, align: 'left' },
+      { header: 'Cant. (t)', width: 26, align: 'right' },
+    ];
+    const destRows: TableRow[] = movimientos.map((m) => ({
+      cells: [
+        { text: m.numero_di || '-', bold: true },
+        { text: m.codigo_ler || '-' },
+        { text: m.operacion_tratamiento || '-', bold: true, color: PDF_COLORS.brandPrimary },
+        {
+          text: [m.gestor_nombre || '-', m.gestor_nima ? `(${m.gestor_nima})` : null].filter(Boolean).join(' '),
+          color: PDF_COLORS.inkSecondary,
+        },
+        { text: `${(Number(m.cantidad_toneladas) || 0).toFixed(3)} t`, bold: true },
+      ],
+    }));
+    drawDataTable(doc, destColumns, destRows, yPos);
+  }
+
+  // --- PIE DE PÁGINA (INC16) ---
+  const legalText = isDraft
+    ? 'RESUMEN INFORMATIVO EN BORRADOR (art. 65 Ley 7/2022). Documento de trabajo interno no presentado ante la autoridad competente.'
+    : isPresented
+      ? 'Memoria Anual declarada como PRESENTADA conforme al artículo 65 de la Ley 7/2022. Conserve el justificante oficial del registro administrativo.'
+      : 'Memoria Anual preparada para revisión conforme al artículo 65 de la Ley 7/2022. Pendiente de presentación ante la autoridad competente.';
+
   drawPageFooters(doc, {
-    legalText: 'Memoria Anual generada conforme al artículo 65 de la Ley 7/2022 y normativa autonómica aplicable.',
+    legalText,
     secondaryLine: `Sistema de Gestión RESIGEST 360 · Registro: ${formatSafeDateTime(docDateIso) || memoria.año}`,
   });
 
-  if (memoria.estado === 'borrador') {
+  if (isDraft) {
     drawDraftWatermark(doc, 'BORRADOR - NO PRESENTADA');
   }
 

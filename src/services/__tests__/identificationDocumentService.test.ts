@@ -1216,6 +1216,22 @@ describe('identificationDocumentService - Entidad Documentos de Identificación 
           await expect(
             validatePriorNotificationForDeparture(baseDangerDoc, 'user-1', '2026-11-23T16:18:00Z')
           ).resolves.toBeUndefined();
+
+          // 7. Búsqueda por prior_notification_id sin company_id (fallback user_id) y enviada_sira -> pasa
+          mockNtLookup({
+            id: 17,
+            numero_notificacion: 'NT10410000000020260000002',
+            estado: 'enviada_sira',
+            fecha_inicio: '2026-11-01',
+            fecha_fin: '2027-11-01',
+          });
+          await expect(
+            validatePriorNotificationForDeparture(
+              { ...baseDangerDoc, company_id: undefined, prior_notification_id: 17, numero_notificacion: undefined },
+              'user-1',
+              '2026-11-23T16:18:00Z'
+            )
+          ).resolves.toBeUndefined();
         });
       });
 

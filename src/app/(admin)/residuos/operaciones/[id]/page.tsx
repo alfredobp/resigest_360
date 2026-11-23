@@ -561,11 +561,10 @@ export default function DetalleOperacionComercialPage() {
       )}
 
       {/* Tarjeta de Rentabilidad y Margen */}
-      <div className={`p-6 rounded-2xl shadow-sm border ${
-        esPositivo
+      <div className={`p-6 rounded-2xl shadow-sm border ${esPositivo
           ? 'bg-emerald-50/70 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800'
           : 'bg-red-50/70 border-red-200 dark:bg-red-950/30 dark:border-red-800'
-      }`}>
+        }`}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-200/60 dark:border-gray-700">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300">
@@ -710,299 +709,336 @@ export default function DetalleOperacionComercialPage() {
                 </p>
               </div>
 
-              {/* DI Vinculado */}
-              <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
-                <label className="text-gray-500 font-medium">Documento de Identificación (DI):</label>
-                {operation.identification_document_id ? (
-                  <div className="mt-1">
-                    <Link
-                      href={`/residuos/documentos-identificacion/${operation.identification_document_id}`}
-                      className="inline-flex items-center gap-1.5 text-primary font-mono font-semibold hover:underline"
-                    >
-                      DI #{operation.identification_document_id} {operation.numero_albaran_gestor ? `(Albarán: ${operation.numero_albaran_gestor})` : ''} ↗
-                    </Link>
+                {/* DI Vinculado y Cierre Ambiental (N05 / A80 / L07) */}
+                <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="text-gray-500 font-medium">Documento de Identificación (DI):</label>
+                    {!operation.identification_document_id && (
+                      <Link
+                        href="/residuos/documentos-identificacion/nuevo"
+                        className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                      >
+                        + Emitir DI en plataforma →
+                      </Link>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-gray-400 mt-1">Sin DI interno vinculado (puede adjuntar un DI externo en la Carpeta Documental)</p>
+                  {operation.identification_document_id ? (
+                      <div>
+                        <Link
+                          href={`/residuos/documentos-identificacion/${operation.identification_document_id}`}
+                          className="inline-flex items-center gap-1.5 text-primary font-mono font-semibold hover:underline"
+                        >
+                          DI #{operation.identification_document_id} {operation.numero_albaran_gestor ? `(Albarán: ${operation.numero_albaran_gestor})` : ''} ↗
+                        </Link>
+                      </div>
+                      ) : (
+                      <p className="text-gray-400">
+                        Sin DI interno vinculado (puede emitir un DI si actúa como operador o adjuntar el DI externo en la Carpeta Documental).
+                      </p>
                 )}
-              </div>
+
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                            Estado en Archivo Cronológico y Memoria (Arts. 64 y 65 Ley 7/2022)
+                          </span>
+                          <Link
+                            href="/residuos/archivo-cronologico"
+                            className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline shrink-0"
+                          >
+                            Ver Archivo →
+                          </Link>
+                        </div>
+                        {operation.modalidad_posesion === 'almacenamiento_planta_propia' ? (
+                          <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                            {operation.estado === 'completada' || operation.estado === 'liquidada'
+                              ? `✓ Operación con posesión física cerrada (${operation.estado}): asiento sincronizado automáticamente en el Archivo Cronológico.`
+                              : 'Pendiente de cierre físico: al marcar la operación como Completada o Liquidada se volcará automáticamente su asiento al Archivo Cronológico.'}
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                            Intermediación sin posesión física en planta propia: no altera el stock físico de almacén. El asiento ambiental en el Archivo Cronológico se genera al completarse el DI vinculado (si actúa como operador del traslado) o mediante registro documental acreditado.
+                          </p>
+                        )}
+                      </div>
+                    </div>
 
               {/* Carpeta Documental con Procedencia y Hash (UXDEV-11 / UX-23) */}
-              <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <span className="font-bold text-gray-800 dark:text-gray-200">
-                      Carpeta Documental de la Operación ({operation.documentos_adjuntos?.length || 0})
-                    </span>
-                    <p className="text-[10.5px] text-gray-400">
-                      DI externos, mandatos de operador, albaranes y justificantes con procedencia y huella SHA-256
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={showDocForm ? 'primary' : 'outline'}
-                    onClick={() => setShowDocForm((prev) => !prev)}
-                  >
-                    {showDocForm ? 'Cerrar' : '+ Adjuntar Documento'}
-                  </Button>
-                </div>
-
-                {showDocForm && (
-                  <form
-                    onSubmit={handleAddDocument}
-                    className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-700 space-y-2.5"
-                  >
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
                       <div>
-                        <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                          Tipo de Documento *
-                        </label>
-                        <select
-                          value={docForm.tipo}
-                          onChange={(e) => setDocForm((prev) => ({ ...prev, tipo: e.target.value as TipoDocumentoOperacion }))}
-                          className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
-                        >
-                          <option value="di_externo">DI Externo</option>
-                          <option value="mandato_operador">Mandato de Operador</option>
-                          <option value="albaran_bascula">Albarán de Báscula</option>
-                          <option value="contrato_tratamiento">Contrato de Tratamiento</option>
-                          <option value="factura">Factura Comercial</option>
-                          <option value="otro">Otro Justificante</option>
-                        </select>
+                        <span className="font-bold text-gray-800 dark:text-gray-200">
+                          Carpeta Documental de la Operación ({operation.documentos_adjuntos?.length || 0})
+                        </span>
+                        <p className="text-[10.5px] text-gray-400">
+                          DI externos, mandatos de operador, albaranes y justificantes con procedencia y huella SHA-256
+                        </p>
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                          Procedencia *
-                        </label>
-                        <select
-                          value={docForm.procedencia}
-                          onChange={(e) => setDocForm((prev) => ({ ...prev, procedencia: e.target.value as 'externo' | 'interno' }))}
-                          className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
-                        >
-                          <option value="externo">Externo (recibido de tercero)</option>
-                          <option value="interno">Interno (emitido por mi empresa)</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      <div className="sm:col-span-1">
-                        <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                          Nombre / Referencia *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="Ej. DI-EXT-2026-881.pdf"
-                          value={docForm.nombre}
-                          onChange={(e) => setDocForm((prev) => ({ ...prev, nombre: e.target.value }))}
-                          className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
-                        />
-                      </div>
-                      <div className="sm:col-span-1">
-                        <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                          Emisor *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="Ej. Planta Gestora Destino SL"
-                          value={docForm.emisor}
-                          onChange={(e) => setDocForm((prev) => ({ ...prev, emisor: e.target.value }))}
-                          className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
-                        />
-                      </div>
-                      <div className="sm:col-span-1">
-                        <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                          Fecha *
-                        </label>
-                        <input
-                          type="date"
-                          required
-                          value={docForm.fecha}
-                          onChange={(e) => setDocForm((prev) => ({ ...prev, fecha: e.target.value }))}
-                          className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                        Enlace / URL del Archivo (Opcional)
-                      </label>
-                      <input
-                        type="url"
-                        placeholder="https://..."
-                        value={docForm.url}
-                        onChange={(e) => setDocForm((prev) => ({ ...prev, url: e.target.value }))}
-                        className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
-                      />
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-1">
-                      <Button type="button" size="sm" variant="outline" onClick={() => setShowDocForm(false)}>
-                        Cancelar
-                      </Button>
-                      <Button type="submit" size="sm" disabled={savingDoc}>
-                        {savingDoc ? 'Guardando...' : 'Guardar en Carpeta'}
-                      </Button>
-                    </div>
-                  </form>
-                )}
-
-                {operation.documentos_adjuntos && operation.documentos_adjuntos.length > 0 ? (
-                  <div className="space-y-2">
-                    {operation.documentos_adjuntos.map((docItem) => (
-                      <div
-                        key={docItem.id}
-                        className="p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={showDocForm ? 'primary' : 'outline'}
+                        onClick={() => setShowDocForm((prev) => !prev)}
                       >
-                        <div className="space-y-0.5 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <Badge variant="light" color={docItem.procedencia === 'externo' ? 'warning' : 'info'} size="sm">
-                              {docItem.procedencia === 'externo' ? 'Externo' : 'Interno'}
-                            </Badge>
-                            <span className="text-[11px] font-bold text-gray-900 dark:text-white truncate">
-                              {docItem.nombre}
-                            </span>
-                            <span className="text-[10px] text-gray-500">
-                              ({TIPO_DOC_LABELS[docItem.tipo] || docItem.tipo})
-                            </span>
-                          </div>
-                          <p className="text-[10.5px] text-gray-500">
-                            Emisor: <span className="font-medium text-gray-700 dark:text-gray-300">{docItem.emisor}</span> • Fecha: {docItem.fecha}
-                          </p>
-                          {docItem.hash_sha256 && (
-                            <p className="text-[10px] font-mono text-gray-400">
-                              SHA-256: {docItem.hash_sha256.slice(0, 16)}…
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {docItem.url && (
-                            <a
-                              href={docItem.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[11px] font-semibold text-brand-600 hover:underline"
+                        {showDocForm ? 'Cerrar' : '+ Adjuntar Documento'}
+                      </Button>
+                    </div>
+
+                    {showDocForm && (
+                      <form
+                        onSubmit={handleAddDocument}
+                        className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-700 space-y-2.5"
+                      >
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                              Tipo de Documento *
+                            </label>
+                            <select
+                              value={docForm.tipo}
+                              onChange={(e) => setDocForm((prev) => ({ ...prev, tipo: e.target.value as TipoDocumentoOperacion }))}
+                              className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
                             >
-                              Abrir ↗
-                            </a>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveDocument(docItem.id)}
-                            className="text-[11px] text-red-600 hover:underline font-medium"
-                          >
-                            Quitar
-                          </button>
+                              <option value="di_externo">DI Externo</option>
+                              <option value="mandato_operador">Mandato de Operador</option>
+                              <option value="albaran_bascula">Albarán de Báscula</option>
+                              <option value="contrato_tratamiento">Contrato de Tratamiento</option>
+                              <option value="factura">Factura Comercial</option>
+                              <option value="otro">Otro Justificante</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                              Procedencia *
+                            </label>
+                            <select
+                              value={docForm.procedencia}
+                              onChange={(e) => setDocForm((prev) => ({ ...prev, procedencia: e.target.value as 'externo' | 'interno' }))}
+                              className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
+                            >
+                              <option value="externo">Externo (recibido de tercero)</option>
+                              <option value="interno">Interno (emitido por mi empresa)</option>
+                            </select>
+                          </div>
                         </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <div className="sm:col-span-1">
+                            <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                              Nombre / Referencia *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="Ej. DI-EXT-2026-881.pdf"
+                              value={docForm.nombre}
+                              onChange={(e) => setDocForm((prev) => ({ ...prev, nombre: e.target.value }))}
+                              className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
+                            />
+                          </div>
+                          <div className="sm:col-span-1">
+                            <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                              Emisor *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="Ej. Planta Gestora Destino SL"
+                              value={docForm.emisor}
+                              onChange={(e) => setDocForm((prev) => ({ ...prev, emisor: e.target.value }))}
+                              className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
+                            />
+                          </div>
+                          <div className="sm:col-span-1">
+                            <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                              Fecha *
+                            </label>
+                            <input
+                              type="date"
+                              required
+                              value={docForm.fecha}
+                              onChange={(e) => setDocForm((prev) => ({ ...prev, fecha: e.target.value }))}
+                              className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                            Enlace / URL del Archivo (Opcional)
+                          </label>
+                          <input
+                            type="url"
+                            placeholder="https://..."
+                            value={docForm.url}
+                            onChange={(e) => setDocForm((prev) => ({ ...prev, url: e.target.value }))}
+                            className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-1.5 bg-white dark:bg-gray-800"
+                          />
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-1">
+                          <Button type="button" size="sm" variant="outline" onClick={() => setShowDocForm(false)}>
+                            Cancelar
+                          </Button>
+                          <Button type="submit" size="sm" disabled={savingDoc}>
+                            {savingDoc ? 'Guardando...' : 'Guardar en Carpeta'}
+                          </Button>
+                        </div>
+                      </form>
+                    )}
+
+                    {operation.documentos_adjuntos && operation.documentos_adjuntos.length > 0 ? (
+                      <div className="space-y-2">
+                        {operation.documentos_adjuntos.map((docItem) => (
+                          <div
+                            key={docItem.id}
+                            className="p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                          >
+                            <div className="space-y-0.5 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <Badge variant="light" color={docItem.procedencia === 'externo' ? 'warning' : 'info'} size="sm">
+                                  {docItem.procedencia === 'externo' ? 'Externo' : 'Interno'}
+                                </Badge>
+                                <span className="text-[11px] font-bold text-gray-900 dark:text-white truncate">
+                                  {docItem.nombre}
+                                </span>
+                                <span className="text-[10px] text-gray-500">
+                                  ({TIPO_DOC_LABELS[docItem.tipo] || docItem.tipo})
+                                </span>
+                              </div>
+                              <p className="text-[10.5px] text-gray-500">
+                                Emisor: <span className="font-medium text-gray-700 dark:text-gray-300">{docItem.emisor}</span> • Fecha: {docItem.fecha}
+                              </p>
+                              {docItem.hash_sha256 && (
+                                <p className="text-[10px] font-mono text-gray-400">
+                                  SHA-256: {docItem.hash_sha256.slice(0, 16)}…
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {docItem.url && (
+                                <a
+                                  href={docItem.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] font-semibold text-brand-600 hover:underline"
+                                >
+                                  Abrir ↗
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveDocument(docItem.id)}
+                                className="text-[11px] text-red-600 hover:underline font-medium"
+                              >
+                                Quitar
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    ) : (
+                      <p className="text-[11px] text-gray-400 italic">
+                        No hay documentos adjuntos en la carpeta de esta operación.
+                      </p>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-[11px] text-gray-400 italic">
-                    No hay documentos adjuntos en la carpeta de esta operación.
+                </div>
+              </div>
+            </ComponentCard>
+
+            {/* Bloque: Condiciones Comerciales */}
+            <ComponentCard title="Condiciones Comerciales y de Facturación">
+              <div className="space-y-4 text-xs">
+                {/* Proveedor Comercial */}
+                <div className="p-3 bg-red-50/50 dark:bg-red-950/20 rounded-xl border border-red-100 dark:border-red-900/40 space-y-2">
+                  <span className="font-bold text-red-700 dark:text-red-400 uppercase tracking-wider">
+                    Proveedor Comercial (Compra)
+                  </span>
+                  <p className="font-bold text-sm text-gray-900 dark:text-white">
+                    {operation.proveedor_razon_social || operation.proveedor_comercial?.razon_social || '-'}
                   </p>
+                  <div className="flex justify-between items-center text-gray-600 dark:text-gray-300 pt-1">
+                    <span>Precio Unitario: {(operation.precio_unitario_compra || 0).toFixed(2)} €</span>
+                    <span className="font-bold text-red-600">Total: {(operation.coste_compra_total || 0).toFixed(2)} €</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px] text-gray-400 pt-1 border-t border-red-100 dark:border-red-900/30">
+                    <span>Ref. Factura: {operation.factura_compra_ref || 'Pendiente'}</span>
+                    <span>Estado Pago: {operation.estado_pago_compra}</span>
+                  </div>
+                </div>
+
+                {/* Cliente Comercial */}
+                <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-100 dark:border-emerald-900/40 space-y-2">
+                  <span className="font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                    Cliente Comercial (Venta)
+                  </span>
+                  <p className="font-bold text-sm text-gray-900 dark:text-white">
+                    {operation.cliente_razon_social || operation.cliente_comercial?.razon_social || '-'}
+                  </p>
+                  <div className="flex justify-between items-center text-gray-600 dark:text-gray-300 pt-1">
+                    <span>Precio Unitario: {(operation.precio_unitario_venta || 0).toFixed(2)} €</span>
+                    <span className="font-bold text-emerald-600">Total: {(operation.ingreso_venta_total || 0).toFixed(2)} €</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px] text-gray-400 pt-1 border-t border-emerald-100 dark:border-emerald-900/30">
+                    <span className="flex items-center gap-1.5">
+                      Ref. Factura: {operation.factura_venta_ref ? (
+                        <Badge variant="light" color="success" size="sm">
+                          {operation.factura_venta_ref}
+                        </Badge>
+                      ) : (
+                        <span className="text-gray-400">Pendiente</span>
+                      )}
+                    </span>
+                    <span>Estado Cobro: {operation.estado_cobro_venta}</span>
+                  </div>
+                  <div className="pt-2 space-y-2 border-t border-emerald-100 dark:border-emerald-900/30">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <label htmlFor="holded-tax-rate" className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
+                        Holded ERP Invoicing (Régimen IVA)
+                      </label>
+                      <select
+                        id="holded-tax-rate"
+                        value={holdedTaxRate}
+                        onChange={(e) => setHoldedTaxRate(Number(e.target.value) as 0 | 10 | 21)}
+                        className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-gray-800 px-2.5 py-1 text-[11px] font-medium text-gray-800 dark:text-gray-200"
+                      >
+                        <option value={21}>21% IVA General</option>
+                        <option value={10}>10% IVA Reducido Gestión Residuos</option>
+                        <option value={0}>0% Inversión Sujeto Pasivo (Art. 84.Uno.2º.c LIVA)</option>
+                      </select>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        variant={operation.factura_venta_ref ? "outline" : "primary"}
+                        disabled={syncingHolded}
+                        onClick={() => handleSyncHolded()}
+                      >
+                        {syncingHolded ? 'Sincronizando...' : operation.factura_venta_ref ? 'Re-sincronizar Holded' : 'Emitir Factura Holded'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Observaciones */}
+                {operation.observaciones && (
+                  <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl space-y-1">
+                    <span className="font-semibold text-gray-700 dark:text-gray-300">Observaciones:</span>
+                    <p className="text-gray-600 dark:text-gray-400">{operation.observaciones}</p>
+                  </div>
                 )}
               </div>
-            </div>
+            </ComponentCard>
           </div>
-        </ComponentCard>
 
-        {/* Bloque: Condiciones Comerciales */}
-        <ComponentCard title="Condiciones Comerciales y de Facturación">
-          <div className="space-y-4 text-xs">
-            {/* Proveedor Comercial */}
-            <div className="p-3 bg-red-50/50 dark:bg-red-950/20 rounded-xl border border-red-100 dark:border-red-900/40 space-y-2">
-              <span className="font-bold text-red-700 dark:text-red-400 uppercase tracking-wider">
-                Proveedor Comercial (Compra)
-              </span>
-              <p className="font-bold text-sm text-gray-900 dark:text-white">
-                {operation.proveedor_razon_social || operation.proveedor_comercial?.razon_social || '-'}
-              </p>
-              <div className="flex justify-between items-center text-gray-600 dark:text-gray-300 pt-1">
-                <span>Precio Unitario: {(operation.precio_unitario_compra || 0).toFixed(2)} €</span>
-                <span className="font-bold text-red-600">Total: {(operation.coste_compra_total || 0).toFixed(2)} €</span>
-              </div>
-              <div className="flex justify-between items-center text-[11px] text-gray-400 pt-1 border-t border-red-100 dark:border-red-900/30">
-                <span>Ref. Factura: {operation.factura_compra_ref || 'Pendiente'}</span>
-                <span>Estado Pago: {operation.estado_pago_compra}</span>
-              </div>
-            </div>
-
-            {/* Cliente Comercial */}
-            <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-100 dark:border-emerald-900/40 space-y-2">
-              <span className="font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
-                Cliente Comercial (Venta)
-              </span>
-              <p className="font-bold text-sm text-gray-900 dark:text-white">
-                {operation.cliente_razon_social || operation.cliente_comercial?.razon_social || '-'}
-              </p>
-              <div className="flex justify-between items-center text-gray-600 dark:text-gray-300 pt-1">
-                <span>Precio Unitario: {(operation.precio_unitario_venta || 0).toFixed(2)} €</span>
-                <span className="font-bold text-emerald-600">Total: {(operation.ingreso_venta_total || 0).toFixed(2)} €</span>
-              </div>
-              <div className="flex justify-between items-center text-[11px] text-gray-400 pt-1 border-t border-emerald-100 dark:border-emerald-900/30">
-                <span className="flex items-center gap-1.5">
-                  Ref. Factura: {operation.factura_venta_ref ? (
-                    <Badge variant="light" color="success" size="sm">
-                      {operation.factura_venta_ref}
-                    </Badge>
-                  ) : (
-                    <span className="text-gray-400">Pendiente</span>
-                  )}
-                </span>
-                <span>Estado Cobro: {operation.estado_cobro_venta}</span>
-              </div>
-              <div className="pt-2 space-y-2 border-t border-emerald-100 dark:border-emerald-900/30">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <label htmlFor="holded-tax-rate" className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
-                    Holded ERP Invoicing (Régimen IVA)
-                  </label>
-                  <select
-                    id="holded-tax-rate"
-                    value={holdedTaxRate}
-                    onChange={(e) => setHoldedTaxRate(Number(e.target.value) as 0 | 10 | 21)}
-                    className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-gray-800 px-2.5 py-1 text-[11px] font-medium text-gray-800 dark:text-gray-200"
-                  >
-                    <option value={21}>21% IVA General</option>
-                    <option value={10}>10% IVA Reducido Gestión Residuos</option>
-                    <option value={0}>0% Inversión Sujeto Pasivo (Art. 84.Uno.2º.c LIVA)</option>
-                  </select>
-                </div>
-                <div className="flex justify-end">
-                  <Button
-                    size="sm"
-                    variant={operation.factura_venta_ref ? "outline" : "primary"}
-                    disabled={syncingHolded}
-                    onClick={() => handleSyncHolded()}
-                  >
-                    {syncingHolded ? 'Sincronizando...' : operation.factura_venta_ref ? 'Re-sincronizar Holded' : 'Emitir Factura Holded'}
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Observaciones */}
-            {operation.observaciones && (
-              <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl space-y-1">
-                <span className="font-semibold text-gray-700 dark:text-gray-300">Observaciones:</span>
-                <p className="text-gray-600 dark:text-gray-400">{operation.observaciones}</p>
-              </div>
-            )}
-          </div>
-        </ComponentCard>
+          <ConfirmModal
+            isOpen={isDeleteModalOpen}
+            onClose={() => setIsDeleteModalOpen(false)}
+            onConfirm={confirmDelete}
+            title="Eliminar operación comercial"
+            message="¿Confirma la eliminación definitiva de esta operación comercial? Esta acción no se puede deshacer."
+          />
       </div>
-
-      <ConfirmModal
-        isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
-        onConfirm={confirmDelete}
-        title="Eliminar operación comercial"
-        message="¿Confirma la eliminación definitiva de esta operación comercial? Esta acción no se puede deshacer."
-      />
-    </div>
-  );
+      );
 }

@@ -447,6 +447,15 @@ export const companyService = {
       .single();
 
     if (error) {
+      if (
+        error.code === '23505' ||
+        error.message?.includes('idx_companies_unique_owner_cif') ||
+        error.message?.includes('duplicate key')
+      ) {
+        throw new Error(
+          `El CIF/NIF ${normCif} ya está registrado como empresa titular en la plataforma. Verifica que el CIF sea correcto o utiliza tu empresa existente sin perder los datos del formulario.`
+        );
+      }
       throw new Error(`Error al crear empresa: ${error.message}`);
     }
 
@@ -550,6 +559,15 @@ export const companyService = {
       .single();
 
     if (error) {
+      if (
+        error.code === '23505' ||
+        error.message?.includes('idx_companies_unique_owner_cif') ||
+        error.message?.includes('duplicate key')
+      ) {
+        throw new Error(
+          'El CIF/NIF indicado ya está registrado en otra empresa titular. Verifica el CIF introducido.'
+        );
+      }
       throw new Error(`Error al actualizar empresa: ${error.message}`);
     }
 

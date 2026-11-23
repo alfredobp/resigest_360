@@ -322,26 +322,35 @@ export function resolveOriginWeightKg(doc: Partial<IdentificationDocument>): num
 }
 
 /**
- * Resuelve la empresa activa del usuario para aplicar alcance multi-actor en DI (QA5-I01)
- * y guardas de rol operativo (A04-06). Solo consulta companies cuando existe active_company_id.
+ * Resuelve la empresa activa del usuario para aplicar alcance multi-actor en DI (QA5-I01 / INC07)
+ * y guardas de rol operativo (A04-06). Si no existe la cookie active_company_id (ej. primer login de transportista),
+ * hace fallback a la empresa titular (`is_my_company = true`) del usuario autenticado para que reciba sus traslados compartidos.
  */
-async function resolveActiveCompanyForDI(): Promise<{
+async function resolveActiveCompanyForDI(userId?: string): Promise<{
   id: number;
   cif?: string;
+  nima?: string;
   tipo_empresa?: string;
   perfil_operativo?: string;
   roles?: string[];
 } | null> {
   const activeCompanyId = getActiveCompanyCookie();
-  if (!activeCompanyId) return null;
+  if (!activeCompanyId && !userId) return null;
   try {
     const compBuilder = supabase.from('companies');
     if (compBuilder && typeof compBuilder.select === 'function') {
-      const selectChain = compBuilder.select('id, cif, tipo_empresa, perfil_operativo, roles');
-      if (selectChain && typeof selectChain.eq === 'function') {
+      const selectChain = compBuilder.select('id, cif, nima, tipo_empresa, perfil_operativo, roles, is_my_company');
+      if (activeCompanyId && selectChain && typeof selectChain.eq === 'function') {
         const eqChain = selectChain.eq('id', activeCompanyId);
         if (eqChain && typeof eqChain.maybeSingle === 'function') {
           const { data } = await eqChain.maybeSingle();
+          if (data) return data;
+        }
+      } else if (userId && selectChain && typeof selectChain.eq === 'function') {
+        const userChain: any = selectChain.eq('user_id', userId);
+        const myChain = typeof userChain?.eq === 'function' ? userChain.eq('is_my_company', true) : userChain;
+        if (myChain && typeof myChain.maybeSingle === 'function') {
+          const { data } = await myChain.maybeSingle();
           if (data) return data;
         }
       }
@@ -349,7 +358,7 @@ async function resolveActiveCompanyForDI(): Promise<{
   } catch {
     // Fallback silencioso en tests con mocks simples
   }
-  return { id: activeCompanyId };
+  return activeCompanyId ? { id: activeCompanyId } : null;
 }
 
 /**
@@ -444,7 +453,7 @@ export const identificationDocumentService = {
       throw new Error('Usuario no autenticado');
     }
 
-    const activeComp = await resolveActiveCompanyForDI();
+    const activeComp = await resolveActiveCompanyForDI(user.id);
 
     const baseQuery = supabase
       .from('identification_documents')
@@ -480,7 +489,7 @@ export const identificationDocumentService = {
       throw new Error('Usuario no autenticado');
     }
 
-    const activeComp = await resolveActiveCompanyForDI();
+    const activeComp = await resolveActiveCompanyForDI(user.id);
 
     const baseQuery = supabase
       .from('identification_documents')
@@ -613,7 +622,7 @@ export const identificationDocumentService = {
       throw new Error('Usuario no autenticado');
     }
 
-    const activeComp = await resolveActiveCompanyForDI();
+    const activeComp = await resolveActiveCompanyForDI(user.id);
     const { numero_documento: _immutableDocNumber, ...mutableData } = documentData;
     void _immutableDocNumber;
 

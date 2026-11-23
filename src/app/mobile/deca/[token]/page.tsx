@@ -176,11 +176,10 @@ export default function DecaDriverMobilePage({
           {/* INC11: Separar explícitamente estado de versión documental y estado operativo del servicio */}
           <div className="flex flex-col items-end gap-1">
             <span
-              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                !deca.is_vigente
-                  ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                  : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-              }`}
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${!deca.is_vigente
+                ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                }`}
             >
               {!deca.is_vigente ? (
                 <AlertTriangle className="w-3 h-3" />
@@ -192,157 +191,157 @@ export default function DecaDriverMobilePage({
                 : `v${deca.version} · Última versión`}
             </span>
             <span
-              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                deca.estado === 'finalizado'
-                  ? 'bg-slate-700/80 text-slate-200 border border-slate-500/50'
-                  : deca.estado === 'anulado'
-                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-              }`}
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${deca.estado === 'finalizado'
+                ? 'bg-slate-700/80 text-slate-200 border border-slate-500/50'
+                : deca.estado === 'anulado'
+            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+            : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                }`}
             >
-              {deca.estado === 'finalizado'
-                ? `Servicio finalizado${
-                    deca.fecha_finalizacion
-                      ? ` (${new Date(deca.fecha_finalizacion).toLocaleString('es-ES', {
-                          timeZone: 'Europe/Madrid',
-                          day: '2-digit',
-                          month: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })})`
-                      : ''
-                  }`
+            {deca.estado === 'finalizado'
+              ? `Servicio finalizado${deca.fecha_finalizacion
+                ? ` (${new Date(deca.fecha_finalizacion).toLocaleString('es-ES', {
+                  timeZone: 'Europe/Madrid',
+                  day: '2-digit',
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })})`
+                : ''
+              }`
                 : deca.estado === 'anulado'
                   ? 'Servicio anulado'
                   : 'Servicio en curso'}
-            </span>
-          </div>
+          </span>
+        </div>
+    </div>
+
+        {/* Banner destacado si la versión ha sido sustituida */ }
+  {
+    !deca.is_vigente && (
+      <div className="mb-3 p-3.5 bg-rose-950/80 border-2 border-rose-500 rounded-2xl text-rose-200 shadow-xl shadow-rose-950/40">
+        <div className="flex items-center gap-2 font-bold text-rose-300 text-xs sm:text-sm mb-1.5">
+          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+          <span>VERSIÓN SUSTITUIDA (HISTÓRICA v{deca.version})</span>
+        </div>
+        <p className="text-xs text-rose-200/90 leading-relaxed mb-2.5">
+          Este documento de control ha sido sustituido por una revisión posterior. No debe presentarse en carretera como vigente.
+        </p>
+        {latestVigenteDeca && (
+          <Link
+            href={`/mobile/deca/${latestVigenteDeca.token}`}
+            className="inline-flex items-center justify-center gap-2 w-full bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs py-2 px-3 rounded-xl transition shadow-md shadow-rose-900/50"
+          >
+            <span>Abrir Revisión Vigente Actual (v{latestVigenteDeca.version})</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        )}
+      </div>
+    )
+  }
+
+  <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
+    <div>
+      <div className="text-xs text-slate-400">Nº DeCA Oficial</div>
+      <div className="text-base font-mono font-bold text-white">{deca.numero_deca}</div>
+    </div>
+    <div className="text-right">
+      <div className="text-xs text-slate-400">Fecha Servicio</div>
+      <div className="text-sm font-semibold text-slate-200">
+        {new Date(deca.fecha_transporte).toLocaleDateString('es-ES')}
+      </div>
+    </div>
+  </div>
+      </header >
+
+    {/* Tarjeta Central: Código QR de Gran Contraste para la Inspección */ }
+    < main className = "space-y-4 my-auto" >
+      <div className={`bg-white rounded-3xl p-5 shadow-2xl text-center border-4 ${!deca.is_vigente ? 'border-amber-500' : 'border-blue-500'}`}>
+        <div className="text-slate-900 text-xs font-bold uppercase tracking-wider mb-2 flex items-center justify-center gap-1.5">
+          <span className={`w-2 h-2 rounded-full ${!deca.is_vigente ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`} />
+          {!deca.is_vigente ? `QR Versión Histórica (v${deca.version})` : 'Código QR Oficial para Inspección'}
         </div>
 
-        {/* Banner destacado si la versión ha sido sustituida */}
-        {!deca.is_vigente && (
-          <div className="mb-3 p-3.5 bg-rose-950/80 border-2 border-rose-500 rounded-2xl text-rose-200 shadow-xl shadow-rose-950/40">
-            <div className="flex items-center gap-2 font-bold text-rose-300 text-xs sm:text-sm mb-1.5">
-              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>VERSIÓN SUSTITUIDA (HISTÓRICA v{deca.version})</span>
-            </div>
-            <p className="text-xs text-rose-200/90 leading-relaxed mb-2.5">
-              Este documento de control ha sido sustituido por una revisión posterior. No debe presentarse en carretera como vigente.
-            </p>
-            {latestVigenteDeca && (
-              <Link
-                href={`/mobile/deca/${latestVigenteDeca.token}`}
-                className="inline-flex items-center justify-center gap-2 w-full bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs py-2 px-3 rounded-xl transition shadow-md shadow-rose-900/50"
-              >
-                <span>Abrir Revisión Vigente Actual (v{latestVigenteDeca.version})</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            )}
+        {qrDataUrl && (
+          <div className="flex justify-center my-2">
+            <img
+              src={qrDataUrl}
+              alt="Código QR DeCA"
+              className="w-64 h-64 sm:w-72 sm:h-72 object-contain rounded-xl"
+            />
           </div>
         )}
 
-        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
-          <div>
-            <div className="text-xs text-slate-400">Nº DeCA Oficial</div>
-            <div className="text-base font-mono font-bold text-white">{deca.numero_deca}</div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-slate-400">Fecha Servicio</div>
-            <div className="text-sm font-semibold text-slate-200">
-              {new Date(deca.fecha_transporte).toLocaleDateString('es-ES')}
-            </div>
-          </div>
+        <p className="text-slate-600 text-xs mt-2 px-2">
+          {!deca.is_vigente
+            ? 'Atención: Este código corresponde a una versión histórica sustituida. Para controles en carretera presente la versión vigente.'
+            : 'Muestre este código al agente de la Guardia Civil o inspectores de transporte. La lectura descarga directamente el PDF reglamentario.'}
+        </p>
+      </div>
+
+  {/* Tarjeta de Datos de la Expedición */ }
+  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+    {/* Matrícula y Conductor */}
+    <div className="grid grid-cols-2 gap-3 pb-3 border-b border-slate-800">
+      <div>
+        <span className="text-xs text-slate-400 flex items-center gap-1">
+          <Truck className="w-3.5 h-3.5" /> Matrícula
+        </span>
+        <p className="text-base font-mono font-bold text-white mt-0.5">{deca.matricula_tractora}</p>
+        {deca.matricula_remolque && (
+          <p className="text-xs font-mono text-slate-400">Rem: {deca.matricula_remolque}</p>
+        )}
+      </div>
+      <div>
+        <span className="text-xs text-slate-400 flex items-center gap-1">
+          <Package className="w-3.5 h-3.5" /> Peso Declarado
+        </span>
+        <p className="text-base font-bold text-white mt-0.5">
+          {deca.peso_kg ? `${deca.peso_kg.toLocaleString('es-ES')} kg` : deca.magnitud_alternativa || '-'}
+        </p>
+        {deca.codigo_ler && <p className="text-xs text-blue-400">LER: {deca.codigo_ler}</p>}
+      </div>
+    </div>
+
+    {/* Ruta: Origen -> Destino */}
+    <div className="space-y-2">
+      <div className="flex items-start gap-2.5">
+        <div className="p-1.5 bg-slate-800 rounded-full mt-0.5 text-blue-400">
+          <MapPin className="w-3.5 h-3.5" />
         </div>
-      </header>
-
-      {/* Tarjeta Central: Código QR de Gran Contraste para la Inspección */}
-      <main className="space-y-4 my-auto">
-        <div className={`bg-white rounded-3xl p-5 shadow-2xl text-center border-4 ${!deca.is_vigente ? 'border-amber-500' : 'border-blue-500'}`}>
-          <div className="text-slate-900 text-xs font-bold uppercase tracking-wider mb-2 flex items-center justify-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${!deca.is_vigente ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`} />
-            {!deca.is_vigente ? `QR Versión Histórica (v${deca.version})` : 'Código QR Oficial para Inspección'}
-          </div>
-
-          {qrDataUrl && (
-            <div className="flex justify-center my-2">
-              <img
-                src={qrDataUrl}
-                alt="Código QR DeCA"
-                className="w-64 h-64 sm:w-72 sm:h-72 object-contain rounded-xl"
-              />
-            </div>
-          )}
-
-          <p className="text-slate-600 text-xs mt-2 px-2">
-            {!deca.is_vigente
-              ? 'Atención: Este código corresponde a una versión histórica sustituida. Para controles en carretera presente la versión vigente.'
-              : 'Muestre este código al agente de la Guardia Civil o inspectores de transporte. La lectura descarga directamente el PDF reglamentario.'}
-          </p>
+        <div className="flex-1 min-w-0">
+          <span className="text-xs text-slate-400">Origen (Carga)</span>
+          <p className="text-xs text-slate-200 truncate">{deca.origen_direccion}</p>
+          <p className="text-xs font-medium text-white">{deca.origen_municipio} ({deca.origen_provincia})</p>
         </div>
+      </div>
 
-        {/* Tarjeta de Datos de la Expedición */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-          {/* Matrícula y Conductor */}
-          <div className="grid grid-cols-2 gap-3 pb-3 border-b border-slate-800">
-            <div>
-              <span className="text-xs text-slate-400 flex items-center gap-1">
-                <Truck className="w-3.5 h-3.5" /> Matrícula
-              </span>
-              <p className="text-base font-mono font-bold text-white mt-0.5">{deca.matricula_tractora}</p>
-              {deca.matricula_remolque && (
-                <p className="text-xs font-mono text-slate-400">Rem: {deca.matricula_remolque}</p>
-              )}
-            </div>
-            <div>
-              <span className="text-xs text-slate-400 flex items-center gap-1">
-                <Package className="w-3.5 h-3.5" /> Peso Declarado
-              </span>
-              <p className="text-base font-bold text-white mt-0.5">
-                {deca.peso_kg ? `${deca.peso_kg.toLocaleString('es-ES')} kg` : deca.magnitud_alternativa || '-'}
-              </p>
-              {deca.codigo_ler && <p className="text-xs text-blue-400">LER: {deca.codigo_ler}</p>}
-            </div>
-          </div>
+      <div className="flex items-center justify-center -my-1">
+        <ArrowRight className="w-4 h-4 text-slate-600 rotate-90" />
+      </div>
 
-          {/* Ruta: Origen -> Destino */}
-          <div className="space-y-2">
-            <div className="flex items-start gap-2.5">
-              <div className="p-1.5 bg-slate-800 rounded-full mt-0.5 text-blue-400">
-                <MapPin className="w-3.5 h-3.5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-xs text-slate-400">Origen (Carga)</span>
-                <p className="text-xs text-slate-200 truncate">{deca.origen_direccion}</p>
-                <p className="text-xs font-medium text-white">{deca.origen_municipio} ({deca.origen_provincia})</p>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-center -my-1">
-              <ArrowRight className="w-4 h-4 text-slate-600 rotate-90" />
-            </div>
-
-            <div className="flex items-start gap-2.5">
-              <div className="p-1.5 bg-slate-800 rounded-full mt-0.5 text-emerald-400">
-                <MapPin className="w-3.5 h-3.5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-xs text-slate-400">Destino (Entrega)</span>
-                <p className="text-xs text-slate-200 truncate">{deca.destino_direccion}</p>
-                <p className="text-xs font-medium text-white">{deca.destino_municipio} ({deca.destino_provincia})</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Mercancía */}
-          <div className="pt-2 border-t border-slate-800 text-xs">
-            <span className="text-slate-400">Naturaleza de la Mercancía:</span>
-            <p className="text-slate-200 font-medium line-clamp-2 mt-0.5">{deca.naturaleza_mercancia}</p>
-          </div>
+      <div className="flex items-start gap-2.5">
+        <div className="p-1.5 bg-slate-800 rounded-full mt-0.5 text-emerald-400">
+          <MapPin className="w-3.5 h-3.5" />
         </div>
-      </main>
+        <div className="flex-1 min-w-0">
+          <span className="text-xs text-slate-400">Destino (Entrega)</span>
+          <p className="text-xs text-slate-200 truncate">{deca.destino_direccion}</p>
+          <p className="text-xs font-medium text-white">{deca.destino_municipio} ({deca.destino_provincia})</p>
+        </div>
+      </div>
+    </div>
 
-      {/* Botones de Acción */}
-      <footer className="mt-4 space-y-2.5">
+    {/* Mercancía */}
+    <div className="pt-2 border-t border-slate-800 text-xs">
+      <span className="text-slate-400">Naturaleza de la Mercancía:</span>
+      <p className="text-slate-200 font-medium line-clamp-2 mt-0.5">{deca.naturaleza_mercancia}</p>
+    </div>
+  </div>
+      </main >
+
+    {/* Botones de Acción */ }
+    < footer className = "mt-4 space-y-2.5" >
         <a
           href={pdfDownloadUrl}
           target="_blank"
@@ -366,7 +365,7 @@ export default function DecaDriverMobilePage({
         <p className="text-center text-[10px] text-slate-500 pt-1">
           Documento válido para inspección según Orden FOM/2861/2012 y Ley 9/2025.
         </p>
-      </footer>
-    </div>
+      </footer >
+    </div >
   );
 }

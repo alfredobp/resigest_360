@@ -99,6 +99,27 @@ export default function TransporteMobileHomePage() {
     }
   };
 
+  const handleGenerateDecaFromDI = async (di: IdentificationDocument) => {
+    try {
+      setBusyId(di.id);
+      const created = await decaService.createFromIdentificationDocument(di, {
+        cargador_razon_social: di.productor_razon_social,
+        cargador_nif: di.productor_cif,
+        cargador_domicilio: di.productor_direccion || 'Instalación del Productor',
+        cargador_codigo_postal: di.productor_codigo_postal,
+        cargador_municipio: di.productor_municipio,
+        cargador_provincia: di.productor_provincia,
+        matricula_tractora: di.transportista_matricula || activeCompany?.matricula || 'PENDIENTE',
+      });
+      toast.success(`DeCA ${created.numero_deca} generado desde ${di.numero_documento}.`);
+      await loadTransportData();
+    } catch (err: any) {
+      toast.error(err?.message || 'No se pudo generar el DeCA desde el DI.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const handleShareDeca = async (deca: DecaDocument) => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const message = buildDecaShareMessage(deca, origin);
@@ -207,11 +228,10 @@ export default function TransporteMobileHomePage() {
           <button
             type="button"
             onClick={() => setActiveTab('activos')}
-            className={`rounded-2xl border p-3 text-center transition cursor-pointer ${
-              activeTab === 'activos'
+            className={`rounded-2xl border p-3 text-center transition cursor-pointer ${activeTab === 'activos'
                 ? 'bg-blue-50/70 border-blue-400 dark:bg-blue-950/40 dark:border-blue-700'
                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300'
-            }`}
+              }`}
           >
             <p className="text-[11px] font-medium text-slate-500">DeCA Activos</p>
             <p className="text-xl font-extrabold text-blue-600 dark:text-blue-400 mt-0.5">
@@ -227,11 +247,10 @@ export default function TransporteMobileHomePage() {
           <button
             type="button"
             onClick={() => setActiveTab('finalizados')}
-            className={`rounded-2xl border p-3 text-center transition cursor-pointer ${
-              activeTab === 'finalizados'
+            className={`rounded-2xl border p-3 text-center transition cursor-pointer ${activeTab === 'finalizados'
                 ? 'bg-emerald-50/70 border-emerald-400 dark:bg-emerald-950/40 dark:border-emerald-700'
                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300'
-            }`}
+              }`}
           >
             <p className="text-[11px] font-medium text-slate-500">Finalizados</p>
             <p className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">
@@ -259,11 +278,10 @@ export default function TransporteMobileHomePage() {
             <button
               type="button"
               onClick={() => setActiveTab('activos')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition cursor-pointer ${
-                activeTab === 'activos'
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition cursor-pointer ${activeTab === 'activos'
                   ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
+                }`}
             >
               <Clock className="w-3.5 h-3.5" />
               <span>En Ruta / Hoy</span>
@@ -274,11 +292,10 @@ export default function TransporteMobileHomePage() {
             <button
               type="button"
               onClick={() => setActiveTab('finalizados')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition cursor-pointer ${
-                activeTab === 'finalizados'
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition cursor-pointer ${activeTab === 'finalizados'
                   ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
+                }`}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>Finalizados / Histórico</span>
@@ -320,11 +337,10 @@ export default function TransporteMobileHomePage() {
                             {deca.numero_deca}
                           </span>
                           <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                              deca.estado === 'en_transito'
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${deca.estado === 'en_transito'
                                 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
                                 : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300'
-                            }`}
+                              }`}
                           >
                             {deca.estado === 'en_transito' ? 'En tránsito' : 'Vigente'}
                           </span>
@@ -527,51 +543,93 @@ export default function TransporteMobileHomePage() {
             </Link>
           </div>
 
-          <div className="space-y-2">
-            {dis.slice(0, 5).map((di) => (
-              <Link
-                key={di.id}
-                href={`/residuos/documentos-identificacion/${di.id}`}
-                className="flex items-center justify-between p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-300 transition"
-              >
-                <div className="min-w-0 pr-3">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-slate-400 shrink-0" />
-                    <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">
-                      {di.numero_documento}
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">
-                      {di.estado_traslado || di.estado}
-                    </span>
+                    <div className="space-y-2.5">
+                      {dis.slice(0, 5).map((di) => {
+                        const linkedDeca = decas.find(
+                          (d) =>
+                            d.is_vigente !== false &&
+                            (d.identification_document_id === di.id ||
+                              (d.numero_di && d.numero_di === di.numero_documento))
+                        );
+                        return (
+                <div
+                  key={di.id}
+                  className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 pr-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+                        <Link
+                          href={`/residuos/documentos-identificacion/${di.id}`}
+                          className="font-mono text-xs font-bold text-slate-900 dark:text-white hover:underline"
+                        >
+                          {di.numero_documento}
+                        </Link>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">
+                          {di.estado_traslado || di.estado}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 truncate mt-1">
+                        {di.productor_razon_social} → {di.gestor_razon_social}
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        LER {di.codigo_ler} · {di.peso_origen_kg || di.cantidad} {di.peso_origen_kg ? 'kg' : di.unidad}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-slate-500 truncate mt-1">
-                    {di.productor_razon_social} → {di.gestor_razon_social}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <Link
+                      href={`/residuos/documentos-identificacion/${di.id}`}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold transition"
+                    >
+                      <span>Ver Ficha DI</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                    {linkedDeca ? (
+                      <Link
+                        href={`/mobile/deca/${linkedDeca.token}`}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition"
+                      >
+                        <QrCode className="w-3.5 h-3.5" />
+                        <span>Ver DeCA ({linkedDeca.numero_deca})</span>
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={busyId === di.id}
+                        onClick={() => handleGenerateDecaFromDI(di)}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold transition cursor-pointer"
+                      >
+                        <Truck className="w-3.5 h-3.5" />
+                        <span>{busyId === di.id ? 'Generando DeCA...' : 'Generar DeCA desde DI'}</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />
-              </Link>
-            ))}
-          </div>
-        </section>
+                    );
+            })}
+                  </div>
+                </section>
 
-        {/* Accesos secundarios de transportista */}
-        <section className="grid grid-cols-2 gap-2.5 pt-2">
-          <Link
-            href="/residuos/transportistas"
-            className="flex items-center gap-2 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200"
-          >
-            <Clock className="w-4 h-4 text-blue-600" />
-            <span>Mi Flota y Vehículos</span>
-          </Link>
-          <Link
-            href="/residuos/mi-empresa"
-            className="flex items-center gap-2 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200"
-          >
-            <Building2 className="w-4 h-4 text-blue-600" />
-            <span>Datos de Mi Empresa</span>
-          </Link>
-        </section>
-      </main>
+                {/* Accesos secundarios de transportista */}
+                <section className="grid grid-cols-2 gap-2.5 pt-2">
+                  <Link
+                    href="/residuos/transportistas"
+                    className="flex items-center gap-2 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200"
+                  >
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    <span>Mi Flota y Vehículos</span>
+                  </Link>
+                  <Link
+                    href="/residuos/mi-empresa"
+                    className="flex items-center gap-2 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200"
+                  >
+                    <Building2 className="w-4 h-4 text-blue-600" />
+                    <span>Datos de Mi Empresa</span>
+                  </Link>
+                </section>
+              </main>
     </div>
-  );
+          );
 }

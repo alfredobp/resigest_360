@@ -276,11 +276,12 @@ export async function resolveTenantContext(
 
   const activeCompany = selectedEntry?.company || null;
 
-  // Sincronizar cookie si apuntaba a una empresa inaccesible o si el usuario no tiene empresas
-  if (typeof document !== 'undefined' && targetId) {
+  // Sincronizar cookie si apuntaba a una empresa inaccesible, si aún no existía cookie para la empresa titular,
+  // o si el usuario no tiene empresas (INC07: garantiza que transportista/productor tengan cookie activa desde el primer login)
+  if (typeof document !== 'undefined') {
     if (activeCompany && activeCompany.id !== targetId) {
       setActiveCompanyCookie(activeCompany.id);
-    } else if (!activeCompany) {
+    } else if (!activeCompany && targetId) {
       setActiveCompanyCookie(null);
     }
   }

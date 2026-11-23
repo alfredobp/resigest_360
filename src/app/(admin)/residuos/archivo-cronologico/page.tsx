@@ -530,13 +530,19 @@ export default function ArchivoCronologicoPage() {
         }
       />
 
-      {/* Banner normativo para Negociante / Agente (UXDEV-06 / UX-24) */}
+      {/* Banner normativo para Negociante / Agente (UXDEV-06 / UX-24 / N05) */}
       {perfilOperativo === 'negociante' && (
         <UiTip>
-          <div className="p-4 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/50 text-xs text-indigo-900 dark:text-indigo-200">
-            <strong>Registro Cronológico de Negociante / Agente (Art. 64 Ley 7/2022):</strong>{' '}
-            Recoge únicamente la trazabilidad documental de residuos gestionados por su organización. Las operaciones de intermediación sin posesión física no generan stock propio de planta.
-          </div>
+            <div className="p-4 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/50 text-xs text-indigo-900 dark:text-indigo-200 space-y-1.5">
+              <div>
+                <strong>Registro Cronológico de Negociante / Agente (Art. 64 Ley 7/2022):</strong>{' '}
+                Recoge la trazabilidad documental de los residuos gestionados por su organización.
+              </div>
+              <p className="text-[11px] opacity-90">
+                • Las operaciones comerciales <strong>con posesión física</strong> generan asiento automático al pasar a estado <em>Completada</em> o <em>Liquidada</em>.<br />
+                • Las operaciones de <strong>intermediación sin posesión física</strong> no alteran el stock físico de planta propia; sus movimientos ambientales se consolidan a través de su <strong>Documento de Identificación (DI)</strong> aceptado en destino o mediante asiento documental acreditado.
+              </p>
+            </div>
         </UiTip>
       )}
 
@@ -678,8 +684,8 @@ export default function ArchivoCronologicoPage() {
           type="button"
           onClick={() => setActiveTab('consolidado')}
           className={`pb-3 px-1 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 ${activeTab === 'consolidado'
-              ? 'border-primary text-primary dark:text-white'
-              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            ? 'border-primary text-primary dark:text-white'
+            : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
         >
           <span>Libro Cronológico Consolidado (Art. 64)</span>
@@ -692,8 +698,8 @@ export default function ArchivoCronologicoPage() {
           type="button"
           onClick={() => setActiveTab('pendientes')}
           className={`pb-3 px-1 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 ${activeTab === 'pendientes'
-              ? 'border-brand-500 text-brand-600 dark:text-brand-400'
-              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            ? 'border-brand-500 text-brand-600 dark:text-brand-400'
+            : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
         >
           <span>Traslados en Curso / Pendientes de Justificante</span>
@@ -766,12 +772,12 @@ export default function ArchivoCronologicoPage() {
                         {d.transportista_razon_social || '-'}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${d.estado_traslado === 'recepcionado'
-                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400'
-                              : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400'
-                            }`}>
-                            {d.estado_traslado === 'recepcionado' ? 'RECEPCIONADO' : 'EN TRÁNSITO'}
-                          </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${d.estado_traslado === 'recepcionado'
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400'
+                          : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400'
+                          }`}>
+                          {d.estado_traslado === 'recepcionado' ? 'RECEPCIONADO' : 'EN TRÁNSITO'}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         <Link
