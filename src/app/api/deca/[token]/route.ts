@@ -33,7 +33,7 @@ export async function GET(
       const rpcRes = await (supabase as any).rpc('get_deca_by_token', { p_token: token });
       if (rpcRes && !rpcRes.error) {
         const doc = Array.isArray(rpcRes.data) ? rpcRes.data[0] : rpcRes.data;
-        deca = (doc as DecaDocument | null) || null;
+        deca = doc as DecaDocument | null;
       }
     } else {
       const { data } = await supabase
@@ -41,7 +41,7 @@ export async function GET(
         .select('*')
         .eq('token', token)
         .maybeSingle();
-      deca = (data as DecaDocument | null) || null;
+      deca = data as DecaDocument | null;
     }
 
     if (!deca) {
@@ -146,9 +146,7 @@ export async function GET(
             .order('created_at', { ascending: true })
             .limit(1)
             .maybeSingle();
-          if (adminV1?.created_at) {
-            firstVersionCreatedAt = adminV1.created_at;
-          }
+          firstVersionCreatedAt = adminV1?.created_at || null;
         }
       } catch {
         // Fallback seguro: generateDecaPDF omitirá v1 si no se pudo recuperar

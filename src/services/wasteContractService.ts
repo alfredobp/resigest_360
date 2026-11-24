@@ -1410,8 +1410,9 @@ export const wasteContractService = {
 
         if (apiRes && apiRes.ok) {
           const apiPayload = await apiRes.json().catch(() => null);
-          if (apiPayload?.contract) {
-            return apiPayload.contract as WasteContract;
+          const resolvedContract = apiPayload?.contract || apiPayload?.data;
+          if (resolvedContract) {
+            return resolvedContract as WasteContract;
           }
         }
       }
