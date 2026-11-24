@@ -6,6 +6,7 @@
 // ==============================================================================
 
 import { type NextRequest, NextResponse } from 'next/server';
+import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { decaService } from '@/services/decaService';
 import { generateDecaPDF } from '@/lib/pdfUtils';
@@ -131,8 +132,7 @@ export async function GET(
         if (v1Row?.created_at) {
           firstVersionCreatedAt = v1Row.created_at;
         } else if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-          const { createClient: createAdmin } = await import('@supabase/supabase-js');
-          const adminSb = createAdmin(
+          const adminSb = createAdminClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL,
             process.env.SUPABASE_SERVICE_ROLE_KEY,
             { auth: { persistSession: false, autoRefreshToken: false } }

@@ -254,8 +254,38 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
         }),
       };
 
+      const opsChain: any = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockResolvedValue({
+          data: [
+            {
+              id: 50,
+              numero_operacion: 'OP-2025-000050',
+              fecha_operacion: '2025-06-10',
+              estado: 'completada',
+              codigo_ler: '15 01 01',
+              descripcion_residuo: 'Cartón comercializado',
+              peligrosidad: 'no-peligroso',
+              cantidad_real_t: 2.5,
+              origen_nombre_personalizado: 'Productor Tercero',
+              destino_nombre_personalizado: 'Gestor Tercero',
+              created_at: '2025-06-10T00:00:00Z',
+              updated_at: '2025-06-10T00:00:00Z',
+            },
+            {
+              id: 51,
+              estado: 'borrador',
+            },
+          ],
+          error: null,
+        }),
+      };
+
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === 'identification_documents') return diChain;
+        if (table === 'commercial_operations') return opsChain;
         if (table === 'memorias_anuales') {
           return {
             select: jest.fn().mockImplementation(() => numMemoriaChain),

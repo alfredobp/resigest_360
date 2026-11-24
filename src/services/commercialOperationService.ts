@@ -602,7 +602,35 @@ export const commercialOperationService = {
 
     const existing = (hasFinancialFields || hasMetaFields || data.observaciones !== undefined) ? await this.getById(id) : null;
 
-    if (hasMetaFields || (data.observaciones !== undefined && existing)) {
+    // Si es multimaterial y se actualiza cantidad_real_t global sin enviar nuevas lineas_materiales,
+    // ajustar proporcionalmente las cantidades de las líneas guardadas para que la tabla multimaterial,
+    // el PDF y el CSV coincidan exactamente con el peso verificado en báscula (A7-02).
+    let resolvedLinesForUpdate =
+      lineas_materiales !== undefined ? lineas_materiales : existing?.lineas_materiales;
+    if (
+      lineas_materiales === undefined &&
+      Array.isArray(resolvedLinesForUpdate) &&
+      resolvedLinesForUpdate.length > 0 &&
+      data.cantidad_real_t &&
+      Number(data.cantidad_real_t) > 0
+    ) {
+      const sumPrevT = resolvedLinesForUpdate.reduce((acc, l) => acc + Number(l.cantidad_t || 0), 0);
+      const targetRealT = Number(data.cantidad_real_t);
+      if (sumPrevT > 0 && Math.abs(targetRealT - sumPrevT) > 0.0001) {
+        const ratio = targetRealT / sumPrevT;
+        let runningT = 0;
+        resolvedLinesForUpdate = resolvedLinesForUpdate.map((l, idx, arr) => {
+          if (idx === arr.length - 1) {
+            return { ...l, cantidad_t: Math.max(0, Number((targetRealT - runningT).toFixed(3))) };
+          }
+          const scaledT = Number((Number(l.cantidad_t || 0) * ratio).toFixed(3));
+          runningT += scaledT;
+          return { ...l, cantidad_t: scaledT };
+        });
+      }
+    }
+
+    if (hasMetaFields || resolvedLinesForUpdate !== existing?.lineas_materiales || (data.observaciones !== undefined && existing)) {
       payload.observaciones = serializeCommercialMetaToNotes(
         data.observaciones !== undefined ? data.observaciones : existing?.observaciones,
         {
@@ -630,10 +658,7 @@ export const commercialOperationService = {
             documentos_adjuntos !== undefined
               ? documentos_adjuntos
               : existing?.documentos_adjuntos || [],
-          lineas_materiales:
-            lineas_materiales !== undefined
-              ? lineas_materiales
-              : existing?.lineas_materiales,
+          lineas_materiales: resolvedLinesForUpdate,
         }
       );
     }
@@ -641,9 +666,6 @@ export const commercialOperationService = {
     // Recalcular rentabilidad solo si se proporcionan campos económicos, de cantidad o líneas multimaterial,
     // fusionando previamente con los valores persistidos (incluyendo lineas_materiales) para no sobrescribir precios con 0 (A7-02).
     if (hasFinancialFields) {
-      const effectiveLines =
-        lineas_materiales !== undefined ? lineas_materiales : existing?.lineas_materiales;
-
       const mergedFinancialData: Partial<CommercialOperationFormData> = {
         cantidad_estimada_t: existing?.cantidad_estimada_t,
         cantidad_real_t: existing?.cantidad_real_t ?? undefined,
@@ -653,67 +675,9 @@ export const commercialOperationService = {
         precio_unitario_venta: existing?.precio_unitario_venta,
         coste_transporte: existing?.coste_transporte,
         otros_costes: existing?.otros_costes,
-        lineas_materiales: effectiveLines,
         ...data,
+        lineas_materiales: resolvedLinesForUpdate,
       };
-
-      // Si es multimaterial y se actualiza cantidad_real_t global sin enviar nuevas lineas_materiales,
-      // ajustar proporcionalmente las cantidades de las líneas guardadas para que la tabla multimaterial,
-      // el PDF y el CSV coincidan exactamente con el peso verificado en báscula (A7-02).
-      if (
-        lineas_materiales === undefined &&
-        Array.isArray(effectiveLines) &&
-        effectiveLines.length > 0 &&
-        mergedFinancialData.cantidad_real_t &&
-        Number(mergedFinancialData.cantidad_real_t) > 0
-      ) {
-        const sumPrevT = effectiveLines.reduce((acc, l) => acc + Number(l.cantidad_t || 0), 0);
-        const targetRealT = Number(mergedFinancialData.cantidad_real_t);
-        if (sumPrevT > 0 && Math.abs(targetRealT - sumPrevT) > 0.0001) {
-          const ratio = targetRealT / sumPrevT;
-          let runningT = 0;
-          const scaledLines = effectiveLines.map((l, idx) => {
-            if (idx === effectiveLines.length - 1) {
-              const remainder = Math.max(0, Number((targetRealT - runningT).toFixed(3)));
-              return { ...l, cantidad_t: remainder };
-            }
-            const scaledT = Number((Number(l.cantidad_t || 0) * ratio).toFixed(3));
-            runningT += scaledT;
-            return { ...l, cantidad_t: scaledT };
-          });
-          mergedFinancialData.lineas_materiales = scaledLines;
-          payload.observaciones = serializeCommercialMetaToNotes(
-            data.observaciones !== undefined ? data.observaciones : existing?.observaciones,
-            {
-              modalidad_posesion:
-                data.modalidad_posesion ||
-                existing?.modalidad_posesion ||
-                'intermediacion_sin_posesion',
-              actua_como_operador:
-                actua_como_operador !== undefined
-                  ? Boolean(actua_como_operador)
-                  : Boolean(existing?.actua_como_operador),
-              mandato_referencia:
-                mandato_referencia !== undefined
-                  ? mandato_referencia.trim() || undefined
-                  : existing?.mandato_referencia || undefined,
-              mandato_fecha:
-                mandato_fecha !== undefined
-                  ? mandato_fecha || undefined
-                  : existing?.mandato_fecha || undefined,
-              mandato_otorgante:
-                mandato_otorgante !== undefined
-                  ? mandato_otorgante.trim() || undefined
-                  : existing?.mandato_otorgante || undefined,
-              documentos:
-                documentos_adjuntos !== undefined
-                  ? documentos_adjuntos
-                  : existing?.documentos_adjuntos || [],
-              lineas_materiales: scaledLines,
-            }
-          );
-        }
-      }
 
       const profitability = calculateProfitability(mergedFinancialData);
       payload.coste_compra_total = profitability.coste_compra_total;
@@ -941,19 +905,19 @@ export const commercialOperationService = {
 
     const rows = ops.map(op => {
       const ton = (op.cantidad_real_t && op.cantidad_real_t > 0 ? op.cantidad_real_t : op.cantidad_estimada_t) || 0;
-      const isMulti = Array.isArray(op.lineas_materiales) && op.lineas_materiales.length > 0;
+      const isMulti = Boolean(op.lineas_materiales?.length);
       const modCompra = isMulti ? 'Multimaterial (€/t pond.)' : op.tipo_precio_compra === 'por_kg' ? '€/kg' : (op.tipo_precio_compra === 'lote_fijo' ? 'Lote Fijo' : '€/t');
       const modVenta = isMulti ? 'Multimaterial (€/t pond.)' : op.tipo_precio_venta === 'por_kg' ? '€/kg' : (op.tipo_precio_venta === 'lote_fijo' ? 'Lote Fijo' : '€/t');
-      const normCompra = isMulti
+      const normCompra = isMulti || op.tipo_precio_compra === 'lote_fijo'
         ? (ton > 0 ? (op.coste_compra_total || 0) / ton : 0)
         : op.tipo_precio_compra === 'por_kg'
           ? (op.precio_unitario_compra || 0) * 1000
-          : (op.tipo_precio_compra === 'lote_fijo' ? (ton > 0 ? (op.coste_compra_total || 0) / ton : 0) : (op.precio_unitario_compra || 0));
-      const normVenta = isMulti
+          : (op.precio_unitario_compra || 0);
+      const normVenta = isMulti || op.tipo_precio_venta === 'lote_fijo'
         ? (ton > 0 ? (op.ingreso_venta_total || 0) / ton : 0)
         : op.tipo_precio_venta === 'por_kg'
           ? (op.precio_unitario_venta || 0) * 1000
-          : (op.tipo_precio_venta === 'lote_fijo' ? (ton > 0 ? (op.ingreso_venta_total || 0) / ton : 0) : (op.precio_unitario_venta || 0));
+          : (op.precio_unitario_venta || 0);
       const unitCompra = isMulti ? normCompra : (op.precio_unitario_compra || 0);
       const unitVenta = isMulti ? normVenta : (op.precio_unitario_venta || 0);
 

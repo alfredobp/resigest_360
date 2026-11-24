@@ -386,12 +386,13 @@ export const dashboardService = {
           fecha: c.fecha_fin
         });
         } else if (c.estado === 'vigente') {
-          // A7-10: Verificar si un contrato vigente carece de cantidad anual estimada/máxima definida
+          // A7-10: Verificar si un contrato vigente carece explícitamente de cantidad anual estimada/máxima definida
           // (y no es un contrato externo adjunto), lo cual bloquea la salida de traslados (Art. 5 RD 553/2020)
-          const hasDefinedQuantity =
-            (typeof c.cantidad_maxima_anual === 'number' && Number(c.cantidad_maxima_anual) > 0) ||
-            Boolean(c.documento_url);
-          if (!hasDefinedQuantity) {
+          const isExplicitlyMissingQuantity =
+            'cantidad_maxima_anual' in c &&
+            (!c.cantidad_maxima_anual || Number(c.cantidad_maxima_anual) <= 0) &&
+            !c.documento_url;
+          if (isExplicitlyMissingQuantity) {
             totalNoConformes++;
             listaAlertas.push({
               id: `contract-noqty-${c.id}`,
@@ -401,9 +402,11 @@ export const dashboardService = {
               descripcion: `El contrato está firmado pero no define la cantidad estimada de residuos (Art. 5 RD 553/2020), lo que bloqueará la expedición de traslados hasta emitir una nueva revisión.`,
               referencia: c.numero_contrato,
               enlace: `/residuos/contratos/${c.id}`,
-            fecha: c.fecha_firma || c.fecha_contrato
+              fecha: c.fecha_firma || c.fecha_contrato
             });
-          } else if (c.fecha_fin) {
+          }
+
+          if (c.fecha_fin) {
             const daysLeft = Math.ceil((new Date(c.fecha_fin).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
             if (daysLeft >= 0 && daysLeft <= 60) {
               contratosPorVencerCount++;

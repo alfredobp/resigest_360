@@ -175,17 +175,19 @@ export const decaService = {
       .select('*')
       .eq('identification_document_id', diId);
 
-    const { data, error } = await query
-      .order('is_vigente', { ascending: false })
-      .order('version', { ascending: false })
-      .order('id', { ascending: false });
+    const { data, error } = await query.order('version', { ascending: false });
 
     if (error) {
       console.error('[DeCA Service] Error al consultar DeCA por DI:', error.message);
       return [];
     }
 
-    return (data || []) as DecaDocument[];
+    return ((data || []) as DecaDocument[]).sort(
+      (a, b) =>
+        Number(Boolean(b.is_vigente)) - Number(Boolean(a.is_vigente)) ||
+        (Number(b.version) || 0) - (Number(a.version) || 0) ||
+        (Number(b.id) || 0) - (Number(a.id) || 0)
+    );
   },
 
   /**
@@ -373,35 +375,30 @@ export const decaService = {
   ): Promise<DecaDocument> {
     if (di.id) {
       const existingDecas = await this.getByIdentificationDocument(di.id).catch(() => [] as DecaDocument[]);
-      if (existingDecas && existingDecas.length > 0) {
-        const sorted = [...existingDecas].sort((a, b) => (b.version - a.version) || (b.id - a.id));
-        const latest = sorted.find((d) => d.is_vigente !== false) || sorted[0];
-
-        if (latest) {
-          if (latest.estado === 'finalizado') {
-            throw new Error(
-              `El servicio de transporte ${latest.numero_deca} vinculado a este DI ya fue finalizado. No se puede emitir un segundo DeCA paralelo para un traslado cerrado.`
-            );
-          }
-
-          if (cargadorData.forceRevisionReason?.trim()) {
-            return await this.createNewVersion(
-              latest,
-              {
-                cargador_razon_social: cargadorData.cargador_razon_social || latest.cargador_razon_social,
-                cargador_nif: cargadorData.cargador_nif || latest.cargador_nif,
-                cargador_domicilio: cargadorData.cargador_domicilio || latest.cargador_domicilio,
-                matricula_tractora: cargadorData.matricula_tractora || latest.matricula_tractora,
-                matricula_remolque: cargadorData.matricula_remolque ?? latest.matricula_remolque,
-                observaciones_reservas: cargadorData.observaciones_reservas ?? latest.observaciones_reservas,
-              },
-              cargadorData.forceRevisionReason.trim()
-            );
-          }
-
-          // Idempotencia: devolver el documento vigente compartido ya existente para este DI
-          return latest;
+      const latest = existingDecas.find((d) => d.is_vigente) || existingDecas[0];
+      if (latest) {
+        if (latest.estado === 'finalizado') {
+          throw new Error(
+            `El servicio de transporte ${latest.numero_deca} vinculado a este DI ya fue finalizado. No se puede emitir un segundo DeCA paralelo para un traslado cerrado.`
+          );
         }
+
+        if (cargadorData.forceRevisionReason?.trim()) {
+          return await this.createNewVersion(
+            latest,
+            {
+              cargador_razon_social: cargadorData.cargador_razon_social,
+              cargador_nif: cargadorData.cargador_nif,
+              cargador_domicilio: cargadorData.cargador_domicilio,
+              matricula_tractora: cargadorData.matricula_tractora || latest.matricula_tractora,
+              matricula_remolque: cargadorData.matricula_remolque,
+              observaciones_reservas: cargadorData.observaciones_reservas,
+            },
+            cargadorData.forceRevisionReason.trim()
+          );
+        }
+
+        return latest;
       }
     }
 

@@ -126,7 +126,7 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       const origFetch = (global as any).fetch;
       (global as any).fetch = jest.fn().mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ data: { id: 7, estado: 'vigente', firma_gestor_url: 'u' } }),
+        json: async () => ({ contract: { id: 7, estado: 'vigente', firma_gestor_url: 'u' } }),
       });
       mockSupabase.rpc
         .mockResolvedValueOnce({ data: { id: 7 }, error: null })

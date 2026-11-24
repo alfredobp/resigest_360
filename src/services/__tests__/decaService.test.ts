@@ -424,6 +424,57 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
 
       spyCreate.mockRestore();
     });
+
+    it('debe devolver el DeCA activo existente (idempotencia A7-05), permitir emitir revisión v2 con forceRevisionReason y bloquear si ya está finalizado', async () => {
+      const mockDI = { id: 501, numero_documento: 'DI-501', cantidad: 1000, unidad: 'kg' } as IdentificationDocument;
+      const existingActive = {
+        id: 70,
+        numero_deca: 'DECA-2026-00070',
+        version: 1,
+        is_vigente: true,
+        estado: 'vigente',
+        matricula_tractora: '1111-AAA',
+      } as DecaDocument;
+
+      const spyGetByDi = jest
+        .spyOn(decaService, 'getByIdentificationDocument')
+        .mockResolvedValueOnce([existingActive])
+        .mockResolvedValueOnce([existingActive])
+        .mockResolvedValueOnce([{ ...existingActive, estado: 'finalizado' }]);
+      const spyNewVer = jest
+        .spyOn(decaService, 'createNewVersion')
+        .mockResolvedValue({ ...existingActive, id: 71, version: 2 } as DecaDocument);
+
+      // 1. Idempotencia: devuelve el existente sin duplicar
+      const idempotentRes = await decaService.createFromIdentificationDocument(mockDI, {
+        cargador_razon_social: 'Cargador',
+        cargador_nif: 'B11111111',
+        cargador_domicilio: 'Dir',
+      });
+      expect(idempotentRes).toEqual(existingActive);
+
+      // 2. Con forceRevisionReason: versiona sobre el existente
+      const verRes = await decaService.createFromIdentificationDocument(mockDI, {
+        cargador_razon_social: 'Cargador',
+        cargador_nif: 'B11111111',
+        cargador_domicilio: 'Dir',
+        forceRevisionReason: 'Cambio de tractora en ruta',
+      });
+      expect(verRes.version).toBe(2);
+      expect(spyNewVer).toHaveBeenCalled();
+
+      // 3. Si el DeCA existente ya está finalizado: lanza error
+      await expect(
+        decaService.createFromIdentificationDocument(mockDI, {
+          cargador_razon_social: 'Cargador',
+          cargador_nif: 'B11111111',
+          cargador_domicilio: 'Dir',
+        })
+      ).rejects.toThrow('ya fue finalizado');
+
+      spyGetByDi.mockRestore();
+      spyNewVer.mockRestore();
+    });
   });
 
   describe('createNewVersion (Versionado inmutable)', () => {
