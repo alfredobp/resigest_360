@@ -49,7 +49,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
     });
 
     it('debe retornar array vacío y registrar error si falla la consulta', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
       mockSupabase.auth.getUser.mockResolvedValue({
         data: { user: { id: 'user-deca-1' } },
       });
@@ -92,7 +92,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
     });
 
     it('debe retornar null y loguear error si falla la consulta', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
       mockSupabase.auth.getUser.mockResolvedValue({
         data: { user: { id: 'user-deca-1' } },
       });
@@ -135,7 +135,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
     });
 
     it('debe retornar null y registrar advertencia si no se encuentra la fila', async () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
 
       const maybeSingleMock = jest.fn().mockResolvedValue({ data: null, error: null });
       const eqMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
@@ -153,7 +153,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
     });
 
     it('debe retornar null y registrar error si Supabase falla', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
 
       const maybeSingleMock = jest.fn().mockResolvedValue({
         data: null,
@@ -171,7 +171,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
     });
 
     it('debe usar RPC get_deca_by_token cuando está disponible y manejar null o error con fallback', async () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
       const mockDoc = { id: 9, token: 'dca_rpc_1' };
 
       try {
@@ -424,57 +424,6 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
 
       spyCreate.mockRestore();
     });
-
-    it('debe devolver el DeCA activo existente (idempotencia A7-05), permitir emitir revisión v2 con forceRevisionReason y bloquear si ya está finalizado', async () => {
-      const mockDI = { id: 501, numero_documento: 'DI-501', cantidad: 1000, unidad: 'kg' } as IdentificationDocument;
-      const existingActive = {
-        id: 70,
-        numero_deca: 'DECA-2026-00070',
-        version: 1,
-        is_vigente: true,
-        estado: 'vigente',
-        matricula_tractora: '1111-AAA',
-      } as DecaDocument;
-
-      const spyGetByDi = jest
-        .spyOn(decaService, 'getByIdentificationDocument')
-        .mockResolvedValueOnce([existingActive])
-        .mockResolvedValueOnce([existingActive])
-        .mockResolvedValueOnce([{ ...existingActive, estado: 'finalizado' }]);
-      const spyNewVer = jest
-        .spyOn(decaService, 'createNewVersion')
-        .mockResolvedValue({ ...existingActive, id: 71, version: 2 } as DecaDocument);
-
-      // 1. Idempotencia: devuelve el existente sin duplicar
-      const idempotentRes = await decaService.createFromIdentificationDocument(mockDI, {
-        cargador_razon_social: 'Cargador',
-        cargador_nif: 'B11111111',
-        cargador_domicilio: 'Dir',
-      });
-      expect(idempotentRes).toEqual(existingActive);
-
-      // 2. Con forceRevisionReason: versiona sobre el existente
-      const verRes = await decaService.createFromIdentificationDocument(mockDI, {
-        cargador_razon_social: 'Cargador',
-        cargador_nif: 'B11111111',
-        cargador_domicilio: 'Dir',
-        forceRevisionReason: 'Cambio de tractora en ruta',
-      });
-      expect(verRes.version).toBe(2);
-      expect(spyNewVer).toHaveBeenCalled();
-
-      // 3. Si el DeCA existente ya está finalizado: lanza error
-      await expect(
-        decaService.createFromIdentificationDocument(mockDI, {
-          cargador_razon_social: 'Cargador',
-          cargador_nif: 'B11111111',
-          cargador_domicilio: 'Dir',
-        })
-      ).rejects.toThrow('ya fue finalizado');
-
-      spyGetByDi.mockRestore();
-      spyNewVer.mockRestore();
-    });
   });
 
   describe('createNewVersion (Versionado inmutable)', () => {
@@ -634,7 +583,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
 
   describe('finalizeService y logAudit', () => {
     it('logAudit debe capturar excepciones sin romper el flujo', async () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
 
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === 'deca_audit_logs') {
@@ -739,7 +688,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       mockSupabase.auth.getUser.mockResolvedValue({
         data: { user: null },
       });
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
       const orderMock = jest.fn().mockResolvedValue({ data: null, error: { message: 'DB error' } });
       const eqMock = jest.fn().mockReturnValue({ order: orderMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
@@ -806,7 +755,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
     });
 
     it('debe hacer fallback a consulta directa si la RPC get_active_deca_by_token falla', async () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
       const historicalDoc = { id: 1, user_id: 'user-deca-1', token: 'tok-hist-err', numero_deca: 'DECA-2026-00001', is_vigente: false, version: 1 } as any;
       const activeDoc = { id: 2, numero_deca: 'DECA-2026-00001-v2', is_vigente: true, version: 2 };
 

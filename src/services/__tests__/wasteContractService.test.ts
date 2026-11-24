@@ -126,7 +126,7 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       const origFetch = (global as any).fetch;
       (global as any).fetch = jest.fn().mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ contract: { id: 7, estado: 'vigente', firma_gestor_url: 'u' } }),
+        json: async () => ({ data: { id: 7, estado: 'vigente', firma_gestor_url: 'u' } }),
       });
       mockSupabase.rpc
         .mockResolvedValueOnce({ data: { id: 7 }, error: null })
@@ -1281,587 +1281,587 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
   });
 
   describe('Helper utilities: generateContractNumber, validateDates, isCurrentlyActive', () => {
-      it('debe generar el número de contrato coherente con la empresa', () => {
-        const numberWithId = wasteContractService.generateContractNumber(42);
-        expect(numberWithId).toMatch(/^CT-EMP42-\d{4}-\d{6}$/);
+    it('debe generar el número de contrato coherente con la empresa', () => {
+      const numberWithId = wasteContractService.generateContractNumber(42);
+      expect(numberWithId).toMatch(/^CT-EMP42-\d{4}-\d{6}$/);
 
-        const numberWithCif = wasteContractService.generateContractNumber(42, 'B-12345678');
-        expect(numberWithCif).toMatch(/^CT-B12345678-\d{4}-\d{6}$/);
-      });
-
-      it('debe validar fechas correctamente', () => {
-        expect(wasteContractService.validateDates('2026-01-01', '2026-12-31')).toBe(true);
-        expect(wasteContractService.validateDates('2026-12-31', '2026-01-01')).toBe(false);
-      });
-
-      it('debe verificar si un contrato está vigente', () => {
-        const past = new Date(Date.now() - 86400000).toISOString();
-        const future = new Date(Date.now() + 86400000).toISOString();
-
-        expect(wasteContractService.isCurrentlyActive({ estado: 'borrador' } as any)).toBe(false);
-
-        expect(wasteContractService.isCurrentlyActive({
-          estado: 'vigente',
-          fecha_inicio: future,
-        } as any)).toBe(false);
-
-        expect(wasteContractService.isCurrentlyActive({
-          estado: 'vigente',
-          fecha_inicio: past,
-          fecha_fin: past,
-        } as any)).toBe(false);
-
-        expect(wasteContractService.isCurrentlyActive({
-          estado: 'vigente',
-          fecha_inicio: past,
-          fecha_fin: future,
-        } as any)).toBe(true);
-      });
+      const numberWithCif = wasteContractService.generateContractNumber(42, 'B-12345678');
+      expect(numberWithCif).toMatch(/^CT-B12345678-\d{4}-\d{6}$/);
     });
 
-    describe('getExpiringSoon', () => {
-      it('debe consultar contratos vigentes entre hoy y 30 días filtrando por tenant', async () => {
-        setupTenantContext('user-1', [{ id: 10 }]);
-        const mockExpiring = [{ id: 1, fecha_fin: '2026-11-01' }];
-        const queryChain = {
-          select: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          or: jest.fn().mockReturnThis(),
-          lte: jest.fn().mockReturnThis(),
-          gte: jest.fn().mockReturnThis(),
-          order: jest.fn().mockResolvedValue({ data: mockExpiring, error: null }),
-        };
-
-        mockSupabase.from.mockImplementation((table: string) => {
-          if (table === 'companies') {
-            return {
-              select: jest.fn().mockReturnThis(),
-              eq: jest.fn().mockResolvedValue({ data: [{ id: 10 }], error: null }),
-            };
-          }
-          if (table === 'waste_contracts') return queryChain;
-          return null;
-        });
-
-        const res = await wasteContractService.getExpiringSoon();
-        expect(queryChain.eq).toHaveBeenCalledWith('estado', 'vigente');
-        expect(queryChain.or).toHaveBeenCalledWith(
-          'user_id.eq.user-1,company_id.in.(10),gestor_company_id.in.(10)'
-        );
-        expect(res).toEqual(mockExpiring);
-      });
-
-      it('debe lanzar error cuando falla getExpiringSoon', async () => {
-        setupTenantContext('user-1', []);
-        const queryChain = {
-          select: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          or: jest.fn().mockReturnThis(),
-          lte: jest.fn().mockReturnThis(),
-          gte: jest.fn().mockReturnThis(),
-          order: jest.fn().mockResolvedValue({ data: null, error: { message: 'Query timeout' } }),
-        };
-
-        mockSupabase.from.mockImplementation((table: string) => {
-          if (table === 'companies') {
-            return {
-              select: jest.fn().mockReturnThis(),
-              eq: jest.fn().mockResolvedValue({ data: [], error: null }),
-            };
-          }
-          if (table === 'waste_contracts') return queryChain;
-          return null;
-        });
-
-        await expect(wasteContractService.getExpiringSoon()).rejects.toThrow(
-          'Error al obtener contratos por vencer: Query timeout'
-        );
-      });
+    it('debe validar fechas correctamente', () => {
+      expect(wasteContractService.validateDates('2026-01-01', '2026-12-31')).toBe(true);
+      expect(wasteContractService.validateDates('2026-12-31', '2026-01-01')).toBe(false);
     });
 
-    describe('signContract & signContractByToken', () => {
-      const dummySignature = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY44YAAAAASUVORK5CYII=';
+    it('debe verificar si un contrato está vigente', () => {
+      const past = new Date(Date.now() - 86400000).toISOString();
+      const future = new Date(Date.now() + 86400000).toISOString();
 
-      it('debe fallar signContract si el usuario no está autenticado', async () => {
-        mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
+      expect(wasteContractService.isCurrentlyActive({ estado: 'borrador' } as any)).toBe(false);
 
-        await expect(
-          wasteContractService.signContract(1, dummySignature, 'productor')
-        ).rejects.toThrow('Usuario no autenticado');
+      expect(wasteContractService.isCurrentlyActive({
+        estado: 'vigente',
+        fecha_inicio: future,
+      } as any)).toBe(false);
+
+      expect(wasteContractService.isCurrentlyActive({
+        estado: 'vigente',
+        fecha_inicio: past,
+        fecha_fin: past,
+      } as any)).toBe(false);
+
+      expect(wasteContractService.isCurrentlyActive({
+        estado: 'vigente',
+        fecha_inicio: past,
+        fecha_fin: future,
+      } as any)).toBe(true);
+    });
+  });
+
+  describe('getExpiringSoon', () => {
+    it('debe consultar contratos vigentes entre hoy y 30 días filtrando por tenant', async () => {
+      setupTenantContext('user-1', [{ id: 10 }]);
+      const mockExpiring = [{ id: 1, fecha_fin: '2026-11-01' }];
+      const queryChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        order: jest.fn().mockResolvedValue({ data: mockExpiring, error: null }),
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [{ id: 10 }], error: null }),
+          };
+        }
+        if (table === 'waste_contracts') return queryChain;
+        return null;
       });
 
-      it('debe subir la firma y actualizar contrato para rol productor', async () => {
-        mockSupabase.auth.getUser.mockResolvedValue({
-          data: { user: { id: 'u-signer' } },
-        });
+      const res = await wasteContractService.getExpiringSoon();
+      expect(queryChain.eq).toHaveBeenCalledWith('estado', 'vigente');
+      expect(queryChain.or).toHaveBeenCalledWith(
+        'user_id.eq.user-1,company_id.in.(10),gestor_company_id.in.(10)'
+      );
+      expect(res).toEqual(mockExpiring);
+    });
 
-        mockStorageFrom.upload.mockResolvedValue({ error: null });
-        mockStorageFrom.getPublicUrl.mockReturnValue({
-          data: { publicUrl: 'https://storage/signature-prod.png' },
-        });
+    it('debe lanzar error cuando falla getExpiringSoon', async () => {
+      setupTenantContext('user-1', []);
+      const queryChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        order: jest.fn().mockResolvedValue({ data: null, error: { message: 'Query timeout' } }),
+      };
 
-        const updateSpy = jest.spyOn(wasteContractService, 'update').mockResolvedValue({
-          id: 1,
-          firma_productor_url: 'https://storage/signature-prod.png',
-        } as any);
-
-        const res = await wasteContractService.signContract(1, dummySignature, 'productor');
-
-        expect(mockStorageFrom.upload).toHaveBeenCalled();
-        expect(updateSpy).toHaveBeenCalledWith(1, expect.objectContaining({
-          firma_productor_url: 'https://storage/signature-prod.png',
-          firmado_productor: true,
-        }));
-        expect(res.firma_productor_url).toBe('https://storage/signature-prod.png');
-
-        updateSpy.mockRestore();
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'waste_contracts') return queryChain;
+        return null;
       });
 
-      it('debe subir la firma y actualizar contrato para rol gestor', async () => {
-        mockSupabase.auth.getUser.mockResolvedValue({
-          data: { user: { id: 'u-signer' } },
-        });
+      await expect(wasteContractService.getExpiringSoon()).rejects.toThrow(
+        'Error al obtener contratos por vencer: Query timeout'
+      );
+    });
+  });
 
-        mockStorageFrom.upload.mockResolvedValue({ error: null });
-        mockStorageFrom.getPublicUrl.mockReturnValue({
-          data: { publicUrl: 'https://storage/signature-gestor.png' },
-        });
+  describe('signContract & signContractByToken', () => {
+    const dummySignature = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY44YAAAAASUVORK5CYII=';
 
-        const updateSpy = jest.spyOn(wasteContractService, 'update').mockResolvedValue({
-          id: 2,
-          firma_gestor_url: 'https://storage/signature-gestor.png',
-        } as any);
+    it('debe fallar signContract si el usuario no está autenticado', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
 
-        const res = await wasteContractService.signContract(2, dummySignature, 'gestor');
+      await expect(
+        wasteContractService.signContract(1, dummySignature, 'productor')
+      ).rejects.toThrow('Usuario no autenticado');
+    });
 
-        expect(updateSpy).toHaveBeenCalledWith(2, expect.objectContaining({
-          firma_gestor_url: 'https://storage/signature-gestor.png',
-          firmado_gestor: true,
-        }));
-
-        updateSpy.mockRestore();
+    it('debe subir la firma y actualizar contrato para rol productor', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'u-signer' } },
       });
 
-      it('debe congelar y persistir metadata_snapshot completo al firmar el contrato (RES6-I02)', async () => {
-        mockSupabase.auth.getUser.mockResolvedValue({
-          data: { user: { id: 'u-signer' } },
-        });
+      mockStorageFrom.upload.mockResolvedValue({ error: null });
+      mockStorageFrom.getPublicUrl.mockReturnValue({
+        data: { publicUrl: 'https://storage/signature-prod.png' },
+      });
 
-        mockStorageFrom.upload.mockResolvedValue({ error: null });
-        mockStorageFrom.getPublicUrl.mockReturnValue({
-          data: { publicUrl: 'https://storage/signature-prod.png' },
-        });
+      const updateSpy = jest.spyOn(wasteContractService, 'update').mockResolvedValue({
+        id: 1,
+        firma_productor_url: 'https://storage/signature-prod.png',
+      } as any);
 
-        const mockContractWithAllRelations: any = {
-          id: 1,
+      const res = await wasteContractService.signContract(1, dummySignature, 'productor');
+
+      expect(mockStorageFrom.upload).toHaveBeenCalled();
+      expect(updateSpy).toHaveBeenCalledWith(1, expect.objectContaining({
+        firma_productor_url: 'https://storage/signature-prod.png',
+        firmado_productor: true,
+      }));
+      expect(res.firma_productor_url).toBe('https://storage/signature-prod.png');
+
+      updateSpy.mockRestore();
+    });
+
+    it('debe subir la firma y actualizar contrato para rol gestor', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'u-signer' } },
+      });
+
+      mockStorageFrom.upload.mockResolvedValue({ error: null });
+      mockStorageFrom.getPublicUrl.mockReturnValue({
+        data: { publicUrl: 'https://storage/signature-gestor.png' },
+      });
+
+      const updateSpy = jest.spyOn(wasteContractService, 'update').mockResolvedValue({
+        id: 2,
+        firma_gestor_url: 'https://storage/signature-gestor.png',
+      } as any);
+
+      const res = await wasteContractService.signContract(2, dummySignature, 'gestor');
+
+      expect(updateSpy).toHaveBeenCalledWith(2, expect.objectContaining({
+        firma_gestor_url: 'https://storage/signature-gestor.png',
+        firmado_gestor: true,
+      }));
+
+      updateSpy.mockRestore();
+    });
+
+    it('debe congelar y persistir metadata_snapshot completo al firmar el contrato (RES6-I02)', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'u-signer' } },
+      });
+
+      mockStorageFrom.upload.mockResolvedValue({ error: null });
+      mockStorageFrom.getPublicUrl.mockReturnValue({
+        data: { publicUrl: 'https://storage/signature-prod.png' },
+      });
+
+      const mockContractWithAllRelations: any = {
+        id: 1,
+        version: 2,
+        company: {
+          razon_social: 'Productor Test S.L.',
+          cif: 'B12345678',
+          nima: '1234567890',
+          domicilio_social: 'Calle Test 1',
+          municipio_social: 'Madrid',
+          numero_autorizacion: 'AUT-01',
+        },
+        gestor_company: {
+          razon_social: 'Gestor Test S.A.',
+          cif: 'A87654321',
+          nima: '0987654321',
+          domicilio_social: 'Polígono Gestor',
+          municipio_social: 'Sevilla',
+          numero_autorizacion: 'AUT-02',
+        },
+        producer_center: {
+          nombre: 'Centro Madrid',
+          nima: '1234567890',
+        },
+        gestor_center: {
+          nombre: 'Planta Sevilla',
+          nima: '0987654321',
+        },
+      };
+
+      const getByIdSpy = jest.spyOn(wasteContractService, 'getById').mockResolvedValue(mockContractWithAllRelations);
+      const updateSpy = jest.spyOn(wasteContractService, 'update').mockResolvedValue({
+        id: 1,
+        firmado_productor: true,
+      } as any);
+
+      await wasteContractService.signContract(1, dummySignature, 'productor');
+
+      expect(updateSpy).toHaveBeenCalledWith(1, expect.objectContaining({
+        firmado_productor: true,
+        metadata_snapshot: expect.objectContaining({
           version: 2,
-          company: {
-            razon_social: 'Productor Test S.L.',
-            cif: 'B12345678',
-            nima: '1234567890',
-            domicilio_social: 'Calle Test 1',
-            municipio_social: 'Madrid',
-            numero_autorizacion: 'AUT-01',
-          },
-          gestor_company: {
-            razon_social: 'Gestor Test S.A.',
-            cif: 'A87654321',
-            nima: '0987654321',
-            domicilio_social: 'Polígono Gestor',
-            municipio_social: 'Sevilla',
-            numero_autorizacion: 'AUT-02',
-          },
-          producer_center: {
-            nombre: 'Centro Madrid',
-            nima: '1234567890',
-          },
-          gestor_center: {
-            nombre: 'Planta Sevilla',
-            nima: '0987654321',
-          },
-        };
+          company: expect.objectContaining({ razon_social: 'Productor Test S.L.' }),
+          gestor_company: expect.objectContaining({ razon_social: 'Gestor Test S.A.' }),
+          producer_center: expect.objectContaining({ nombre: 'Centro Madrid' }),
+          gestor_center: expect.objectContaining({ nombre: 'Planta Sevilla' }),
+        }),
+      }));
 
-        const getByIdSpy = jest.spyOn(wasteContractService, 'getById').mockResolvedValue(mockContractWithAllRelations);
-        const updateSpy = jest.spyOn(wasteContractService, 'update').mockResolvedValue({
-          id: 1,
-          firmado_productor: true,
-        } as any);
-
-        await wasteContractService.signContract(1, dummySignature, 'productor');
-
-        expect(updateSpy).toHaveBeenCalledWith(1, expect.objectContaining({
-          firmado_productor: true,
-          metadata_snapshot: expect.objectContaining({
-            version: 2,
-            company: expect.objectContaining({ razon_social: 'Productor Test S.L.' }),
-            gestor_company: expect.objectContaining({ razon_social: 'Gestor Test S.A.' }),
-            producer_center: expect.objectContaining({ nombre: 'Centro Madrid' }),
-            gestor_center: expect.objectContaining({ nombre: 'Planta Sevilla' }),
-          }),
-        }));
-
-        getByIdSpy.mockRestore();
-        updateSpy.mockRestore();
-      });
-
-      it('debe lanzar error si upload falla en signContract', async () => {
-        mockSupabase.auth.getUser.mockResolvedValue({
-          data: { user: { id: 'u-signer' } },
-        });
-
-        mockStorageFrom.upload.mockResolvedValue({ error: { message: 'Storage error' } });
-
-        await expect(
-          wasteContractService.signContract(1, dummySignature, 'productor')
-        ).rejects.toThrow('Error al subir firma: Storage error');
-      });
-
-      it('debe firmar por token público correctamente', async () => {
-        jest.spyOn(wasteContractService, 'getBySigningToken').mockResolvedValue({
-          id: 77,
-          signing_token: 'token-abc',
-        } as any);
-
-        mockStorageFrom.upload.mockResolvedValue({ error: null });
-        mockStorageFrom.getPublicUrl.mockReturnValue({
-          data: { publicUrl: 'https://storage/pub-sign.png' },
-        });
-
-        mockSupabase.rpc.mockResolvedValue({
-          data: { id: 77, firma_gestor_url: 'https://storage/pub-sign.png' },
-          error: null,
-        });
-
-        const res = await wasteContractService.signContractByToken('token-abc', dummySignature, 'gestor');
-
-        expect(res.firma_gestor_url).toBe('https://storage/pub-sign.png');
-      });
-
-      it('debe lanzar error si el token no es válido en signContractByToken', async () => {
-        jest.spyOn(wasteContractService, 'getBySigningToken').mockResolvedValue(null);
-
-        await expect(
-          wasteContractService.signContractByToken('invalid', dummySignature, 'productor')
-        ).rejects.toThrow('Contrato no encontrado o token inválido');
-      });
-
-      it('debe hacer fallback a Data URI si la subida falla y lanzar error si la actualización falla en signContractByToken', async () => {
-        jest.spyOn(wasteContractService, 'getBySigningToken').mockResolvedValue({ id: 10 } as any);
-        mockStorageFrom.upload.mockResolvedValueOnce({ error: { message: 'Upload fail' } });
-        mockSupabase.rpc.mockResolvedValueOnce({
-          data: { id: 10, firma_productor_url: dummySignature },
-          error: null,
-        });
-
-        const fallbackSigned = await wasteContractService.signContractByToken('tok', dummySignature, 'productor');
-        expect(fallbackSigned.firma_productor_url).toBe(dummySignature);
-
-        mockStorageFrom.upload.mockResolvedValue({ error: null });
-        mockStorageFrom.getPublicUrl.mockReturnValue({ data: { publicUrl: 'url' } });
-
-        mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: 'Token update fail' } });
-
-        await expect(
-          wasteContractService.signContractByToken('tok', dummySignature, 'productor')
-        ).rejects.toThrow('Error al actualizar firma: Token update fail');
-      });
+      getByIdSpy.mockRestore();
+      updateSpy.mockRestore();
     });
 
-    describe('validateContractActivation helper', () => {
-      it('debe retornar canActivate: false si faltan campos obligatorios', () => {
-        const incompleteContract: any = {};
-        const res = validateContractActivation(incompleteContract);
-
-        expect(res.canActivate).toBe(false);
-        expect(res.errors).toEqual(
-          expect.arrayContaining([
-            expect.stringContaining('empresa productora'),
-            expect.stringContaining('gestor de tratamiento'),
-            expect.stringContaining('fechas de inicio y fin'),
-            expect.stringContaining('código LER'),
-            expect.stringContaining('operación de tratamiento'),
-          ])
-        );
+    it('debe lanzar error si upload falla en signContract', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'u-signer' } },
       });
 
-      it('debe validar cuando el contrato ya ha expirado', () => {
-        const expiredContract: any = {
-          company_id: 1,
-          gestor_company_id: 2,
-          fecha_inicio: '2020-01-01',
-          fecha_fin: '2020-12-31',
-          codigos_ler: ['15 01 01'],
-          operaciones_tratamiento: ['R03'],
-        };
+      mockStorageFrom.upload.mockResolvedValue({ error: { message: 'Storage error' } });
 
-        const res = validateContractActivation(expiredContract);
-        expect(res.canActivate).toBe(false);
-        expect(res.checklist.isNotExpired).toBe(false);
-        expect(res.errors).toEqual(
-          expect.arrayContaining([expect.stringContaining('ya ha expirado')])
-        );
+      await expect(
+        wasteContractService.signContract(1, dummySignature, 'productor')
+      ).rejects.toThrow('Error al subir firma: Storage error');
+    });
+
+    it('debe firmar por token público correctamente', async () => {
+      jest.spyOn(wasteContractService, 'getBySigningToken').mockResolvedValue({
+        id: 77,
+        signing_token: 'token-abc',
+      } as any);
+
+      mockStorageFrom.upload.mockResolvedValue({ error: null });
+      mockStorageFrom.getPublicUrl.mockReturnValue({
+        data: { publicUrl: 'https://storage/pub-sign.png' },
       });
 
-      it('debe retornar canActivate: true cuando cumple todos los requisitos legales', () => {
-        const futureDate = new Date();
-        futureDate.setDate(futureDate.getDate() + 60);
-
-        const validContract: any = {
-          company: { id: 1, razon_social: 'Productor' },
-          gestor_company: { id: 2, razon_social: 'Gestor' },
-          fecha_inicio: '2026-01-01',
-          fecha_fin: futureDate.toISOString().split('T')[0],
-          contract_waste_codes: [
-            { codigo_ler: '15 01 02', operacion_tratamiento: 'R03' },
-          ],
-        };
-
-        const res = validateContractActivation(validContract);
-        expect(res.canActivate).toBe(true);
-        expect(res.valid).toBe(true);
-        expect(res.errors).toHaveLength(0);
-        expect(res.checklist.hasSignatures).toBe(false);
-        expect(res.warnings).toEqual(
-          expect.arrayContaining([expect.stringContaining('firmado por el productor y el gestor')])
-        );
+      mockSupabase.rpc.mockResolvedValue({
+        data: { id: 77, firma_gestor_url: 'https://storage/pub-sign.png' },
+        error: null,
       });
 
-      it('debe bloquear la activación cuando faltan firmas explícitas o requireSignatures es true, y permitirla con firmas o documento adjunto', () => {
-        const futureDate = new Date();
-        futureDate.setDate(futureDate.getDate() + 60);
+      const res = await wasteContractService.signContractByToken('token-abc', dummySignature, 'gestor');
 
-        const baseContract: any = {
-          company: { id: 1, razon_social: 'Productor' },
-          gestor_company: { id: 2, razon_social: 'Gestor' },
-          fecha_inicio: '2026-01-01',
-          fecha_fin: futureDate.toISOString().split('T')[0],
-          cantidad_maxima_anual: 25,
-          contract_waste_codes: [
-            { codigo_ler: '15 01 02', operacion_tratamiento: 'R03' },
-          ],
-        };
+      expect(res.firma_gestor_url).toBe('https://storage/pub-sign.png');
+    });
 
-        const rejectedByFlag = validateContractActivation({
+    it('debe lanzar error si el token no es válido en signContractByToken', async () => {
+      jest.spyOn(wasteContractService, 'getBySigningToken').mockResolvedValue(null);
+
+      await expect(
+        wasteContractService.signContractByToken('invalid', dummySignature, 'productor')
+      ).rejects.toThrow('Contrato no encontrado o token inválido');
+    });
+
+    it('debe hacer fallback a Data URI si la subida falla y lanzar error si la actualización falla en signContractByToken', async () => {
+      jest.spyOn(wasteContractService, 'getBySigningToken').mockResolvedValue({ id: 10 } as any);
+      mockStorageFrom.upload.mockResolvedValueOnce({ error: { message: 'Upload fail' } });
+      mockSupabase.rpc.mockResolvedValueOnce({
+        data: { id: 10, firma_productor_url: dummySignature },
+        error: null,
+      });
+
+      const fallbackSigned = await wasteContractService.signContractByToken('tok', dummySignature, 'productor');
+      expect(fallbackSigned.firma_productor_url).toBe(dummySignature);
+
+      mockStorageFrom.upload.mockResolvedValue({ error: null });
+      mockStorageFrom.getPublicUrl.mockReturnValue({ data: { publicUrl: 'url' } });
+
+      mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: 'Token update fail' } });
+
+      await expect(
+        wasteContractService.signContractByToken('tok', dummySignature, 'productor')
+      ).rejects.toThrow('Error al actualizar firma: Token update fail');
+    });
+  });
+
+  describe('validateContractActivation helper', () => {
+    it('debe retornar canActivate: false si faltan campos obligatorios', () => {
+      const incompleteContract: any = {};
+      const res = validateContractActivation(incompleteContract);
+
+      expect(res.canActivate).toBe(false);
+      expect(res.errors).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('empresa productora'),
+          expect.stringContaining('gestor de tratamiento'),
+          expect.stringContaining('fechas de inicio y fin'),
+          expect.stringContaining('código LER'),
+          expect.stringContaining('operación de tratamiento'),
+        ])
+      );
+    });
+
+    it('debe validar cuando el contrato ya ha expirado', () => {
+      const expiredContract: any = {
+        company_id: 1,
+        gestor_company_id: 2,
+        fecha_inicio: '2020-01-01',
+        fecha_fin: '2020-12-31',
+        codigos_ler: ['15 01 01'],
+        operaciones_tratamiento: ['R03'],
+      };
+
+      const res = validateContractActivation(expiredContract);
+      expect(res.canActivate).toBe(false);
+      expect(res.checklist.isNotExpired).toBe(false);
+      expect(res.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('ya ha expirado')])
+      );
+    });
+
+    it('debe retornar canActivate: true cuando cumple todos los requisitos legales', () => {
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 60);
+
+      const validContract: any = {
+        company: { id: 1, razon_social: 'Productor' },
+        gestor_company: { id: 2, razon_social: 'Gestor' },
+        fecha_inicio: '2026-01-01',
+        fecha_fin: futureDate.toISOString().split('T')[0],
+        contract_waste_codes: [
+          { codigo_ler: '15 01 02', operacion_tratamiento: 'R03' },
+        ],
+      };
+
+      const res = validateContractActivation(validContract);
+      expect(res.canActivate).toBe(true);
+      expect(res.valid).toBe(true);
+      expect(res.errors).toHaveLength(0);
+      expect(res.checklist.hasSignatures).toBe(false);
+      expect(res.warnings).toEqual(
+        expect.arrayContaining([expect.stringContaining('firmado por el productor y el gestor')])
+      );
+    });
+
+    it('debe bloquear la activación cuando faltan firmas explícitas o requireSignatures es true, y permitirla con firmas o documento adjunto', () => {
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 60);
+
+      const baseContract: any = {
+        company: { id: 1, razon_social: 'Productor' },
+        gestor_company: { id: 2, razon_social: 'Gestor' },
+        fecha_inicio: '2026-01-01',
+        fecha_fin: futureDate.toISOString().split('T')[0],
+        cantidad_maxima_anual: 25,
+        contract_waste_codes: [
+          { codigo_ler: '15 01 02', operacion_tratamiento: 'R03' },
+        ],
+      };
+
+      const rejectedByFlag = validateContractActivation({
+        ...baseContract,
+        firmado_productor: false,
+        firmado_gestor: true,
+      });
+      expect(rejectedByFlag.canActivate).toBe(false);
+      expect(rejectedByFlag.checklist.hasSignatures).toBe(false);
+      expect(rejectedByFlag.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('Art. 5 del RD 553/2020')])
+      );
+
+      const rejectedStrict = validateContractActivation(baseContract, { requireSignatures: true });
+      expect(rejectedStrict.canActivate).toBe(false);
+
+      const signedBoth = validateContractActivation(
+        {
           ...baseContract,
-          firmado_productor: false,
-          firmado_gestor: true,
-        });
-        expect(rejectedByFlag.canActivate).toBe(false);
-        expect(rejectedByFlag.checklist.hasSignatures).toBe(false);
-        expect(rejectedByFlag.errors).toEqual(
-          expect.arrayContaining([expect.stringContaining('Art. 5 del RD 553/2020')])
-        );
+          firma_productor_url: 'https://storage/p.png',
+          firma_gestor_url: 'https://storage/g.png',
+        },
+        { requireSignatures: true }
+      );
+      expect(signedBoth.canActivate).toBe(true);
+      expect(signedBoth.checklist.hasSignatures).toBe(true);
+      expect(signedBoth.warnings).toHaveLength(0);
 
-        const rejectedStrict = validateContractActivation(baseContract, { requireSignatures: true });
-        expect(rejectedStrict.canActivate).toBe(false);
+      const withDoc = validateContractActivation(
+        { ...baseContract, documento_url: 'https://storage/contrato.pdf' },
+        { requireSignatures: true }
+      );
+      expect(withDoc.canActivate).toBe(true);
+      expect(withDoc.checklist.hasSignatures).toBe(true);
+    });
+  });
 
-        const signedBoth = validateContractActivation(
-          {
-            ...baseContract,
-            firma_productor_url: 'https://storage/p.png',
-            firma_gestor_url: 'https://storage/g.png',
-          },
-          { requireSignatures: true }
-        );
-        expect(signedBoth.canActivate).toBe(true);
-        expect(signedBoth.checklist.hasSignatures).toBe(true);
-        expect(signedBoth.warnings).toHaveLength(0);
+  describe('getContractEffectiveStatus helper', () => {
+    it('debe manejar estados cancelado, finalizado y pendiente_firma directamente', () => {
+      expect(getContractEffectiveStatus({ estado: 'cancelado' } as any)).toEqual({
+        status: 'cancelado',
+        isExpired: false,
+        label: 'Cancelado',
+      });
 
-        const withDoc = validateContractActivation(
-          { ...baseContract, documento_url: 'https://storage/contrato.pdf' },
-          { requireSignatures: true }
-        );
-        expect(withDoc.canActivate).toBe(true);
-        expect(withDoc.checklist.hasSignatures).toBe(true);
+      expect(getContractEffectiveStatus({ estado: 'finalizado' } as any)).toEqual({
+        status: 'finalizado',
+        isExpired: false,
+        label: 'Finalizado',
+      });
+
+      expect(getContractEffectiveStatus({ estado: 'pendiente_firma' } as any)).toEqual({
+        status: 'pendiente_firma',
+        isExpired: false,
+        label: 'Pendiente de firma',
       });
     });
 
-    describe('getContractEffectiveStatus helper', () => {
-      it('debe manejar estados cancelado, finalizado y pendiente_firma directamente', () => {
-        expect(getContractEffectiveStatus({ estado: 'cancelado' } as any)).toEqual({
-          status: 'cancelado',
-          isExpired: false,
-          label: 'Cancelado',
-        });
+    it('debe manejar borrador vigente y borrador vencido', () => {
+      const future = new Date(Date.now() + 86400000).toISOString();
+      const past = new Date(Date.now() - 86400000).toISOString();
 
-        expect(getContractEffectiveStatus({ estado: 'finalizado' } as any)).toEqual({
-          status: 'finalizado',
-          isExpired: false,
-          label: 'Finalizado',
-        });
-
-        expect(getContractEffectiveStatus({ estado: 'pendiente_firma' } as any)).toEqual({
-          status: 'pendiente_firma',
-          isExpired: false,
-          label: 'Pendiente de firma',
-        });
+      expect(getContractEffectiveStatus({ estado: 'borrador', fecha_fin: future } as any)).toEqual({
+        status: 'borrador',
+        isExpired: false,
+        label: 'Borrador',
       });
 
-      it('debe manejar borrador vigente y borrador vencido', () => {
-        const future = new Date(Date.now() + 86400000).toISOString();
-        const past = new Date(Date.now() - 86400000).toISOString();
-
-        expect(getContractEffectiveStatus({ estado: 'borrador', fecha_fin: future } as any)).toEqual({
-          status: 'borrador',
-          isExpired: false,
-          label: 'Borrador',
-        });
-
-        expect(getContractEffectiveStatus({ estado: 'borrador', fecha_fin: past } as any)).toEqual({
-          status: 'borrador',
-          isExpired: true,
-          label: 'Borrador (Vencido)',
-        });
-      });
-
-      it('debe determinar si un contrato vigente ha caducado', () => {
-        const future = new Date(Date.now() + 86400000).toISOString();
-        const past = new Date(Date.now() - 86400000).toISOString();
-
-        expect(getContractEffectiveStatus({ estado: 'vigente', fecha_fin: future } as any)).toEqual({
-          status: 'vigente',
-          isExpired: false,
-          label: 'Vigente',
-        });
-
-        expect(getContractEffectiveStatus({ estado: 'vigente', fecha_fin: past } as any)).toEqual({
-          status: 'caducado',
-          isExpired: true,
-          label: 'Caducado',
-        });
+      expect(getContractEffectiveStatus({ estado: 'borrador', fecha_fin: past } as any)).toEqual({
+        status: 'borrador',
+        isExpired: true,
+        label: 'Borrador (Vencido)',
       });
     });
 
-    describe('detectContractMaterialChanges y resolveGestorReferences', () => {
-      it('detectContractMaterialChanges debe detectar cambios en todos los campos materiales', () => {
-        expect(detectContractMaterialChanges(null, { cantidad_maxima_anual: 10 })).toEqual({
-          hasMaterialChange: false,
-          changedFields: [],
-        });
+    it('debe determinar si un contrato vigente ha caducado', () => {
+      const future = new Date(Date.now() + 86400000).toISOString();
+      const past = new Date(Date.now() - 86400000).toISOString();
 
-        const existing: any = {
-          cantidad_maxima_anual: 10,
-          unidad_cantidad: 'toneladas',
-          precio_unitario: 50,
-          frecuencia_recogida: 'semanal',
-          tipo_contrato: 'tratamiento',
-          fecha_inicio: '2026-01-01',
-          fecha_fin: '2026-12-31',
-          descripcion_residuos: 'Residuo A',
-          notas: 'Nota 1',
-          company_id: 1,
-          gestor_company_id: 2,
-          treatment_manager_id: 3,
-          producer_center_id: 4,
-          gestor_center_id: 5,
-          codigos_ler: ['15 01 01'],
-          operaciones_tratamiento: ['R03'],
-          contract_waste_codes: [
-            { codigo_ler: '15 01 01', operacion_tratamiento: 'R03', cantidad_estimada_anual: 10, tarifa_gestion: 50 },
-          ],
-        };
-
-        const res = detectContractMaterialChanges(existing, {
-          cantidad_maxima_anual: 20,
-          unidad_cantidad: 'kg',
-          precio_unitario: 60,
-          frecuencia_recogida: 'mensual',
-          tipo_contrato: 'recogida' as any,
-          fecha_inicio: '2026-02-01',
-          fecha_fin: '2027-01-31',
-          descripcion_residuos: 'Residuo B',
-          notas: 'Nota 2',
-          company_id: 10,
-          gestor_company_id: 20,
-          treatment_manager_id: 30,
-          producer_center_id: 40,
-          gestor_center_id: 50,
-          codigos_ler: ['15 01 02'],
-          operaciones_tratamiento: ['R12'],
-          contract_waste_codes: [
-            { codigo_ler: '15 01 02', operacion_tratamiento: 'R12', cantidad_estimada_anual: 20, tarifa_gestion: 60 },
-          ],
-        });
-
-        expect(res.hasMaterialChange).toBe(true);
-        expect(res.changedFields).toEqual(
-          expect.arrayContaining([
-            'cantidad_maxima_anual',
-            'unidad_cantidad',
-            'precio_unitario',
-            'frecuencia_recogida',
-            'tipo_contrato',
-            'fecha_inicio',
-            'fecha_fin',
-            'descripcion_residuos',
-            'notas',
-            'company_id',
-            'gestor_company_id',
-            'treatment_manager_id',
-            'producer_center_id',
-            'gestor_center_id',
-            'codigos_ler',
-            'operaciones_tratamiento',
-            'contract_waste_codes',
-          ])
-        );
+      expect(getContractEffectiveStatus({ estado: 'vigente', fecha_fin: future } as any)).toEqual({
+        status: 'vigente',
+        isExpired: false,
+        label: 'Vigente',
       });
 
-      it('create y update deben resolver treatment_manager_id contra companies cuando no existe en treatment_managers', async () => {
-        mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'u1' } } });
-        const insertMock = jest.fn().mockReturnValue({
-          select: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({ data: { id: 1, gestor_company_id: 88 }, error: null }),
-          }),
-        });
-
-        mockSupabase.from.mockImplementation((table: string) => {
-          if (table === 'treatment_managers') {
-            return {
-              select: jest.fn().mockReturnValue({
-                eq: jest.fn().mockReturnValue({
-                  eq: jest.fn().mockReturnValue({
-                    maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
-                  }),
-                }),
-              }),
-            };
-          }
-          if (table === 'companies') {
-            return {
-              select: jest.fn().mockReturnValue({
-                eq: jest.fn().mockReturnValue({
-                  eq: jest.fn().mockReturnValue({
-                    maybeSingle: jest.fn().mockResolvedValue({ data: { id: 88 }, error: null }),
-                  }),
-                }),
-              }),
-            };
-          }
-          if (table === 'waste_contracts') {
-            return { insert: insertMock };
-          }
-          return null;
-        });
-
-        await wasteContractService.create({
-          company_id: 1,
-          treatment_manager_id: 88,
-          tipo_contrato: 'tratamiento',
-          numero_contrato: 'CT-88',
-          fecha_contrato: '2026-01-01',
-          fecha_inicio: '2026-01-01',
-          fecha_fin: '2026-12-31',
-          estado: 'borrador',
-          descripcion_residuos: 'Test',
-        });
-
-        expect(insertMock).toHaveBeenCalledWith(
-          expect.objectContaining({
-            treatment_manager_id: null,
-            gestor_company_id: 88,
-          })
-        );
+      expect(getContractEffectiveStatus({ estado: 'vigente', fecha_fin: past } as any)).toEqual({
+        status: 'caducado',
+        isExpired: true,
+        label: 'Caducado',
       });
     });
   });
+
+  describe('detectContractMaterialChanges y resolveGestorReferences', () => {
+    it('detectContractMaterialChanges debe detectar cambios en todos los campos materiales', () => {
+      expect(detectContractMaterialChanges(null, { cantidad_maxima_anual: 10 })).toEqual({
+        hasMaterialChange: false,
+        changedFields: [],
+      });
+
+      const existing: any = {
+        cantidad_maxima_anual: 10,
+        unidad_cantidad: 'toneladas',
+        precio_unitario: 50,
+        frecuencia_recogida: 'semanal',
+        tipo_contrato: 'tratamiento',
+        fecha_inicio: '2026-01-01',
+        fecha_fin: '2026-12-31',
+        descripcion_residuos: 'Residuo A',
+        notas: 'Nota 1',
+        company_id: 1,
+        gestor_company_id: 2,
+        treatment_manager_id: 3,
+        producer_center_id: 4,
+        gestor_center_id: 5,
+        codigos_ler: ['15 01 01'],
+        operaciones_tratamiento: ['R03'],
+        contract_waste_codes: [
+          { codigo_ler: '15 01 01', operacion_tratamiento: 'R03', cantidad_estimada_anual: 10, tarifa_gestion: 50 },
+        ],
+      };
+
+      const res = detectContractMaterialChanges(existing, {
+        cantidad_maxima_anual: 20,
+        unidad_cantidad: 'kg',
+        precio_unitario: 60,
+        frecuencia_recogida: 'mensual',
+        tipo_contrato: 'recogida' as any,
+        fecha_inicio: '2026-02-01',
+        fecha_fin: '2027-01-31',
+        descripcion_residuos: 'Residuo B',
+        notas: 'Nota 2',
+        company_id: 10,
+        gestor_company_id: 20,
+        treatment_manager_id: 30,
+        producer_center_id: 40,
+        gestor_center_id: 50,
+        codigos_ler: ['15 01 02'],
+        operaciones_tratamiento: ['R12'],
+        contract_waste_codes: [
+          { codigo_ler: '15 01 02', operacion_tratamiento: 'R12', cantidad_estimada_anual: 20, tarifa_gestion: 60 },
+        ],
+      });
+
+      expect(res.hasMaterialChange).toBe(true);
+      expect(res.changedFields).toEqual(
+        expect.arrayContaining([
+          'cantidad_maxima_anual',
+          'unidad_cantidad',
+          'precio_unitario',
+          'frecuencia_recogida',
+          'tipo_contrato',
+          'fecha_inicio',
+          'fecha_fin',
+          'descripcion_residuos',
+          'notas',
+          'company_id',
+          'gestor_company_id',
+          'treatment_manager_id',
+          'producer_center_id',
+          'gestor_center_id',
+          'codigos_ler',
+          'operaciones_tratamiento',
+          'contract_waste_codes',
+        ])
+      );
+    });
+
+    it('create y update deben resolver treatment_manager_id contra companies cuando no existe en treatment_managers', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'u1' } } });
+      const insertMock = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          single: jest.fn().mockResolvedValue({ data: { id: 1, gestor_company_id: 88 }, error: null }),
+        }),
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'treatment_managers') {
+          return {
+            select: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnValue({
+                eq: jest.fn().mockReturnValue({
+                  maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnValue({
+                eq: jest.fn().mockReturnValue({
+                  maybeSingle: jest.fn().mockResolvedValue({ data: { id: 88 }, error: null }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === 'waste_contracts') {
+          return { insert: insertMock };
+        }
+        return null;
+      });
+
+      await wasteContractService.create({
+        company_id: 1,
+        treatment_manager_id: 88,
+        tipo_contrato: 'tratamiento',
+        numero_contrato: 'CT-88',
+        fecha_contrato: '2026-01-01',
+        fecha_inicio: '2026-01-01',
+        fecha_fin: '2026-12-31',
+        estado: 'borrador',
+        descripcion_residuos: 'Test',
+      });
+
+      expect(insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          treatment_manager_id: null,
+          gestor_company_id: 88,
+        })
+      );
+    });
+  });
+});
