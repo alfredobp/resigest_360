@@ -454,6 +454,100 @@ describe('commercialOperationService - Operaciones Comerciales', () => {
       getByIdSpy.mockRestore();
     });
 
+    it('debe preservar y escalar líneas multimaterial al actualizar cantidad_real_t sin líneas explícitas y exportar CSV multimaterial (A7-02)', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+
+      const getByIdSpy = jest.spyOn(commercialOperationService, 'getById').mockResolvedValue({
+        id: 25,
+        numero_operacion: 'OP-2026-000025',
+        cantidad_estimada_t: 2,
+        coste_transporte: 40,
+        otros_costes: 10,
+        lineas_materiales: [
+          {
+            id: 'L1',
+            codigo_ler: '15 01 01',
+            descripcion_residuo: 'Cartón',
+            peligrosidad: 'no-peligroso',
+            cantidad_t: 1.5,
+            tipo_precio: 'por_tonelada',
+            precio_unitario_compra: 40,
+            precio_unitario_venta: 85,
+          },
+          {
+            id: 'L2',
+            codigo_ler: '15 01 02',
+            descripcion_residuo: 'Plástico',
+            peligrosidad: 'no-peligroso',
+            cantidad_t: 0.5,
+            tipo_precio: 'por_tonelada',
+            precio_unitario_compra: 60,
+            precio_unitario_venta: 110,
+          },
+        ],
+      } as any);
+
+      const updateChain = {
+        update: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({
+          data: {
+            id: 25,
+            cantidad_real_t: 4,
+            coste_compra_total: 180,
+            ingreso_venta_total: 365,
+            margen_bruto_total: 135,
+          },
+          error: null,
+        }),
+      };
+      mockSupabase.from.mockReturnValue(updateChain);
+
+      const updated = await commercialOperationService.update(25, {
+        cantidad_real_t: 4,
+      });
+
+      expect(updateChain.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cantidad_real_t: 4,
+          coste_compra_total: 180,
+          ingreso_venta_total: 365,
+          margen_bruto_total: 135,
+        })
+      );
+      expect(updated.coste_compra_total).toBe(180);
+
+      // Exportar CSV con operación multimaterial (con toneladas > 0 y con toneladas = 0)
+      commercialOperationService.exportToCSV([
+        {
+          id: 25,
+          numero_operacion: 'OP-2026-000025',
+          fecha: '2026-11-24',
+          estado: 'liquidada',
+          codigo_ler: '15 01 01',
+          descripcion_residuo: 'Multimaterial',
+          cantidad_real_t: 4,
+          coste_compra_total: 180,
+          ingreso_venta_total: 365,
+          lineas_materiales: [{ id: 'L1', codigo_ler: '15 01 01', cantidad_t: 4 }] as any,
+        } as any,
+        {
+          id: 26,
+          numero_operacion: 'OP-2026-000026',
+          fecha: '2026-11-24',
+          estado: 'borrador',
+          codigo_ler: '15 01 01',
+          descripcion_residuo: 'Multimaterial vacío',
+          cantidad_real_t: 0,
+          cantidad_estimada_t: 0,
+          lineas_materiales: [{ id: 'L1', codigo_ler: '15 01 01', cantidad_t: 0 }] as any,
+        } as any,
+      ]);
+
+      getByIdSpy.mockRestore();
+    });
+
     it('no debe sobrescribir campos económicos con cero cuando solo se actualiza el estado', async () => {
       mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
       const updateChain = {

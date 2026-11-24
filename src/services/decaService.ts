@@ -182,12 +182,7 @@ export const decaService = {
       return [];
     }
 
-    return ((data || []) as DecaDocument[]).sort(
-      (a, b) =>
-        Number(Boolean(b.is_vigente)) - Number(Boolean(a.is_vigente)) ||
-        (Number(b.version) || 0) - (Number(a.version) || 0) ||
-        (Number(b.id) || 0) - (Number(a.id) || 0)
-    );
+    return (data || []) as DecaDocument[];
   },
 
   /**
