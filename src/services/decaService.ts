@@ -175,19 +175,17 @@ export const decaService = {
       .select('*')
       .eq('identification_document_id', diId);
 
-    const { data, error } = await query.order('version', { ascending: false });
+    const { data, error } = await query
+      .order('is_vigente', { ascending: false })
+      .order('version', { ascending: false })
+      .order('id', { ascending: false });
 
     if (error) {
       console.error('[DeCA Service] Error al consultar DeCA por DI:', error.message);
       return [];
     }
 
-    return ((data || []) as DecaDocument[]).sort(
-      (a, b) =>
-        Number(Boolean(b.is_vigente)) - Number(Boolean(a.is_vigente)) ||
-        (Number(b.version) || 0) - (Number(a.version) || 0) ||
-        (Number(b.id) || 0) - (Number(a.id) || 0)
-    );
+    return (data || []) as DecaDocument[];
   },
 
   /**

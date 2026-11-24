@@ -107,8 +107,8 @@ function NuevoDocumentoIdentificacionContent() {
       const isCompanyTrader =
         company.tipo_empresa === 'negociante' ||
         company.tipo_empresa === 'agente' ||
-        (company.perfil_operativo as string) === 'negociante' ||
-        (company.perfil_operativo as string) === 'agente' ||
+        company.perfil_operativo === 'negociante' ||
+        company.perfil_operativo === 'agente' ||
         company.roles?.includes('negociante') ||
         company.roles?.includes('agente');
 
@@ -250,367 +250,367 @@ function NuevoDocumentoIdentificacionContent() {
       if (typeof window !== 'undefined') {
         const urlParams = new URLSearchParams(window.location.search);
         const queryNtId = urlParams.get('ntId');
-          if (queryNtId && acceptedNts.length > 0) {
-            const matchedNt = acceptedNts.find(n => String(n.id) === queryNtId);
-            if (matchedNt) {
-              setFormData(prev => ({
-                ...prev,
-                tipo_notificacion: 'con-notificacion-previa',
-                prior_notification_id: matchedNt.id,
-                numero_notificacion: matchedNt.numero_notificacion,
-                codigo_ler: matchedNt.codigo_ler || prev.codigo_ler,
-                descripcion_residuo: matchedNt.descripcion_residuo || prev.descripcion_residuo,
-                peligrosidad: matchedNt.peligrosidad || prev.peligrosidad,
-                operacion_tratamiento_ejecutada: matchedNt.operacion_tratamiento || prev.operacion_tratamiento_ejecutada,
-                operacion_tratamiento: matchedNt.operacion_tratamiento || prev.operacion_tratamiento,
-                gestor_razon_social: matchedNt.gestor_razon_social || prev.gestor_razon_social,
-                gestor_cif: matchedNt.gestor_cif || prev.gestor_cif,
-                gestor_nima: matchedNt.gestor_nima || prev.gestor_nima,
-              }));
-            }
+        if (queryNtId && acceptedNts.length > 0) {
+          const matchedNt = acceptedNts.find(n => String(n.id) === queryNtId);
+          if (matchedNt) {
+            setFormData(prev => ({
+              ...prev,
+              tipo_notificacion: 'con-notificacion-previa',
+              prior_notification_id: matchedNt.id,
+              numero_notificacion: matchedNt.numero_notificacion,
+              codigo_ler: matchedNt.codigo_ler || prev.codigo_ler,
+              descripcion_residuo: matchedNt.descripcion_residuo || prev.descripcion_residuo,
+              peligrosidad: matchedNt.peligrosidad || prev.peligrosidad,
+              operacion_tratamiento_ejecutada: matchedNt.operacion_tratamiento || prev.operacion_tratamiento_ejecutada,
+              operacion_tratamiento: matchedNt.operacion_tratamiento || prev.operacion_tratamiento,
+              gestor_razon_social: matchedNt.gestor_razon_social || prev.gestor_razon_social,
+              gestor_cif: matchedNt.gestor_cif || prev.gestor_cif,
+              gestor_nima: matchedNt.gestor_nima || prev.gestor_nima,
+            }));
           }
+        }
 
-          // A7-03: Si viene operationId desde Operaciones Comerciales, precargar Operador (Negociante),
-          // Productor Físico (Origen), Gestor (Destino), Transportista y Residuo LER sin arrastrar precios ni márgenes
-          const queryOpId = urlParams.get('operationId');
-          const queryLineIdx = urlParams.get('lineIndex');
-          if (queryOpId) {
-            try {
-              const opData = await commercialOperationService.getById(parseInt(queryOpId, 10));
-              if (opData) {
-                setLinkedCommercialOp(opData);
-                setExpeditionRole('operador');
+        // A7-03: Si viene operationId desde Operaciones Comerciales, precargar Operador (Negociante),
+        // Productor Físico (Origen), Gestor (Destino), Transportista y Residuo LER sin arrastrar precios ni márgenes
+        const queryOpId = urlParams.get('operationId');
+        const queryLineIdx = urlParams.get('lineIndex');
+        if (queryOpId) {
+          try {
+            const opData = await commercialOperationService.getById(parseInt(queryOpId, 10));
+            if (opData) {
+              setLinkedCommercialOp(opData);
+              setExpeditionRole('operador');
 
-                const lineIdxNum = queryLineIdx !== null ? parseInt(queryLineIdx, 10) : null;
-                const selectedLine =
-                  lineIdxNum !== null &&
+              const lineIdxNum = queryLineIdx !== null ? parseInt(queryLineIdx, 10) : null;
+              const selectedLine =
+                lineIdxNum !== null &&
                   !isNaN(lineIdxNum) &&
                   Array.isArray(opData.lineas_materiales) &&
                   opData.lineas_materiales[lineIdxNum]
-                    ? opData.lineas_materiales[lineIdxNum]
-                    : null;
-                if (selectedLine && lineIdxNum !== null) {
-                  setLinkedCommercialLineIndex(lineIdxNum);
-                }
-
-                const prodComp = opData.origen_productor || contactsData.find(
-                  (c) =>
-                    (opData.origen_productor_id && c.id === opData.origen_productor_id) ||
-                    (opData.origen_cif && c.cif?.trim().toUpperCase() === opData.origen_cif.trim().toUpperCase())
-                );
-                const gestComp = opData.destino_gestor || contactsData.find(
-                  (c) =>
-                    (opData.destino_gestor_id && c.id === opData.destino_gestor_id) ||
-                    (opData.destino_cif && c.cif?.trim().toUpperCase() === opData.destino_cif.trim().toUpperCase())
-                );
-                const transComp = opData.transportista || contactsData.find(
-                  (c) =>
-                    (opData.transportista_id && c.id === opData.transportista_id) ||
-                    (opData.transportista_cif && c.cif?.trim().toUpperCase() === opData.transportista_cif.trim().toUpperCase())
-                );
-
-                const targetLer = selectedLine?.codigo_ler || opData.codigo_ler || '';
-                const targetDesc = selectedLine?.descripcion_residuo || opData.descripcion_residuo || '';
-                const targetTon = selectedLine
-                  ? Number(selectedLine.cantidad_t || 0)
-                  : Number(opData.cantidad_real_t && opData.cantidad_real_t > 0 ? opData.cantidad_real_t : opData.cantidad_estimada_t || 0);
-                const targetKg = targetTon > 0 ? Math.round(targetTon * 1000) : undefined;
-                const isDang = targetLer.includes('*') || opData.peligrosidad === 'peligroso';
-                const mandateNote = opData.mandato_referencia
-                  ? `Operador del traslado (${company.razon_social}) con mandato escrito ref. ${opData.mandato_referencia}${opData.mandato_otorgante ? ` otorgado por ${opData.mandato_otorgante}` : ''} (Art. 2.h RD 553/2020). Operación ref. ${opData.numero_operacion}.`
-                  : `Operador del traslado: ${company.razon_social} (Ref. ${opData.numero_operacion}).`;
-
-                setFormData((prev) => ({
-                  ...prev,
-                  company_id: company.id,
-                  // Operador = Negociante
-                  operador_razon_social: company.razon_social,
-                  operador_cif: company.cif,
-                  operador_nima: defaultNima,
-                  operador_direccion: defaultDir,
-                  operador_municipio: defaultMuni,
-                  operador_provincia: defaultProv,
-                  operador_codigo_postal: defaultCP,
-                  operador_telefono: company.telefono || '',
-                  operador_email: company.email || '',
-                  operador_tipo: (company.tipo_empresa === 'agente' ? 'agente' : 'negociante') as any,
-                  // Productor Físico (Origen del tercero)
-                  productor_razon_social:
-                    opData.origen_nombre_personalizado || prodComp?.razon_social || opData.proveedor_razon_social || '',
-                  productor_cif:
-                    opData.origen_cif || prodComp?.cif || opData.proveedor_cif || '',
-                  productor_nima:
-                    opData.origen_nima || opData.origen_center?.nima || prodComp?.nima || '',
-                  productor_direccion:
-                    opData.origen_center?.direccion ||
-                    prodComp?.domicilio_instalacion ||
-                    prodComp?.domicilio_social ||
-                    '',
-                  productor_municipio:
-                    opData.origen_center?.municipio ||
-                    prodComp?.municipio_instalacion ||
-                    prodComp?.municipio_social ||
-                    defaultMuni ||
-                    '',
-                  productor_provincia:
-                    opData.origen_center?.provincia ||
-                    prodComp?.provincia_instalacion ||
-                    prodComp?.provincia_social ||
-                    defaultProv ||
-                    '',
-                  productor_codigo_postal:
-                    opData.origen_center?.codigo_postal ||
-                    prodComp?.codigo_postal_instalacion ||
-                    prodComp?.codigo_postal_social ||
-                    '',
-                  // Gestor Destino
-                  gestor_company_id: gestComp?.id || opData.destino_gestor_id || undefined,
-                  gestor_razon_social:
-                    opData.destino_nombre_personalizado || gestComp?.razon_social || opData.cliente_razon_social || '',
-                  gestor_cif:
-                    opData.destino_cif || gestComp?.cif || opData.cliente_cif || '',
-                  gestor_nima:
-                    opData.destino_nima || gestComp?.nima || '',
-                  gestor_numero_autorizacion:
-                    opData.destino_autorizacion || gestComp?.numero_autorizacion || '',
-                  gestor_direccion:
-                    gestComp?.domicilio_instalacion || gestComp?.domicilio_social || '',
-                  gestor_municipio:
-                    gestComp?.municipio_instalacion || gestComp?.municipio_social || defaultMuni || '',
-                  gestor_provincia:
-                    gestComp?.provincia_instalacion || gestComp?.provincia_social || defaultProv || '',
-                  gestor_codigo_postal:
-                    gestComp?.codigo_postal_instalacion || gestComp?.codigo_postal_social || '',
-                  // Transportista
-                  transportista_company_id: transComp?.id || opData.transportista_id || undefined,
-                  transportista_razon_social:
-                    opData.transportista_nombre_personalizado || transComp?.razon_social || '',
-                  transportista_cif:
-                    opData.transportista_cif || transComp?.cif || '',
-                  transportista_nima:
-                    transComp?.nima || '',
-                  transportista_matricula:
-                    opData.transportista_matricula || transComp?.matricula || '',
-                  transportista_direccion:
-                    transComp?.domicilio_social || transComp?.domicilio_instalacion || '',
-                  transportista_municipio:
-                    transComp?.municipio_social || transComp?.municipio_instalacion || '',
-                  transportista_provincia:
-                    transComp?.provincia_social || transComp?.provincia_instalacion || '',
-                  transportista_codigo_postal:
-                    transComp?.codigo_postal_social || transComp?.codigo_postal_instalacion || '',
-                  // Residuo
-                  codigo_ler: targetLer || prev.codigo_ler,
-                  descripcion_residuo: targetDesc || prev.descripcion_residuo,
-                  peligrosidad: isDang ? 'peligroso' : 'no-peligroso',
-                  operacion_tratamiento: opData.operacion_rd || prev.operacion_tratamiento || 'R13',
-                  cantidad: targetKg ?? prev.cantidad,
-                  unidad: 'kg',
-                  notas: mandateNote,
-                }));
+                  ? opData.lineas_materiales[lineIdxNum]
+                  : null;
+              if (selectedLine && lineIdxNum !== null) {
+                setLinkedCommercialLineIndex(lineIdxNum);
               }
-            } catch (opErr) {
-              console.warn('No se pudo precargar la operación comercial:', opErr);
-            }
-          }
-          const queryDuplicateId = urlParams.get('duplicate_from') || urlParams.get('duplicateFrom');
-          if (queryDuplicateId) {
-            try {
-              const srcDoc = await identificationDocumentService.getById(parseInt(queryDuplicateId, 10));
-              if (srcDoc) {
-                setDuplicateSourceInfo({
-                  id: srcDoc.id,
-                  numero_documento: srcDoc.numero_documento,
-                });
 
-                setFormData(prev => ({
-                  ...prev,
-                  contract_id: srcDoc.contract_id || undefined,
-                  production_center_id: srcDoc.production_center_id || undefined,
-                  // Productor
-                  productor_razon_social: srcDoc.productor_razon_social || prev.productor_razon_social,
-                  productor_cif: srcDoc.productor_cif || prev.productor_cif,
-                  productor_nima: srcDoc.productor_nima || prev.productor_nima,
-                  productor_direccion: srcDoc.productor_direccion || prev.productor_direccion,
-                  productor_municipio: srcDoc.productor_municipio || prev.productor_municipio,
-                  productor_provincia: srcDoc.productor_provincia || prev.productor_provincia,
-                  productor_codigo_postal: srcDoc.productor_codigo_postal || prev.productor_codigo_postal,
-                  productor_telefono: srcDoc.productor_telefono || prev.productor_telefono,
-                  // Gestor
-                  gestor_razon_social: srcDoc.gestor_razon_social || prev.gestor_razon_social,
-                  gestor_cif: srcDoc.gestor_cif || prev.gestor_cif,
-                  gestor_nima: srcDoc.gestor_nima || prev.gestor_nima,
-                  gestor_numero_autorizacion: srcDoc.gestor_numero_autorizacion || prev.gestor_numero_autorizacion,
-                  gestor_direccion: srcDoc.gestor_direccion || prev.gestor_direccion,
-                  gestor_municipio: srcDoc.gestor_municipio || prev.gestor_municipio,
-                  gestor_provincia: srcDoc.gestor_provincia || prev.gestor_provincia,
-                  gestor_codigo_postal: srcDoc.gestor_codigo_postal || prev.gestor_codigo_postal,
-                  gestor_telefono: srcDoc.gestor_telefono || prev.gestor_telefono,
-                  // Transportista
-                  transportista_razon_social: srcDoc.transportista_razon_social || prev.transportista_razon_social,
-                  transportista_cif: srcDoc.transportista_cif || prev.transportista_cif,
-                  transportista_nima: srcDoc.transportista_nima || prev.transportista_nima,
-                  transportista_direccion: srcDoc.transportista_direccion || prev.transportista_direccion,
-                  transportista_municipio: srcDoc.transportista_municipio || prev.transportista_municipio,
-                  transportista_provincia: srcDoc.transportista_provincia || prev.transportista_provincia,
-                  transportista_codigo_postal: srcDoc.transportista_codigo_postal || prev.transportista_codigo_postal,
-                  transportista_matricula: srcDoc.transportista_matricula || prev.transportista_matricula,
-                  transportista_telefono: srcDoc.transportista_telefono || prev.transportista_telefono,
-                  // Residuo
-                  codigo_ler: srcDoc.codigo_ler || prev.codigo_ler,
-                  descripcion_residuo: srcDoc.descripcion_residuo || prev.descripcion_residuo,
-                  peligrosidad: srcDoc.peligrosidad || prev.peligrosidad,
-                  waste_type_id: srcDoc.waste_type_id || prev.waste_type_id,
-                  tipo_envases: srcDoc.tipo_envases || prev.tipo_envases,
-                  numero_envases: srcDoc.numero_envases || prev.numero_envases,
-                  operacion_tratamiento: srcDoc.operacion_tratamiento || prev.operacion_tratamiento,
-                  operacion_tratamiento_ejecutada: undefined,
-                  // Notificación previa
-                  tipo_notificacion: srcDoc.tipo_notificacion || prev.tipo_notificacion,
-                  prior_notification_id: srcDoc.prior_notification_id || prev.prior_notification_id,
-                  numero_notificacion: srcDoc.numero_notificacion || prev.numero_notificacion,
-                  // Cantidad previa conservada para confirmación rápida
-                  cantidad: srcDoc.cantidad,
-                  // Resetear estados, pesajes de destino, referencias externas puntuales y firmas (Hito C.1)
-                  estado: 'borrador',
-                  estado_traslado: 'borrador',
-                  contrato_externo_referencia: undefined,
-                  contrato_externo_evidencia_url: undefined,
-                  supuesto_excepcion_contrato: undefined,
-                  firmado_productor: false,
-                  firmado_gestor: false,
-                  firmado_transportista: false,
-                  firma_productor_url: undefined,
-                  firma_gestor_url: undefined,
-                  firma_transportista_url: undefined,
-                  fecha_firma_productor: undefined,
-                  fecha_firma_gestor: undefined,
-                  fecha_firma_transportista: undefined,
-                  peso_destino_kg: undefined,
-                  diferencia_peso_kg: undefined,
-                  porcentaje_discrepancia: undefined,
-                  resultado_recepcion: undefined,
-                  numero_albaran_gestor: undefined,
-                  justificante_recepcion_url: undefined,
-                  ticket_pesada_url: undefined,
-                  fecha_salida: undefined,
-                  fecha_llegada_destino: undefined,
-                  fecha_tratamiento: undefined,
-                  fecha_documento: new Date().toISOString().split('T')[0],
-                  fecha_recogida: new Date().toISOString().split('T')[0],
-                  fecha_entrega: undefined,
-                  numero_documento: previewDiNumber,
-                }));
+              const prodComp = opData.origen_productor || contactsData.find(
+                (c) =>
+                  (opData.origen_productor_id && c.id === opData.origen_productor_id) ||
+                  (opData.origen_cif && c.cif?.trim().toUpperCase() === opData.origen_cif.trim().toUpperCase())
+              );
+              const gestComp = opData.destino_gestor || contactsData.find(
+                (c) =>
+                  (opData.destino_gestor_id && c.id === opData.destino_gestor_id) ||
+                  (opData.destino_cif && c.cif?.trim().toUpperCase() === opData.destino_cif.trim().toUpperCase())
+              );
+              const transComp = opData.transportista || contactsData.find(
+                (c) =>
+                  (opData.transportista_id && c.id === opData.transportista_id) ||
+                  (opData.transportista_cif && c.cif?.trim().toUpperCase() === opData.transportista_cif.trim().toUpperCase())
+              );
 
-                if (srcDoc.production_center_id) {
-                  setSelectedOrigin(String(srcDoc.production_center_id));
-                }
-              }
-            } catch (e) {
-              console.warn('No se pudo precargar la retirada anterior:', e);
+              const targetLer = selectedLine?.codigo_ler || opData.codigo_ler || '';
+              const targetDesc = selectedLine?.descripcion_residuo || opData.descripcion_residuo || '';
+              const targetTon = selectedLine
+                ? Number(selectedLine.cantidad_t || 0)
+                : Number(opData.cantidad_real_t && opData.cantidad_real_t > 0 ? opData.cantidad_real_t : opData.cantidad_estimada_t || 0);
+              const targetKg = targetTon > 0 ? Math.round(targetTon * 1000) : undefined;
+              const isDang = targetLer.includes('*') || opData.peligrosidad === 'peligroso';
+              const mandateNote = opData.mandato_referencia
+                ? `Operador del traslado (${company.razon_social}) con mandato escrito ref. ${opData.mandato_referencia}${opData.mandato_otorgante ? ` otorgado por ${opData.mandato_otorgante}` : ''} (Art. 2.h RD 553/2020). Operación ref. ${opData.numero_operacion}.`
+                : `Operador del traslado: ${company.razon_social} (Ref. ${opData.numero_operacion}).`;
+
+              setFormData((prev) => ({
+                ...prev,
+                company_id: company.id,
+                // Operador = Negociante
+                operador_razon_social: company.razon_social,
+                operador_cif: company.cif,
+                operador_nima: defaultNima,
+                operador_direccion: defaultDir,
+                operador_municipio: defaultMuni,
+                operador_provincia: defaultProv,
+                operador_codigo_postal: defaultCP,
+                operador_telefono: company.telefono || '',
+                operador_email: company.email || '',
+                operador_tipo: (company.tipo_empresa === 'agente' ? 'agente' : 'negociante') as any,
+                // Productor Físico (Origen del tercero)
+                productor_razon_social:
+                  opData.origen_nombre_personalizado || prodComp?.razon_social || opData.proveedor_razon_social || '',
+                productor_cif:
+                  opData.origen_cif || prodComp?.cif || opData.proveedor_cif || '',
+                productor_nima:
+                  opData.origen_nima || opData.origen_center?.nima || prodComp?.nima || '',
+                productor_direccion:
+                  opData.origen_center?.direccion ||
+                  prodComp?.domicilio_instalacion ||
+                  prodComp?.domicilio_social ||
+                  '',
+                productor_municipio:
+                  opData.origen_center?.municipio ||
+                  prodComp?.municipio_instalacion ||
+                  prodComp?.municipio_social ||
+                  defaultMuni ||
+                  '',
+                productor_provincia:
+                  opData.origen_center?.provincia ||
+                  prodComp?.provincia_instalacion ||
+                  prodComp?.provincia_social ||
+                  defaultProv ||
+                  '',
+                productor_codigo_postal:
+                  opData.origen_center?.codigo_postal ||
+                  prodComp?.codigo_postal_instalacion ||
+                  prodComp?.codigo_postal_social ||
+                  '',
+                // Gestor Destino
+                gestor_company_id: gestComp?.id || opData.destino_gestor_id || undefined,
+                gestor_razon_social:
+                  opData.destino_nombre_personalizado || gestComp?.razon_social || opData.cliente_razon_social || '',
+                gestor_cif:
+                  opData.destino_cif || gestComp?.cif || opData.cliente_cif || '',
+                gestor_nima:
+                  opData.destino_nima || gestComp?.nima || '',
+                gestor_numero_autorizacion:
+                  opData.destino_autorizacion || gestComp?.numero_autorizacion || '',
+                gestor_direccion:
+                  gestComp?.domicilio_instalacion || gestComp?.domicilio_social || '',
+                gestor_municipio:
+                  gestComp?.municipio_instalacion || gestComp?.municipio_social || defaultMuni || '',
+                gestor_provincia:
+                  gestComp?.provincia_instalacion || gestComp?.provincia_social || defaultProv || '',
+                gestor_codigo_postal:
+                  gestComp?.codigo_postal_instalacion || gestComp?.codigo_postal_social || '',
+                // Transportista
+                transportista_company_id: transComp?.id || opData.transportista_id || undefined,
+                transportista_razon_social:
+                  opData.transportista_nombre_personalizado || transComp?.razon_social || '',
+                transportista_cif:
+                  opData.transportista_cif || transComp?.cif || '',
+                transportista_nima:
+                  transComp?.nima || '',
+                transportista_matricula:
+                  opData.transportista_matricula || transComp?.matricula || '',
+                transportista_direccion:
+                  transComp?.domicilio_social || transComp?.domicilio_instalacion || '',
+                transportista_municipio:
+                  transComp?.municipio_social || transComp?.municipio_instalacion || '',
+                transportista_provincia:
+                  transComp?.provincia_social || transComp?.provincia_instalacion || '',
+                transportista_codigo_postal:
+                  transComp?.codigo_postal_social || transComp?.codigo_postal_instalacion || '',
+                // Residuo
+                codigo_ler: targetLer || prev.codigo_ler,
+                descripcion_residuo: targetDesc || prev.descripcion_residuo,
+                peligrosidad: isDang ? 'peligroso' : 'no-peligroso',
+                operacion_tratamiento: opData.operacion_rd || prev.operacion_tratamiento || 'R13',
+                cantidad: targetKg ?? prev.cantidad,
+                unidad: 'kg',
+                notas: mandateNote,
+              }));
             }
+          } catch (opErr) {
+            console.warn('No se pudo precargar la operación comercial:', opErr);
           }
         }
+        const queryDuplicateId = urlParams.get('duplicate_from') || urlParams.get('duplicateFrom');
+        if (queryDuplicateId) {
+          try {
+            const srcDoc = await identificationDocumentService.getById(parseInt(queryDuplicateId, 10));
+            if (srcDoc) {
+              setDuplicateSourceInfo({
+                id: srcDoc.id,
+                numero_documento: srcDoc.numero_documento,
+              });
 
-        // Cargar tipos de residuos (LER)
-        const wasteTypesData = await wasteTypeService.getAll();
-        setWasteTypes(wasteTypesData);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
+              setFormData(prev => ({
+                ...prev,
+                contract_id: srcDoc.contract_id || undefined,
+                production_center_id: srcDoc.production_center_id || undefined,
+                // Productor
+                productor_razon_social: srcDoc.productor_razon_social || prev.productor_razon_social,
+                productor_cif: srcDoc.productor_cif || prev.productor_cif,
+                productor_nima: srcDoc.productor_nima || prev.productor_nima,
+                productor_direccion: srcDoc.productor_direccion || prev.productor_direccion,
+                productor_municipio: srcDoc.productor_municipio || prev.productor_municipio,
+                productor_provincia: srcDoc.productor_provincia || prev.productor_provincia,
+                productor_codigo_postal: srcDoc.productor_codigo_postal || prev.productor_codigo_postal,
+                productor_telefono: srcDoc.productor_telefono || prev.productor_telefono,
+                // Gestor
+                gestor_razon_social: srcDoc.gestor_razon_social || prev.gestor_razon_social,
+                gestor_cif: srcDoc.gestor_cif || prev.gestor_cif,
+                gestor_nima: srcDoc.gestor_nima || prev.gestor_nima,
+                gestor_numero_autorizacion: srcDoc.gestor_numero_autorizacion || prev.gestor_numero_autorizacion,
+                gestor_direccion: srcDoc.gestor_direccion || prev.gestor_direccion,
+                gestor_municipio: srcDoc.gestor_municipio || prev.gestor_municipio,
+                gestor_provincia: srcDoc.gestor_provincia || prev.gestor_provincia,
+                gestor_codigo_postal: srcDoc.gestor_codigo_postal || prev.gestor_codigo_postal,
+                gestor_telefono: srcDoc.gestor_telefono || prev.gestor_telefono,
+                // Transportista
+                transportista_razon_social: srcDoc.transportista_razon_social || prev.transportista_razon_social,
+                transportista_cif: srcDoc.transportista_cif || prev.transportista_cif,
+                transportista_nima: srcDoc.transportista_nima || prev.transportista_nima,
+                transportista_direccion: srcDoc.transportista_direccion || prev.transportista_direccion,
+                transportista_municipio: srcDoc.transportista_municipio || prev.transportista_municipio,
+                transportista_provincia: srcDoc.transportista_provincia || prev.transportista_provincia,
+                transportista_codigo_postal: srcDoc.transportista_codigo_postal || prev.transportista_codigo_postal,
+                transportista_matricula: srcDoc.transportista_matricula || prev.transportista_matricula,
+                transportista_telefono: srcDoc.transportista_telefono || prev.transportista_telefono,
+                // Residuo
+                codigo_ler: srcDoc.codigo_ler || prev.codigo_ler,
+                descripcion_residuo: srcDoc.descripcion_residuo || prev.descripcion_residuo,
+                peligrosidad: srcDoc.peligrosidad || prev.peligrosidad,
+                waste_type_id: srcDoc.waste_type_id || prev.waste_type_id,
+                tipo_envases: srcDoc.tipo_envases || prev.tipo_envases,
+                numero_envases: srcDoc.numero_envases || prev.numero_envases,
+                operacion_tratamiento: srcDoc.operacion_tratamiento || prev.operacion_tratamiento,
+                operacion_tratamiento_ejecutada: undefined,
+                // Notificación previa
+                tipo_notificacion: srcDoc.tipo_notificacion || prev.tipo_notificacion,
+                prior_notification_id: srcDoc.prior_notification_id || prev.prior_notification_id,
+                numero_notificacion: srcDoc.numero_notificacion || prev.numero_notificacion,
+                // Cantidad previa conservada para confirmación rápida
+                cantidad: srcDoc.cantidad,
+                // Resetear estados, pesajes de destino, referencias externas puntuales y firmas (Hito C.1)
+                estado: 'borrador',
+                estado_traslado: 'borrador',
+                contrato_externo_referencia: undefined,
+                contrato_externo_evidencia_url: undefined,
+                supuesto_excepcion_contrato: undefined,
+                firmado_productor: false,
+                firmado_gestor: false,
+                firmado_transportista: false,
+                firma_productor_url: undefined,
+                firma_gestor_url: undefined,
+                firma_transportista_url: undefined,
+                fecha_firma_productor: undefined,
+                fecha_firma_gestor: undefined,
+                fecha_firma_transportista: undefined,
+                peso_destino_kg: undefined,
+                diferencia_peso_kg: undefined,
+                porcentaje_discrepancia: undefined,
+                resultado_recepcion: undefined,
+                numero_albaran_gestor: undefined,
+                justificante_recepcion_url: undefined,
+                ticket_pesada_url: undefined,
+                fecha_salida: undefined,
+                fecha_llegada_destino: undefined,
+                fecha_tratamiento: undefined,
+                fecha_documento: new Date().toISOString().split('T')[0],
+                fecha_recogida: new Date().toISOString().split('T')[0],
+                fecha_entrega: undefined,
+                numero_documento: previewDiNumber,
+              }));
+
+              if (srcDoc.production_center_id) {
+                setSelectedOrigin(String(srcDoc.production_center_id));
+              }
+            }
+          } catch (e) {
+            console.warn('No se pudo precargar la retirada anterior:', e);
+          }
+        }
       }
-    };
 
-    const checkDestinationAuthorization = async (gestorCif?: string, transferDate?: string) => {
-      if (!gestorCif || !gestorCif.trim()) {
-        setDestAuthScope(null);
-        return;
-      }
+      // Cargar tipos de residuos (LER)
+      const wasteTypesData = await wasteTypeService.getAll();
+      setWasteTypes(wasteTypesData);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      const normCif = gestorCif.trim().toUpperCase();
-      const matchedComp = allContacts.find((c) => c.cif?.trim().toUpperCase() === normCif);
+  const checkDestinationAuthorization = async (gestorCif?: string, transferDate?: string) => {
+    if (!gestorCif || !gestorCif.trim()) {
+      setDestAuthScope(null);
+      return;
+    }
 
-      if (matchedComp) {
-        const scope = await authorizationService.getAuthorizedScope(
-          matchedComp.id,
-          null,
-          transferDate || formData.fecha_documento
-        );
-        setDestAuthScope(scope);
-      } else {
-        setDestAuthScope(null);
-      }
-    };
+    const normCif = gestorCif.trim().toUpperCase();
+    const matchedComp = allContacts.find((c) => c.cif?.trim().toUpperCase() === normCif);
 
-    useEffect(() => {
-      if (formData.gestor_cif && allContacts.length > 0) {
-        checkDestinationAuthorization(formData.gestor_cif, formData.fecha_documento);
-      }
-    }, [formData.gestor_cif, formData.fecha_documento, allContacts]);
+    if (matchedComp) {
+      const scope = await authorizationService.getAuthorizedScope(
+        matchedComp.id,
+        null,
+        transferDate || formData.fecha_documento
+      );
+      setDestAuthScope(scope);
+    } else {
+      setDestAuthScope(null);
+    }
+  };
 
-    // A7-08: Sincronizar automáticamente gestor_numero_autorizacion con la autorización ambiental específica
-    // que cubre el LER y operación de tratamiento seleccionados cuando el gestor tiene múltiples autorizaciones
-    useEffect(() => {
-      if (!destAuthScope?.authorizations || destAuthScope.authorizations.length === 0) return;
-      const ler = (formData.codigo_ler || '').trim();
-      if (!ler) return;
-      const normOp = (v: string) => v.trim().toUpperCase().replace(/^([RD])(\d)$/, '$10$2');
-      const selectedOp = formData.operacion_tratamiento ? normOp(formData.operacion_tratamiento) : '';
+  useEffect(() => {
+    if (formData.gestor_cif && allContacts.length > 0) {
+      checkDestinationAuthorization(formData.gestor_cif, formData.fecha_documento);
+    }
+  }, [formData.gestor_cif, formData.fecha_documento, allContacts]);
 
-      const matchingAuth =
-        destAuthScope.authorizations.find((auth: any) =>
-          (auth.waste_codes || []).some((wc: any) => {
-            if (wc.codigo_ler?.trim() !== ler) return false;
-            if (!selectedOp) return true;
-            const ops: string[] = Array.isArray(wc.operaciones_tratamiento)
-              ? wc.operaciones_tratamiento.map(normOp)
-              : [];
-            return ops.length === 0 || ops.includes(selectedOp);
-          })
-        ) ||
-        destAuthScope.authorizations.find((auth: any) =>
-          (auth.waste_codes || []).some((wc: any) => wc.codigo_ler?.trim() === ler)
-        );
+  // A7-08: Sincronizar automáticamente gestor_numero_autorizacion con la autorización ambiental específica
+  // que cubre el LER y operación de tratamiento seleccionados cuando el gestor tiene múltiples autorizaciones
+  useEffect(() => {
+    if (!destAuthScope?.authorizations || destAuthScope.authorizations.length === 0) return;
+    const ler = (formData.codigo_ler || '').trim();
+    if (!ler) return;
+    const normOp = (v: string) => v.trim().toUpperCase().replace(/^([RD])(\d)$/, '$10$2');
+    const selectedOp = formData.operacion_tratamiento ? normOp(formData.operacion_tratamiento) : '';
 
-      if (
-        matchingAuth?.numero_autorizacion &&
-        matchingAuth.numero_autorizacion !== formData.gestor_numero_autorizacion
-      ) {
-        setFormData((prev) => ({
-          ...prev,
-          gestor_numero_autorizacion: matchingAuth.numero_autorizacion,
-        }));
-      }
-    }, [destAuthScope, formData.codigo_ler, formData.operacion_tratamiento]);
+    const matchingAuth =
+      destAuthScope.authorizations.find((auth: any) =>
+        (auth.waste_codes || []).some((wc: any) => {
+          if (wc.codigo_ler?.trim() !== ler) return false;
+          if (!selectedOp) return true;
+          const ops: string[] = Array.isArray(wc.operaciones_tratamiento)
+            ? wc.operaciones_tratamiento.map(normOp)
+            : [];
+          return ops.length === 0 || ops.includes(selectedOp);
+        })
+      ) ||
+      destAuthScope.authorizations.find((auth: any) =>
+        (auth.waste_codes || []).some((wc: any) => wc.codigo_ler?.trim() === ler)
+      );
 
-    const handleOriginChange = (value: string) => {
-      setSelectedOrigin(value);
-      if (value === 'principal' && myCompany) {
+    if (
+      matchingAuth?.numero_autorizacion &&
+      matchingAuth.numero_autorizacion !== formData.gestor_numero_autorizacion
+    ) {
+      setFormData((prev) => ({
+        ...prev,
+        gestor_numero_autorizacion: matchingAuth.numero_autorizacion,
+      }));
+    }
+  }, [destAuthScope, formData.codigo_ler, formData.operacion_tratamiento]);
+
+  const handleOriginChange = (value: string) => {
+    setSelectedOrigin(value);
+    if (value === 'principal' && myCompany) {
+      setFormData(prev => ({
+        ...prev,
+        production_center_id: undefined,
+        productor_nima: myCompany.nima || '',
+        productor_direccion: myCompany.domicilio_instalacion || myCompany.domicilio_social || '',
+        productor_municipio: myCompany.municipio_instalacion || myCompany.municipio_social || '',
+        productor_provincia: myCompany.provincia_instalacion || myCompany.provincia_social || '',
+        productor_codigo_postal: myCompany.codigo_postal_instalacion || myCompany.codigo_postal_social || '',
+      }));
+    } else {
+      const center = productionCenters.find(c => c.id === parseInt(value));
+      if (center) {
         setFormData(prev => ({
           ...prev,
-          production_center_id: undefined,
-          productor_nima: myCompany.nima || '',
-          productor_direccion: myCompany.domicilio_instalacion || myCompany.domicilio_social || '',
-          productor_municipio: myCompany.municipio_instalacion || myCompany.municipio_social || '',
-          productor_provincia: myCompany.provincia_instalacion || myCompany.provincia_social || '',
-          productor_codigo_postal: myCompany.codigo_postal_instalacion || myCompany.codigo_postal_social || '',
+          production_center_id: center.id,
+          productor_nima: center.nima,
+          productor_direccion: center.direccion,
+          productor_municipio: center.municipio || '',
+          productor_provincia: center.provincia || '',
+          productor_codigo_postal: center.codigo_postal || '',
         }));
-      } else {
-        const center = productionCenters.find(c => c.id === parseInt(value));
-        if (center) {
-          setFormData(prev => ({
-            ...prev,
-            production_center_id: center.id,
-            productor_nima: center.nima,
-            productor_direccion: center.direccion,
-            productor_municipio: center.municipio || '',
-            productor_provincia: center.provincia || '',
-            productor_codigo_postal: center.codigo_postal || '',
-          }));
-        }
       }
-    };
+    }
+  };
 
     const handleRoleSwitch = (newRole: 'productor' | 'gestor' | 'operador') => {
       const isGestorAllowed = Boolean(myCompany?.tipo_empresa === 'gestor' || myCompany?.roles?.includes('gestor'));
@@ -834,15 +834,15 @@ function NuevoDocumentoIdentificacionContent() {
       const linkedVehicle = drv.vehicle_id
         ? fleetVehicles.find((v) => v.id === drv.vehicle_id)
         : fleetVehicles.find(
-            (v) =>
-              drv.vehiculo_asignado &&
-              v.matricula.replace(/\s+/g, '').toUpperCase() ===
-                drv.vehiculo_asignado.replace(/\s+/g, '').toUpperCase()
-          );
+          (v) =>
+            drv.vehiculo_asignado &&
+            v.matricula.replace(/\s+/g, '').toUpperCase() ===
+            drv.vehiculo_asignado.replace(/\s+/g, '').toUpperCase()
+        );
       const plate = drv.vehiculo_asignado || linkedVehicle?.matricula || '';
       const isOwnCarrier = Boolean(
         myCompany &&
-          (myCompany.tipo_empresa === 'transportista' || myCompany.roles?.includes('transportista'))
+        (myCompany.tipo_empresa === 'transportista' || myCompany.roles?.includes('transportista'))
       );
 
       setFormData((prev) => ({
@@ -882,14 +882,14 @@ function NuevoDocumentoIdentificacionContent() {
       (v) =>
         formData.transportista_matricula &&
         v.matricula.replace(/\s+/g, '').toUpperCase() ===
-          formData.transportista_matricula.replace(/\s+/g, '').toUpperCase()
+        formData.transportista_matricula.replace(/\s+/g, '').toUpperCase()
     );
     const matchedDiFleetDriver = fleetDrivers.find(
       (d) =>
         formData.transportista_matricula &&
         d.vehiculo_asignado &&
         d.vehiculo_asignado.replace(/\s+/g, '').toUpperCase() ===
-          formData.transportista_matricula.replace(/\s+/g, '').toUpperCase()
+        formData.transportista_matricula.replace(/\s+/g, '').toUpperCase()
     );
     const diFleetAlerts = [
       ...(matchedDiFleetVehicle ? getVehicleComplianceAlerts(matchedDiFleetVehicle) : []),
@@ -1108,97 +1108,97 @@ function NuevoDocumentoIdentificacionContent() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-            {/* Modalidad de Expedición (A7-03: soporte Operador Negociante/Agente con origen de tercero) */}
+              {/* Modalidad de Expedición (A7-03: soporte Operador Negociante/Agente con origen de tercero) */ }
             {myCompany?.tipo_empresa === 'gestor' ||
-            myCompany?.roles?.includes('gestor') ||
-            myCompany?.tipo_empresa === 'negociante' ||
-            myCompany?.tipo_empresa === 'agente' ||
-            (myCompany?.perfil_operativo as string) === 'negociante' ||
-            (myCompany?.perfil_operativo as string) === 'agente' ||
-            myCompany?.roles?.includes('negociante') ||
-            myCompany?.roles?.includes('agente') ||
-            expeditionRole === 'operador' ? (
+              myCompany?.roles?.includes('gestor') ||
+              myCompany?.tipo_empresa === 'negociante' ||
+              myCompany?.tipo_empresa === 'agente' ||
+              myCompany?.perfil_operativo === 'negociante' ||
+              myCompany?.perfil_operativo === 'agente' ||
+              myCompany?.roles?.includes('negociante') ||
+              myCompany?.roles?.includes('agente') ||
+              expeditionRole === 'operador' ? (
               <ComponentCard
                 title="Perspectiva de Expedición (RD 553/2020)"
                 desc="Selecciona en calidad de qué figura reglamentaria organizas y emites el Documento de Identificación del traslado."
               >
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <button
-                    type="button"
-                    onClick={() => handleRoleSwitch('productor')}
-                    className={`p-4 rounded-xl border text-left transition-all ${expeditionRole === 'productor'
-                      ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
-                      : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
-                      }`}
-                  >
-                    <div className="mb-1">
-                      <span className="font-semibold text-sm text-foreground">Como Productor / Poseedor</span>
-                    </div>
-                    <p className="text-xs text-muted">
-                      Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) genera el residuo en su centro y lo transfiere a destino.
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleRoleSwitch('operador')}
-                    className={`p-4 rounded-xl border text-left transition-all ${expeditionRole === 'operador'
-                      ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
-                      : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
-                      }`}
-                  >
-                    <div className="mb-1">
-                      <span className="font-semibold text-sm text-foreground">Como Operador (Negociante / Agente)</span>
-                    </div>
-                    <p className="text-xs text-muted">
-                      Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) organiza el traslado con mandato desde el centro físico de un tercero productor.
-                    </p>
-                  </button>
-
-                  {(myCompany?.tipo_empresa === 'gestor' || myCompany?.roles?.includes('gestor')) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <button
                       type="button"
-                      onClick={() => handleRoleSwitch('gestor')}
-                      className={`p-4 rounded-xl border text-left transition-all ${expeditionRole === 'gestor'
+                      onClick={() => handleRoleSwitch('productor')}
+                      className={`p-4 rounded-xl border text-left transition-all ${expeditionRole === 'productor'
                         ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
                         : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
                         }`}
                     >
                       <div className="mb-1">
-                        <span className="font-semibold text-sm text-foreground">Como Gestor Receptor</span>
+                        <span className="font-semibold text-sm text-foreground">Como Productor / Poseedor</span>
                       </div>
                       <p className="text-xs text-muted">
-                        Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) es la instalación autorizada que recepcionará el residuo.
+                        Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) genera el residuo en su centro y lo transfiere a destino.
                       </p>
                     </button>
-                  )}
-                </div>
 
-                {expeditionRole === 'operador' && (
-                  <div className="mt-4 p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 text-xs space-y-1.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-bold text-indigo-950 dark:text-indigo-200">
-                        Operador del Traslado (Art. 2.h RD 553/2020): {formData.operador_razon_social || myCompany?.razon_social} (CIF: {formData.operador_cif || myCompany?.cif} · NIMA: {formData.operador_nima || myCompany?.nima || 'S/D'})
-                      </span>
-                      <span className="px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/60 font-semibold text-indigo-800 dark:text-indigo-300">
-                        Rol: Operador ({formData.operador_tipo === 'agente' ? 'Agente' : 'Negociante'})
-                      </span>
-                    </div>
-                    {linkedCommercialOp ? (
-                      <p className="text-indigo-800 dark:text-indigo-300">
-                        Vinculado a Operación Comercial <strong>{linkedCommercialOp.numero_operacion}</strong>
-                        {linkedCommercialOp.mandato_referencia
-                          ? ` · Mandato acreditado: ${linkedCommercialOp.mandato_referencia}${linkedCommercialOp.mandato_otorgante ? ` (Otorgante: ${linkedCommercialOp.mandato_otorgante})` : ''}`
-                          : ''}
-                        . Los datos económicos de compra/venta permanecen privados y no se incluyen en el DI.
+                    <button
+                      type="button"
+                    onClick={() => handleRoleSwitch('operador')}
+                      className={`p-4 rounded-xl border text-left transition-all ${expeditionRole === 'operador'
+                        ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
+                        : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
+                        }`}
+                    >
+                      <div className="mb-1">
+                        <span className="font-semibold text-sm text-foreground">Como Operador (Negociante / Agente)</span>
+                      </div>
+                      <p className="text-xs text-muted">
+                        Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) organiza el traslado con mandato desde el centro físico de un tercero productor.
                       </p>
-                    ) : (
-                      <p className="text-indigo-800 dark:text-indigo-300">
-                        Indique abajo los datos reales del Productor / Centro de Origen Físico donde se inicia el traslado del residuo.
-                      </p>
+                    </button>
+
+                    {(myCompany?.tipo_empresa === 'gestor' || myCompany?.roles?.includes('gestor')) && (
+                      <button
+                        type="button"
+                        onClick={() => handleRoleSwitch('gestor')}
+                        className={`p-4 rounded-xl border text-left transition-all ${expeditionRole === 'gestor'
+                          ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
+                          : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
+                          }`}
+                      >
+                        <div className="mb-1">
+                          <span className="font-semibold text-sm text-foreground">Como Gestor Receptor</span>
+                        </div>
+                        <p className="text-xs text-muted">
+                          Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) es la instalación autorizada que recepcionará el residuo.
+                        </p>
+                      </button>
                     )}
                   </div>
-                )}
+
+                  {expeditionRole === 'operador' && (
+                    <div className="mt-4 p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 text-xs space-y-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-bold text-indigo-950 dark:text-indigo-200">
+                          Operador del Traslado (Art. 2.h RD 553/2020): {formData.operador_razon_social || myCompany?.razon_social} (CIF: {formData.operador_cif || myCompany?.cif} · NIMA: {formData.operador_nima || myCompany?.nima || 'S/D'})
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/60 font-semibold text-indigo-800 dark:text-indigo-300">
+                          Rol: Operador ({formData.operador_tipo === 'agente' ? 'Agente' : 'Negociante'})
+                        </span>
+                      </div>
+                      {linkedCommercialOp ? (
+                        <p className="text-indigo-800 dark:text-indigo-300">
+                          Vinculado a Operación Comercial <strong>{linkedCommercialOp.numero_operacion}</strong>
+                          {linkedCommercialOp.mandato_referencia
+                            ? ` · Mandato acreditado: ${linkedCommercialOp.mandato_referencia}${linkedCommercialOp.mandato_otorgante ? ` (Otorgante: ${linkedCommercialOp.mandato_otorgante})` : ''}`
+                            : ''}
+                          . Los datos económicos de compra/venta permanecen privados y no se incluyen en el DI.
+                        </p>
+                      ) : (
+                        <p className="text-indigo-800 dark:text-indigo-300">
+                          Indique abajo los datos reales del Productor / Centro de Origen Físico donde se inicia el traslado del residuo.
+                        </p>
+                      )}
+                    </div>
+                  )}
               </ComponentCard>
             ) : (
               <div className="p-3.5 bg-brand-50/40 dark:bg-brand-950/20 border border-brand-200/60 dark:border-brand-900/40 rounded-xl flex items-center justify-between text-xs text-brand-900 dark:text-brand-300">
@@ -1383,17 +1383,17 @@ function NuevoDocumentoIdentificacionContent() {
                     }> =
                       selectedContract.contract_waste_codes && selectedContract.contract_waste_codes.length > 0
                         ? selectedContract.contract_waste_codes.map((wc) => ({
-                            ler: wc.codigo_ler.trim(),
-                            descripcion: wc.descripcion_ler || undefined,
-                            operacion: wc.operacion_tratamiento || undefined,
-                          }))
+                          ler: wc.codigo_ler.trim(),
+                          descripcion: wc.descripcion_ler || undefined,
+                          operacion: wc.operacion_tratamiento || undefined,
+                        }))
                         : (selectedContract.codigos_ler || []).map((ler, idx) => ({
-                            ler: ler.trim(),
-                            operacion:
-                              selectedContract.operaciones_tratamiento?.[idx] ||
-                              selectedContract.operaciones_tratamiento?.[0] ||
-                              undefined,
-                          }));
+                          ler: ler.trim(),
+                          operacion:
+                            selectedContract.operaciones_tratamiento?.[idx] ||
+                            selectedContract.operaciones_tratamiento?.[0] ||
+                            undefined,
+                        }));
 
                     const currentLer = (formData.codigo_ler || '').trim();
                     const isCurrentLerUncovered =
@@ -1443,22 +1443,20 @@ function NuevoDocumentoIdentificacionContent() {
                                         operacion_tratamiento: item.operacion || prev.operacion_tratamiento,
                                       }));
                                     }}
-                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-mono transition ${
-                                      isSelected
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-mono transition ${isSelected
                                         ? 'bg-brand-600 text-white border-brand-600 font-semibold shadow-xs'
                                         : isPeligroso
                                           ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800 hover:border-amber-400'
                                           : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-brand-400'
-                                    }`}
+                                      }`}
                                   >
                                     <span>{item.ler}</span>
                                     {item.operacion && (
                                       <span
-                                        className={`text-[10px] px-1 rounded ${
-                                          isSelected
+                                        className={`text-[10px] px-1 rounded ${isSelected
                                             ? 'bg-white/20 text-white'
                                             : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                                        }`}
+                                          }`}
                                       >
                                         {item.operacion}
                                       </span>
@@ -1505,25 +1503,25 @@ function NuevoDocumentoIdentificacionContent() {
             {/* Productor / Origen */}
             <ComponentCard title="Productor / Origen">
               <div className="space-y-4">
-                {(expeditionRole === 'gestor' || expeditionRole === 'operador') && allContacts.length > 0 && (
-                  <div className="p-3 bg-brand-50/30 dark:bg-brand-950/20 rounded-xl border border-brand-200 dark:border-brand-900/40">
-                    <label htmlFor="client_contact_select" className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
-                      Cargar Productor / Origen Físico desde Contactos y Empresas
-                    </label>
-                    <Select
-                      options={[
-                        { value: '', label: '-- Seleccionar productor físico para autorrellenar --' },
-                        ...allContacts.map(c => ({
-                          value: c.id.toString(),
-                          label: `${c.razon_social} (${c.cif})${c.nima ? ` · NIMA ${c.nima}` : ''}`,
-                        })),
-                      ]}
-                      value={selectedClientContact}
-                      onChange={(val) => handleClientProducerChange(val)}
-                      placeholder="Seleccionar productor guardado"
-                    />
-                  </div>
-                )}
+                  {(expeditionRole === 'gestor' || expeditionRole === 'operador') && allContacts.length > 0 && (
+                    <div className="p-3 bg-brand-50/30 dark:bg-brand-950/20 rounded-xl border border-brand-200 dark:border-brand-900/40">
+                      <label htmlFor="client_contact_select" className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
+                        Cargar Productor / Origen Físico desde Contactos y Empresas
+                      </label>
+                      <Select
+                        options={[
+                          { value: '', label: '-- Seleccionar productor físico para autorrellenar --' },
+                          ...allContacts.map(c => ({
+                            value: c.id.toString(),
+                            label: `${c.razon_social} (${c.cif})${c.nima ? ` · NIMA ${c.nima}` : ''}`,
+                          })),
+                        ]}
+                        value={selectedClientContact}
+                        onChange={(val) => handleClientProducerChange(val)}
+                        placeholder="Seleccionar productor guardado"
+                      />
+                    </div>
+                  )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -2128,22 +2126,22 @@ function NuevoDocumentoIdentificacionContent() {
                         : undefined
                     }
                   />
-                  {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler && destAuthScope.authorizedLers[formData.codigo_ler] && (() => {
-                    const normOp = (v: string) => v.trim().toUpperCase().replace(/^([RD])(\d)$/, '$10$2');
-                    const isOpAuthorized =
-                      !formData.operacion_tratamiento ||
-                      destAuthScope.authorizedLers[formData.codigo_ler]
-                        .map(normOp)
-                        .includes(normOp(formData.operacion_tratamiento));
-                    return formData.operacion_tratamiento && !isOpAuthorized ? (
-                      <p className="mt-1.5 text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
-                        Operación no autorizada (Permitidas: {destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}).
-                      </p>
-                    ) : (
-                      <p className="mt-1 text-xs text-muted">
-                        Operaciones autorizadas en destino: <strong>{destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}</strong>
-                      </p>
-                    );
+                      { destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler && destAuthScope.authorizedLers[formData.codigo_ler] && (() => {
+                        const normOp = (v: string) => v.trim().toUpperCase().replace(/^([RD])(\d)$/, '$10$2');
+                        const isOpAuthorized =
+                          !formData.operacion_tratamiento ||
+                          destAuthScope.authorizedLers[formData.codigo_ler]
+                            .map(normOp)
+                            .includes(normOp(formData.operacion_tratamiento));
+                        return formData.operacion_tratamiento && !isOpAuthorized ? (
+                          <p className="mt-1.5 text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
+                            Operación no autorizada (Permitidas: {destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}).
+                          </p>
+                        ) : (
+                          <p className="mt-1 text-xs text-muted">
+                            Operaciones autorizadas en destino: <strong>{destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}</strong>
+                          </p>
+                  );
                   })()}
                 </div>
               </div>

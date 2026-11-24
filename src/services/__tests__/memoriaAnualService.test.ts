@@ -84,6 +84,22 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
       expect(getEffectiveWeightTonnes({ cantidad: 500, unidad: 'litros' } as IdentificationDocument)).toBe(0.5);
       expect(getEffectiveWeightTonnes({ cantidad: 250, unidad: 'unidades' } as IdentificationDocument)).toBe(0.25);
     });
+
+    it('debe descontar cantidad_rechazada_kg en rechazo parcial (A7-04: 600 kg recibidos - 20 kg rechazados = 0.58 t) y retornar 0 en rechazo total', () => {
+      const partialDoc = {
+        peso_destino_kg: 600,
+        peso_origen_kg: 600,
+        estado_traslado: 'rechazado_parcial',
+        cantidad_rechazada_kg: 20,
+      } as IdentificationDocument;
+      expect(getEffectiveWeightTonnes(partialDoc)).toBe(0.58);
+
+      const totalRejectedDoc = {
+        peso_destino_kg: 600,
+        estado_traslado: 'rechazado_total',
+      } as IdentificationDocument;
+      expect(getEffectiveWeightTonnes(totalRejectedDoc)).toBe(0);
+    });
   });
 
   describe('createMemoria', () => {

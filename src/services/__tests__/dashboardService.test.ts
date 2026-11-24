@@ -251,6 +251,14 @@ describe('dashboardService - Dashboard Ejecutivo e Indicadores', () => {
           numero_contrato: 'CTR-LEJOS',
           estado: 'vigente',
           fecha_fin: futureFarDate, // daysLeft > 60 -> does not trigger alert
+          cantidad_maxima_anual: 50,
+        },
+        {
+          id: 2,
+          numero_contrato: 'CTR-SIN-CANTIDAD',
+          estado: 'vigente',
+          fecha_fin: futureFarDate,
+          cantidad_maxima_anual: null, // A7-10: debe generar alerta de contrato incompleto
         },
       ];
 
@@ -280,6 +288,7 @@ describe('dashboardService - Dashboard Ejecutivo e Indicadores', () => {
 
       expect(res.alertas.disDiscrepanciaCount).toBe(1);
       expect(res.alertas.lista.some((a) => a.descripcion.includes('-200 kg'))).toBe(true);
+      expect(res.alertas.lista.some((a) => a.id === 'contract-noqty-2')).toBe(true);
       expect(res.residuos.totalToneladas).toBe(3); // 1.0 + 2.0
       expect(res.comercial.totalOperaciones).toBe(0);
       expect(res.comercial.rentabilidadPorcentaje).toBe(0);

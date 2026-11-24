@@ -126,6 +126,44 @@ describe('commercialOperationService - Operaciones Comerciales', () => {
       expect(res.margen_bruto_total).toBe(-150);
       expect(res.porcentaje_margen).toBe(0);
     });
+
+    it('debe escalar proporcionalmente las líneas multimaterial al actualizar cantidad_real_t sin líneas explícitas y calcular precios medios ponderados (A7-02)', () => {
+      const res = calculateProfitability({
+        cantidad_real_t: 4, // antes 1.5 + 0.5 = 2.0 t -> escala x2
+        coste_transporte: 40,
+        otros_costes: 10,
+        lineas_materiales: [
+          {
+            codigo_ler: '15 01 01',
+            descripcion_residuo: 'Cartón',
+            peligrosidad: 'no-peligroso',
+            cantidad_t: 1.5,
+            tipo_precio_compra: 'por_tonelada',
+            precio_unitario_compra: 40,
+            tipo_precio_venta: 'por_tonelada',
+            precio_unitario_venta: 85,
+          },
+          {
+            codigo_ler: '15 01 02',
+            descripcion_residuo: 'Plástico',
+            peligrosidad: 'no-peligroso',
+            cantidad_t: 0.5,
+            tipo_precio_compra: 'por_tonelada',
+            precio_unitario_compra: 60,
+            tipo_precio_venta: 'por_tonelada',
+            precio_unitario_venta: 110,
+          },
+        ],
+      });
+
+      // Con escala x2: línea 1 = 3.0 t (compra 120, venta 255), línea 2 = 1.0 t (compra 60, venta 110)
+      expect(res.toneladas).toBe(4);
+      expect(res.coste_compra_total).toBe(180);
+      expect(res.ingreso_venta_total).toBe(365);
+      expect(res.margen_bruto_total).toBe(365 - 180 - 40 - 10);
+      expect(res.precio_unitario_compra_efectivo).toBe(45);
+      expect(res.precio_unitario_venta_efectivo).toBe(91.25);
+    });
   });
 
   describe('getAll', () => {
