@@ -107,6 +107,7 @@ function NuevoDocumentoIdentificacionContent() {
       const isCompanyTrader =
         company.tipo_empresa === 'negociante' ||
         company.tipo_empresa === 'agente' ||
+        company.perfil_operativo === 'negociante' ||
         company.roles?.includes('negociante') ||
         company.roles?.includes('agente');
 
@@ -1111,6 +1112,7 @@ function NuevoDocumentoIdentificacionContent() {
               myCompany?.roles?.includes('gestor') ||
               myCompany?.tipo_empresa === 'negociante' ||
               myCompany?.tipo_empresa === 'agente' ||
+              myCompany?.perfil_operativo === 'negociante' ||
               myCompany?.roles?.includes('negociante') ||
               myCompany?.roles?.includes('agente') ||
               expeditionRole === 'operador' ? (

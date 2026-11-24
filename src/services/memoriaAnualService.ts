@@ -6,6 +6,7 @@
 import { createClient } from '@/lib/supabase/client';
 import { auditService } from './auditService';
 import { applyTenantScope, getActiveCompanyCookie } from './tenantContextService';
+import { parseCommercialMetaFromNotes } from './commercialOperationService';
 import {
   type MemoriaAnual,
   type EstadoMemoria,
@@ -418,7 +419,16 @@ export async function generateExcelData(
 
     if (error) throw error;
     if (data === null) return null;
-    documentos = data;
+    documentos = [...data];
+    if (memoria.tipo_memoria === 'negociante' || memoria.tipo_memoria === 'agente') {
+      await appendCommercialOperationsToDocs(
+        supabase,
+        memoria.user_id,
+        memoria.company_id ?? 0,
+        memoria.año,
+        documentos
+      );
+    }
   } else {
     // RES6-I04: Si no hay IDs guardados (array vacío), reconciliar con los DIs del año y centro
     documentos = await getDocumentosIdentificacionByYear(
@@ -952,61 +962,121 @@ export function getEffectiveWeightTonnes(doc: IdentificationDocument): number {
       // A7-09: Para memorias de Negociante / Agente sin posesión física, incorporar también operaciones
       // comerciales completadas o liquidadas del ejercicio que no tengan ya un DI incluido en `docs`.
       if (tipoMemoria === 'negociante' || tipoMemoria === 'agente') {
-        try {
-          const opsBuilder: any = supabase.from('commercial_operations');
-          if (opsBuilder && typeof opsBuilder.select === 'function') {
-            const { data: opsData } = await opsBuilder
-              .select('*')
-              .eq('user_id', userId)
-              .eq('company_id', companyId)
-              .gte('fecha_operacion', fecha_inicio)
-              .lte('fecha_operacion', fecha_fin);
-            if (Array.isArray(opsData)) {
-              const existingDocIds = new Set(docs.map(d => d.id));
-              for (const op of opsData) {
-                if (
-                  !['completada', 'liquidada', 'en_transito'].includes(op.estado) ||
-                  (op.identification_document_id && existingDocIds.has(op.identification_document_id))
-                ) {
-                  continue;
-                }
-                const qtyT = Number(op.cantidad_real_t) || Number(op.cantidad_estimada_t) || 0;
-                docs.push({
-                  id: -(Number(op.id) || 1) * 100,
-                  user_id: userId,
-                  company_id: companyId,
-                  numero_documento: op.numero_operacion,
-                  fecha_documento: String(op.fecha_operacion || fecha_inicio).split('T')[0],
-                  tipo_notificacion: 'sin-notificacion',
-                  productor_razon_social: op.origen_nombre_personalizado || '',
-                  productor_cif: '',
-                  gestor_razon_social: op.destino_nombre_personalizado || '',
-                  gestor_cif: '',
-                  codigo_ler: op.codigo_ler,
-                  descripcion_residuo: op.descripcion_residuo,
-                  peligrosidad: op.peligrosidad,
-                  estado_fisico: 'solido',
-                  cantidad: Math.round(qtyT * 1000),
-                  unidad: 'kg',
-                  peso_destino_kg: Math.round(qtyT * 1000),
-                  operacion_tratamiento: 'R12',
-                  estado: 'completado',
-                  estado_traslado: 'tratado',
-                  firmado_productor: true,
-                  firmado_gestor: true,
-                  firmado_transportista: true,
-                  created_at: op.created_at,
-                  updated_at: op.updated_at,
-                });
-              }
-            }
-          }
-        } catch {
-          // Fallback silencioso si commercial_operations no está mockeado
-        }
+        await appendCommercialOperationsToDocs(supabase, userId, companyId, año, docs);
       }
 
       return docs;
+    }
+
+    async function appendCommercialOperationsToDocs(
+      supabase: any,
+      userId: string,
+      companyId: number,
+      año: number,
+      docs: IdentificationDocument[]
+    ): Promise<void> {
+      const fecha_inicio = `${año}-01-01`;
+      const fecha_fin = `${año}-12-31`;
+      try {
+        const opsBuilder: any = supabase.from('commercial_operations');
+        if (!opsBuilder || typeof opsBuilder.select !== 'function') return;
+
+        const { data: opsData } = await opsBuilder
+          .select(
+            '*, origen_productor:companies!commercial_operations_origen_productor_id_fkey(*), destino_gestor:companies!commercial_operations_destino_gestor_id_fkey(*)'
+          )
+          .eq('user_id', userId)
+          .eq('company_id', companyId)
+          .gte('fecha', fecha_inicio)
+          .lte('fecha', fecha_fin);
+
+        if (!Array.isArray(opsData)) return;
+
+        const existingDocIds = new Set(docs.map(d => d.id));
+        for (const op of opsData) {
+          if (
+            !['completada', 'liquidada', 'en_transito'].includes(op.estado) ||
+            (op.identification_document_id && existingDocIds.has(op.identification_document_id))
+          ) {
+            continue;
+          }
+
+          const parsedMeta = parseCommercialMetaFromNotes(op.observaciones);
+          const lines = op.lineas_materiales?.length
+            ? op.lineas_materiales
+            : parsedMeta.meta.lineas_materiales;
+          const fechaDoc = String(op.fecha || op.fecha_operacion || fecha_inicio).split('T')[0];
+
+          const prodRazon =
+            op.origen_productor?.razon_social ||
+            op.origen_nombre_personalizado ||
+            op.proveedor_razon_social ||
+            '';
+          const prodCif = op.origen_productor?.cif || op.proveedor_cif || '';
+          const gestRazon =
+            op.destino_gestor?.razon_social ||
+            op.destino_nombre_personalizado ||
+            op.cliente_razon_social ||
+            '';
+          const gestCif = op.destino_gestor?.cif || op.cliente_cif || '';
+
+          const itemsToPush = lines?.length
+            ? lines.map((line: any, idx: number) => ({
+                id: -((Number(op.id) || 1) * 100 + idx + 1),
+                numero_documento: `${op.numero_operacion}-L${idx + 1}`,
+                codigo_ler: line.codigo_ler,
+                descripcion_residuo: line.descripcion_residuo,
+                peligrosidad: line.peligrosidad,
+                qtyKg: Math.round((Number(line.cantidad_t) || 0) * 1000),
+              }))
+            : [
+                {
+                  id: -(Number(op.id) || 1) * 100,
+                  numero_documento: op.numero_operacion,
+                  codigo_ler: op.codigo_ler,
+                  descripcion_residuo: op.descripcion_residuo,
+                  peligrosidad: op.peligrosidad,
+                  qtyKg: Math.round(
+                    (Number(op.cantidad_real_t) || Number(op.cantidad_estimada_t) || 0) * 1000
+                  ),
+                },
+              ];
+
+          for (const item of itemsToPush) {
+            docs.push({
+              id: item.id,
+              user_id: userId,
+              company_id: companyId,
+              numero_documento: item.numero_documento,
+              fecha_documento: fechaDoc,
+              tipo_notificacion: 'sin-notificacion',
+              productor_razon_social: prodRazon,
+              productor_cif: prodCif,
+              productor_nima: op.origen_productor?.nima,
+              gestor_razon_social: gestRazon,
+              gestor_cif: gestCif,
+              gestor_nima: op.destino_gestor?.nima,
+              codigo_ler: item.codigo_ler,
+              descripcion_residuo: item.descripcion_residuo,
+              peligrosidad: item.peligrosidad,
+              estado_fisico: 'solido',
+              cantidad: item.qtyKg,
+              unidad: 'kg',
+              peso_destino_kg: item.qtyKg,
+              operacion_tratamiento: 'R12',
+              estado: 'completado',
+              estado_traslado: 'tratado',
+              firmado_productor: true,
+              firmado_gestor: true,
+              firmado_transportista: true,
+              created_at: op.created_at,
+              updated_at: op.updated_at,
+            });
+          }
+        }
+      } catch {
+        // Fallback silencioso si commercial_operations no está mockeado
+      }
     }
 
     function calculateResumenLER(documentos: IdentificationDocument[]): ResumenLER[] {

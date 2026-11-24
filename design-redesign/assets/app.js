@@ -50,7 +50,7 @@
   try {
     savedV = localStorage.getItem('resigest_redesign_variant') || DEFAULT_VARIANT;
     savedM = localStorage.getItem('resigest_redesign_mode') || DEFAULT_MODE;
-  } catch (_) {}
+  } catch {}
 
   applyTheme(params.v || savedV, params.m || savedM, false);
 

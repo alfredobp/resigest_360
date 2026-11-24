@@ -263,16 +263,47 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
             {
               id: 50,
               numero_operacion: 'OP-2025-000050',
-              fecha_operacion: '2025-06-10',
+              fecha: '2025-06-10',
               estado: 'completada',
               codigo_ler: '15 01 01',
               descripcion_residuo: 'Cartón comercializado',
               peligrosidad: 'no-peligroso',
               cantidad_real_t: 2.5,
-              origen_nombre_personalizado: 'Productor Tercero',
-              destino_nombre_personalizado: 'Gestor Tercero',
+              origen_productor: { razon_social: 'Productor Relación S.L.', cif: 'B11223344', nima: '1100011111' },
+              destino_gestor: { razon_social: 'Gestor Relación S.L.', cif: 'B55667788', nima: '1100022222' },
               created_at: '2025-06-10T00:00:00Z',
               updated_at: '2025-06-10T00:00:00Z',
+            },
+            {
+              id: 52,
+              numero_operacion: 'OP-2025-000052',
+              fecha: '2025-07-15',
+              estado: 'liquidada',
+              codigo_ler: '15 01 01',
+              descripcion_residuo: 'Multimaterial',
+              peligrosidad: 'no-peligroso',
+              proveedor_razon_social: 'Proveedor Comercial S.L.',
+              proveedor_cif: 'B99887766',
+              cliente_razon_social: 'Cliente Comercial S.A.',
+              cliente_cif: 'A44332211',
+              lineas_materiales: [
+                {
+                  id: 'L1',
+                  codigo_ler: '15 01 01',
+                  descripcion_residuo: 'Cartón',
+                  peligrosidad: 'no-peligroso',
+                  cantidad_t: 1.2,
+                },
+                {
+                  id: 'L2',
+                  codigo_ler: '15 01 02',
+                  descripcion_residuo: 'Plástico',
+                  peligrosidad: 'no-peligroso',
+                  cantidad_t: 0.8,
+                },
+              ],
+              created_at: '2025-07-15T00:00:00Z',
+              updated_at: '2025-07-15T00:00:00Z',
             },
             {
               id: 51,
@@ -1261,6 +1292,105 @@ describe('memoriaAnualService - Memorias Anuales de Residuos', () => {
       expect(data[0].codigo_ler).toBe('17 04 05');
       expect(data[0].nif_origen).toBe('A11111111');
       expect(data[0].nif_destino).toBe('B22222222');
+    });
+
+    it('A7-09: el Excel del Negociante incluye DIs guardados + operaciones comerciales sin DI (columna fecha y NIF de relaciones/proveedor/cliente)', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+      const mockMemoria: Partial<MemoriaAnual> = {
+        id: 4,
+        user_id: 'user-mem-123',
+        company_id: 2,
+        año: 2025,
+        tipo_memoria: 'negociante',
+        documentos_identificacion_ids: [30],
+      };
+
+      const memChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: mockMemoria, error: null }),
+      };
+
+      const diChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        in: jest.fn().mockResolvedValue({
+          data: [{ id: 30, codigo_ler: '17 04 05', peso_destino_kg: 3000, productor_cif: 'A11111111', gestor_cif: 'B22222222' }],
+          error: null,
+        }),
+      };
+
+      const opsChain: any = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockResolvedValue({
+          data: [
+            {
+              id: 60,
+              numero_operacion: 'OP-2025-000060',
+              fecha: '2025-09-01',
+              estado: 'liquidada',
+              codigo_ler: '15 01 01',
+              descripcion_residuo: 'Cartón',
+              peligrosidad: 'no-peligroso',
+              cantidad_real_t: 1.5,
+              origen_productor: { razon_social: 'Productor Rel', cif: 'B10101010', nima: '1100000010' },
+              destino_gestor: { razon_social: 'Gestor Rel', cif: 'B20202020', nima: '1100000020' },
+            },
+            {
+              id: 61,
+              numero_operacion: 'OP-2025-000061',
+              fecha: '2025-10-01',
+              estado: 'completada',
+              codigo_ler: '15 01 02',
+              descripcion_residuo: 'Plástico',
+              peligrosidad: 'no-peligroso',
+              cantidad_estimada_t: 0.5,
+              proveedor_razon_social: 'Proveedor SL',
+              proveedor_cif: 'B30303030',
+              cliente_razon_social: 'Cliente SA',
+              cliente_cif: 'A40404040',
+            },
+            // Ya vinculada al DI 30: no debe duplicarse
+            { id: 62, numero_operacion: 'OP-2025-000062', fecha: '2025-11-01', estado: 'liquidada', identification_document_id: 30 },
+          ],
+          error: null,
+        }),
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'memorias_anuales') return memChain;
+        if (table === 'identification_documents') return diChain;
+        if (table === 'commercial_operations') return opsChain;
+        return null;
+      });
+
+      const data = await generateExcelData(4);
+
+      expect(opsChain.gte).toHaveBeenCalledWith('fecha', '2025-01-01');
+      expect(opsChain.lte).toHaveBeenCalledWith('fecha', '2025-12-31');
+      expect(data).toHaveLength(3);
+      expect(data[1]).toEqual(
+        expect.objectContaining({
+          codigo_di: 'OP-2025-000060',
+          cantidad_toneladas: 1.5,
+          nif_origen: 'B10101010',
+          razon_social_origen: 'Productor Rel',
+          nif_destino: 'B20202020',
+          razon_social_destino: 'Gestor Rel',
+        })
+      );
+      expect(data[2]).toEqual(
+        expect.objectContaining({
+          codigo_di: 'OP-2025-000061',
+          cantidad_toneladas: 0.5,
+          nif_origen: 'B30303030',
+          razon_social_origen: 'Proveedor SL',
+          nif_destino: 'A40404040',
+          razon_social_destino: 'Cliente SA',
+        })
+      );
     });
 
     it('generateExcelData debe lanzar error si la consulta de documentos falla o retornar null si data es null', async () => {

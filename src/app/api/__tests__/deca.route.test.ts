@@ -6,21 +6,38 @@ import { decaService } from '@/services/decaService';
 import { generateDecaPDF } from '@/lib/pdfUtils';
 
 const mockMaybeSingle = jest.fn();
+const mockAdminMaybeSingle = jest.fn();
 const mockInsertAudit = jest.fn();
 let mockRpc: jest.Mock | undefined;
+
+jest.mock('@supabase/supabase-js', () => ({
+  createClient: jest.fn(() => ({
+    from: () => {
+      const chain: any = {
+        select: () => chain,
+        eq: () => chain,
+        order: () => chain,
+        limit: () => chain,
+        maybeSingle: mockAdminMaybeSingle,
+      };
+      return chain;
+    },
+  })),
+}));
 
 jest.mock('@/lib/supabase/server', () => ({
   createClient: async () => {
     const client: any = {
       from: (table: string) => {
         if (table === 'deca_documents') {
-          return {
-            select: () => ({
-              eq: () => ({
-                maybeSingle: mockMaybeSingle,
-              }),
-            }),
+          const chain: any = {
+            select: () => chain,
+            eq: () => chain,
+            order: () => chain,
+            limit: () => chain,
+            maybeSingle: mockMaybeSingle,
           };
+          return chain;
         }
         if (table === 'deca_audit_logs') {
           return {
@@ -89,15 +106,20 @@ describe('GET /api/deca/[token]', () => {
   });
 
   it('genera y descarga directamente el PDF con cabeceras inline y registra auditoría', async () => {
-    mockMaybeSingle.mockResolvedValue({
-      data: {
-        id: 10,
-        user_id: 'user-1',
-        numero_deca: 'DECA-2026-00010',
-        version: 2,
-      },
-      error: null,
-    });
+    mockMaybeSingle
+      .mockResolvedValueOnce({
+        data: {
+          id: 10,
+          user_id: 'user-1',
+          numero_deca: 'DECA-2026-00010',
+          version: 2,
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { created_at: '2026-10-01T08:00:00Z' },
+        error: null,
+      });
 
     const req = makeReq('https://resigest.com/api/deca/dca_ok', {
       'x-forwarded-for': '203.0.113.10',
@@ -119,6 +141,71 @@ describe('GET /api/deca/[token]', () => {
         version_resultante: 2,
       })
     );
+  });
+
+  it('recupera la fecha de creación de v1 desde la base de datos o admin client cuando se descarga v2+', async () => {
+    mockMaybeSingle
+      .mockResolvedValueOnce({
+        data: {
+          id: 20,
+          user_id: 'user-v2',
+          numero_deca: 'DECA-2026-00020-v2',
+          version: 2,
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { created_at: '2026-11-24T10:00:00Z' },
+        error: null,
+      });
+
+    const res = await GET(makeReq('https://resigest.com/api/deca/dca_v2'), {
+      params: Promise.resolve({ token: 'dca_v2' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(generateDecaPDF).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 20 }),
+      expect.any(String),
+      { firstVersionCreatedAt: '2026-11-24T10:00:00Z' }
+    );
+
+    const prevUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const prevKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'srv-role-key';
+
+    mockMaybeSingle
+      .mockResolvedValueOnce({
+        data: {
+          id: 21,
+          user_id: 'user-v2',
+          numero_deca: 'DECA-2026-00021-v2',
+          version: 2,
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: null,
+      });
+    mockAdminMaybeSingle.mockResolvedValueOnce({
+      data: { created_at: '2026-11-20T09:30:00Z' },
+      error: null,
+    });
+
+    const resAdmin = await GET(makeReq('https://resigest.com/api/deca/dca_v2_admin'), {
+      params: Promise.resolve({ token: 'dca_v2_admin' }),
+    });
+    expect(resAdmin.status).toBe(200);
+    expect(generateDecaPDF).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: 21 }),
+      expect.any(String),
+      { firstVersionCreatedAt: '2026-11-20T09:30:00Z' }
+    );
+
+    process.env.NEXT_PUBLIC_SUPABASE_URL = prevUrl;
+    process.env.SUPABASE_SERVICE_ROLE_KEY = prevKey;
   });
 
   it('continúa sirviendo el PDF aunque falle el insert de auditoría y usa fallbacks de cabeceras', async () => {
