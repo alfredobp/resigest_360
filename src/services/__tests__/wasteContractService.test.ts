@@ -121,6 +121,23 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       mockStorageFrom.upload.mockResolvedValueOnce({ error: null });
       mockStorageFrom.getPublicUrl.mockReturnValue({ data: { publicUrl: 'u' } });
       await expect(wasteContractService.signContractByToken('x', pngBase64, 'gestor')).rejects.toThrow('Error al actualizar firma: ya firmado');
+
+      // A7-01: Fallback a /api/public/sign-contract ante error PGRST203 de sobrecarga ambigua en PostgREST
+      const origFetch = (global as any).fetch;
+      (global as any).fetch = jest.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { id: 7, estado: 'vigente', firma_gestor_url: 'u' } }),
+      });
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: { id: 7 }, error: null })
+        .mockResolvedValueOnce({
+          data: null,
+          error: { code: 'PGRST203', message: 'Could not choose the best candidate function' },
+        });
+      mockStorageFrom.upload.mockResolvedValueOnce({ error: null });
+      const apiFallback = await wasteContractService.signContractByToken('x', pngBase64, 'gestor');
+      expect(apiFallback.estado).toBe('vigente');
+      (global as any).fetch = origFetch;
     });
   });
 
