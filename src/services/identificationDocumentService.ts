@@ -1123,31 +1123,31 @@ export const identificationDocumentService = {
       ...justificationFields,
     });
 
-      if (nuevoEstadoTraslado === 'aceptado' || nuevoEstadoTraslado === 'rechazado_parcial') {
-        try {
-          await syncEntryFromDI(updated);
-        } catch (e) {
-          console.warn('Advertencia: no se pudo sincronizar automáticamente con el archivo cronológico:', e);
-        }
+    if (nuevoEstadoTraslado === 'aceptado' || nuevoEstadoTraslado === 'rechazado_parcial') {
+      try {
+        await syncEntryFromDI(updated);
+      } catch (e) {
+        console.warn('Advertencia: no se pudo sincronizar automáticamente con el archivo cronológico:', e);
       }
+    }
 
-      await auditService.logAction({
-        company_id: updated.company_id,
-        entidad: 'di',
-        entidad_id: id,
-        accion: 'recepcionar_pesada',
-        detalles: {
-          estado_traslado: nuevoEstadoTraslado,
-          peso_origen_kg: pesoOrigen,
-          peso_destino_kg: pesoDestino,
-          diferencia_peso_kg: updated.diferencia_peso_kg,
-          porcentaje_discrepancia: updated.porcentaje_discrepancia,
-          fecha_llegada_destino: fechaLlegadaIso,
-        },
-      });
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'recepcionar_pesada',
+      detalles: {
+        estado_traslado: nuevoEstadoTraslado,
+        peso_origen_kg: pesoOrigen,
+        peso_destino_kg: pesoDestino,
+        diferencia_peso_kg: updated.diferencia_peso_kg,
+        porcentaje_discrepancia: updated.porcentaje_discrepancia,
+        fecha_llegada_destino: fechaLlegadaIso,
+      },
+    });
 
-      return updated;
-    },
+    return updated;
+  },
 
   /**
    * 2b. Registrar Justificante de Recepción de Gestor Externo (Flujo Productor Simplificado - RES6-I05)
@@ -1155,11 +1155,11 @@ export const identificationDocumentService = {
    * sin arrogarse la autocertificación de tratamiento como gestor.
    */
   async recordExternalReceptionProof(
-      id: number,
-      payload: RecordExternalReceptionPayload
-    ): Promise < IdentificationDocument > {
-      const userCompany = await companyService.getUserCompany().catch(() => null);
-      if(isCallerTransportistaOnly(userCompany)) {
+    id: number,
+    payload: RecordExternalReceptionPayload
+  ): Promise<IdentificationDocument> {
+    const userCompany = await companyService.getUserCompany().catch(() => null);
+    if (isCallerTransportistaOnly(userCompany)) {
       throw new Error('Permiso denegado: El transportista no puede registrar justificantes de recepción en destino.');
     }
 
@@ -1196,6 +1196,19 @@ export const identificationDocumentService = {
       ? `[Justificante de Recepción Externo]: ${payload.observaciones}`
       : '[Justificante de Recepción Externo registrado por Productor]';
 
+    const cantidadRechazadaNum =
+      (payload as any).cantidad_rechazada_kg !== undefined && (payload as any).cantidad_rechazada_kg !== null
+        ? Number((payload as any).cantidad_rechazada_kg)
+        : undefined;
+    const motivoIncidencia =
+      resultadoRecepcion !== 'aceptado'
+        ? ((payload as any).motivo_incidencia || payload.observaciones || doc.motivo_incidencia || undefined)
+        : doc.motivo_incidencia;
+    const tipoIncidencia =
+      resultadoRecepcion !== 'aceptado'
+        ? ((payload as any).tipo_incidencia || doc.tipo_incidencia || 'residuo_no_conforme')
+        : doc.tipo_incidencia;
+
     const updated = await this.update(id, {
       peso_origen_kg: pesoOrigen,
       peso_destino_kg: pesoDestino,
@@ -1206,47 +1219,51 @@ export const identificationDocumentService = {
       ticket_pesada_url: docEvidenciaUrl || doc.ticket_pesada_url,
       justificante_recepcion_url: docEvidenciaUrl || doc.justificante_recepcion_url,
       resultado_recepcion: resultadoRecepcion,
-      cantidad_rechazada_kg: (payload as any).cantidad_rechazada_kg,
+      cantidad_rechazada_kg: cantidadRechazadaNum,
+      ...(motivoIncidencia ? { motivo_incidencia: motivoIncidencia } : {}),
+      ...(tipoIncidencia ? { tipo_incidencia: tipoIncidencia } : {}),
       estado_traslado: resultadoRecepcion,
+      firmado_gestor: true,
+      fecha_firma_gestor: doc.fecha_firma_gestor || fechaLlegadaIso,
       notas: doc.notas ? `${doc.notas}\n${notaJustificante}` : notaJustificante,
       ...justificationFields,
     });
 
-      if (resultadoRecepcion !== 'rechazado_total') {
-        try {
-          await syncEntryFromDI(updated);
-        } catch {
-          // Ignorar fallo de sincronización en recepción externa
-        }
+    if (resultadoRecepcion !== 'rechazado_total') {
+      try {
+        await syncEntryFromDI(updated);
+      } catch {
+        // Ignorar fallo de sincronización en recepción externa
       }
+    }
 
-      await auditService.logAction({
-        company_id: updated.company_id,
-        entidad: 'di',
-        entidad_id: id,
-        accion: 'recepcionar_pesada',
-        detalles: {
-          tipo: 'justificante_recepcion_externo',
-          registrado_por: 'productor',
-          peso_origen_kg: pesoOrigen,
-          peso_destino_kg: pesoDestino,
-          diferencia_peso_kg: updated.diferencia_peso_kg,
-          numero_albaran_gestor: payload.numero_albaran_gestor,
-          evidencia_url: docEvidenciaUrl,
-          fecha_llegada_destino: fechaLlegadaIso,
-        },
-      });
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'recepcionar_pesada',
+      detalles: {
+        tipo: 'justificante_recepcion_externo',
+        registrado_por: 'productor',
+        peso_origen_kg: pesoOrigen,
+        peso_destino_kg: pesoDestino,
+        diferencia_peso_kg: updated.diferencia_peso_kg,
+        numero_albaran_gestor: payload.numero_albaran_gestor,
+        evidencia_url: docEvidenciaUrl,
+        fecha_llegada_destino: fechaLlegadaIso,
+      },
+    });
 
-      return updated;
-    },
+    return updated;
+  },
 
   /**
    * 3. Registrar Incidencia o Rechazo (exclusivo Gestor)
    */
-  async recordIncident(id: number, payload: RecordIncidentPayload): Promise < IdentificationDocument > {
-      // A04-06: Verificación de actor en el servidor
-      const userCompany = await companyService.getUserCompany().catch(() => null);
-      if(isCallerTransportistaOnly(userCompany)) {
+  async recordIncident(id: number, payload: RecordIncidentPayload): Promise<IdentificationDocument> {
+    // A04-06: Verificación de actor en el servidor
+    const userCompany = await companyService.getUserCompany().catch(() => null);
+    if (isCallerTransportistaOnly(userCompany)) {
       throw new Error('Permiso denegado: El transportista no puede registrar incidencias o rechazos de recepción en destino.');
     }
     const existingDoc = await this.getById(id).catch(() => null);

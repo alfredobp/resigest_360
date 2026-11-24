@@ -31,7 +31,7 @@ export interface CreateMemoriaData {
   nombre_centro?: string;
   municipio_centro?: string;
   nima?: string;
-  production_center_id: number;
+  production_center_id?: number | null;
   observaciones?: string;
 }
 
@@ -68,12 +68,16 @@ export async function createMemoria(data: CreateMemoriaData): Promise<MemoriaAnu
   const resumen_ler = calculateResumenLER(documentos);
 
   const resolvedCompanyId = data.company_id ?? getActiveCompanyCookie() ?? undefined;
+  const normalizedCenterId =
+    typeof data.production_center_id === 'number' && data.production_center_id > 0
+      ? data.production_center_id
+      : undefined;
   const memoria: Partial<MemoriaAnual> = {
     user_id: user.id,
     company_id: resolvedCompanyId,
     tipo_memoria: data.tipo_memoria,
     año: data.año,
-    production_center_id: data.production_center_id,
+    production_center_id: normalizedCenterId,
     numero_memoria,
     nombre_empresa: data.nombre_empresa,
     nif_empresa: data.nif_empresa,
@@ -481,16 +485,32 @@ export async function generateExcelData(
 // =====================================================
 
 export function getEffectiveWeightTonnes(doc: IdentificationDocument): number {
-  if (doc.peso_destino_kg && doc.peso_destino_kg > 0) {
-    return Number((Number(doc.peso_destino_kg) / 1000).toFixed(3));
+  const isTotalRejection =
+    doc.estado_traslado === 'rechazado_total' || doc.resultado_recepcion === 'rechazado_total';
+  if (isTotalRejection) {
+    return 0;
   }
-  if (doc.peso_origen_kg && doc.peso_origen_kg > 0) {
-    return Number((Number(doc.peso_origen_kg) / 1000).toFixed(3));
+
+  let grossKg = 0;
+  if (doc.peso_destino_kg && Number(doc.peso_destino_kg) > 0) {
+    grossKg = Number(doc.peso_destino_kg);
+  } else if (doc.peso_origen_kg && Number(doc.peso_origen_kg) > 0) {
+    grossKg = Number(doc.peso_origen_kg);
+  } else if (doc.unidad === 'kg' || doc.unidad === 'litros' || doc.unidad === 'unidades') {
+    grossKg = Number(doc.cantidad) || 0;
+  } else {
+    grossKg = (Number(doc.cantidad) || 0) * 1000;
   }
-  if (doc.unidad === 'kg' || doc.unidad === 'litros' || doc.unidad === 'unidades') {
-    return Number(((Number(doc.cantidad) || 0) / 1000).toFixed(3));
-  }
-  return Number((Number(doc.cantidad) || 0).toFixed(3));
+
+  const isPartialRejection =
+    doc.estado_traslado === 'rechazado_parcial' || doc.resultado_recepcion === 'rechazado_parcial';
+  const rejectedKg =
+    isPartialRejection && doc.cantidad_rechazada_kg && Number(doc.cantidad_rechazada_kg) > 0
+      ? Number(doc.cantidad_rechazada_kg)
+      : 0;
+
+  const netAcceptedKg = Math.max(0, grossKg - rejectedKg);
+  return Number((netAcceptedKg / 1000).toFixed(3));
 }
 
 // =====================================================
@@ -573,26 +593,44 @@ function generateDataGestor(
         doc.resultado_recepcion === 'rechazado_total' ||
         doc.resultado_recepcion === 'rechazado_parcial'
     )
-    .map(doc => ({
-      codigo_ler: doc.codigo_ler || '',
-      descripcion_residuo: doc.descripcion_residuo || '',
-      cantidad_toneladas:
-        doc.estado_traslado === 'rechazado_parcial' && doc.cantidad_rechazada_kg && doc.cantidad_rechazada_kg > 0
-          ? Number((Number(doc.cantidad_rechazada_kg) / 1000).toFixed(3))
-          : getEffectiveWeightTonnes(doc),
-      nima_destino: doc.gestor_nima || doc.productor_nima,
-      nif_destino: doc.gestor_cif || doc.productor_cif || '',
-      razon_social_destino: doc.gestor_razon_social || doc.productor_razon_social || '',
-      nombre_centro_destino: doc.gestor_direccion || doc.productor_direccion || '',
-      tipo_inscripcion_destino: 'G01',
-      provincia_destino: doc.gestor_provincia || doc.productor_provincia,
-      municipio_destino: doc.gestor_municipio || doc.productor_municipio,
-      pais_destino: 'España',
-      codigo_pais_destino: '108',
-      codigo_di: doc.numero_documento,
-      codigo_operacion_rd: doc.operacion_tratamiento || '',
-      codigo_operacion_rd_4cifras: doc.operacion_tratamiento?.substring(0, 4),
-    }));
+    .map(doc => {
+      const isPartial =
+        doc.estado_traslado === 'rechazado_parcial' || doc.resultado_recepcion === 'rechazado_parcial';
+      let rejectedTonnes = 0;
+      if (isPartial && doc.cantidad_rechazada_kg && Number(doc.cantidad_rechazada_kg) > 0) {
+        rejectedTonnes = Number((Number(doc.cantidad_rechazada_kg) / 1000).toFixed(3));
+      } else {
+        // En rechazo total (o parcial sin desglose kg), la salida/devolución del gestor es la partida bruta
+        let grossKg = 0;
+        if (doc.peso_destino_kg && Number(doc.peso_destino_kg) > 0) {
+          grossKg = Number(doc.peso_destino_kg);
+        } else if (doc.peso_origen_kg && Number(doc.peso_origen_kg) > 0) {
+          grossKg = Number(doc.peso_origen_kg);
+        } else if (doc.unidad === 'kg' || doc.unidad === 'litros' || doc.unidad === 'unidades') {
+          grossKg = Number(doc.cantidad) || 0;
+        } else {
+          grossKg = (Number(doc.cantidad) || 0) * 1000;
+        }
+        rejectedTonnes = Number((grossKg / 1000).toFixed(3));
+      }
+      return {
+        codigo_ler: doc.codigo_ler || '',
+        descripcion_residuo: doc.descripcion_residuo || '',
+        cantidad_toneladas: rejectedTonnes,
+        nima_destino: doc.gestor_nima || doc.productor_nima,
+        nif_destino: doc.gestor_cif || doc.productor_cif || '',
+        razon_social_destino: doc.gestor_razon_social || doc.productor_razon_social || '',
+        nombre_centro_destino: doc.gestor_direccion || doc.productor_direccion || '',
+        tipo_inscripcion_destino: 'G01',
+        provincia_destino: doc.gestor_provincia || doc.productor_provincia,
+        municipio_destino: doc.gestor_municipio || doc.productor_municipio,
+        pais_destino: 'España',
+        codigo_pais_destino: '108',
+        codigo_di: doc.numero_documento,
+        codigo_operacion_rd: doc.operacion_tratamiento || '',
+        codigo_operacion_rd_4cifras: doc.operacion_tratamiento?.substring(0, 4),
+      };
+    });
 
   const salidasDesdeCronologico: EntradaMemoriaGestorSalida[] = (registrosSalida || []).map(reg => ({
     codigo_ler: reg.codigo_ler || '',
@@ -771,7 +809,7 @@ async function getDocumentosIdentificacionByYear(
   userId: string,
   companyId: number,
   año: number,
-  productionCenterId?: number,
+  productionCenterId?: number | null,
   tipoMemoria?: TipoMemoria,
   nifEmpresa?: string
 ): Promise<IdentificationDocument[]> {
@@ -780,6 +818,8 @@ async function getDocumentosIdentificacionByYear(
   const fecha_inicio = `${año}-01-01`;
   const fecha_fin = `${año}-12-31`;
   const isGestorMemoria = tipoMemoria === 'gestor' || tipoMemoria === 'gestor_raee';
+  const isOperatorOrCarrierMemoria =
+    tipoMemoria === 'negociante' || tipoMemoria === 'agente' || tipoMemoria === 'transportista';
 
   let query: any = supabase
     .from('identification_documents')
@@ -790,6 +830,11 @@ async function getDocumentosIdentificacionByYear(
     const cleanNif = nifEmpresa.trim().toUpperCase();
     query = query.or(
       `company_id.eq.${companyId},gestor_company_id.eq.${companyId},gestor_cif.ilike.${cleanNif}`
+    );
+  } else if (isOperatorOrCarrierMemoria && typeof query.or === 'function' && nifEmpresa?.trim()) {
+    const cleanNif = nifEmpresa.trim().toUpperCase();
+    query = query.or(
+      `company_id.eq.${companyId},operador_cif.ilike.${cleanNif},transportista_cif.ilike.${cleanNif}`
     );
   } else {
     query = query.eq('company_id', companyId);
@@ -902,6 +947,109 @@ async function getDocumentosIdentificacionByYear(
       }
     } catch {
       // Fallback silencioso si chronological_registry no está mockeado
+    }
+  }
+
+  // A7-09: Para memorias de Negociante / Agente sin posesión física, incorporar también operaciones
+  // comerciales completadas o liquidadas del ejercicio que no tengan ya un DI incluido en `docs`.
+  if (tipoMemoria === 'negociante' || tipoMemoria === 'agente') {
+    try {
+      const opsBuilder: any = supabase.from('commercial_operations');
+      if (opsBuilder && typeof opsBuilder.select === 'function') {
+        const opsQuery = opsBuilder
+          .select('*')
+          .eq('user_id', userId)
+          .eq('company_id', companyId)
+          .gte('fecha_operacion', fecha_inicio)
+          .lte('fecha_operacion', fecha_fin);
+        const { data: opsData } = await opsQuery;
+        if (Array.isArray(opsData)) {
+          const existingDocIds = new Set(docs.map(d => d.id));
+          const existingDocNums = new Set(docs.map(d => d.numero_documento).filter(Boolean));
+          for (const op of opsData) {
+            if (!['completada', 'liquidada', 'en_transito'].includes(op.estado || '')) {
+              continue;
+            }
+            if (op.identification_document_id && existingDocIds.has(op.identification_document_id)) {
+              continue;
+            }
+            const lines = Array.isArray(op.lineas_materiales) && op.lineas_materiales.length > 0
+              ? op.lineas_materiales
+              : null;
+            if (lines) {
+              lines.forEach((line: any, idx: number) => {
+                const refNum = line.di_referencia || `${op.numero_operacion}-L${idx + 1}`;
+                if (existingDocNums.has(refNum)) return;
+                const qtyT = Number(line.cantidad_t) || 0;
+                docs.push({
+                  id: -((Number(op.id) || 1) * 100 + idx + 1),
+                  user_id: userId,
+                  company_id: companyId,
+                  numero_documento: refNum,
+                  fecha_documento: String(op.fecha_operacion || fecha_inicio).split('T')[0],
+                  tipo_notificacion: 'sin-notificacion',
+                  productor_razon_social: op.productor_razon_social || '',
+                  productor_cif: op.productor_cif || '',
+                  productor_nima: op.productor_nima || undefined,
+                  gestor_razon_social: op.gestor_destino_razon_social || '',
+                  gestor_cif: op.gestor_destino_cif || '',
+                  gestor_nima: op.gestor_destino_nima || undefined,
+                  codigo_ler: line.codigo_ler || op.codigo_ler || '',
+                  descripcion_residuo: line.descripcion_residuo || op.descripcion_residuo || '',
+                  peligrosidad: line.peligrosidad || op.peligrosidad || 'no-peligroso',
+                  estado_fisico: 'solido',
+                  cantidad: Math.round(qtyT * 1000),
+                  unidad: 'kg',
+                  peso_destino_kg: Math.round(qtyT * 1000),
+                  operacion_tratamiento: line.operacion_tratamiento || op.operacion_tratamiento || 'R12',
+                  estado: 'completado',
+                  estado_traslado: 'tratado',
+                  firmado_productor: true,
+                  firmado_gestor: true,
+                  firmado_transportista: true,
+                  created_at: op.created_at || new Date().toISOString(),
+                  updated_at: op.updated_at || new Date().toISOString(),
+                });
+              });
+            } else {
+              const refNum = op.numero_operacion || `OP-${op.id}`;
+              if (existingDocNums.has(refNum)) continue;
+              const qtyT = Number(op.cantidad_real_t) > 0 ? Number(op.cantidad_real_t) : Number(op.cantidad_acordada_t) || 0;
+              docs.push({
+                id: -(Number(op.id) || 1) * 100,
+                user_id: userId,
+                company_id: companyId,
+                numero_documento: refNum,
+                fecha_documento: String(op.fecha_operacion || fecha_inicio).split('T')[0],
+                tipo_notificacion: 'sin-notificacion',
+                productor_razon_social: op.productor_razon_social || '',
+                productor_cif: op.productor_cif || '',
+                productor_nima: op.productor_nima || undefined,
+                gestor_razon_social: op.gestor_destino_razon_social || '',
+                gestor_cif: op.gestor_destino_cif || '',
+                gestor_nima: op.gestor_destino_nima || undefined,
+                codigo_ler: op.codigo_ler || '',
+                descripcion_residuo: op.descripcion_residuo || '',
+                peligrosidad: op.peligrosidad || 'no-peligroso',
+                estado_fisico: 'solido',
+                cantidad: Math.round(qtyT * 1000),
+                unidad: 'kg',
+                peso_destino_kg: Math.round(qtyT * 1000),
+                operacion_tratamiento: op.operacion_tratamiento || 'R12',
+                estado: 'completado',
+                estado_traslado: 'tratado',
+                firmado_productor: true,
+                firmado_gestor: true,
+                firmado_transportista: true,
+                created_at: op.created_at || new Date().toISOString(),
+                updated_at: op.updated_at || new Date().toISOString(),
+              });
+            }
+          }
+        }
+      }
+    } catch {
+      // Fallback silencioso si commercial_operations no está mockeado
     }
   }
 

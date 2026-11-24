@@ -384,10 +384,12 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
   const isTonnesOrM3 = !di.unidad || di.unidad === 'toneladas' || di.unidad === 'm3';
   const cantidadEnKg = isTonnesOrM3 ? rawCantidad * 1000 : rawCantidad;
   const grossCantidadKg = Number(di.peso_destino_kg) || Number(di.peso_origen_kg) || cantidadEnKg;
+  const isPartialRejection =
+    di.estado_traslado === 'rechazado_parcial' || di.resultado_recepcion === 'rechazado_parcial';
   const rejectedKg =
-    di.estado_traslado === 'rechazado_parcial' && Number(di.cantidad_rechazada_kg) > 0
-      ? Number(di.cantidad_rechazada_kg)
-      : 0;
+  isPartialRejection && Number(di.cantidad_rechazada_kg) > 0
+    ? Number(di.cantidad_rechazada_kg)
+    : 0;
   const cantidadKg = Math.max(0, grossCantidadKg - rejectedKg);
 
   // Detectar si la empresa actual actúa como Gestor Receptora o Productor
@@ -454,40 +456,43 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
     operacion_rd: di.operacion_tratamiento_ejecutada || di.operacion_tratamiento,
     identification_document_id: di.id,
     numero_documento_referencia: di.numero_albaran_gestor || di.numero_documento,
-    observaciones: `Registro cronológico sincronizado desde DI ${di.numero_documento} (${isGestor ? 'Entrada / Recepción en planta' : 'Salida / Traslado'})${di.operacion_tratamiento_ejecutada &&
+      observaciones: `Registro cronológico sincronizado desde DI ${di.numero_documento} (${isGestor ? 'Entrada / Recepción en planta' : 'Salida / Traslado'})${rejectedKg > 0
+      ? ` | Desglose recepción: Recibido=${grossCantidadKg} kg, Aceptado neto=${cantidadKg} kg, Rechazado=${rejectedKg} kg${di.motivo_incidencia ? ` (Motivo: ${di.motivo_incidencia})` : ''}`
+      : ''
+    }${di.operacion_tratamiento_ejecutada &&
       di.operacion_tratamiento &&
       di.operacion_tratamiento_ejecutada !== di.operacion_tratamiento
       ? ` | Op. prevista: ${di.operacion_tratamiento}, Op. ejecutada: ${di.operacion_tratamiento_ejecutada}`
       : ''
-      }`
-  };
+    }`
+};
 
-  if (existing) {
-    const { data: updated, error } = await supabase
-      .from('chronological_registry')
-      .update(payload)
-      .eq('id', existing.id)
-      .select()
-      .single();
-
-    if (error) console.error('Error al actualizar asiento desde DI:', error);
-    return updated;
-  }
-
-  const numero_asiento = await getNextChronologicalAsientoNumber(
-    supabase,
-    user.id,
-    year,
-    Number(di.id) || 1
-  );
-  const { data: created, error } = await supabase
+if (existing) {
+  const { data: updated, error } = await supabase
     .from('chronological_registry')
-    .insert([{ ...payload, numero_asiento }])
+    .update(payload)
+    .eq('id', existing.id)
     .select()
     .single();
 
-  if (error) console.error('Error al crear asiento desde DI:', error);
-  return created;
+  if (error) console.error('Error al actualizar asiento desde DI:', error);
+  return updated;
+}
+
+const numero_asiento = await getNextChronologicalAsientoNumber(
+  supabase,
+  user.id,
+  year,
+  Number(di.id) || 1
+);
+const { data: created, error } = await supabase
+  .from('chronological_registry')
+  .insert([{ ...payload, numero_asiento }])
+  .select()
+  .single();
+
+if (error) console.error('Error al crear asiento desde DI:', error);
+return created;
 }
 
 // =====================================================

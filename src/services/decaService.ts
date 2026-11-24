@@ -165,21 +165,15 @@ export const decaService = {
 
   /**
    * Obtener los documentos DeCA vinculados a un Documento de Identificación (DI)
+   * (A7-05: compartido entre Productor, Transportista y Gestor del mismo DI sin filtrar por user_id del creador)
    */
   async getByIdentificationDocument(diId: number): Promise<DecaDocument[]> {
     if (!diId) return [];
 
-    const authRes = await supabase.auth.getUser();
-    const user = authRes?.data?.user;
-
-    let query = supabase
+    const query = supabase
       .from('deca_documents')
       .select('*')
       .eq('identification_document_id', diId);
-
-    if (user?.id) {
-      query = query.eq('user_id', user.id);
-    }
 
     const { data, error } = await query.order('version', { ascending: false });
 
@@ -188,7 +182,12 @@ export const decaService = {
       return [];
     }
 
-    return (data || []) as DecaDocument[];
+    return ((data || []) as DecaDocument[]).sort(
+      (a, b) =>
+        Number(Boolean(b.is_vigente)) - Number(Boolean(a.is_vigente)) ||
+        (Number(b.version) || 0) - (Number(a.version) || 0) ||
+        (Number(b.id) || 0) - (Number(a.id) || 0)
+    );
   },
 
   /**
@@ -356,7 +355,8 @@ export const decaService = {
 
   /**
    * Crear DeCA a partir de un Documento de Identificación (DI) de residuos
-   * Precarga automáticamente todos los campos medioambientales y de transporte
+   * Precarga automáticamente todos los campos medioambientales y de transporte.
+   * A7-05: Garantiza idempotencia y relación única de servicio DeCA entre todas las cuentas intervinientes.
    */
   async createFromIdentificationDocument(
     di: IdentificationDocument,
@@ -370,8 +370,43 @@ export const decaService = {
       observaciones_reservas?: string;
       matricula_tractora?: string;
       matricula_remolque?: string;
+      forceRevisionReason?: string;
     }
   ): Promise<DecaDocument> {
+    if (di.id) {
+      const existingDecas = await this.getByIdentificationDocument(di.id).catch(() => [] as DecaDocument[]);
+      if (existingDecas && existingDecas.length > 0) {
+        const sorted = [...existingDecas].sort((a, b) => (b.version - a.version) || (b.id - a.id));
+        const latest = sorted.find((d) => d.is_vigente !== false) || sorted[0];
+
+        if (latest) {
+          if (latest.estado === 'finalizado') {
+            throw new Error(
+              `El servicio de transporte ${latest.numero_deca} vinculado a este DI ya fue finalizado. No se puede emitir un segundo DeCA paralelo para un traslado cerrado.`
+            );
+          }
+
+          if (cargadorData.forceRevisionReason?.trim()) {
+            return await this.createNewVersion(
+              latest,
+              {
+                cargador_razon_social: cargadorData.cargador_razon_social || latest.cargador_razon_social,
+                cargador_nif: cargadorData.cargador_nif || latest.cargador_nif,
+                cargador_domicilio: cargadorData.cargador_domicilio || latest.cargador_domicilio,
+                matricula_tractora: cargadorData.matricula_tractora || latest.matricula_tractora,
+                matricula_remolque: cargadorData.matricula_remolque ?? latest.matricula_remolque,
+                observaciones_reservas: cargadorData.observaciones_reservas ?? latest.observaciones_reservas,
+              },
+              cargadorData.forceRevisionReason.trim()
+            );
+          }
+
+          // Idempotencia: devolver el documento vigente compartido ya existente para este DI
+          return latest;
+        }
+      }
+    }
+
     const pesoKg =
       di.peso_destino_kg ||
       di.peso_origen_kg ||

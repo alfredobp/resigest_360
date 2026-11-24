@@ -736,7 +736,18 @@ export async function drawSignatureBlocks(
   const gap = 4.5;
   const count = Math.max(blocks.length, 1);
   const cardW = (pageWidth - marginX * 2 - gap * (count - 1)) / count;
-  const cardH = 34;
+  const textMaxW = Math.max(cardW - 6, 16);
+
+  // A7-06 / INC08: Medir líneas envueltas de signerDetails (nombre, NIF y representación/cargo)
+  // para ajustar la altura del bloque sin truncar con elipsis '...'.
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.1);
+  const wrappedDetailsPerBlock = blocks.map((b) =>
+    b.signerDetails ? (doc.splitTextToSize(b.signerDetails, textMaxW) as string[]) : []
+  );
+  const maxDetailLines = Math.max(1, ...wrappedDetailsPerBlock.map((l) => l.length));
+  const extraDetailH = Math.max(0, (maxDetailLines - 1) * 2.9);
+  const cardH = 35.5 + extraDetailH;
 
   const safeY = ensurePageSpace(doc, yPos, cardH + 6);
   const currentPage =
@@ -765,7 +776,8 @@ export async function drawSignatureBlocks(
     setText(doc, PDF_COLORS.inkMuted);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6.6);
-    doc.text(fitText(doc, block.roleTitle.toUpperCase(), cardW - 6), x + 3, safeY + 4.8);
+    const titleLines = doc.splitTextToSize(block.roleTitle.toUpperCase(), textMaxW) as string[];
+    doc.text(titleLines[0] || block.roleTitle.toUpperCase(), x + 3, safeY + 4.8);
 
     // Imagen de firma si existe
     const sigLineY = safeY + 20.5;
@@ -801,106 +813,109 @@ export async function drawSignatureBlocks(
           : PDF_COLORS.warning
     );
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.1);
-    doc.text(fitText(doc, block.statusLabel, cardW - 6), x + 3, sigLineY + 4.2);
+    doc.setFontSize(6.9);
+    const statusLines = doc.splitTextToSize(block.statusLabel, textMaxW) as string[];
+    doc.text(statusLines[0] || block.statusLabel, x + 3, sigLineY + 4.1);
 
-    // Nombre / DNI
-    if (block.signerDetails) {
+      // Nombre / DNI / Representación completos en varias líneas sin truncar (A7-06)
+      const detailLines = wrappedDetailsPerBlock[i];
+      if (detailLines.length > 0) {
+        setText(doc, PDF_COLORS.inkSecondary);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.1);
+        doc.text(detailLines, x + 3, sigLineY + 7.7);
+      }
+
+      // Timestamp debajo de las líneas del firmante
+      if (block.timestamp) {
+        const tsY = sigLineY + (detailLines.length > 0 ? 7.7 + detailLines.length * 2.9 + 0.6 : 7.8);
+        setText(doc, PDF_COLORS.inkMuted);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(5.8);
+        doc.text(block.timestamp, x + 3, tsY);
+      }
+    }
+
+    (doc as JsPDFWithSignatureBoxes).__signatureBoxes = computedBoxes;
+
+    return safeY + cardH + 4;
+  }
+
+  // =============================================================================
+  // Pies de página y marca de agua
+  // =============================================================================
+
+  export interface PageFooterOptions {
+    legalText: string;
+    secondaryLine?: string;
+    rightText?: string;
+  }
+
+  export function drawPageFooters(doc: jsPDF, opts: PageFooterOptions): void {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const marginX = PDF_LAYOUT.marginX;
+    const totalPages = doc.getNumberOfPages();
+
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+
+      const lineY = pageHeight - 16.5;
+      setDraw(doc, PDF_COLORS.border);
+      doc.setLineWidth(0.25);
+      doc.line(marginX, lineY, pageWidth - marginX, lineY);
+
+      // Numeración a la derecha
+      const pageLabel = opts.rightText ? `${opts.rightText}  ·  Página ${i} de ${totalPages}` : `Página ${i} de ${totalPages}`;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.8);
       setText(doc, PDF_COLORS.inkSecondary);
+      const rightW = doc.getTextWidth(pageLabel) + 4;
+      doc.text(pageLabel, pageWidth - marginX, lineY + 4.2, { align: 'right' });
+
+      // Texto legal a la izquierda (envuelto sin invadir la numeración)
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.2);
-      doc.text(fitText(doc, block.signerDetails, cardW - 6), x + 3, sigLineY + 8);
-    }
-
-    // Timestamp
-    if (block.timestamp) {
+      doc.setFontSize(6.6);
       setText(doc, PDF_COLORS.inkMuted);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(5.9);
-      doc.text(fitText(doc, block.timestamp, cardW - 6), x + 3, sigLineY + (block.signerDetails ? 11.4 : 8));
+      const maxLegalW = pageWidth - marginX * 2 - rightW;
+      const legalLines = (doc.splitTextToSize(opts.legalText, maxLegalW) as string[]).slice(0, 2);
+      doc.text(legalLines, marginX, lineY + 4.2);
+
+      if (opts.secondaryLine) {
+        const secY = lineY + 4.2 + legalLines.length * 3.1;
+        doc.setFontSize(6.2);
+        doc.text(fitText(doc, opts.secondaryLine, pageWidth - marginX * 2), marginX, secY);
+      }
+
+      // Fina línea de acento inferior
+      setFill(doc, PDF_COLORS.brandPrimary);
+      doc.rect(0, pageHeight - 2, pageWidth, 2, 'F');
     }
   }
 
-  (doc as JsPDFWithSignatureBoxes).__signatureBoxes = computedBoxes;
+  export function drawDraftWatermark(doc: jsPDF, text = 'BORRADOR - NO OFICIAL'): void {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const totalPages = doc.getNumberOfPages();
+    const ext = doc as unknown as JsPDFExt;
 
-  return safeY + cardH + 4;
-}
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      const supportsGState = typeof ext.setGState === 'function' && typeof ext.GState === 'function';
+      if (supportsGState && ext.GState && ext.setGState) {
+        ext.setGState(new ext.GState({ opacity: 0.14 }));
+        setText(doc, PDF_COLORS.inkMuted);
+      } else {
+        setText(doc, PDF_COLORS.watermark);
+      }
 
-// =============================================================================
-// Pies de página y marca de agua
-// =============================================================================
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(34);
+      doc.text(text, pageWidth / 2, pageHeight / 2, { align: 'center', angle: 42 });
 
-export interface PageFooterOptions {
-  legalText: string;
-  secondaryLine?: string;
-  rightText?: string;
-}
-
-export function drawPageFooters(doc: jsPDF, opts: PageFooterOptions): void {
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const marginX = PDF_LAYOUT.marginX;
-  const totalPages = doc.getNumberOfPages();
-
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-
-    const lineY = pageHeight - 16.5;
-    setDraw(doc, PDF_COLORS.border);
-    doc.setLineWidth(0.25);
-    doc.line(marginX, lineY, pageWidth - marginX, lineY);
-
-    // Numeración a la derecha
-    const pageLabel = opts.rightText ? `${opts.rightText}  ·  Página ${i} de ${totalPages}` : `Página ${i} de ${totalPages}`;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.8);
-    setText(doc, PDF_COLORS.inkSecondary);
-    const rightW = doc.getTextWidth(pageLabel) + 4;
-    doc.text(pageLabel, pageWidth - marginX, lineY + 4.2, { align: 'right' });
-
-    // Texto legal a la izquierda (envuelto sin invadir la numeración)
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.6);
-    setText(doc, PDF_COLORS.inkMuted);
-    const maxLegalW = pageWidth - marginX * 2 - rightW;
-    const legalLines = (doc.splitTextToSize(opts.legalText, maxLegalW) as string[]).slice(0, 2);
-    doc.text(legalLines, marginX, lineY + 4.2);
-
-    if (opts.secondaryLine) {
-      const secY = lineY + 4.2 + legalLines.length * 3.1;
-      doc.setFontSize(6.2);
-      doc.text(fitText(doc, opts.secondaryLine, pageWidth - marginX * 2), marginX, secY);
-    }
-
-    // Fina línea de acento inferior
-    setFill(doc, PDF_COLORS.brandPrimary);
-    doc.rect(0, pageHeight - 2, pageWidth, 2, 'F');
-  }
-}
-
-export function drawDraftWatermark(doc: jsPDF, text = 'BORRADOR - NO OFICIAL'): void {
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const totalPages = doc.getNumberOfPages();
-  const ext = doc as unknown as JsPDFExt;
-
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    const supportsGState = typeof ext.setGState === 'function' && typeof ext.GState === 'function';
-    if (supportsGState && ext.GState && ext.setGState) {
-      ext.setGState(new ext.GState({ opacity: 0.14 }));
-      setText(doc, PDF_COLORS.inkMuted);
-    } else {
-      setText(doc, PDF_COLORS.watermark);
-    }
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(34);
-    doc.text(text, pageWidth / 2, pageHeight / 2, { align: 'center', angle: 42 });
-
-    if (supportsGState && ext.GState && ext.setGState) {
-      ext.setGState(new ext.GState({ opacity: 1 }));
+      if (supportsGState && ext.GState && ext.setGState) {
+        ext.setGState(new ext.GState({ opacity: 1 }));
+      }
     }
   }
-}
 

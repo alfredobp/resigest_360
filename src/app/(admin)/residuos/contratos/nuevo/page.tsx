@@ -158,6 +158,13 @@ export default function NuevoContratoPage() {
       return;
     }
 
+    if (!formData.cantidad_maxima_anual || Number(formData.cantidad_maxima_anual) <= 0) {
+      const msg = 'Debe indicar la cantidad estimada o máxima anual de residuos del contrato (Art. 5.c RD 553/2020).';
+      setError(msg);
+      toast.warning(msg);
+      return;
+    }
+
     if (formData.fecha_inicio && formData.fecha_fin) {
       if (!wasteContractService.validateDates(formData.fecha_inicio, formData.fecha_fin)) {
         const msg = 'La fecha de fin debe ser posterior a la fecha de inicio';
@@ -429,14 +436,15 @@ export default function NuevoContratoPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Cantidad Máxima Anual</label>
+                  <label className="block text-sm font-medium mb-2">Cantidad Estimada / Máxima Anual (Art. 5 RD 553/2020) *</label>
                   <Input
                     name="cantidad_maxima_anual"
                     type="number"
                     step={0.01}
                     value={formData.cantidad_maxima_anual || ''}
                     onChange={handleChange}
-                    placeholder="Ej: 1000"
+                    placeholder="Ej: 50"
+                    required
                   />
                 </div>
 

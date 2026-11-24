@@ -424,26 +424,6 @@ export default function EditarContratoPage() {
       contract.firma_gestor_url)
   );
 
-  if (hasAnySignature && contract) {
-    return (
-      <>
-        <PageBreadCrumb pageTitle={`Contrato ${contract.numero_contrato || `#${id}`}`} />
-        <div className="max-w-3xl mx-auto space-y-6">
-          <Alert
-            variant="warning"
-            title="Edición bloqueada por firma registrada"
-            message="Este contrato ya cuenta con al menos una firma (gráfica o con certificado digital) y no puede editarse para preservar la integridad legal y la validez de las firmas."
-          />
-          <div>
-            <Button onClick={() => router.push(`/residuos/contratos/${contract.id}`)}>
-              ← Volver al Detalle del Contrato
-            </Button>
-          </div>
-        </div>
-      </>
-    );
-  }
-
   return (
     <>
       <PageBreadCrumb pageTitle={`Editar Contrato ${contract?.numero_contrato || `#${id}`}`} />
@@ -461,6 +441,14 @@ export default function EditarContratoPage() {
 
         {error && (
           <Alert variant="error" title="Error" message={error} />
+        )}
+
+        {hasAnySignature && contract && (
+          <Alert
+            variant="info"
+            title={`Creación de Nueva Revisión Contractual (v${(contract.version || 1) + 1})`}
+            message={`La revisión actual (v${contract.version || 1}) dispone de firmas registradas. Al guardar cambios materiales (como la cantidad máxima anual, códigos LER, operaciones o vigencia), la versión v${contract.version || 1} se archivará íntegra en el historial de revisiones custodiadas y la nueva revisión v${(contract.version || 1) + 1} pasará a 'Pendiente de firma' para su nueva formalización (Art. 5 RD 553/2020).`}
+          />
         )}
 
         {contract && getContractEffectiveStatus(contract).isExpired && (

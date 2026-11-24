@@ -442,13 +442,20 @@ export default function DocumentosIdentificacionPage() {
       id: 'centro',
       header: 'Centro Origen',
       sortable: true,
-      accessorFn: (doc) => doc.production_center?.nombre || '',
-      className: 'max-w-[115px]',
-      cell: ({ row }) => (
-        <span className="text-[11.5px] text-slate-800 dark:text-slate-200 truncate block" title={row.production_center?.nombre || '-'}>
-          {row.production_center?.nombre || '-'}
-        </span>
-      ),
+      accessorFn: (doc) => doc.production_center?.nombre || doc.productor_municipio || doc.productor_razon_social || '',
+      className: 'max-w-[130px]',
+      cell: ({ row }) => {
+        const centerLabel =
+          row.production_center?.nombre ||
+          (row.productor_municipio
+            ? `${row.productor_razon_social ? `${row.productor_razon_social} · ` : ''}${row.productor_municipio}`
+            : row.productor_razon_social || '-');
+        return (
+          <span className="text-[11.5px] text-slate-800 dark:text-slate-200 truncate block" title={centerLabel}>
+            {centerLabel}
+          </span>
+        );
+      },
     },
     {
       id: 'gestor',
@@ -778,8 +785,8 @@ export default function DocumentosIdentificacionPage() {
               type="button"
               onClick={() => setViewMode('table')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${viewMode === 'table'
-                  ? 'bg-white dark:bg-gray-700 text-primary shadow-xs'
-                  : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+                ? 'bg-white dark:bg-gray-700 text-primary shadow-xs'
+                : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
                 }`}
             >
               <TableIcon className="w-3.5 h-3.5" />
@@ -789,8 +796,8 @@ export default function DocumentosIdentificacionPage() {
               type="button"
               onClick={() => setViewMode('cards')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${viewMode === 'cards'
-                  ? 'bg-white dark:bg-gray-700 text-primary shadow-xs'
-                  : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+                ? 'bg-white dark:bg-gray-700 text-primary shadow-xs'
+                : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
                 }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" />

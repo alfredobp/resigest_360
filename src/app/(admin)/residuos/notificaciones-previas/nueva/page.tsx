@@ -273,7 +273,7 @@ export default function NuevaNotificacionPreviaPage() {
               Nueva Notificación Previa de Traslado (NT)
             </h2>
             <p className="text-sm text-muted">
-              Genera y presenta el documento electrónico reglamentario E3L v3.3 ante la Junta de Andalucía.
+              Genera y presenta el documento electrónico reglamentario E3L v3.6 ante la Junta de Andalucía.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -336,7 +336,7 @@ export default function NuevaNotificacionPreviaPage() {
                   disabled
                 />
                 <p className="text-[11px] text-muted mt-1">
-                  Código oficial consecutivo E3L 3.3 por empresa y año (no editable).
+                  Código oficial consecutivo E3L v3.6 por empresa y año (no editable).
                 </p>
               </div>
 

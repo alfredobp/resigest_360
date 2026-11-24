@@ -664,7 +664,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       expect(result).toEqual([]);
     });
 
-    it('debe consultar documentos DeCA por identification_document_id filtrando por user_id cuando hay sesión', async () => {
+    it('debe consultar documentos DeCA por identification_document_id de forma compartida entre participantes del DI', async () => {
       mockSupabase.auth.getUser.mockResolvedValue({
         data: { user: { id: 'user-deca-1' } },
       });
@@ -672,8 +672,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
         { id: 10, numero_deca: 'DECA-2026-00010', identification_document_id: 120, version: 1, is_vigente: true },
       ];
       const orderMock = jest.fn().mockResolvedValue({ data: mockDocs, error: null });
-      const eqUserMock = jest.fn().mockReturnValue({ order: orderMock });
-      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock, order: orderMock });
+      const eqMock = jest.fn().mockReturnValue({ order: orderMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
@@ -681,7 +680,6 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
 
       expect(mockSupabase.from).toHaveBeenCalledWith('deca_documents');
       expect(eqMock).toHaveBeenCalledWith('identification_document_id', 120);
-      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-deca-1');
       expect(orderMock).toHaveBeenCalledWith('version', { ascending: false });
       expect(result).toEqual(mockDocs);
     });

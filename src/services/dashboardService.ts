@@ -385,20 +385,42 @@ export const dashboardService = {
           enlace: `/residuos/contratos/${c.id}`,
           fecha: c.fecha_fin
         });
-      } else if (c.estado === 'vigente' && c.fecha_fin) {
-        const daysLeft = Math.ceil((new Date(c.fecha_fin).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        if (daysLeft >= 0 && daysLeft <= 60) {
-          contratosPorVencerCount++;
+      } else if (c.estado === 'vigente') {
+        // A7-10: Verificar si un contrato vigente carece explícitamente de cantidad anual estimada/máxima definida
+        // (y no es un contrato externo adjunto), lo cual bloquea la salida de traslados (Art. 5 RD 553/2020)
+        const isExplicitlyMissingQuantity =
+          'cantidad_maxima_anual' in c &&
+          (!c.cantidad_maxima_anual || Number(c.cantidad_maxima_anual) <= 0) &&
+          !c.documento_url;
+        if (isExplicitlyMissingQuantity) {
+          totalNoConformes++;
           listaAlertas.push({
-            id: `contract-exp-${c.id}`,
-            tipo: 'contrato_proximo',
+            id: `contract-noqty-${c.id}`,
+            tipo: 'sin_contrato',
             gravedad: 'advertencia',
-            titulo: `Contrato próximo a vencer (${daysLeft} días): ${c.numero_contrato}`,
-            descripcion: `Vence el ${c.fecha_fin}. Se recomienda iniciar la renovación con el gestor destinatario.`,
+            titulo: `Contrato vigente incompleto (sin cantidad anual): ${c.numero_contrato}`,
+            descripcion: `El contrato está firmado pero no define la cantidad estimada de residuos (Art. 5 RD 553/2020), lo que bloqueará la expedición de traslados hasta emitir una nueva revisión.`,
             referencia: c.numero_contrato,
             enlace: `/residuos/contratos/${c.id}`,
-            fecha: c.fecha_fin
+            fecha: c.fecha_firma || c.fecha_contrato
           });
+        }
+
+        if (c.fecha_fin) {
+          const daysLeft = Math.ceil((new Date(c.fecha_fin).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysLeft >= 0 && daysLeft <= 60) {
+            contratosPorVencerCount++;
+            listaAlertas.push({
+              id: `contract-exp-${c.id}`,
+              tipo: 'contrato_proximo',
+              gravedad: 'advertencia',
+              titulo: `Contrato próximo a vencer (${daysLeft} días): ${c.numero_contrato}`,
+              descripcion: `Vence el ${c.fecha_fin}. Se recomienda iniciar la renovación con el gestor destinatario.`,
+              referencia: c.numero_contrato,
+              enlace: `/residuos/contratos/${c.id}`,
+              fecha: c.fecha_fin
+            });
+          }
         }
       }
     });

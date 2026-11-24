@@ -210,11 +210,33 @@ export function calculateProfitability(data: Partial<CommercialOperationFormData
     for (const line of data.lineas_materiales!) {
       const lineT = Number(line.cantidad_t || 0);
       sumT += lineT;
-      const factor = line.tipo_precio === 'por_kg' ? lineT * 1000 : line.tipo_precio === 'lote_fijo' ? 1 : lineT;
+    }
+
+    // A7-02: Si se registra una pesada global (cantidad_real_t) sin haber desglosado cada línea a la misma suma,
+    // aplicar reparto proporcional respecto a las cantidades de las líneas para conservar precios y márgenes,
+    // sin caer jamás en multiplicar por los precios 0 de la cabecera.
+    const explicitRealT =
+      data.cantidad_real_t !== undefined && data.cantidad_real_t !== null && Number(data.cantidad_real_t) > 0
+        ? Number(data.cantidad_real_t)
+        : null;
+    const scaleFactor =
+      explicitRealT !== null && sumT > 0 && Math.abs(explicitRealT - sumT) > 0.0001
+        ? explicitRealT / sumT
+        : 1;
+
+    for (const line of data.lineas_materiales!) {
+      const effectiveLineT = Number(line.cantidad_t || 0) * scaleFactor;
+      const factor =
+        line.tipo_precio === 'por_kg'
+          ? effectiveLineT * 1000
+          : line.tipo_precio === 'lote_fijo'
+            ? 1
+            : effectiveLineT;
       costeCompra += Number(line.precio_unitario_compra || 0) * factor;
       ingresoVenta += Number(line.precio_unitario_venta || 0) * factor;
     }
-    toneladas = sumT;
+
+    toneladas = explicitRealT !== null ? explicitRealT : sumT;
   } else {
     // Cálculo de coste de compra
     const precioCompra = Number(data.precio_unitario_compra || 0);
@@ -570,7 +592,8 @@ export const commercialOperationService = {
       data.tipo_precio_venta !== undefined ||
       data.precio_unitario_venta !== undefined ||
       data.coste_transporte !== undefined ||
-      data.otros_costes !== undefined;
+    data.otros_costes !== undefined ||
+      lineas_materiales !== undefined;
 
     const payload: any = {
       ...dbData,
@@ -615,9 +638,12 @@ export const commercialOperationService = {
       );
     }
 
-    // Recalcular rentabilidad solo si se proporcionan campos económicos o de cantidad,
-    // fusionando previamente con los valores persistidos para no sobrescribir precios con 0.
+    // Recalcular rentabilidad solo si se proporcionan campos económicos, de cantidad o líneas multimaterial,
+    // fusionando previamente con los valores persistidos (incluyendo lineas_materiales) para no sobrescribir precios con 0 (A7-02).
     if (hasFinancialFields) {
+      const effectiveLines =
+        lineas_materiales !== undefined ? lineas_materiales : existing?.lineas_materiales;
+
       const mergedFinancialData: Partial<CommercialOperationFormData> = {
         cantidad_estimada_t: existing?.cantidad_estimada_t,
         cantidad_real_t: existing?.cantidad_real_t ?? undefined,
@@ -627,8 +653,68 @@ export const commercialOperationService = {
         precio_unitario_venta: existing?.precio_unitario_venta,
         coste_transporte: existing?.coste_transporte,
         otros_costes: existing?.otros_costes,
+        lineas_materiales: effectiveLines,
         ...data,
       };
+
+      // Si es multimaterial y se actualiza cantidad_real_t global sin enviar nuevas lineas_materiales,
+      // ajustar proporcionalmente las cantidades de las líneas guardadas para que la tabla multimaterial,
+      // el PDF y el CSV coincidan exactamente con el peso verificado en báscula (A7-02).
+      if (
+        lineas_materiales === undefined &&
+        Array.isArray(effectiveLines) &&
+        effectiveLines.length > 0 &&
+        mergedFinancialData.cantidad_real_t &&
+        Number(mergedFinancialData.cantidad_real_t) > 0
+      ) {
+        const sumPrevT = effectiveLines.reduce((acc, l) => acc + Number(l.cantidad_t || 0), 0);
+        const targetRealT = Number(mergedFinancialData.cantidad_real_t);
+        if (sumPrevT > 0 && Math.abs(targetRealT - sumPrevT) > 0.0001) {
+          const ratio = targetRealT / sumPrevT;
+          let runningT = 0;
+          const scaledLines = effectiveLines.map((l, idx) => {
+            if (idx === effectiveLines.length - 1) {
+              const remainder = Math.max(0, Number((targetRealT - runningT).toFixed(3)));
+              return { ...l, cantidad_t: remainder };
+            }
+            const scaledT = Number((Number(l.cantidad_t || 0) * ratio).toFixed(3));
+            runningT += scaledT;
+            return { ...l, cantidad_t: scaledT };
+          });
+          mergedFinancialData.lineas_materiales = scaledLines;
+          payload.observaciones = serializeCommercialMetaToNotes(
+            data.observaciones !== undefined ? data.observaciones : existing?.observaciones,
+            {
+              modalidad_posesion:
+                data.modalidad_posesion ||
+                existing?.modalidad_posesion ||
+                'intermediacion_sin_posesion',
+              actua_como_operador:
+                actua_como_operador !== undefined
+                  ? Boolean(actua_como_operador)
+                  : Boolean(existing?.actua_como_operador),
+              mandato_referencia:
+                mandato_referencia !== undefined
+                  ? mandato_referencia.trim() || undefined
+                  : existing?.mandato_referencia || undefined,
+              mandato_fecha:
+                mandato_fecha !== undefined
+                  ? mandato_fecha || undefined
+                  : existing?.mandato_fecha || undefined,
+              mandato_otorgante:
+                mandato_otorgante !== undefined
+                  ? mandato_otorgante.trim() || undefined
+                  : existing?.mandato_otorgante || undefined,
+              documentos:
+                documentos_adjuntos !== undefined
+                  ? documentos_adjuntos
+                  : existing?.documentos_adjuntos || [],
+              lineas_materiales: scaledLines,
+            }
+          );
+        }
+      }
+
       const profitability = calculateProfitability(mergedFinancialData);
       payload.coste_compra_total = profitability.coste_compra_total;
       payload.ingreso_venta_total = profitability.ingreso_venta_total;
@@ -855,14 +941,21 @@ export const commercialOperationService = {
 
     const rows = ops.map(op => {
       const ton = (op.cantidad_real_t && op.cantidad_real_t > 0 ? op.cantidad_real_t : op.cantidad_estimada_t) || 0;
-      const modCompra = op.tipo_precio_compra === 'por_kg' ? '€/kg' : (op.tipo_precio_compra === 'lote_fijo' ? 'Lote Fijo' : '€/t');
-      const modVenta = op.tipo_precio_venta === 'por_kg' ? '€/kg' : (op.tipo_precio_venta === 'lote_fijo' ? 'Lote Fijo' : '€/t');
-      const normCompra = op.tipo_precio_compra === 'por_kg'
-        ? (op.precio_unitario_compra || 0) * 1000
-        : (op.tipo_precio_compra === 'lote_fijo' ? (ton > 0 ? (op.coste_compra_total || 0) / ton : 0) : (op.precio_unitario_compra || 0));
-      const normVenta = op.tipo_precio_venta === 'por_kg'
-        ? (op.precio_unitario_venta || 0) * 1000
-        : (op.tipo_precio_venta === 'lote_fijo' ? (ton > 0 ? (op.ingreso_venta_total || 0) / ton : 0) : (op.precio_unitario_venta || 0));
+      const isMulti = Array.isArray(op.lineas_materiales) && op.lineas_materiales.length > 0;
+      const modCompra = isMulti ? 'Multimaterial (€/t pond.)' : op.tipo_precio_compra === 'por_kg' ? '€/kg' : (op.tipo_precio_compra === 'lote_fijo' ? 'Lote Fijo' : '€/t');
+      const modVenta = isMulti ? 'Multimaterial (€/t pond.)' : op.tipo_precio_venta === 'por_kg' ? '€/kg' : (op.tipo_precio_venta === 'lote_fijo' ? 'Lote Fijo' : '€/t');
+      const normCompra = isMulti
+        ? (ton > 0 ? (op.coste_compra_total || 0) / ton : 0)
+        : op.tipo_precio_compra === 'por_kg'
+          ? (op.precio_unitario_compra || 0) * 1000
+          : (op.tipo_precio_compra === 'lote_fijo' ? (ton > 0 ? (op.coste_compra_total || 0) / ton : 0) : (op.precio_unitario_compra || 0));
+      const normVenta = isMulti
+        ? (ton > 0 ? (op.ingreso_venta_total || 0) / ton : 0)
+        : op.tipo_precio_venta === 'por_kg'
+          ? (op.precio_unitario_venta || 0) * 1000
+          : (op.tipo_precio_venta === 'lote_fijo' ? (ton > 0 ? (op.ingreso_venta_total || 0) / ton : 0) : (op.precio_unitario_venta || 0));
+      const unitCompra = isMulti ? normCompra : (op.precio_unitario_compra || 0);
+      const unitVenta = isMulti ? normVenta : (op.precio_unitario_venta || 0);
 
       return [
         op.numero_operacion,
@@ -876,12 +969,12 @@ export const commercialOperationService = {
         `"${(op.transportista_nombre_personalizado || op.transportista?.razon_social || '').replace(/"/g, '""')}"`,
         `"${(op.proveedor_razon_social || op.proveedor_comercial?.razon_social || '').replace(/"/g, '""')}"`,
         modCompra,
-        (op.precio_unitario_compra || 0).toFixed(4).replace('.', ','),
+        unitCompra.toFixed(4).replace('.', ','),
         normCompra.toFixed(2).replace('.', ','),
         (op.coste_compra_total || 0).toFixed(2).replace('.', ','),
         `"${(op.cliente_razon_social || op.cliente_comercial?.razon_social || '').replace(/"/g, '""')}"`,
         modVenta,
-        (op.precio_unitario_venta || 0).toFixed(4).replace('.', ','),
+        unitVenta.toFixed(4).replace('.', ','),
         normVenta.toFixed(2).replace('.', ','),
         (op.ingreso_venta_total || 0).toFixed(2).replace('.', ','),
         (op.coste_transporte || 0).toFixed(2).replace('.', ','),

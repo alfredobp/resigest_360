@@ -274,12 +274,34 @@ export async function generateIdentificationDocumentPDF(
   yPos = drawSectionHeader(doc, '4. Control de Pesaje en Báscula y Dictamen de Recepción', yPos);
 
   const pesoOrigenText = docData.peso_origen_kg ? `${docData.peso_origen_kg} kg` : `${docData.cantidad} ${docData.unidad}`;
-  const pesoDestinoText = docData.peso_destino_kg ? `${docData.peso_destino_kg} kg` : 'Pendiente en báscula';
-  const dictamen = (docData.resultado_recepcion || 'Conforme pendiente').toUpperCase();
+  const isPartialReject =
+    docData.estado_traslado === 'rechazado_parcial' || docData.resultado_recepcion === 'rechazado_parcial';
+  const isTotalReject =
+    docData.estado_traslado === 'rechazado_total' || docData.resultado_recepcion === 'rechazado_total';
+  const rejectedKg =
+    isPartialReject && docData.cantidad_rechazada_kg && Number(docData.cantidad_rechazada_kg) > 0
+      ? Number(docData.cantidad_rechazada_kg)
+      : isTotalReject && docData.peso_destino_kg
+        ? Number(docData.peso_destino_kg)
+        : 0;
+  const grossDestKg = docData.peso_destino_kg ? Number(docData.peso_destino_kg) : 0;
+  const netAcceptedKg = Math.max(0, grossDestKg - rejectedKg);
+
+  const pesoDestinoText = docData.peso_destino_kg
+    ? rejectedKg > 0
+      ? `${netAcceptedKg} kg aceptados (${grossDestKg} kg recibidos)`
+      : `${docData.peso_destino_kg} kg`
+    : 'Pendiente en báscula';
+  const dictamen = (docData.resultado_recepcion || docData.estado_traslado || 'Conforme pendiente')
+    .replace(/_/g, ' ')
+    .toUpperCase();
   const hasDiscrepancia = docData.diferencia_peso_kg !== undefined && docData.diferencia_peso_kg !== null;
-  const discText = hasDiscrepancia
-    ? `${(docData.diferencia_peso_kg || 0) > 0 ? '+' : ''}${docData.diferencia_peso_kg} kg (${docData.porcentaje_discrepancia || 0}%)`
-    : dictamen;
+  const discText =
+    rejectedKg > 0
+      ? `Rechazado: ${rejectedKg} kg`
+      : hasDiscrepancia
+        ? `${(docData.diferencia_peso_kg || 0) > 0 ? '+' : ''}${docData.diferencia_peso_kg} kg (${docData.porcentaje_discrepancia || 0}%)`
+        : dictamen;
 
   yPos = drawKpiCards(
     doc,
@@ -291,7 +313,7 @@ export async function generateIdentificationDocumentPDF(
         accentColor: PDF_COLORS.inkMuted,
       },
       {
-        label: 'Peso Neto en Destino',
+        label: rejectedKg > 0 ? 'Peso Aceptado / Recibido' : 'Peso Neto en Destino',
         value: pesoDestinoText,
         subtext: docData.fecha_llegada_destino
           ? `Llegada: ${formatSafeDateTime(docData.fecha_llegada_destino)}`
@@ -299,194 +321,213 @@ export async function generateIdentificationDocumentPDF(
         accentColor: PDF_COLORS.brandPrimary,
       },
       {
-        label: hasDiscrepancia ? 'Discrepancia / Dictamen' : 'Dictamen de Recepción',
+        label: rejectedKg > 0 ? 'Fracción Rechazada / Dictamen' : hasDiscrepancia ? 'Discrepancia / Dictamen' : 'Dictamen de Recepción',
         value: discText,
-        subtext: hasDiscrepancia ? `Dictamen: ${dictamen}` : 'Control de recepción',
-        accentColor: docData.motivo_incidencia ? PDF_COLORS.danger : PDF_COLORS.brandPrimary,
-        valueColor: docData.motivo_incidencia ? PDF_COLORS.danger : PDF_COLORS.inkPrimary,
+        subtext: rejectedKg > 0 || hasDiscrepancia ? `Dictamen: ${dictamen}` : 'Control de recepción',
+        accentColor: docData.motivo_incidencia || rejectedKg > 0 ? PDF_COLORS.danger : PDF_COLORS.brandPrimary,
+        valueColor: docData.motivo_incidencia || rejectedKg > 0 ? PDF_COLORS.danger : PDF_COLORS.inkPrimary,
       },
     ],
     yPos
   );
 
-  // Caja de incidencia / rechazo si existe
-  if (docData.motivo_incidencia) {
-    const motivoText = `${docData.tipo_incidencia ? `${docData.tipo_incidencia}: ` : ''}${docData.motivo_incidencia}`;
-    const motivoLines = doc.splitTextToSize(motivoText, contentW - 8) as string[];
-    const boxH = motivoLines.length * 3.6 + 8;
-    yPos = ensurePageSpace(doc, yPos, boxH + 4);
+    // Caja de incidencia / rechazo si existe motivo o fracción rechazada (A7-04)
+    if (docData.motivo_incidencia || rejectedKg > 0 || isPartialReject || isTotalReject) {
+      const desglosePrefix =
+        grossDestKg > 0 && rejectedKg > 0
+          ? `Desglose de recepción: ${grossDestKg} kg recibidos en báscula · ${netAcceptedKg} kg aceptados netos · ${rejectedKg} kg rechazados. `
+          : '';
+      const rawMotivo = docData.motivo_incidencia || 'Rechazo registrado en recepción de destino.';
+      const motivoText = `${desglosePrefix}${docData.tipo_incidencia ? `Causa (${docData.tipo_incidencia}): ` : 'Motivo: '}${rawMotivo}`;
+      const motivoLines = doc.splitTextToSize(motivoText, contentW - 8) as string[];
+      const boxH = motivoLines.length * 3.6 + 8;
+      yPos = ensurePageSpace(doc, yPos, boxH + 4);
 
-    setFill(doc, PDF_COLORS.dangerBg);
-    setDraw(doc, PDF_COLORS.dangerBorder);
-    doc.setLineWidth(0.25);
-    doc.roundedRect(marginX, yPos, contentW, boxH, 1.8, 1.8, 'FD');
+      setFill(doc, PDF_COLORS.dangerBg);
+      setDraw(doc, PDF_COLORS.dangerBorder);
+      doc.setLineWidth(0.25);
+      doc.roundedRect(marginX, yPos, contentW, boxH, 1.8, 1.8, 'FD');
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.4);
-    setText(doc, PDF_COLORS.danger);
-    doc.text('INCIDENCIA / RECHAZO EN RECEPCIÓN:', marginX + 3.5, yPos + 4.8);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.4);
+      setText(doc, PDF_COLORS.danger);
+      doc.text('INCIDENCIA / RECHAZO EN RECEPCIÓN:', marginX + 3.5, yPos + 4.8);
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    setText(doc, PDF_COLORS.inkPrimary);
-    doc.text(motivoLines, marginX + 3.5, yPos + 8.8);
-    yPos += boxH + 3.5;
-  }
-
-  // Caja de justificación de discrepancia si existe
-  if (docData.justificacion_discrepancia) {
-    const causaLabel = docData.causa_discrepancia
-      ? CAUSA_DISCREPANCIA_LABELS[docData.causa_discrepancia] || docData.causa_discrepancia
-      : 'Sin causa tipificada';
-    const justLines = doc.splitTextToSize(`${causaLabel}: ${docData.justificacion_discrepancia}`, contentW - 8) as string[];
-    const autoria = [
-      docData.justificacion_discrepancia_by_nombre,
-      docData.justificacion_discrepancia_at ? formatSafeDateTime(docData.justificacion_discrepancia_at) : null,
-    ]
-      .filter(Boolean)
-      .join(' · ');
-    const boxH = justLines.length * 3.6 + (autoria ? 11.5 : 8);
-    yPos = ensurePageSpace(doc, yPos, boxH + 4);
-
-    setFill(doc, PDF_COLORS.warningBg);
-    setDraw(doc, PDF_COLORS.warningBorder);
-    doc.setLineWidth(0.25);
-    doc.roundedRect(marginX, yPos, contentW, boxH, 1.8, 1.8, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.4);
-    setText(doc, PDF_COLORS.warning);
-    doc.text('JUSTIFICACIÓN DE DISCREPANCIA DE BÁSCULA:', marginX + 3.5, yPos + 4.8);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    setText(doc, PDF_COLORS.inkPrimary);
-    doc.text(justLines, marginX + 3.5, yPos + 8.8);
-
-    if (autoria) {
-      doc.setFontSize(6.6);
-      setText(doc, PDF_COLORS.inkMuted);
-      doc.text(`Registrada por: ${autoria}`, marginX + 3.5, yPos + 8.8 + justLines.length * 3.6 + 1);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      setText(doc, PDF_COLORS.inkPrimary);
+      doc.text(motivoLines, marginX + 3.5, yPos + 8.8);
+      yPos += boxH + 3.5;
     }
-    yPos += boxH + 3.5;
+
+    // Caja de justificación de discrepancia si existe
+    if (docData.justificacion_discrepancia) {
+      const causaLabel = docData.causa_discrepancia
+        ? CAUSA_DISCREPANCIA_LABELS[docData.causa_discrepancia] || docData.causa_discrepancia
+        : 'Sin causa tipificada';
+      const justLines = doc.splitTextToSize(`${causaLabel}: ${docData.justificacion_discrepancia}`, contentW - 8) as string[];
+      const autoria = [
+        docData.justificacion_discrepancia_by_nombre,
+        docData.justificacion_discrepancia_at ? formatSafeDateTime(docData.justificacion_discrepancia_at) : null,
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      const boxH = justLines.length * 3.6 + (autoria ? 11.5 : 8);
+      yPos = ensurePageSpace(doc, yPos, boxH + 4);
+
+      setFill(doc, PDF_COLORS.warningBg);
+      setDraw(doc, PDF_COLORS.warningBorder);
+      doc.setLineWidth(0.25);
+      doc.roundedRect(marginX, yPos, contentW, boxH, 1.8, 1.8, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.4);
+      setText(doc, PDF_COLORS.warning);
+      doc.text('JUSTIFICACIÓN DE DISCREPANCIA DE BÁSCULA:', marginX + 3.5, yPos + 4.8);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      setText(doc, PDF_COLORS.inkPrimary);
+      doc.text(justLines, marginX + 3.5, yPos + 8.8);
+
+      if (autoria) {
+        doc.setFontSize(6.6);
+        setText(doc, PDF_COLORS.inkMuted);
+        doc.text(`Registrada por: ${autoria}`, marginX + 3.5, yPos + 8.8 + justLines.length * 3.6 + 1);
+      }
+      yPos += boxH + 3.5;
+    }
+
+    // --- 5. FIRMAS DE LOS INTERVINIENTES (3 COLUMNAS) ---
+    yPos = ensurePageSpace(doc, yPos, 46);
+    yPos = drawSectionHeader(doc, '5. Conformidad y Firmas de los Intervinientes', yPos);
+
+    const formatSigner = (name?: string | null, dni?: string | null): string | undefined => {
+      if (!name && !dni) return undefined;
+      return [name, dni ? `(${dni})` : null].filter(Boolean).join(' ');
+    };
+
+    const padesMode = Boolean(options?.padesMode);
+
+    // INC01: Separar conformidad interna, firma gráfica capturada y firma electrónica PAdES.
+    // Nunca declarar "Firmado digitalmente (PAdES)" en un PDF generado sin firma criptográfica incrustada.
+    const showProducerSignedFooter =
+      Boolean(docData.firmado_productor) && (!padesMode || Boolean(docData.firma_productor_url));
+    const showTransportistaSignedFooter =
+      Boolean(docData.firmado_transportista) && (!padesMode || Boolean(docData.firma_transportista_url));
+    const hasReceptionRecorded = Boolean(
+      docData.firmado_gestor ||
+      docData.peso_destino_kg ||
+      docData.fecha_llegada_destino ||
+      ['recepcionado', 'aceptado', 'rechazado_parcial', 'rechazado_total', 'tratado'].includes(
+        (docData.estado_traslado || '').toLowerCase()
+      )
+    );
+    const showGestorSignedFooter =
+    hasReceptionRecorded && (!padesMode || Boolean(docData.firma_gestor_url));
+
+    await drawSignatureBlocks(
+      doc,
+      [
+        {
+          roleKey: 'productor',
+          roleTitle: 'El Productor / Remitente',
+          imageUrl: docData.firma_productor_url,
+          isSigned: showProducerSignedFooter,
+          hidePendingPlaceholder: padesMode,
+          neutralStatus: padesMode,
+          statusLabel: showProducerSignedFooter
+            ? docData.firma_productor_url
+              ? 'Firma gráfica en salida'
+              : 'Conformidad interna en salida'
+            : padesMode
+              ? 'Espacio firma electrónica (PAdES)'
+              : 'Pendiente de firma',
+          signerDetails: showProducerSignedFooter
+            ? formatSigner(docData.nombre_productor, docData.dni_productor)
+            : undefined,
+          timestamp:
+            showProducerSignedFooter && docData.fecha_firma_productor
+              ? formatSafeDateTime(docData.fecha_firma_productor)
+              : undefined,
+        },
+        {
+          roleKey: 'transportista',
+          roleTitle: 'El Transportista',
+          imageUrl: docData.firma_transportista_url,
+          isSigned: showTransportistaSignedFooter,
+          hidePendingPlaceholder: padesMode,
+          neutralStatus: padesMode,
+          statusLabel: showTransportistaSignedFooter
+            ? docData.firma_transportista_url
+              ? 'Firma gráfica en carga'
+              : 'Conformidad interna en carga'
+            : padesMode
+              ? 'Espacio firma electrónica (PAdES)'
+              : 'Pendiente de firma',
+          signerDetails: showTransportistaSignedFooter
+            ? formatSigner(docData.nombre_transportista, docData.dni_transportista)
+            : undefined,
+          timestamp:
+            showTransportistaSignedFooter && docData.fecha_firma_transportista
+              ? formatSafeDateTime(docData.fecha_firma_transportista)
+              : undefined,
+        },
+        {
+          roleKey: 'gestor',
+          roleTitle: 'El Gestor Destinatario',
+          imageUrl: docData.firma_gestor_url,
+          isSigned: showGestorSignedFooter,
+          hidePendingPlaceholder: padesMode,
+          neutralStatus: padesMode,
+          statusLabel: showGestorSignedFooter
+            ? docData.firma_gestor_url
+              ? 'Recepción con firma gráfica'
+              : 'Recepción registrada en plataforma'
+            : padesMode
+              ? 'Espacio firma electrónica (PAdES)'
+              : 'Pendiente de recepción',
+          signerDetails: showGestorSignedFooter
+            ? formatSigner(docData.nombre_gestor, docData.dni_gestor)
+            : undefined,
+          timestamp:
+            showGestorSignedFooter && docData.fecha_firma_gestor
+              ? formatSafeDateTime(docData.fecha_firma_gestor)
+              : undefined,
+        },
+      ],
+      yPos
+    );
+
+    // --- PIE DE PÁGINA Y MARCA DE AGUA BORRADOR (INC03 / UXDEV-12) ---
+    // Usar estado_traslado como estado efectivo principal para evitar que un DI aceptado o en tránsito
+    // herede la marca "BORRADOR - NO OFICIAL" de un campo legacy estado='borrador'.
+    const effectiveStatus = (docData.estado_traslado || docData.estado || 'borrador').toLowerCase();
+    const isDraft = effectiveStatus === 'borrador' || effectiveStatus === 'pendiente';
+    const isFinalized = [
+      'aceptado',
+      'rechazado_parcial',
+      'rechazado_total',
+      'recepcionado',
+      'tratado',
+      'finalizado',
+    ].includes(effectiveStatus);
+    const isCompletelySigned = Boolean(docData.firmado_productor && (docData.firmado_gestor || hasReceptionRecorded));
+
+    const legalText = isDraft
+      ? 'COPIA DE BORRADOR (Real Decreto 553/2020). No válida como documento oficial de transporte ni control ambiental hasta inicio formal de traslado.'
+      : isFinalized && isCompletelySigned
+          ? 'Documento de control y seguimiento de traslados (art. 6 Real Decreto 553/2020). Recepción y conformidades registradas según secciones 4 y 5.'
+          : isFinalized
+              ? 'Documento de traslado con recepción registrada en destino (Real Decreto 553/2020). El desglose de recepción y conformidades consta en las secciones 4 y 5.'
+              : 'Documento de traslado en curso (Real Decreto 553/2020). Pendiente de recepción y formalización definitiva en destino.';
+
+    drawPageFooters(doc, { legalText });
+
+    if (isDraft) {
+      drawDraftWatermark(doc, 'BORRADOR - NO OFICIAL');
+    }
+
+    return doc;
   }
-
-  // --- 5. FIRMAS DE LOS INTERVINIENTES (3 COLUMNAS) ---
-  yPos = ensurePageSpace(doc, yPos, 46);
-  yPos = drawSectionHeader(doc, '5. Conformidad y Firmas de los Intervinientes', yPos);
-
-  const formatSigner = (name?: string | null, dni?: string | null): string | undefined => {
-    if (!name && !dni) return undefined;
-    return [name, dni ? `(${dni})` : null].filter(Boolean).join(' ');
-  };
-
-  const padesMode = Boolean(options?.padesMode);
-
-  // INC01: Separar conformidad interna, firma gráfica capturada y firma electrónica PAdES.
-  // Nunca declarar "Firmado digitalmente (PAdES)" en un PDF generado sin firma criptográfica incrustada.
-  const showProducerSignedFooter =
-    Boolean(docData.firmado_productor) && (!padesMode || Boolean(docData.firma_productor_url));
-  const showTransportistaSignedFooter =
-    Boolean(docData.firmado_transportista) && (!padesMode || Boolean(docData.firma_transportista_url));
-  const showGestorSignedFooter =
-    Boolean(docData.firmado_gestor) && (!padesMode || Boolean(docData.firma_gestor_url));
-
-  await drawSignatureBlocks(
-    doc,
-    [
-      {
-        roleKey: 'productor',
-        roleTitle: 'El Productor / Remitente',
-        imageUrl: docData.firma_productor_url,
-        isSigned: showProducerSignedFooter,
-        hidePendingPlaceholder: padesMode,
-        neutralStatus: padesMode,
-        statusLabel: showProducerSignedFooter
-          ? docData.firma_productor_url
-            ? 'Firma gráfica en salida'
-            : 'Conformidad interna en salida'
-          : padesMode
-            ? 'Espacio firma electrónica (PAdES)'
-            : 'Pendiente de firma',
-        signerDetails: showProducerSignedFooter
-          ? formatSigner(docData.nombre_productor, docData.dni_productor)
-          : undefined,
-        timestamp:
-          showProducerSignedFooter && docData.fecha_firma_productor
-            ? formatSafeDateTime(docData.fecha_firma_productor)
-            : undefined,
-      },
-      {
-        roleKey: 'transportista',
-        roleTitle: 'El Transportista',
-        imageUrl: docData.firma_transportista_url,
-        isSigned: showTransportistaSignedFooter,
-        hidePendingPlaceholder: padesMode,
-        neutralStatus: padesMode,
-        statusLabel: showTransportistaSignedFooter
-          ? docData.firma_transportista_url
-            ? 'Firma gráfica en carga'
-            : 'Conformidad interna en carga'
-          : padesMode
-            ? 'Espacio firma electrónica (PAdES)'
-            : 'Pendiente de firma',
-        signerDetails: showTransportistaSignedFooter
-          ? formatSigner(docData.nombre_transportista, docData.dni_transportista)
-          : undefined,
-        timestamp:
-          showTransportistaSignedFooter && docData.fecha_firma_transportista
-            ? formatSafeDateTime(docData.fecha_firma_transportista)
-            : undefined,
-      },
-      {
-        roleKey: 'gestor',
-        roleTitle: 'El Gestor Destinatario',
-        imageUrl: docData.firma_gestor_url,
-        isSigned: showGestorSignedFooter,
-        hidePendingPlaceholder: padesMode,
-        neutralStatus: padesMode,
-        statusLabel: showGestorSignedFooter
-          ? docData.firma_gestor_url
-            ? 'Recepción con firma gráfica'
-            : 'Recepción registrada en plataforma'
-          : padesMode
-            ? 'Espacio firma electrónica (PAdES)'
-            : 'Pendiente de recepción',
-        signerDetails: showGestorSignedFooter
-          ? formatSigner(docData.nombre_gestor, docData.dni_gestor)
-          : undefined,
-        timestamp:
-          showGestorSignedFooter && docData.fecha_firma_gestor
-            ? formatSafeDateTime(docData.fecha_firma_gestor)
-            : undefined,
-      },
-    ],
-    yPos
-  );
-
-  // --- PIE DE PÁGINA Y MARCA DE AGUA BORRADOR (INC03 / UXDEV-12) ---
-  // Usar estado_traslado como estado efectivo principal para evitar que un DI aceptado o en tránsito
-  // herede la marca "BORRADOR - NO OFICIAL" de un campo legacy estado='borrador'.
-  const effectiveStatus = (docData.estado_traslado || docData.estado || 'borrador').toLowerCase();
-  const isDraft = effectiveStatus === 'borrador' || effectiveStatus === 'pendiente';
-  const isFinalized =
-    effectiveStatus === 'aceptado' || effectiveStatus === 'tratado' || effectiveStatus === 'finalizado';
-  const isCompletelySigned = Boolean(docData.firmado_productor && docData.firmado_gestor);
-
-  const legalText = isDraft
-    ? 'COPIA DE BORRADOR (Real Decreto 553/2020). No válida como documento oficial de transporte ni control ambiental hasta inicio formal de traslado.'
-    : isFinalized && isCompletelySigned
-      ? 'Documento de control y seguimiento de traslados (art. 6 Real Decreto 553/2020). Recepción y conformidades registradas según sección 5.'
-      : isFinalized
-        ? 'Documento de traslado con recepción registrada (Real Decreto 553/2020). El alcance de conformidades y firmas consta en la sección 5.'
-        : 'Documento de traslado en curso (Real Decreto 553/2020). Pendiente de recepción y formalización definitiva en destino.';
-
-  drawPageFooters(doc, { legalText });
-
-  if (isDraft) {
-    drawDraftWatermark(doc, 'BORRADOR - NO OFICIAL');
-  }
-
-  return doc;
-}
 

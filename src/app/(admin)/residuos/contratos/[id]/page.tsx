@@ -885,9 +885,10 @@ export default function ContractDetailPage() {
                   <Button
                     variant="outline"
                     onClick={() => router.push(`/residuos/contratos/${contract.id}/editar`)}
-                    disabled={hasAnySignature}
                   >
-                    Editar Contrato
+                    {hasAnySignature
+                      ? `Crear Nueva Revisión (v${(contract.version || 1) + 1})`
+                      : 'Editar Contrato'}
                   </Button>
 
                   <Button
@@ -930,8 +931,7 @@ export default function ContractDetailPage() {
 
                 {hasAnySignature && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-                    * Edición y eliminación bloqueadas para preservar la integridad de las firmas registradas.
-                    {isFullySigned ? ' Todas las partes han formalizado el contrato.' : ''}
+                    * La versión actual (v{contract.version || 1}) está firmada. Si pulsa «Crear Nueva Revisión (v{(contract.version || 1) + 1})» y modifica cantidades, residuos o condiciones, la revisión firmada v{contract.version || 1} quedará custodiada en el historial y se requerirá nueva firma de las partes (Art. 5 RD 553/2020).
                   </p>
                 )}
               </div>

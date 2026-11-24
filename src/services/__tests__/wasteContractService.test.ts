@@ -103,13 +103,17 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       expect(result).toEqual({ id: 7, firma_productor_url: 'http://sig' });
     });
 
-    it('signContractByToken falla si el token no es válido, la subida falla o la RPC falla', async () => {
+    it('signContractByToken falla si el token no es válido, hace fallback a Data URI si la subida a Storage falla y lanza si la RPC falla', async () => {
       mockSupabase.rpc.mockResolvedValueOnce({ data: null, error: null });
       await expect(wasteContractService.signContractByToken('x', pngBase64, 'gestor')).rejects.toThrow('Contrato no encontrado o token inválido');
 
-      mockSupabase.rpc.mockResolvedValueOnce({ data: { id: 7 }, error: null });
+      // A7-01: Cuando Storage upload falla en cliente anónimo, usa el Data URI directamente en la RPC
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: { id: 7 }, error: null })
+        .mockResolvedValueOnce({ data: { id: 7, firma_gestor_url: pngBase64 }, error: null });
       mockStorageFrom.upload.mockResolvedValueOnce({ error: { message: 'storage' } });
-      await expect(wasteContractService.signContractByToken('x', pngBase64, 'gestor')).rejects.toThrow('Error al subir firma: storage');
+      const fallbackRes = await wasteContractService.signContractByToken('x', pngBase64, 'gestor');
+      expect(fallbackRes.firma_gestor_url).toBe(pngBase64);
 
       mockSupabase.rpc
         .mockResolvedValueOnce({ data: { id: 7 }, error: null })
@@ -1524,13 +1528,16 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
         ).rejects.toThrow('Contrato no encontrado o token inválido');
       });
 
-      it('debe lanzar error si la subida o la actualización fallan en signContractByToken', async () => {
+      it('debe hacer fallback a Data URI si la subida falla y lanzar error si la actualización falla en signContractByToken', async () => {
         jest.spyOn(wasteContractService, 'getBySigningToken').mockResolvedValue({ id: 10 } as any);
-        mockStorageFrom.upload.mockResolvedValue({ error: { message: 'Upload fail' } });
+        mockStorageFrom.upload.mockResolvedValueOnce({ error: { message: 'Upload fail' } });
+        mockSupabase.rpc.mockResolvedValueOnce({
+          data: { id: 10, firma_productor_url: dummySignature },
+          error: null,
+        });
 
-        await expect(
-          wasteContractService.signContractByToken('tok', dummySignature, 'productor')
-        ).rejects.toThrow('Error al subir firma: Upload fail');
+        const fallbackSigned = await wasteContractService.signContractByToken('tok', dummySignature, 'productor');
+        expect(fallbackSigned.firma_productor_url).toBe(dummySignature);
 
         mockStorageFrom.upload.mockResolvedValue({ error: null });
         mockStorageFrom.getPublicUrl.mockReturnValue({ data: { publicUrl: 'url' } });
@@ -1611,6 +1618,7 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
           gestor_company: { id: 2, razon_social: 'Gestor' },
           fecha_inicio: '2026-01-01',
           fecha_fin: futureDate.toISOString().split('T')[0],
+          cantidad_maxima_anual: 25,
           contract_waste_codes: [
             { codigo_ler: '15 01 02', operacion_tratamiento: 'R03' },
           ],

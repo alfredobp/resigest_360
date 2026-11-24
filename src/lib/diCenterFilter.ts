@@ -68,8 +68,15 @@ export function buildCenterFilterOptions(
     if (existing) {
       existing.count += 1;
     } else {
+      const anyDoc = doc as any;
+      const fallbackExternalName =
+        anyDoc.productor_razon_social && anyDoc.productor_municipio
+          ? `${anyDoc.productor_razon_social} (${anyDoc.productor_municipio})`
+          : anyDoc.productor_razon_social
+            ? `Centro origen (${anyDoc.productor_razon_social})`
+            : `Centro #${id}`;
       centerMap.set(id, {
-        nombre: doc.production_center?.nombre?.trim() || `Centro #${id}`,
+        nombre: doc.production_center?.nombre?.trim() || fallbackExternalName,
         count: 1,
       });
     }

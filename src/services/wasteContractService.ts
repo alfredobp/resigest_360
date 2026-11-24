@@ -1110,62 +1110,62 @@ export const wasteContractService = {
    * Generar vista previa de número de contrato coherente con la empresa
    * (la asignación consecutiva definitiva se realiza atómicamente en BD al insertar).
    */
-    generateContractNumber(companyId: number, companyCif ?: string | null): string {
-      return buildContractCode(companyCif, new Date().getFullYear(), 1, companyId);
-    },
+  generateContractNumber(companyId: number, companyCif?: string | null): string {
+    return buildContractCode(companyCif, new Date().getFullYear(), 1, companyId);
+  },
 
-    /**
-     * Validar fechas del contrato
-     */
-    validateDates(fechaInicio: string, fechaFin: string): boolean {
-      const inicio = new Date(fechaInicio);
-      const fin = new Date(fechaFin);
-      return fin > inicio;
-    },
+  /**
+   * Validar fechas del contrato
+   */
+  validateDates(fechaInicio: string, fechaFin: string): boolean {
+    const inicio = new Date(fechaInicio);
+    const fin = new Date(fechaFin);
+    return fin > inicio;
+  },
 
-    /**
-     * Verificar si el contrato está vigente actualmente
-     */
-    isCurrentlyActive(contract: WasteContract): boolean {
-      if (contract.estado !== 'vigente') return false;
+  /**
+   * Verificar si el contrato está vigente actualmente
+   */
+  isCurrentlyActive(contract: WasteContract): boolean {
+    if (contract.estado !== 'vigente') return false;
 
-      const now = new Date();
+    const now = new Date();
 
-      if (contract.fecha_inicio) {
-        const inicio = new Date(contract.fecha_inicio);
-        if (now < inicio) return false;
-      }
+    if (contract.fecha_inicio) {
+      const inicio = new Date(contract.fecha_inicio);
+      if (now < inicio) return false;
+    }
 
-      if (contract.fecha_fin) {
-        const fin = new Date(contract.fecha_fin);
-        if (now > fin) return false;
-      }
+    if (contract.fecha_fin) {
+      const fin = new Date(contract.fecha_fin);
+      if (now > fin) return false;
+    }
 
-      return true;
-    },
+    return true;
+  },
 
   /**
    * Obtener contratos próximos a vencer (30 días)
    */
-  async getExpiringSoon(): Promise < WasteContract[] > {
-      const { userId, companyIds } = await getTenantContext();
-      const now = new Date();
-      const thirtyDaysFromNow = new Date();
-      thirtyDaysFromNow.setDate(now.getDate() + 30);
+  async getExpiringSoon(): Promise<WasteContract[]> {
+    const { userId, companyIds } = await getTenantContext();
+    const now = new Date();
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(now.getDate() + 30);
 
-      let query = supabase
-        .from('waste_contracts')
-        .select(`
+    let query = supabase
+      .from('waste_contracts')
+      .select(`
         *,
         company:companies!waste_contracts_company_id_fkey(*),
         gestor_company:companies!waste_contracts_gestor_company_id_fkey(*),
         treatment_manager:treatment_managers(*)
       `)
-        .eq('estado', 'vigente')
-        .lte('fecha_fin', thirtyDaysFromNow.toISOString())
-        .gte('fecha_fin', now.toISOString());
+      .eq('estado', 'vigente')
+      .lte('fecha_fin', thirtyDaysFromNow.toISOString())
+      .gte('fecha_fin', now.toISOString());
 
-      if(companyIds.length > 0) {
+    if (companyIds.length > 0) {
       query = query.or(`user_id.eq.${userId},company_id.in.(${companyIds.join(',')}),gestor_company_id.in.(${companyIds.join(',')})`);
     } else {
       query = query.eq('user_id', userId);
@@ -1173,12 +1173,12 @@ export const wasteContractService = {
 
     const { data, error } = await query.order('fecha_fin', { ascending: true });
 
-  if(error) {
-    throw new Error(`Error al obtener contratos por vencer: ${error.message}`);
-  }
+    if (error) {
+      throw new Error(`Error al obtener contratos por vencer: ${error.message}`);
+    }
 
     return data as WasteContract[];
-},
+  },
   /**
    * Firmar contrato digitalmente
    */
@@ -1326,79 +1326,116 @@ export const wasteContractService = {
     return this.update(id, updateData);
   },
 
-    /**
-     * Firmar contrato digitalmente usando un token público
-     */
-    async signContractByToken(
-      token: string,
-      signatureBase64: string,
-      role: 'productor' | 'gestor'
-    ): Promise < WasteContract > {
-      // 1. Obtener el contrato por token para saber el ID
-      const contract = await this.getBySigningToken(token);
-      if(!contract) {
-        throw new Error('Contrato no encontrado o token inválido');
-      }
+  /**
+   * Firmar contrato digitalmente usando un token público
+   */
+  async signContractByToken(
+    token: string,
+    signatureBase64: string,
+    role: 'productor' | 'gestor'
+  ): Promise<WasteContract> {
+    // 1. Obtener el contrato por token para saber el ID
+    const contract = await this.getBySigningToken(token);
+    if (!contract) {
+      throw new Error('Contrato no encontrado o token inválido');
+    }
 
-      if (
-        (role === 'productor' && (contract.firmado_productor || Boolean(contract.firma_productor_url))) ||
-        (role === 'gestor' && (contract.firmado_gestor || Boolean(contract.firma_gestor_url)))
-      ) {
-        throw new Error(`La parte ${role} ya ha formalizado su firma en este contrato y no puede volver a firmarse.`);
-      }
+    if (
+      (role === 'productor' && (contract.firmado_productor || Boolean(contract.firma_productor_url))) ||
+      (role === 'gestor' && (contract.firmado_gestor || Boolean(contract.firma_gestor_url)))
+    ) {
+      throw new Error(`La parte ${role} ya ha formalizado su firma en este contrato y no puede volver a firmarse.`);
+    }
 
-    // 2. Procesar la firma (mismo proceso que signContract pero sin auth check)
-    const base64Data = signatureBase64.includes(',') ? signatureBase64.split(',')[1] : signatureBase64;
+    // 2. Procesar la firma (mismo proceso que signContract pero sin auth check, con fallback a Data URI si Storage es bloqueado)
+    let publicUrl = signatureBase64.startsWith('data:')
+      ? signatureBase64
+      : `data:image/png;base64,${signatureBase64}`;
+
+    try {
+      const base64Data = signatureBase64.includes(',') ? signatureBase64.split(',')[1] : signatureBase64;
       const byteCharacters = atob(base64Data);
       const byteNumbers = new Array(byteCharacters.length);
-      for(let i = 0; i <byteCharacters.length; i++) {
-  byteNumbers[i] = byteCharacters.charCodeAt(i);
-}
-const byteArray = new Uint8Array(byteNumbers);
-const blob = new Blob([byteArray], { type: 'image/png' });
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'image/png' });
 
-const fileName = `signature-public-${role}-${contract.id}-${Date.now()}.png`;
-const filePath = `contracts/${contract.id}/${fileName}`;
+      const fileName = `signature-public-${role}-${contract.id}-${Date.now()}.png`;
+      const filePath = `contracts/${contract.id}/${fileName}`;
 
-const { error: uploadError } = await supabase.storage
-  .from('images')
-  .upload(filePath, blob, {
-    contentType: 'image/png',
-    upsert: true
-  });
+      const { error: uploadError } = await supabase.storage
+        .from('images')
+        .upload(filePath, blob, {
+          contentType: 'image/png',
+          upsert: true,
+        });
 
-if (uploadError) {
-  throw new Error(`Error al subir firma: ${uploadError.message}`);
-}
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage
+          .from('images')
+          .getPublicUrl(filePath);
+        if (urlData?.publicUrl) {
+          publicUrl = urlData.publicUrl;
+        }
+      }
+    } catch {
+      // Continuar con publicUrl en formato Data URI si la subida a Storage falla en sesión anónima
+    }
 
-const { data: { publicUrl } } = supabase.storage
-  .from('images')
-  .getPublicUrl(filePath);
+    // 3. Registrar la firma mediante RPC segura (con fallback a endpoint de servidor si PostgREST reporta PGRST203 por sobrecargas legacy)
+    const { data, error: updateError } = await supabase.rpc('sign_contract_by_signing_token', {
+      p_token: token,
+      p_role: role,
+      p_signature_url: publicUrl,
+    });
 
-// 3. Registrar la firma mediante RPC segura (el usuario no está autenticado)
-const { data, error: updateError } = await supabase.rpc('sign_contract_by_signing_token', {
-  p_token: token,
-  p_role: role,
-  p_signature_url: publicUrl,
-});
+    if (updateError) {
+      const errMsg = String(updateError.message || '');
+      const isAmbiguousOverload =
+        updateError.code === 'PGRST203' ||
+        errMsg.includes('Could not choose the best candidate function');
 
-if (updateError) {
-  throw new Error(`Error al actualizar firma: ${updateError.message}`);
-}
+      if (isAmbiguousOverload && typeof fetch === 'function') {
+        const apiRes = await fetch('/api/public/sign-contract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            role,
+            signatureUrl: publicUrl,
+          }),
+        }).catch(() => null);
 
-await auditService.logAction({
-  company_id: (data as WasteContract)?.company_id ?? null,
-  entidad: 'contrato',
-  entidad_id: (data as WasteContract)?.id ?? null,
-  accion: 'cambiar_estado',
-  detalles: {
-    numero_contrato: (data as WasteContract)?.numero_contrato,
-    estado: (data as WasteContract)?.estado,
-    rol_firma: role,
-  },
-});
+        if (apiRes && apiRes.ok) {
+          const apiPayload = await apiRes.json().catch(() => null);
+          if (apiPayload?.contract) {
+            return apiPayload.contract as WasteContract;
+          }
+        }
+      }
 
-return data as WasteContract;
+      throw new Error(`Error al actualizar firma: ${updateError.message}`);
+    }
+
+    try {
+      await auditService.logAction({
+        company_id: (data as WasteContract)?.company_id ?? null,
+        entidad: 'contrato',
+        entidad_id: (data as WasteContract)?.id ?? null,
+        accion: 'cambiar_estado',
+        detalles: {
+          numero_contrato: (data as WasteContract)?.numero_contrato,
+          estado: (data as WasteContract)?.estado,
+          rol_firma: role,
+        },
+      });
+    } catch {
+      // Best-effort log en flujo anónimo
+    }
+
+    return data as WasteContract;
   },
 };
 
@@ -1415,6 +1452,7 @@ export interface ContractActivationValidation {
     isNotExpired: boolean;
     hasWasteCodes: boolean;
     hasOperations: boolean;
+    hasEstimatedQuantity?: boolean;
     hasSignatures?: boolean;
   };
 }
@@ -1426,7 +1464,7 @@ export function validateContractActivation(
   contract: Omit<Partial<WasteContract>, 'contract_waste_codes'> & {
     contract_waste_codes?: Array<Partial<ContractWasteCode> | ContractWasteCodeFormData>;
   },
-  options?: { requireSignatures?: boolean }
+  options?: { requireSignatures?: boolean; requireQuantity?: boolean }
 ): ContractActivationValidation {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -1481,6 +1519,24 @@ export function validateContractActivation(
     errors.push('Debe definirse al menos una operación de tratamiento autorizada (R o D).');
   }
 
+  const hasGlobalQty =
+    typeof contract.cantidad_maxima_anual === 'number' && contract.cantidad_maxima_anual > 0;
+  const hasMatrixQty = Boolean(
+    Array.isArray(wasteCodesList) &&
+    wasteCodesList.some((c: any) => Number(c.cantidad_estimada_anual) > 0)
+  );
+  const hasEstimatedQuantity = hasGlobalQty || hasMatrixQty;
+
+  if (!hasEstimatedQuantity) {
+    const qtyMsg =
+      'Debe definirse la cantidad estimada o máxima anual de residuos objeto del contrato (Art. 5.c RD 553/2020) para autorizar salidas.';
+    if (options?.requireQuantity) {
+      errors.push(qtyMsg);
+    } else {
+      warnings.push(qtyMsg);
+    }
+  }
+
   const hasSignatures = Boolean(
     ((contract.firmado_productor || contract.firma_productor_url) &&
       (contract.firmado_gestor || contract.firma_gestor_url)) ||
@@ -1508,6 +1564,7 @@ export function validateContractActivation(
     isNotExpired &&
     hasWasteCodes &&
     hasOperations &&
+    (!options?.requireQuantity || hasEstimatedQuantity) &&
     (!signaturesExplicitlyRequired || hasSignatures);
 
   return {
@@ -1523,6 +1580,7 @@ export function validateContractActivation(
       isNotExpired,
       hasWasteCodes,
       hasOperations,
+      hasEstimatedQuantity,
       hasSignatures,
     },
   };

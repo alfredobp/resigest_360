@@ -29,7 +29,8 @@ import {
 } from '@/lib/validations/fleetValidation';
 import authorizationService, { type AuthorizedScopeResult } from '@/services/authorizationService';
 import { priorNotificationService } from '@/services/priorNotificationService';
-import type { IdentificationDocument, Company, WasteContract, ProductionCenter, WasteType, TreatmentManager, Carrier, PriorNotification, CarrierDriver, CarrierVehicle } from '@/types/wasteManagement';
+import commercialOperationService from '@/services/commercialOperationService';
+import type { IdentificationDocument, Company, WasteContract, ProductionCenter, WasteType, TreatmentManager, Carrier, PriorNotification, CarrierDriver, CarrierVehicle, CommercialOperation } from '@/types/wasteManagement';
 import DatePicker from '@/components/form/date-picker';
 import LerSelector from '@/components/residuos/LerSelector';
 import TreatmentOperationSelector from '@/components/residuos/TreatmentOperationSelector';
@@ -59,9 +60,11 @@ function NuevoDocumentoIdentificacionContent() {
   const [priorNotifications, setPriorNotifications] = useState<PriorNotification[]>([]);
   const [destAuthScope, setDestAuthScope] = useState<AuthorizedScopeResult | null>(null);
   const [selectedOrigin, setSelectedOrigin] = useState<string>('principal');
-  const [expeditionRole, setExpeditionRole] = useState<'productor' | 'gestor'>('productor');
+  const [expeditionRole, setExpeditionRole] = useState<'productor' | 'gestor' | 'operador'>('productor');
   const [selectedClientContact, setSelectedClientContact] = useState<string>('');
   const [duplicateSourceInfo, setDuplicateSourceInfo] = useState<{ id: number; numero_documento: string } | null>(null);
+  const [linkedCommercialOp, setLinkedCommercialOp] = useState<CommercialOperation | null>(null);
+  const [linkedCommercialLineIndex, setLinkedCommercialLineIndex] = useState<number | null>(null);
 
   const [formData, setFormData] = useState<Partial<IdentificationDocument>>({
     tipo_notificacion: 'sin-notificacion',
@@ -99,11 +102,28 @@ function NuevoDocumentoIdentificacionContent() {
 
       setMyCompany(company);
 
-      // Determinar perspectiva inicial de expedición según el tipo de empresa y parámetros de navegación
+      // Determinar perspectiva inicial de expedición según el tipo de empresa y parámetros de navegación (A7-03)
       const isCompanyGestor = company.tipo_empresa === 'gestor' || company.roles?.includes('gestor');
-      const initialRole = (forcedPerspectiva === 'productor' || forcedPerspectiva === 'salida')
-        ? 'productor'
-        : (isCompanyGestor ? 'gestor' : 'productor');
+      const isCompanyTrader =
+        company.tipo_empresa === 'negociante' ||
+        company.tipo_empresa === 'agente' ||
+        (company.perfil_operativo as string) === 'negociante' ||
+        (company.perfil_operativo as string) === 'agente' ||
+        company.roles?.includes('negociante') ||
+        company.roles?.includes('agente');
+
+      const queryOperationId = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('operationId')
+        : searchParams.get('operationId');
+
+      const initialRole: 'productor' | 'gestor' | 'operador' =
+        forcedPerspectiva === 'operador' || Boolean(queryOperationId) || isCompanyTrader
+          ? 'operador'
+          : forcedPerspectiva === 'productor' || forcedPerspectiva === 'salida'
+            ? 'productor'
+            : isCompanyGestor
+              ? 'gestor'
+              : 'productor';
       setExpeditionRole(initialRole);
 
       // Cargar centros de producción
@@ -142,6 +162,31 @@ function NuevoDocumentoIdentificacionContent() {
           gestor_provincia: defaultProv,
           gestor_codigo_postal: defaultCP,
           gestor_telefono: company.telefono || '',
+          numero_documento: previewDiNumber,
+        }));
+      } else if (initialRole === 'operador') {
+        // A7-03: En modo Operador (Negociante / Agente), mi empresa es el operador del traslado (Art. 2.h RD 553/2020)
+        // y el Productor / Origen Físico queda desbloqueado para representar la instalación real del tercero productor.
+        setFormData(prev => ({
+          ...prev,
+          company_id: company.id,
+          operador_razon_social: company.razon_social,
+          operador_cif: company.cif,
+          operador_nima: defaultNima,
+          operador_direccion: defaultDir,
+          operador_municipio: defaultMuni,
+          operador_provincia: defaultProv,
+          operador_codigo_postal: defaultCP,
+          operador_telefono: company.telefono || '',
+          operador_email: company.email || '',
+          operador_tipo: (company.tipo_empresa === 'agente' ? 'agente' : 'negociante') as any,
+          productor_razon_social: '',
+          productor_cif: '',
+          productor_nima: '',
+          productor_direccion: '',
+          productor_municipio: '',
+          productor_provincia: '',
+          productor_codigo_postal: '',
           numero_documento: previewDiNumber,
         }));
       } else {
@@ -225,7 +270,149 @@ function NuevoDocumentoIdentificacionContent() {
             }
           }
 
-          // UXDEV-07 / UX-06: Duplicar retirada anterior si viene duplicate_from o duplicateFrom
+          // A7-03: Si viene operationId desde Operaciones Comerciales, precargar Operador (Negociante),
+          // Productor Físico (Origen), Gestor (Destino), Transportista y Residuo LER sin arrastrar precios ni márgenes
+          const queryOpId = urlParams.get('operationId');
+          const queryLineIdx = urlParams.get('lineIndex');
+          if (queryOpId) {
+            try {
+              const opData = await commercialOperationService.getById(parseInt(queryOpId, 10));
+              if (opData) {
+                setLinkedCommercialOp(opData);
+                setExpeditionRole('operador');
+
+                const lineIdxNum = queryLineIdx !== null ? parseInt(queryLineIdx, 10) : null;
+                const selectedLine =
+                  lineIdxNum !== null &&
+                  !isNaN(lineIdxNum) &&
+                  Array.isArray(opData.lineas_materiales) &&
+                  opData.lineas_materiales[lineIdxNum]
+                    ? opData.lineas_materiales[lineIdxNum]
+                    : null;
+                if (selectedLine && lineIdxNum !== null) {
+                  setLinkedCommercialLineIndex(lineIdxNum);
+                }
+
+                const prodComp = opData.origen_productor || contactsData.find(
+                  (c) =>
+                    (opData.origen_productor_id && c.id === opData.origen_productor_id) ||
+                    (opData.origen_cif && c.cif?.trim().toUpperCase() === opData.origen_cif.trim().toUpperCase())
+                );
+                const gestComp = opData.destino_gestor || contactsData.find(
+                  (c) =>
+                    (opData.destino_gestor_id && c.id === opData.destino_gestor_id) ||
+                    (opData.destino_cif && c.cif?.trim().toUpperCase() === opData.destino_cif.trim().toUpperCase())
+                );
+                const transComp = opData.transportista || contactsData.find(
+                  (c) =>
+                    (opData.transportista_id && c.id === opData.transportista_id) ||
+                    (opData.transportista_cif && c.cif?.trim().toUpperCase() === opData.transportista_cif.trim().toUpperCase())
+                );
+
+                const targetLer = selectedLine?.codigo_ler || opData.codigo_ler || '';
+                const targetDesc = selectedLine?.descripcion_residuo || opData.descripcion_residuo || '';
+                const targetTon = selectedLine
+                  ? Number(selectedLine.cantidad_t || 0)
+                  : Number(opData.cantidad_real_t && opData.cantidad_real_t > 0 ? opData.cantidad_real_t : opData.cantidad_estimada_t || 0);
+                const targetKg = targetTon > 0 ? Math.round(targetTon * 1000) : undefined;
+                const isDang = targetLer.includes('*') || opData.peligrosidad === 'peligroso';
+                const mandateNote = opData.mandato_referencia
+                  ? `Operador del traslado (${company.razon_social}) con mandato escrito ref. ${opData.mandato_referencia}${opData.mandato_otorgante ? ` otorgado por ${opData.mandato_otorgante}` : ''} (Art. 2.h RD 553/2020). Operación ref. ${opData.numero_operacion}.`
+                  : `Operador del traslado: ${company.razon_social} (Ref. ${opData.numero_operacion}).`;
+
+                setFormData((prev) => ({
+                  ...prev,
+                  company_id: company.id,
+                  // Operador = Negociante
+                  operador_razon_social: company.razon_social,
+                  operador_cif: company.cif,
+                  operador_nima: defaultNima,
+                  operador_direccion: defaultDir,
+                  operador_municipio: defaultMuni,
+                  operador_provincia: defaultProv,
+                  operador_codigo_postal: defaultCP,
+                  operador_telefono: company.telefono || '',
+                  operador_email: company.email || '',
+                  operador_tipo: (company.tipo_empresa === 'agente' ? 'agente' : 'negociante') as any,
+                  // Productor Físico (Origen del tercero)
+                  productor_razon_social:
+                    opData.origen_nombre_personalizado || prodComp?.razon_social || opData.proveedor_razon_social || '',
+                  productor_cif:
+                    opData.origen_cif || prodComp?.cif || opData.proveedor_cif || '',
+                  productor_nima:
+                    opData.origen_nima || opData.origen_center?.nima || prodComp?.nima || '',
+                  productor_direccion:
+                    opData.origen_center?.direccion ||
+                    prodComp?.domicilio_instalacion ||
+                    prodComp?.domicilio_social ||
+                    '',
+                  productor_municipio:
+                    opData.origen_center?.municipio ||
+                    prodComp?.municipio_instalacion ||
+                    prodComp?.municipio_social ||
+                    defaultMuni ||
+                    '',
+                  productor_provincia:
+                    opData.origen_center?.provincia ||
+                    prodComp?.provincia_instalacion ||
+                    prodComp?.provincia_social ||
+                    defaultProv ||
+                    '',
+                  productor_codigo_postal:
+                    opData.origen_center?.codigo_postal ||
+                    prodComp?.codigo_postal_instalacion ||
+                    prodComp?.codigo_postal_social ||
+                    '',
+                  // Gestor Destino
+                  gestor_company_id: gestComp?.id || opData.destino_gestor_id || undefined,
+                  gestor_razon_social:
+                    opData.destino_nombre_personalizado || gestComp?.razon_social || opData.cliente_razon_social || '',
+                  gestor_cif:
+                    opData.destino_cif || gestComp?.cif || opData.cliente_cif || '',
+                  gestor_nima:
+                    opData.destino_nima || gestComp?.nima || '',
+                  gestor_numero_autorizacion:
+                    opData.destino_autorizacion || gestComp?.numero_autorizacion || '',
+                  gestor_direccion:
+                    gestComp?.domicilio_instalacion || gestComp?.domicilio_social || '',
+                  gestor_municipio:
+                    gestComp?.municipio_instalacion || gestComp?.municipio_social || defaultMuni || '',
+                  gestor_provincia:
+                    gestComp?.provincia_instalacion || gestComp?.provincia_social || defaultProv || '',
+                  gestor_codigo_postal:
+                    gestComp?.codigo_postal_instalacion || gestComp?.codigo_postal_social || '',
+                  // Transportista
+                  transportista_company_id: transComp?.id || opData.transportista_id || undefined,
+                  transportista_razon_social:
+                    opData.transportista_nombre_personalizado || transComp?.razon_social || '',
+                  transportista_cif:
+                    opData.transportista_cif || transComp?.cif || '',
+                  transportista_nima:
+                    transComp?.nima || '',
+                  transportista_matricula:
+                    opData.transportista_matricula || transComp?.matricula || '',
+                  transportista_direccion:
+                    transComp?.domicilio_social || transComp?.domicilio_instalacion || '',
+                  transportista_municipio:
+                    transComp?.municipio_social || transComp?.municipio_instalacion || '',
+                  transportista_provincia:
+                    transComp?.provincia_social || transComp?.provincia_instalacion || '',
+                  transportista_codigo_postal:
+                    transComp?.codigo_postal_social || transComp?.codigo_postal_instalacion || '',
+                  // Residuo
+                  codigo_ler: targetLer || prev.codigo_ler,
+                  descripcion_residuo: targetDesc || prev.descripcion_residuo,
+                  peligrosidad: isDang ? 'peligroso' : 'no-peligroso',
+                  operacion_tratamiento: opData.operacion_rd || prev.operacion_tratamiento || 'R13',
+                  cantidad: targetKg ?? prev.cantidad,
+                  unidad: 'kg',
+                  notas: mandateNote,
+                }));
+              }
+            } catch (opErr) {
+              console.warn('No se pudo precargar la operación comercial:', opErr);
+            }
+          }
           const queryDuplicateId = urlParams.get('duplicate_from') || urlParams.get('duplicateFrom');
           if (queryDuplicateId) {
             try {
@@ -362,6 +549,41 @@ function NuevoDocumentoIdentificacionContent() {
       }
     }, [formData.gestor_cif, formData.fecha_documento, allContacts]);
 
+    // A7-08: Sincronizar automáticamente gestor_numero_autorizacion con la autorización ambiental específica
+    // que cubre el LER y operación de tratamiento seleccionados cuando el gestor tiene múltiples autorizaciones
+    useEffect(() => {
+      if (!destAuthScope?.authorizations || destAuthScope.authorizations.length === 0) return;
+      const ler = (formData.codigo_ler || '').trim();
+      if (!ler) return;
+      const normOp = (v: string) => v.trim().toUpperCase().replace(/^([RD])(\d)$/, '$10$2');
+      const selectedOp = formData.operacion_tratamiento ? normOp(formData.operacion_tratamiento) : '';
+
+      const matchingAuth =
+        destAuthScope.authorizations.find((auth: any) =>
+          (auth.waste_codes || []).some((wc: any) => {
+            if (wc.codigo_ler?.trim() !== ler) return false;
+            if (!selectedOp) return true;
+            const ops: string[] = Array.isArray(wc.operaciones_tratamiento)
+              ? wc.operaciones_tratamiento.map(normOp)
+              : [];
+            return ops.length === 0 || ops.includes(selectedOp);
+          })
+        ) ||
+        destAuthScope.authorizations.find((auth: any) =>
+          (auth.waste_codes || []).some((wc: any) => wc.codigo_ler?.trim() === ler)
+        );
+
+      if (
+        matchingAuth?.numero_autorizacion &&
+        matchingAuth.numero_autorizacion !== formData.gestor_numero_autorizacion
+      ) {
+        setFormData((prev) => ({
+          ...prev,
+          gestor_numero_autorizacion: matchingAuth.numero_autorizacion,
+        }));
+      }
+    }, [destAuthScope, formData.codigo_ler, formData.operacion_tratamiento]);
+
     const handleOriginChange = (value: string) => {
       setSelectedOrigin(value);
       if (value === 'principal' && myCompany) {
@@ -390,7 +612,7 @@ function NuevoDocumentoIdentificacionContent() {
       }
     };
 
-    const handleRoleSwitch = (newRole: 'productor' | 'gestor') => {
+    const handleRoleSwitch = (newRole: 'productor' | 'gestor' | 'operador') => {
       const isGestorAllowed = Boolean(myCompany?.tipo_empresa === 'gestor' || myCompany?.roles?.includes('gestor'));
       if (newRole === 'gestor' && !isGestorAllowed) return;
       setExpeditionRole(newRole);
@@ -425,6 +647,35 @@ function NuevoDocumentoIdentificacionContent() {
           productor_codigo_postal: '',
         }));
         checkDestinationAuthorization(myCompany.cif, formData.fecha_documento);
+      } else if (newRole === 'operador') {
+        // A7-03: Mi empresa actúa como Operador del Traslado (Negociante / Agente) y el Productor es el tercero físico
+        setFormData(prev => ({
+          ...prev,
+          operador_razon_social: myCompany.razon_social,
+          operador_cif: myCompany.cif,
+          operador_nima: defaultNima,
+          operador_direccion: defaultDir,
+          operador_municipio: defaultMuni,
+          operador_provincia: defaultProv,
+          operador_codigo_postal: defaultCP,
+          operador_telefono: myCompany.telefono || '',
+          operador_email: myCompany.email || '',
+          operador_tipo: (myCompany.tipo_empresa === 'agente' ? 'agente' : 'negociante') as any,
+          productor_razon_social:
+            prev.productor_cif === myCompany.cif ? '' : (prev.productor_razon_social || ''),
+          productor_cif:
+            prev.productor_cif === myCompany.cif ? '' : (prev.productor_cif || ''),
+          productor_nima:
+            prev.productor_cif === myCompany.cif ? '' : (prev.productor_nima || ''),
+          productor_direccion:
+            prev.productor_cif === myCompany.cif ? '' : (prev.productor_direccion || ''),
+          productor_municipio:
+            prev.productor_cif === myCompany.cif ? '' : (prev.productor_municipio || ''),
+          productor_provincia:
+            prev.productor_cif === myCompany.cif ? '' : (prev.productor_provincia || ''),
+          productor_codigo_postal:
+            prev.productor_cif === myCompany.cif ? '' : (prev.productor_codigo_postal || ''),
+        }));
       } else {
         // Mi empresa pasa a ser el productor
         setFormData(prev => ({
@@ -747,6 +998,36 @@ function NuevoDocumentoIdentificacionContent() {
       try {
         setSaving(true);
         const created = await identificationDocumentService.create(formData);
+
+        // A7-03: Si el DI fue emitido desde una Operación Comercial de Negociante/Agente, vincularlo automáticamente
+        if (linkedCommercialOp) {
+          try {
+            if (
+              linkedCommercialLineIndex !== null &&
+              Array.isArray(linkedCommercialOp.lineas_materiales) &&
+              linkedCommercialOp.lineas_materiales[linkedCommercialLineIndex]
+            ) {
+              const updatedLines = linkedCommercialOp.lineas_materiales.map((l, idx) =>
+                idx === linkedCommercialLineIndex
+                  ? { ...l, di_referencia: created.numero_documento || `DI #${created.id}` }
+                  : l
+              );
+              await commercialOperationService.update(linkedCommercialOp.id, {
+                ...(!linkedCommercialOp.identification_document_id
+                  ? { identification_document_id: created.id }
+                  : {}),
+                lineas_materiales: updatedLines,
+              });
+            } else {
+              await commercialOperationService.update(linkedCommercialOp.id, {
+                identification_document_id: created.id,
+              });
+            }
+          } catch (linkErr) {
+            console.warn('No se pudo vincular automáticamente el DI a la operación comercial:', linkErr);
+          }
+        }
+
         router.push(`/residuos/documentos-identificacion/${created.id}`);
       } catch (err: any) {
         setError(err.message);
@@ -827,13 +1108,21 @@ function NuevoDocumentoIdentificacionContent() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-            {/* Modalidad de Expedición */}
-            {myCompany?.tipo_empresa === 'gestor' || myCompany?.roles?.includes('gestor') ? (
+            {/* Modalidad de Expedición (A7-03: soporte Operador Negociante/Agente con origen de tercero) */}
+            {myCompany?.tipo_empresa === 'gestor' ||
+            myCompany?.roles?.includes('gestor') ||
+            myCompany?.tipo_empresa === 'negociante' ||
+            myCompany?.tipo_empresa === 'agente' ||
+            (myCompany?.perfil_operativo as string) === 'negociante' ||
+            (myCompany?.perfil_operativo as string) === 'agente' ||
+            myCompany?.roles?.includes('negociante') ||
+            myCompany?.roles?.includes('agente') ||
+            expeditionRole === 'operador' ? (
               <ComponentCard
                 title="Perspectiva de Expedición (RD 553/2020)"
-                desc="Selecciona si emites el traslado como Productor (envío de tus residuos) o como Gestor Receptor (recepción o gestión para un cliente)."
+                desc="Selecciona en calidad de qué figura reglamentaria organizas y emites el Documento de Identificación del traslado."
               >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <button
                     type="button"
                     onClick={() => handleRoleSwitch('productor')}
@@ -846,26 +1135,70 @@ function NuevoDocumentoIdentificacionContent() {
                       <span className="font-semibold text-sm text-foreground">Como Productor / Poseedor</span>
                     </div>
                     <p className="text-xs text-muted">
-                      Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) genera el residuo y lo transfiere a un gestor de destino.
+                      Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) genera el residuo en su centro y lo transfiere a destino.
                     </p>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => handleRoleSwitch('gestor')}
-                    className={`p-4 rounded-xl border text-left transition-all ${expeditionRole === 'gestor'
+                    onClick={() => handleRoleSwitch('operador')}
+                    className={`p-4 rounded-xl border text-left transition-all ${expeditionRole === 'operador'
                       ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
                       : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
                       }`}
                   >
                     <div className="mb-1">
-                      <span className="font-semibold text-sm text-foreground">Como Gestor Receptor</span>
+                      <span className="font-semibold text-sm text-foreground">Como Operador (Negociante / Agente)</span>
                     </div>
                     <p className="text-xs text-muted">
-                      Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) es la instalación autorizada que recepcionará el residuo de un cliente.
+                      Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) organiza el traslado con mandato desde el centro físico de un tercero productor.
                     </p>
                   </button>
+
+                  {(myCompany?.tipo_empresa === 'gestor' || myCompany?.roles?.includes('gestor')) && (
+                    <button
+                      type="button"
+                      onClick={() => handleRoleSwitch('gestor')}
+                      className={`p-4 rounded-xl border text-left transition-all ${expeditionRole === 'gestor'
+                        ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
+                        : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
+                        }`}
+                    >
+                      <div className="mb-1">
+                        <span className="font-semibold text-sm text-foreground">Como Gestor Receptor</span>
+                      </div>
+                      <p className="text-xs text-muted">
+                        Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) es la instalación autorizada que recepcionará el residuo.
+                      </p>
+                    </button>
+                  )}
                 </div>
+
+                {expeditionRole === 'operador' && (
+                  <div className="mt-4 p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 text-xs space-y-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-bold text-indigo-950 dark:text-indigo-200">
+                        Operador del Traslado (Art. 2.h RD 553/2020): {formData.operador_razon_social || myCompany?.razon_social} (CIF: {formData.operador_cif || myCompany?.cif} · NIMA: {formData.operador_nima || myCompany?.nima || 'S/D'})
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/60 font-semibold text-indigo-800 dark:text-indigo-300">
+                        Rol: Operador ({formData.operador_tipo === 'agente' ? 'Agente' : 'Negociante'})
+                      </span>
+                    </div>
+                    {linkedCommercialOp ? (
+                      <p className="text-indigo-800 dark:text-indigo-300">
+                        Vinculado a Operación Comercial <strong>{linkedCommercialOp.numero_operacion}</strong>
+                        {linkedCommercialOp.mandato_referencia
+                          ? ` · Mandato acreditado: ${linkedCommercialOp.mandato_referencia}${linkedCommercialOp.mandato_otorgante ? ` (Otorgante: ${linkedCommercialOp.mandato_otorgante})` : ''}`
+                          : ''}
+                        . Los datos económicos de compra/venta permanecen privados y no se incluyen en el DI.
+                      </p>
+                    ) : (
+                      <p className="text-indigo-800 dark:text-indigo-300">
+                        Indique abajo los datos reales del Productor / Centro de Origen Físico donde se inicia el traslado del residuo.
+                      </p>
+                    )}
+                  </div>
+                )}
               </ComponentCard>
             ) : (
               <div className="p-3.5 bg-brand-50/40 dark:bg-brand-950/20 border border-brand-200/60 dark:border-brand-900/40 rounded-xl flex items-center justify-between text-xs text-brand-900 dark:text-brand-300">
@@ -893,7 +1226,7 @@ function NuevoDocumentoIdentificacionContent() {
                     placeholder="Se asignará automáticamente al guardar"
                   />
                   <p className="text-[11px] text-muted mt-1">
-                    Código oficial consecutivo E3L 3.3 por empresa y año (no editable).
+                    Código oficial consecutivo E3L v3.6 por empresa y año (no editable).
                   </p>
                 </div>
 
@@ -1003,6 +1336,13 @@ function NuevoDocumentoIdentificacionContent() {
                         ? 'Origen: Sede/Instalación principal según ficha de Mi Empresa.'
                         : 'Origen: Centro de producción secundario seleccionado.'}
                     </p>
+                  </div>
+                ) : expeditionRole === 'operador' ? (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Operador del Traslado (Art. 2.h RD 553/2020)</label>
+                    <div className="p-2.5 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30 text-xs text-foreground">
+                      Operador: <span className="font-semibold">{myCompany?.razon_social}</span> (CIF: {myCompany?.cif}) · Origen físico en sección Productor / Origen.
+                    </div>
                   </div>
                 ) : (
                   <div>
@@ -1165,22 +1505,22 @@ function NuevoDocumentoIdentificacionContent() {
             {/* Productor / Origen */}
             <ComponentCard title="Productor / Origen">
               <div className="space-y-4">
-                {expeditionRole === 'gestor' && allContacts.length > 0 && (
+                {(expeditionRole === 'gestor' || expeditionRole === 'operador') && allContacts.length > 0 && (
                   <div className="p-3 bg-brand-50/30 dark:bg-brand-950/20 rounded-xl border border-brand-200 dark:border-brand-900/40">
                     <label htmlFor="client_contact_select" className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
-                      Cargar datos desde Contactos / Clientes
+                      Cargar Productor / Origen Físico desde Contactos y Empresas
                     </label>
                     <Select
                       options={[
-                        { value: '', label: '-- Seleccionar contacto para autorrellenar --' },
+                        { value: '', label: '-- Seleccionar productor físico para autorrellenar --' },
                         ...allContacts.map(c => ({
                           value: c.id.toString(),
-                          label: `${c.razon_social} (${c.cif})`,
+                          label: `${c.razon_social} (${c.cif})${c.nima ? ` · NIMA ${c.nima}` : ''}`,
                         })),
                       ]}
                       value={selectedClientContact}
                       onChange={(val) => handleClientProducerChange(val)}
-                      placeholder="Seleccionar contacto guardado"
+                      placeholder="Seleccionar productor guardado"
                     />
                   </div>
                 )}
@@ -1788,8 +2128,14 @@ function NuevoDocumentoIdentificacionContent() {
                         : undefined
                     }
                   />
-                  {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler && destAuthScope.authorizedLers[formData.codigo_ler] && (
-                    formData.operacion_tratamiento && !destAuthScope.authorizedLers[formData.codigo_ler].includes(formData.operacion_tratamiento.toUpperCase().trim()) ? (
+                  {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler && destAuthScope.authorizedLers[formData.codigo_ler] && (() => {
+                    const normOp = (v: string) => v.trim().toUpperCase().replace(/^([RD])(\d)$/, '$10$2');
+                    const isOpAuthorized =
+                      !formData.operacion_tratamiento ||
+                      destAuthScope.authorizedLers[formData.codigo_ler]
+                        .map(normOp)
+                        .includes(normOp(formData.operacion_tratamiento));
+                    return formData.operacion_tratamiento && !isOpAuthorized ? (
                       <p className="mt-1.5 text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
                         Operación no autorizada (Permitidas: {destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}).
                       </p>
@@ -1797,8 +2143,8 @@ function NuevoDocumentoIdentificacionContent() {
                       <p className="mt-1 text-xs text-muted">
                         Operaciones autorizadas en destino: <strong>{destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}</strong>
                       </p>
-                    )
-                  )}
+                    );
+                  })()}
                 </div>
               </div>
             </ComponentCard>
