@@ -3,6 +3,11 @@ import { NextRequest } from 'next/server';
 const mockFrom = jest.fn();
 const mockUpload = jest.fn();
 const mockGetPublicUrl = jest.fn();
+const mockCheckPremium = jest.fn();
+
+jest.mock('@/lib/auth/premiumGate', () => ({
+  checkCompanyPremiumFeature: (...args: unknown[]) => mockCheckPremium(...args),
+}));
 
 jest.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
@@ -84,6 +89,7 @@ describe('/api/deca/[token]/driver-action', () => {
     jest.clearAllMocks();
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key';
+    mockCheckPremium.mockResolvedValue({ active: true, status: 'premium' });
     mockUpload.mockResolvedValue({ error: null });
     mockGetPublicUrl.mockReturnValue({
       data: {

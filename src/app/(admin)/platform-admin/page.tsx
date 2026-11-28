@@ -47,6 +47,8 @@ export default function PlatformAdminPage() {
   const [stats, setStats] = useState<PlatformOverviewStats | null>(null);
   const [companies, setCompanies] = useState<PlatformCompanyRecord[]>([]);
   const [delegationsMap, setDelegationsMap] = useState<Record<number, AdminDelegationSummary>>({});
+  const [transportistaTrialDays, setTransportistaTrialDays] = useState<number>(15);
+  const [savingTrialConfig, setSavingTrialConfig] = useState(false);
 
   // Filtros de barra de herramientas (el buscador de texto lo gestiona DataTable)
   const [selectedRole, setSelectedRole] = useState<string>('all');
@@ -568,6 +570,53 @@ return (
     {error && (
       <Alert variant="error" title="Error" message={error} />
     )}
+
+    {/* Configuración global de cortesía por rol */}
+    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div>
+        <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+          Cortesía Automática al Alta (Planes Premium por Rol)
+        </h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Días de prueba gratuita concedidos automáticamente al registrar una nueva empresa titular Transportista.
+        </p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+          Transportista (días):
+        </label>
+        <input
+          type="number"
+          min={0}
+          max={365}
+          value={transportistaTrialDays}
+          onChange={(e) => setTransportistaTrialDays(Number(e.target.value))}
+          className="w-20 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2.5 py-1.5 text-sm font-semibold text-center"
+        />
+        <Button
+          size="sm"
+          disabled={savingTrialConfig}
+          onClick={async () => {
+            try {
+              setSavingTrialConfig(true);
+              await adminPlatformService.updateTrialDaysForRole(
+                'transportista',
+                transportistaTrialDays
+              );
+              toast.success(
+                `Plazo de cortesía para Transportista guardado (${transportistaTrialDays} días).`
+              );
+            } catch (err: unknown) {
+              toast.error(err instanceof Error ? err.message : 'Error al guardar cortesía');
+            } finally {
+              setSavingTrialConfig(false);
+            }
+          }}
+        >
+          {savingTrialConfig ? 'Guardando...' : 'Guardar'}
+        </Button>
+      </div>
+    </div>
 
     {/* Tarjetas de Métricas Globales */}
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">

@@ -1,6 +1,10 @@
 import { NextRequest } from 'next/server';
 
 const mockFrom = jest.fn();
+const mockCheckPremium = jest.fn();
+jest.mock('@/lib/auth/premiumGate', () => ({
+  checkCompanyPremiumFeature: (...args: unknown[]) => mockCheckPremium(...args),
+}));
 jest.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from: mockFrom,
@@ -15,6 +19,7 @@ describe('/api/mobile/conductor/login', () => {
     jest.clearAllMocks();
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key';
+    mockCheckPremium.mockResolvedValue({ active: true, status: 'premium' });
   });
 
   it('returns 400 when dni or pin is missing', async () => {

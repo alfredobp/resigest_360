@@ -793,5 +793,53 @@ describe('adminPlatformService - Administración y Auditoría de Plataforma', ()
         'No se pudo activar la empresa'
       );
     });
+
+    it('gestiona los días de cortesía por rol y los planes Premium de empresa', async () => {
+      mockSupabase.from.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: { value: { transportista: 21 } } }),
+      });
+      const days = await adminPlatformService.getTrialDaysByRole();
+      expect(days.transportista).toBe(21);
+
+      mockSupabase.auth.getUser.mockResolvedValueOnce({
+        data: { user: { id: 'u-adm', email: 'alfredobape@gmail.com' } },
+      });
+      mockSupabase.from
+        .mockReturnValueOnce({
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockReturnThis(),
+          maybeSingle: jest.fn().mockResolvedValue({ data: { value: { transportista: 15 } } }),
+        })
+        .mockReturnValueOnce({
+          upsert: jest.fn().mockResolvedValue({ error: null }),
+        });
+
+      const updated = await adminPlatformService.updateTrialDaysForRole('transportista', 30);
+      expect(updated.transportista).toBe(30);
+
+      mockSupabase.auth.getUser.mockResolvedValueOnce({
+        data: { user: { id: 'u-adm', email: 'alfredobape@gmail.com' } },
+      });
+      mockSupabase.from.mockReturnValueOnce({
+        update: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockResolvedValue({ error: null }),
+      });
+      await expect(
+        adminPlatformService.setCompanyPremiumPlan(10, { planTier: 'trial', trialDays: 15 })
+      ).resolves.toBeUndefined();
+
+      mockSupabase.auth.getUser.mockResolvedValueOnce({
+        data: { user: { id: 'u-adm', email: 'alfredobape@gmail.com' } },
+      });
+      mockSupabase.from.mockReturnValueOnce({
+        update: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockResolvedValue({ error: { message: 'DB error' } }),
+      });
+      await expect(
+        adminPlatformService.setCompanyPremiumPlan(10, { planTier: 'basico' })
+      ).rejects.toThrow('No se pudo actualizar el plan de la empresa');
+    });
   });
 });

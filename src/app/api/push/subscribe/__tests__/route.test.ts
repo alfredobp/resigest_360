@@ -1,6 +1,10 @@
 import { NextRequest } from 'next/server';
 
 const mockFrom = jest.fn();
+const mockCheckPremium = jest.fn();
+jest.mock('@/lib/auth/premiumGate', () => ({
+  checkCompanyPremiumFeature: (...args: unknown[]) => mockCheckPremium(...args),
+}));
 jest.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from: mockFrom,
@@ -18,6 +22,7 @@ describe('/api/push/subscribe', () => {
     jest.clearAllMocks();
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key';
+    mockCheckPremium.mockResolvedValue({ active: true, status: 'premium' });
   });
 
   it('returns 401 without valid driver session', async () => {
@@ -91,5 +96,10 @@ describe('/api/push/subscribe', () => {
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;
     expect((await POST(okReq)).status).toBe(500);
     expect((await DELETE(delEmptyReq)).status).toBe(500);
+
+    // Test 403 when Premium is not active
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
+    mockCheckPremium.mockResolvedValueOnce({ active: false, status: 'basic' });
+    expect((await POST(okReq)).status).toBe(403);
   });
 });

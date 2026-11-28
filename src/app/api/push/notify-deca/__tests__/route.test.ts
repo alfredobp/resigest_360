@@ -3,6 +3,11 @@ import { NextRequest } from 'next/server';
 const mockGetUser = jest.fn();
 const mockServerFrom = jest.fn();
 const mockSendDecaAssigned = jest.fn();
+const mockCheckPremium = jest.fn();
+
+jest.mock('@/lib/auth/premiumGate', () => ({
+  checkCompanyPremiumFeature: (...args: unknown[]) => mockCheckPremium(...args),
+}));
 
 jest.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
@@ -25,6 +30,7 @@ describe('POST /api/push/notify-deca', () => {
     jest.clearAllMocks();
     mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } } });
     mockSendDecaAssigned.mockResolvedValue({ sent: 1, failed: 0 });
+    mockCheckPremium.mockResolvedValue({ active: true, status: 'premium' });
   });
 
   it('returns 401 when unauthenticated and 400 when decaId missing', async () => {

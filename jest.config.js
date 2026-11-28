@@ -57,6 +57,8 @@ module.exports = {
     'src/app/api/support/ticket/route.ts',
     'src/app/api/deca/[token]/driver-action/route.ts',
     'src/lib/auth/driverSession.ts',
+    'src/lib/auth/premiumAccess.ts',
+    'src/lib/auth/premiumGate.ts',
     'src/services/pushNotificationService.ts',
     'src/app/api/mobile/conductor/login/route.ts',
     'src/app/api/mobile/conductor/decas/route.ts',
@@ -254,6 +256,18 @@ module.exports = {
       statements: 80
     },
     './src/lib/auth/driverSession.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/lib/auth/premiumAccess.ts': {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    './src/lib/auth/premiumGate.ts': {
       branches: 80,
       functions: 80,
       lines: 80,
