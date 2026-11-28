@@ -10,6 +10,7 @@ import React, {
 } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { driver, type Driver, type DriveStep } from 'driver.js';
+import 'driver.js/dist/driver.css';
 import onboardingService from '@/services/onboardingService';
 import {
   getTourStepsForRole,
