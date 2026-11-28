@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { siraService } from '@/services/siraService';
+import { isSiraTestModeCensusOnlyError } from '@/lib/validations/sira';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
             .from('identification_documents')
             .select(`
                 *,
-                company:companies(*),
+                company:companies!identification_documents_company_id_fkey(*),
                 production_center:production_centers(*)
             `)
             .eq('id', documentId)
@@ -45,9 +46,48 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Documento no encontrado o no tiene permisos para acceder a él' }, { status: 404 });
         }
 
-        // 2. Obtener credenciales de SIRA de la empresa
+        // Validar estructura E3L del DI antes de enviar (si el validador está disponible)
+        if (typeof siraService.validateDIForE3L === 'function') {
+            const validation = siraService.validateDIForE3L(doc);
+            if (validation && !validation.valid) {
+                return NextResponse.json({
+                    error: 'El Documento de Identificación no cumple las reglas del esquema E3L',
+                    details: validation.errors,
+                }, { status: 400 });
+            }
+        }
+
+        // 2. Obtener credenciales de SIRA de la empresa asignada o de la empresa principal del usuario
         const companyData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
-        const { sira_usuario, sira_password } = companyData || {};
+        let sira_usuario = companyData?.sira_usuario?.trim();
+        let sira_password = companyData?.sira_password?.trim();
+
+        // Fallback: Si la empresa asociada a este DI no tiene credenciales (ej. empresa cliente o de prueba previa),
+        // buscar las credenciales en la empresa principal del usuario (is_my_company configurada en Mi Empresa)
+        if (!sira_usuario || !sira_password) {
+            const { data: myCompany } = await supabase
+                .from('companies')
+                .select('id, razon_social, sira_usuario, sira_password')
+                .eq('user_id', user.id)
+                .eq('is_my_company', true)
+                .eq('activo', true)
+                .not('sira_usuario', 'is', null)
+                .neq('sira_usuario', '')
+                .limit(1)
+                .maybeSingle();
+
+            if (myCompany?.sira_usuario && myCompany?.sira_password) {
+                sira_usuario = myCompany.sira_usuario.trim();
+                sira_password = myCompany.sira_password.trim();
+                console.info(`ℹ️ Utilizando credenciales SIRA de la empresa principal del usuario (${myCompany.razon_social})`);
+            }
+        }
+
+        if (doc.estado === 'cancelado') {
+            return NextResponse.json({
+                error: 'No se puede enviar a SIRA/e-SIR un Documento de Identificación cancelado.'
+            }, { status: 400 });
+        }
 
         console.info(`🔐 Intentando envío SIRA para DI ${doc.numero_documento}`);
         console.info(`📍 Empresa: ${doc.productor_razon_social} (ID: ${doc.company_id})`);
@@ -90,7 +130,34 @@ export async function POST(req: NextRequest) {
    </soapenv:Body>
 </soapenv:Envelope>`.trim();
 
-        // 5. Registrar intento inicial en sira_submissions
+        // 5. Resolver plataforma automáticamente ANTES de insertar en sira_submissions
+        const platformInfo =
+            typeof siraService.resolvePlatformForDI === 'function'
+                ? siraService.resolvePlatformForDI(doc)
+                : {
+                    platform: 'sira' as const,
+                    code: 'SIRA',
+                    name: 'SIRA (Junta de Andalucía)',
+                    shortLabel: 'SIRA',
+                    endpointUrl:
+                        typeof siraService.getSiraEndpointUrl === 'function'
+                            ? siraService.getSiraEndpointUrl()
+                            : 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones',
+                    supported: true,
+                    provinceCode: '00',
+                    caCode: '01',
+                    reason: 'Default SIRA',
+                };
+
+        if (!platformInfo.supported || !platformInfo.endpointUrl) {
+            return NextResponse.json({
+                error: `La comunidad autónoma detectada opera mediante ${platformInfo.name}, que no dispone de envío SOAP directo todavía. Puedes descargar el XML E3L para subirlo manualmente.`,
+                platform: platformInfo.code,
+                platformName: platformInfo.name,
+            }, { status: 422 });
+        }
+
+        // 6. Registrar intento inicial en sira_submissions
         try {
             const { data: subData } = await supabase
                 .from('sira_submissions')
@@ -114,22 +181,23 @@ export async function POST(req: NextRequest) {
             console.warn('sira_submissions insert warning (table might be initializing):', dbErr);
         }
 
-        // --- DEBUG: GUARDAR XML EN ARCHIVO LOCAL ---
-        try {
-            const logDir = path.join(process.cwd(), 'sira_xml_logs');
-            if (!fs.existsSync(logDir)) {
-                fs.mkdirSync(logDir, { recursive: true });
+        // --- DEBUG: GUARDAR XML EN ARCHIVO LOCAL (SOLO DESARROLLO) ---
+        if (process.env.NODE_ENV === 'development') {
+            try {
+                const logDir = path.join(process.cwd(), 'sira_xml_logs');
+                if (!fs.existsSync(logDir)) {
+                    fs.mkdirSync(logDir, { recursive: true });
+                }
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const filePathReq = path.join(logDir, `req_${documentId}_${timestamp}.xml`);
+                fs.writeFileSync(filePathReq, soapEnvelope);
+            } catch (logErr) {
+                console.error('Error guardando log XML:', logErr);
             }
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const filePathReq = path.join(logDir, `req_${documentId}_${timestamp}.xml`);
-            fs.writeFileSync(filePathReq, soapEnvelope);
-        } catch (logErr) {
-            console.error('Error guardando log XML:', logErr);
         }
         // ------------------------------------------------
 
-        // 6. Realizar la petición al Web Service de la Junta
-        const siraUrl = 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones';
+        const siraUrl = platformInfo.endpointUrl;
         const authHeader = `Basic ${Buffer.from(`${sira_usuario}:${sira_password}`).toString('base64')}`;
 
         const siraResponse = await fetch(siraUrl, {
@@ -144,30 +212,54 @@ export async function POST(req: NextRequest) {
 
         const responseText = await siraResponse.text();
 
-        // --- DEBUG: GUARDAR RESPUESTA XML ---
-        try {
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const logDir = path.join(process.cwd(), 'sira_xml_logs');
-            const filePathRes = path.join(logDir, `res_${documentId}_${timestamp}.xml`);
-            fs.writeFileSync(filePathRes, responseText);
-        } catch (logErr) {
-            console.error('Error guardando log respuesta:', logErr);
+        // --- DEBUG: GUARDAR RESPUESTA XML (SOLO DESARROLLO) ---
+        if (process.env.NODE_ENV === 'development') {
+            try {
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const logDir = path.join(process.cwd(), 'sira_xml_logs');
+                const filePathRes = path.join(logDir, `res_${documentId}_${timestamp}.xml`);
+                fs.writeFileSync(filePathRes, responseText);
+            } catch (logErr) {
+                console.error('Error guardando log respuesta:', logErr);
+            }
         }
         // ------------------------------------
 
-        // 7. Procesar respuesta y buscar errores dentro del XML
-        const hasFault = responseText.includes('<soapenv:Fault>') || responseText.includes('<resultWrong>');
-        const matchId = responseText.match(/<IdSira>(.*?)<\/IdSira>/);
-        const siraId = matchId ? matchId[1] : null;
+        // 7. Procesar respuesta conforme a Contrato OTI (<resultOK>, <resultWarning>, <resultWrong>, SOAP Fault)
+        const parsedResponse =
+            typeof siraService.parseSiraResponse === 'function'
+                ? siraService.parseSiraResponse(responseText)
+                : (() => {
+                    const hasFault = /<([a-zA-Z0-9_-]+:)?Fault\b/i.test(responseText);
+                    const hasResultWrong = /<resultWrong\b/i.test(responseText);
+                    const okMatch = responseText.match(/<resultOK\b([^>]*?)\/?>/i);
+                    const legacyId = responseText.match(/<IdSira>(.*?)<\/IdSira>/)?.[1] || null;
+                    const code = okMatch?.[1]?.match(/code=["']([A-Za-z0-9_-]+)["']/i)?.[1] || null;
+                    const ok = !hasFault && !hasResultWrong && (Boolean(okMatch) || Boolean(legacyId));
+                    return {
+                        ok,
+                        hasFault,
+                        hasResultWrong,
+                        hasResultOK: Boolean(okMatch),
+                        hasResultWarning: false,
+                        siraId: legacyId || (ok ? (code ? `SIRA-OK-${code}` : 'SIRA-OK') : null),
+                        code,
+                        description: null,
+                        detailValue: null,
+                        warnings: [] as string[],
+                    };
+                })();
 
-        if (!siraResponse.ok || hasFault || !siraId) {
+        const extractedSiraId = parsedResponse.siraId;
+        const allowTestCensus =
+            process.env.SIRA_ALLOW_TEST_CENSUS === 'true' ||
+            (process.env.NODE_ENV !== 'production' && process.env.SIRA_ALLOW_TEST_CENSUS !== 'false');
+        const isTestModeCensusPass = allowTestCensus && siraResponse.ok && isSiraTestModeCensusOnlyError(responseText);
+
+        if (!siraResponse.ok || (!isTestModeCensusPass && !parsedResponse.ok)) {
             console.error('SIRA API Error/Fault:', responseText);
 
-            const errorMatch = responseText.match(/<description>(.*?)<\/description>/) ||
-                responseText.match(/<faultstring>(.*?)<\/faultstring>/) ||
-                responseText.match(/<message.*?>(.*?)<\/message>/);
-
-            const errorMessage = errorMatch ? errorMatch[1] : 'Error en la validación de SIRA. Ver logs XML.';
+            const errorMessage = siraService.extractSiraError(responseText);
 
             // Actualizar sira_submissions con estado 'rechazado'
             if (submissionId) {
@@ -208,7 +300,11 @@ export async function POST(req: NextRequest) {
             }, { status: siraResponse.ok ? 400 : siraResponse.status });
         }
 
-        // 8. Actualizar submission y estado del documento localmente (ÉXITO REAL)
+        const siraId = isTestModeCensusPass
+            ? `SIRA-TEST-DI-${documentId}-${Date.now().toString().slice(-4)}`
+            : extractedSiraId;
+
+        // 8. Actualizar submission y estado del documento localmente (ÉXITO REAL o MODO PRUEBA)
         if (submissionId) {
             try {
                 await supabase
@@ -222,13 +318,19 @@ export async function POST(req: NextRequest) {
             } catch { /* best-effort: no bloquear el flujo principal */ }
         }
 
+        const successNote = isTestModeCensusPass
+            ? `\n[${platformInfo.code} Modo Prueba] XML E3L validado correctamente. ID: ${siraId}`
+            : `\n[${platformInfo.code}] Enviado con éxito. ID: ${siraId}`;
+
+        const nextEstado = doc.estado === 'completado' ? 'completado' : 'pendiente-firma';
         await supabase
             .from('identification_documents')
             .update({
-                estado: 'pendiente-firma',
-                notas: `${doc.notas || ''  }\n[SIRA] Enviado con éxito. ID SIRA: ${siraId}`
+                estado: nextEstado,
+                notas: `${doc.notas || ''}${successNote}`
             })
-            .eq('id', documentId);
+            .eq('id', documentId)
+            .eq('user_id', doc.user_id || user.id);
 
         // Registrar en audit_logs
         try {
@@ -239,7 +341,9 @@ export async function POST(req: NextRequest) {
                 entidad_id: String(documentId),
                 accion: 'sincronizar_sira',
                 detalles: {
-                    resultado: 'aceptado',
+                    resultado: isTestModeCensusPass ? 'aceptada_modo_prueba' : 'aceptado',
+                    plataforma: platformInfo.code,
+                    plataforma_nombre: platformInfo.name,
                     sira_id: siraId,
                     numero_documento: doc.numero_documento,
                     submission_id: submissionId
@@ -249,7 +353,12 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            message: 'Documento aceptado correctamente por SIRA',
+            ...(isTestModeCensusPass ? { isTestMode: true } : {}),
+            platform: platformInfo.code,
+            platformName: platformInfo.name,
+            message: isTestModeCensusPass
+                ? `Documento validado en esquema E3L por ${platformInfo.code} y aceptado en Modo Prueba`
+                : `Documento aceptado correctamente por ${platformInfo.name}`,
             siraId,
             submissionId
         });

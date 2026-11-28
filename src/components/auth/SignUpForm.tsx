@@ -4,9 +4,11 @@ import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+
+import { getAuthErrorMessage } from "@/lib/authErrors";
 
 export default function SignUpForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -15,6 +17,15 @@ export default function SignUpForm() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const router = useRouter();
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -54,7 +65,7 @@ export default function SignUpForm() {
       });
 
       if (signUpError) {
-        setError(signUpError.message);
+        setError(getAuthErrorMessage(signUpError.message));
         setLoading(false);
         return;
       }
@@ -62,11 +73,14 @@ export default function SignUpForm() {
       setSuccess(true);
       
       // Redirigir después de 2 segundos
-      setTimeout(() => {
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+      }
+      redirectTimerRef.current = setTimeout(() => {
         router.push("/signin");
       }, 2000);
     } catch {
-      setError("Error al crear la cuenta. Inténtalo de nuevo.");
+      setError(getAuthErrorMessage(null));
       setLoading(false);
     }
   };
@@ -82,7 +96,7 @@ export default function SignUpForm() {
       });
 
       if (oAuthError) {
-        setError(oAuthError.message);
+        setError(getAuthErrorMessage(oAuthError.message));
       }
     } catch {
       setError("Error al conectar con Google");
@@ -97,7 +111,7 @@ export default function SignUpForm() {
           className="inline-flex items-center text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
         >
           <ChevronLeftIcon />
-          Volver al panel
+          Volver al inicio
         </Link>
       </div>
       <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">

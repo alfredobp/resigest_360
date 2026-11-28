@@ -1,0 +1,3 @@
+<?xml version='1.0' encoding='UTF-8'?><SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"><SOAP-ENV:Body>
+                    <ns3:sendWasteDCSResponse xmlns:ns3="e3l://esir2014"><return><result><resultWrong><resultErrorList><resultWrong code="JA000027" description="Obligación no guardada en BD porque no cumple los requisitos. La fecha de inicio de traslado de la obligación debe ser hoy o posterior"/></resultErrorList><resultWarningList/></resultWrong></result></return></ns3:sendWasteDCSResponse>
+                </SOAP-ENV:Body></SOAP-ENV:Envelope>

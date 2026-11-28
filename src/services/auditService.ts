@@ -57,12 +57,16 @@ export const auditService = {
   }): Promise<AuditLogEntry[]> {
     try {
       const supabase = createClient();
+      const { data: authData } = await supabase.auth?.getUser?.() || { data: { user: null } };
       let query = supabase
         .from('audit_logs')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(options?.limit || 50);
 
+      if (authData?.user) {
+        query = query.eq('user_id', authData.user.id);
+      }
       if (options?.entidad) {
         query = query.eq('entidad', options.entidad);
       }
@@ -92,12 +96,18 @@ export const auditService = {
   async getLogsForEntity(entidad: AuditLogEntity, entidad_id: string | number): Promise<AuditLogEntry[]> {
     try {
       const supabase = createClient();
-      const { data, error } = await supabase
+      const { data: authData } = await supabase.auth?.getUser?.() || { data: { user: null } };
+      let query = supabase
         .from('audit_logs')
         .select('*')
         .eq('entidad', entidad)
-        .eq('entidad_id', String(entidad_id))
-        .order('created_at', { ascending: false });
+        .eq('entidad_id', String(entidad_id));
+
+      if (authData?.user) {
+        query = query.eq('user_id', authData.user.id);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
         console.warn('auditService: error al obtener logs de entidad:', error.message);

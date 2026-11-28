@@ -4,7 +4,9 @@
 
 @theme {
   --font-*: initial;
-  --font-outfit: Outfit, sans-serif;
+  --font-sans: var(--font-inter), Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-outfit: var(--font-inter), Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
   --breakpoint-*: initial;
   --breakpoint-2xsm: 375px;
@@ -201,32 +203,32 @@
   }
 
   body {
-    @apply relative font-normal font-outfit z-1 bg-gray-50 dark:bg-gray-950;
+    @apply relative font-normal font-sans antialiased z-1 bg-slate-50 text-slate-900 dark:bg-[#090d16] dark:text-slate-100;
   }
 }
 
 @utility menu-item {
-  @apply relative flex items-center w-full gap-3 px-3 py-2 font-medium rounded-lg text-theme-sm;
+  @apply relative flex items-center w-full gap-2.5 px-2.5 py-2 font-medium rounded-md text-[13px] transition-colors;
 }
 
 @utility menu-item-active {
-  @apply bg-brand-50 text-brand-500 dark:bg-brand-500/[0.12] dark:text-brand-400;
+  @apply bg-brand-50/90 text-brand-700 font-semibold dark:bg-brand-500/[0.14] dark:text-brand-400;
 }
 
 @utility menu-item-inactive {
-  @apply text-gray-700 hover:bg-gray-100 group-hover:text-gray-700 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-gray-300;
+  @apply text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.05] dark:hover:text-slate-100;
 }
 
 @utility menu-item-icon {
-  @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400;
+  @apply text-slate-400 group-hover:text-slate-700 dark:text-slate-500;
 }
 
 @utility menu-item-icon-active {
-  @apply text-brand-500 dark:text-brand-400;
+  @apply text-brand-600 dark:text-brand-400;
 }
 
 @utility menu-item-icon-inactive {
-  @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300;
+  @apply text-slate-400 group-hover:text-slate-700 dark:text-slate-500 dark:group-hover:text-slate-200;
 }
 
 @utility menu-item-arrow {
@@ -300,13 +302,20 @@
 
 @layer utilities {
 
-  /* For Remove Date Icon */
-  input[type="date"]::-webkit-inner-spin-button,
-  input[type="time"]::-webkit-inner-spin-button,
   input[type="date"]::-webkit-calendar-picker-indicator,
   input[type="time"]::-webkit-calendar-picker-indicator {
-    display: none;
-    -webkit-appearance: none;
+    cursor: pointer;
+    opacity: 0.7;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator:hover,
+  input[type="time"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+
+  .dark input[type="date"]::-webkit-calendar-picker-indicator,
+  .dark input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
   }
 }
 
@@ -324,7 +333,7 @@
 }
 
 .apexcharts-legend-text {
-  @apply pl-5 !text-gray-700 dark:!text-gray-400;
+  @apply !pl-5 !text-gray-700 dark:!text-gray-400;
 }
 
 .apexcharts-tooltip-series-group {
@@ -493,14 +502,14 @@ span.flatpickr-weekday,
 .flatpickr-day.selected.nextMonthDay,
 .flatpickr-day.startRange.nextMonthDay,
 .flatpickr-day.endRange.nextMonthDay {
-  background: #465fff;
-  @apply !border-brand-500 !bg-brand-500 hover:!border-brand-50 hover:!bg-brand-500;
+  background: #059669;
+  @apply !border-brand-500 !bg-brand-500 hover:!border-brand-600 hover:!bg-brand-600;
 }
 
 .flatpickr-day.selected.startRange+.endRange:not(:nth-child(7n + 1)),
 .flatpickr-day.startRange.startRange+.endRange:not(:nth-child(7n + 1)),
 .flatpickr-day.endRange.startRange+.endRange:not(:nth-child(7n + 1)) {
-  box-shadow: -10px 0 0 #465fff;
+  box-shadow: -10px 0 0 #059669;
 }
 
 .flatpickr-months .flatpickr-prev-month svg,
@@ -545,7 +554,7 @@ span.flatpickr-weekday,
 }
 
 .fc-button-group .fc-button {
-  @apply flex h-10 w-10 items-center justify-center !rounded-lg border border-gray-200 bg-transparent hover:border-gray-200 hover:bg-gray-50 focus:shadow-none active:!border-gray-200 active:!bg-transparent active:!shadow-none dark:border-gray-800 dark:hover:border-gray-800 dark:hover:bg-gray-900 dark:active:border-gray-800;
+  @apply flex h-10 w-10 items-center justify-center !rounded-lg border border-gray-200 bg-transparent hover:border-gray-200 hover:bg-gray-50 focus:shadow-none active:!border-gray-200 active:!bg-transparent active:!shadow-none dark:border-gray-800 dark:hover:border-gray-800 dark:hover:bg-gray-900 dark:active:!border-gray-800;
 }
 
 .fc-button-group .fc-button.fc-prev-button:before {
@@ -583,7 +592,7 @@ span.flatpickr-weekday,
 }
 
 .fc-header-toolbar.fc-toolbar .fc-toolbar-chunk:last-child .fc-button {
-  @apply !h-auto !w-auto rounded-md !border-0 bg-transparent !px-5 !py-2 text-sm font-medium text-gray-500 hover:text-gray-700 focus:shadow-none dark:text-gray-400;
+  @apply !h-auto !w-auto rounded-md !border-0 bg-transparent !px-5 !py-2 text-sm font-medium text-gray-500 hover:text-gray-700 focus:!shadow-none dark:text-gray-400;
 }
 
 .fc-header-toolbar.fc-toolbar .fc-toolbar-chunk:last-child .fc-button.fc-button-active {
@@ -790,6 +799,28 @@ span.flatpickr-weekday,
   @apply text-gray-400 line-through;
 }
 
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 .taskCheckbox:checked~.box {
   @apply border-brand-500 bg-brand-500 dark:border-brand-500;
 }
@@ -806,224 +837,4 @@ span.flatpickr-weekday,
   opacity: 0.8;
   cursor: grabbing;
   /* Changes the cursor to indicate dragging */
-}
-
-/* Estilos personalizados para el tour guiado (driver.js) */
-[data-tour] {
-  scroll-margin-top: 6.5rem;
-}
-
-.resigest-driver-popover.driver-popover {
-  max-width: 390px;
-  min-width: 310px;
-  border-radius: 1rem;
-  padding: 1.25rem 1.35rem;
-  font-family: var(--font-outfit), sans-serif;
-  background-color: #ffffff;
-  box-shadow: 0 24px 48px -12px rgba(16, 24, 40, 0.22), 0 0 0 1px rgba(16, 24, 40, 0.06);
-  border: none;
-}
-
-.resigest-driver-popover .resigest-tour-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.625rem;
-  padding-right: 1.75rem;
-}
-
-.resigest-driver-popover .resigest-tour-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: 9999px;
-  background-color: #ecfdf5;
-  color: #047857;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.resigest-driver-popover .resigest-tour-progress-track {
-  width: 100%;
-  height: 4px;
-  border-radius: 9999px;
-  background-color: #f2f4f7;
-  overflow: hidden;
-  margin-bottom: 0.875rem;
-}
-
-.resigest-driver-popover .resigest-tour-progress-fill {
-  height: 100%;
-  border-radius: 9999px;
-  background: linear-gradient(90deg, #059669 0%, #34d399 100%);
-  transition: width 0.25s ease;
-}
-
-.resigest-driver-popover .driver-popover-close-btn {
-  top: 1rem;
-  right: 1rem;
-  width: 28px;
-  height: 28px;
-  border-radius: 0.5rem;
-  color: #667085;
-  font-size: 1.125rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.resigest-driver-popover .driver-popover-close-btn:hover {
-  background-color: #f2f4f7;
-  color: #101828;
-}
-
-.resigest-driver-popover .driver-popover-title {
-  font-size: 1.0625rem;
-  font-weight: 700;
-  line-height: 1.35;
-  color: #101828;
-  padding-right: 0;
-}
-
-.resigest-driver-popover .driver-popover-description {
-  font-size: 0.875rem;
-  line-height: 1.55;
-  color: #475467;
-  margin-top: 0.45rem;
-}
-
-.resigest-driver-popover .driver-popover-footer {
-  margin-top: 1.15rem;
-  padding-top: 0.875rem;
-  border-top: 1px solid #f2f4f7;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.resigest-driver-popover .driver-popover-progress-text {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #667085;
-}
-
-.resigest-driver-popover .driver-popover-navigation-btns {
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.resigest-driver-popover .resigest-tour-skip-btn {
-  background: transparent;
-  border: none;
-  padding: 0.35rem 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #667085;
-  cursor: pointer;
-  border-radius: 0.5rem;
-  transition: color 0.15s ease, background-color 0.15s ease;
-  text-shadow: none;
-}
-
-.resigest-driver-popover .resigest-tour-skip-btn:hover {
-  color: #101828;
-  background-color: #f2f4f7;
-}
-
-.resigest-driver-popover .driver-popover-next-btn {
-  background-color: #059669;
-  color: #ffffff;
-  border: none;
-  border-radius: 0.625rem;
-  padding: 0.45rem 0.95rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  text-shadow: none;
-  box-shadow: 0 1px 2px rgba(5, 150, 105, 0.25);
-  transition: background-color 0.15s ease;
-}
-
-.resigest-driver-popover .driver-popover-next-btn:hover {
-  background-color: #047857;
-}
-
-.resigest-driver-popover .driver-popover-prev-btn {
-  border-radius: 0.625rem;
-  padding: 0.45rem 0.85rem;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  background-color: #ffffff;
-  color: #344054;
-  border: 1px solid #d0d5dd;
-  text-shadow: none;
-  transition: background-color 0.15s ease;
-}
-
-.resigest-driver-popover .driver-popover-prev-btn:hover {
-  background-color: #f9fafb;
-}
-
-.dark .resigest-driver-popover.driver-popover {
-  background-color: #101828;
-  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.55), 0 0 0 1px #1d2939;
-  color: #f9fafb;
-}
-
-.dark .resigest-driver-popover .resigest-tour-badge {
-  background-color: rgba(5, 150, 105, 0.16);
-  color: #34d399;
-}
-
-.dark .resigest-driver-popover .resigest-tour-progress-track {
-  background-color: #1d2939;
-}
-
-.dark .resigest-driver-popover .driver-popover-close-btn {
-  color: #98a2b3;
-}
-
-.dark .resigest-driver-popover .driver-popover-close-btn:hover {
-  background-color: #1d2939;
-  color: #ffffff;
-}
-
-.dark .resigest-driver-popover .driver-popover-title {
-  color: #ffffff;
-}
-
-.dark .resigest-driver-popover .driver-popover-description {
-  color: #98a2b3;
-}
-
-.dark .resigest-driver-popover .driver-popover-footer {
-  border-top-color: #1d2939;
-}
-
-.dark .resigest-driver-popover .driver-popover-progress-text {
-  color: #98a2b3;
-}
-
-.dark .resigest-driver-popover .resigest-tour-skip-btn {
-  color: #98a2b3;
-}
-
-.dark .resigest-driver-popover .resigest-tour-skip-btn:hover {
-  color: #ffffff;
-  background-color: #1d2939;
-}
-
-.dark .resigest-driver-popover .driver-popover-prev-btn {
-  background-color: #1d2939;
-  color: #d0d5dd;
-  border-color: #344054;
-}
-
-.dark .resigest-driver-popover .driver-popover-prev-btn:hover {
-  background-color: #344054;
 }

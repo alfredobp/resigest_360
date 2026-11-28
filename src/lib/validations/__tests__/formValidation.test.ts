@@ -83,13 +83,17 @@ describe('formValidation - Motor de Validación y Reglas', () => {
       expect(validateNIMA('', true)).toBe(VALIDATION_MESSAGES.REQUIRED);
     });
 
-    it('debe aceptar NIMA válido de 10 a 12 caracteres alfanuméricos', () => {
+    it('debe aceptar NIMA válido de 10 dígitos numéricos con provincia oficial 01-52', () => {
       expect(validateNIMA('0123456789')).toBeNull();
-      expect(validateNIMA('0123456789A')).toBeNull();
-      expect(validateNIMA('ES0123456789')).toBeNull();
+      expect(validateNIMA('1100000018')).toBeNull();
+      expect(validateNIMA('2800000001')).toBeNull();
     });
 
-    it('debe rechazar NIMA con longitud incorrecta o caracteres especiales', () => {
+    it('debe rechazar NIMA alfanumérico, con letras, longitud incorrecta o provincia no admitida', () => {
+      expect(validateNIMA('ABCDEFGHIJ')).toBe(VALIDATION_MESSAGES.NIMA_INVALID);
+      expect(validateNIMA('0123456789A')).toBe(VALIDATION_MESSAGES.NIMA_INVALID);
+      expect(validateNIMA('ES0123456789')).toBe(VALIDATION_MESSAGES.NIMA_INVALID);
+      expect(validateNIMA('9900000001')).toBe(VALIDATION_MESSAGES.NIMA_INVALID);
       expect(validateNIMA('12345')).toBe(VALIDATION_MESSAGES.NIMA_INVALID);
       expect(validateNIMA('1234567890123')).toBe(VALIDATION_MESSAGES.NIMA_INVALID);
       expect(validateNIMA('ES-12345678')).toBe(VALIDATION_MESSAGES.NIMA_INVALID);

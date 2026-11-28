@@ -5,9 +5,24 @@
 import { createClient } from '@/lib/supabase/client';
 import { getContractEffectiveStatus } from '@/services/wasteContractService';
 
+function normOp(op?: string | null): string {
+  if (!op) return '';
+  const cleaned = String(op).trim().toUpperCase();
+  const match = cleaned.match(/^([RD])(\d{1,2})$/);
+  return match ? `${match[1]}${match[2].padStart(2, '0')}` : cleaned;
+}
+
 export interface AlertException {
   id: string | number;
-  tipo: 'transito' | 'discrepancia_peso' | 'rechazo' | 'contrato_caducado' | 'contrato_proximo' | 'autorizacion_vencida';
+  tipo:
+  | 'transito'
+  | 'discrepancia_peso'
+  | 'rechazo'
+  | 'contrato_caducado'
+  | 'contrato_proximo'
+  | 'autorizacion_vencida'
+  | 'sin_contrato'
+  | 'tratamiento_no_autorizado';
   gravedad: 'critico' | 'advertencia' | 'info';
   titulo: string;
   descripcion: string;
@@ -16,13 +31,115 @@ export interface AlertException {
   fecha?: string;
 }
 
+export interface ExecutiveOverviewOptions {
+  companyId?: number | null;
+  includeCommercial?: boolean;
+}
+
+export interface DashboardChartsOptions {
+  companyId?: number | null;
+  year?: number;
+  includeCommercial?: boolean;
+}
+
+export interface MonthlyWastePoint {
+  name: string;
+  total: number;
+  peligrosos: number;
+  noPeligrosos: number;
+  diCount: number;
+}
+
+export interface MonthlyPlantFlowPoint {
+  name: string;
+  entradas: number;
+  salidas: number;
+  neto: number;
+}
+
+export interface MonthlyCommercialPoint {
+  name: string;
+  ingresos: number;
+  costes: number;
+  margen: number;
+}
+
+export interface DiStatusDistribution {
+  completados: number;
+  enTransito: number;
+  borradores: number;
+  incidencias: number;
+  total: number;
+}
+
+export interface DashboardChartsSummary {
+  totalToneladas: number;
+  promedioMensual: number;
+  mesPico: { name: string; value: number } | null;
+  porcentajePeligrosos: number;
+  variacionUltimoMesPct: number | null;
+}
+
+export interface DashboardChartsData {
+  year: number;
+  availableYears: number[];
+  monthlyWaste: MonthlyWastePoint[];
+  monthlyPlantFlow: MonthlyPlantFlowPoint[];
+  monthlyCommercial: MonthlyCommercialPoint[];
+  diStatusDistribution: DiStatusDistribution;
+  summary: DashboardChartsSummary;
+}
+
+const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+function extractMonthIndex(dateValue?: string | null): number | null {
+  if (!dateValue) return null;
+  const isoMatch = String(dateValue).match(/^\d{4}-(\d{2})/);
+  if (isoMatch) {
+    const monthIdx = Number(isoMatch[1]) - 1;
+    return monthIdx >= 0 && monthIdx <= 11 ? monthIdx : null;
+  }
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.getMonth();
+}
+
+function computeDiWeightTonnes(di: {
+  peso_destino_kg?: number | null;
+  peso_origen_kg?: number | null;
+  unidad?: string | null;
+  cantidad?: number | null;
+}): number {
+  if (di.peso_destino_kg && Number(di.peso_destino_kg) > 0) {
+    return Number(di.peso_destino_kg) / 1000;
+  }
+  if (di.peso_origen_kg && Number(di.peso_origen_kg) > 0) {
+    return Number(di.peso_origen_kg) / 1000;
+  }
+  if (di.unidad === 'kg' || di.unidad === 'litros' || di.unidad === 'unidades') {
+    return (Number(di.cantidad) || 0) / 1000;
+  }
+  return Number(di.cantidad) || 0;
+}
+
 export interface ExecutiveDashboardData {
+  conformidad: {
+    estado: 'pendiente' | 'conforme' | 'incidencias';
+    porcentaje: number | null;
+    totalEvaluados: number;
+    totalConformes: number;
+    totalNoConformes: number;
+    fechaEvaluacion: string;
+  };
   alertas: {
     totalCriticas: number;
     totalAdvertencias: number;
     lista: AlertException[];
     disEnTransitoCount: number;
     disDiscrepanciaCount: number;
+    disSinContratoCount: number;
+    disTratamientoNoAutorizadoCount: number;
+    tratamientoNoAutorizadoByDiId?: Record<number, string>;
     contratosCaducadosCount: number;
     contratosPorVencerCount: number;
     autorizacionesPorVencerCount: number;
@@ -33,6 +150,8 @@ export interface ExecutiveDashboardData {
     toneladasNoPeligrosas: number;
     totalDIs: number;
     disCompletados: number;
+    totalAsientosArchivo?: number;
+    toneladasArchivoCronologico?: number;
     topLER: Array<{
       codigo_ler: string;
       descripcion: string;
@@ -50,43 +169,83 @@ export interface ExecutiveDashboardData {
     margenMedioTon: number;
     rentabilidadPorcentaje: number;
   };
+  planta?: {
+    entradasToneladas: number;
+    salidasToneladas: number;
+    existenciasToneladas: number;
+    existenciasPorLer?: Array<{ ler: string; descripcion: string; kg: number; toneladas: number }>;
+    totalAsientos: number;
+    totalContratos: number;
+    contratosVigentes: number;
+  };
 }
 
 export const dashboardService = {
   /**
    * Obtener visión ejecutiva global y excepciones en tiempo real
    */
-  async getExecutiveOverview(): Promise<ExecutiveDashboardData> {
+  async getExecutiveOverview(options: ExecutiveOverviewOptions = {}): Promise<ExecutiveDashboardData> {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
     const todayStr = new Date().toISOString().split('T')[0];
     const today = new Date();
+    const filterColumn = options.companyId ? 'company_id' : 'user_id';
+    const filterValue = options.companyId ?? user.id;
+    const includeCommercial = options.includeCommercial !== false;
 
-    // Cargar en paralelo DIs, Contratos, Autorizaciones y Operaciones Comerciales
-    const [disRes, contractsRes, authsRes, opsRes] = await Promise.all([
-      supabase.from('identification_documents').select('*').eq('user_id', user.id),
-      supabase.from('waste_contracts').select('*').eq('user_id', user.id),
-      supabase.from('environmental_authorizations').select('*').eq('user_id', user.id),
-      supabase.from('commercial_operations').select('*').eq('user_id', user.id)
+    // Cargar en paralelo DIs, Contratos, Autorizaciones (con LERs), Empresas, Archivo Cronológico y (si aplica) Operaciones Comerciales
+    const [disRes, contractsRes, authsRes, opsRes, companiesRes, chronoRes] = await Promise.all([
+      supabase.from('identification_documents').select('*').eq(filterColumn, filterValue),
+      supabase.from('waste_contracts').select('*').eq(filterColumn, filterValue),
+      supabase.from('environmental_authorizations').select('*, waste_codes:authorization_waste_codes(*)').eq(filterColumn, filterValue),
+      includeCommercial
+        ? supabase.from('commercial_operations').select('*').eq(filterColumn, filterValue)
+        : Promise.resolve({ data: [] as any[] }),
+      supabase.from('companies').select('id, cif, razon_social').eq('user_id', user.id),
+      supabase.from('chronological_registry').select('tipo_operacion, cantidad_kg, origen_tipo, destino_tipo, numero_documento_referencia, codigo_ler, descripcion_residuo').eq(filterColumn, filterValue),
     ]);
 
     const dis = disRes.data || [];
     const contracts = contractsRes.data || [];
     const auths = authsRes.data || [];
     const ops = opsRes.data || [];
+    const companies = companiesRes?.data || [];
+    const chronoEntries = chronoRes?.data || [];
 
-    // 1. ANALIZAR EXCEPCIONES Y ALERTAS
+    // Índice rápido de empresa por CIF y autorizaciones por company_id
+    const companyIdByCif = new Map<string, number>();
+    companies.forEach((c: any) => {
+      if (c.cif) companyIdByCif.set(String(c.cif).trim().toUpperCase(), c.id);
+    });
+
+    const contractById = new Map<number, any>();
+    contracts.forEach((c: any) => contractById.set(c.id, c));
+
+    // 1. ANALIZAR EXCEPCIONES, ALERTAS Y CONFORMIDAD REAL
     const listaAlertas: AlertException[] = [];
     let disEnTransitoCount = 0;
     let disDiscrepanciaCount = 0;
+    let disSinContratoCount = 0;
+    let disTratamientoNoAutorizadoCount = 0;
+    const tratamientoNoAutorizadoByDiId: Record<number, string> = {};
     let contratosCaducadosCount = 0;
     let contratosPorVencerCount = 0;
     let autorizacionesPorVencerCount = 0;
 
+    let totalEvaluados = 0;
+    let totalNoConformes = 0;
+
     // Alertas de DIs
     dis.forEach(d => {
+      let diHasComplianceFailure = false;
+      const isExecutedOrActive =
+        d.estado === 'completado' ||
+        ['en_transito', 'recepcionado', 'aceptado', 'rechazado_parcial', 'rechazado_total', 'tratado'].includes(
+          d.estado_traslado || ''
+        );
+
       const isTransito = d.estado_traslado === 'en_transito';
       if (isTransito) {
         disEnTransitoCount++;
@@ -102,11 +261,90 @@ export const dashboardService = {
         });
       }
 
-      const tieneDiscrepancia = (d.porcentaje_discrepancia && Math.abs(d.porcentaje_discrepancia) > 5) ||
+      if (isExecutedOrActive) {
+        totalEvaluados++;
+
+        // Regla F03: Verificar acreditación de contrato previo
+        const hasContractCoverage = Boolean(d.contract_id || d.contrato_externo_referencia);
+        if (!hasContractCoverage) {
+          disSinContratoCount++;
+          diHasComplianceFailure = true;
+          listaAlertas.push({
+            id: `di-sin-contrato-${d.id}`,
+            tipo: 'sin_contrato',
+            gravedad: 'critico',
+            titulo: `Traslado sin contrato acreditado: ${d.numero_documento}`,
+            descripcion: `El DI ${d.numero_documento} (${d.codigo_ler}) pasó a estado '${d.estado_traslado || d.estado}' sin contrato de tratamiento vinculado ni referencia acreditada (art. 5 RD 553/2020).`,
+            referencia: d.numero_documento,
+            enlace: `/residuos/documentos-identificacion/${d.id}`,
+            fecha: d.fecha_salida || d.fecha_documento
+          });
+        }
+
+        // Regla F02: Verificar tratamiento ejecutado/previsto frente a régimen NT y autorización ambiental del gestor
+        const effectiveOp = normOp(d.operacion_tratamiento_ejecutada || d.operacion_tratamiento);
+        let opNonCompliantReason: string | null = null;
+
+        if (effectiveOp && effectiveOp.startsWith('D') && d.tipo_notificacion === 'sin-notificacion') {
+          opNonCompliantReason = `La operación ${effectiveOp} es de eliminación y requiere Notificación Previa (el DI consta como 'Sin Notificación').`;
+        } else if (effectiveOp && d.codigo_ler) {
+          const linkedContract = d.contract_id ? contractById.get(d.contract_id) : null;
+          const gestorCompanyId =
+            linkedContract?.gestor_company_id ||
+            (d.gestor_cif ? companyIdByCif.get(String(d.gestor_cif).trim().toUpperCase()) : undefined);
+
+          if (gestorCompanyId) {
+            const gestorAuths = auths.filter((a: any) => a.company_id === gestorCompanyId && a.activo !== false);
+            if (gestorAuths.length > 0) {
+              const allowedOps: string[] = [];
+              let hasWasteCodeMatrix = false;
+              for (const auth of gestorAuths) {
+                if (Array.isArray(auth.waste_codes) && auth.waste_codes.length > 0) {
+                  hasWasteCodeMatrix = true;
+                  for (const wc of auth.waste_codes) {
+                    if (wc.codigo_ler?.trim() === String(d.codigo_ler).trim() && Array.isArray(wc.operaciones_tratamiento)) {
+                      wc.operaciones_tratamiento.forEach((op: string) => {
+                        const n = normOp(op);
+                        if (!allowedOps.includes(n)) allowedOps.push(n);
+                      });
+                    }
+                  }
+                }
+              }
+              if (hasWasteCodeMatrix && !allowedOps.includes(effectiveOp)) {
+                opNonCompliantReason =
+                  allowedOps.length > 0
+                    ? `La operación ${effectiveOp} aplicada al LER ${d.codigo_ler} no está contemplada en la autorización del gestor (${allowedOps.join(', ')}).`
+                    : `El LER ${d.codigo_ler} no figura en la matriz autorizada del gestor ${d.gestor_razon_social}.`;
+              }
+            }
+          }
+        }
+
+        if (opNonCompliantReason) {
+          disTratamientoNoAutorizadoCount++;
+          tratamientoNoAutorizadoByDiId[d.id] = opNonCompliantReason;
+          diHasComplianceFailure = true;
+          listaAlertas.push({
+            id: `di-op-no-auth-${d.id}`,
+            tipo: 'tratamiento_no_autorizado',
+            gravedad: 'critico',
+            titulo: `Tratamiento no autorizado (${effectiveOp}): ${d.numero_documento}`,
+            descripcion: opNonCompliantReason,
+            referencia: d.numero_documento,
+            enlace: `/residuos/documentos-identificacion/${d.id}`,
+            fecha: d.fecha_tratamiento || d.fecha_documento
+          });
+        }
+      }
+
+      const discrepanciaJustificada = !!d.justificacion_discrepancia?.trim();
+      const tieneDiscrepancia = (!discrepanciaJustificada && d.porcentaje_discrepancia && Math.abs(d.porcentaje_discrepancia) > 5) ||
         ['rechazado_parcial', 'rechazado_total'].includes(d.estado_traslado || '');
 
       if (tieneDiscrepancia) {
         disDiscrepanciaCount++;
+        diHasComplianceFailure = true;
         const isRechazo = ['rechazado_parcial', 'rechazado_total'].includes(d.estado_traslado || '');
         listaAlertas.push({
           id: `di-peso-${d.id}`,
@@ -121,13 +359,22 @@ export const dashboardService = {
           fecha: d.fecha_llegada_destino || d.fecha_documento
         });
       }
+
+      if (diHasComplianceFailure) {
+        totalNoConformes++;
+      }
     });
 
-    // Alertas de Contratos
+    // Alertas de Contratos (INC09: no contabilizar contratos en borrador/pendientes como "conformes")
     contracts.forEach(c => {
       const statusInfo = getContractEffectiveStatus(c);
+      if (statusInfo.status === 'borrador' || statusInfo.status === 'pendiente_firma' || statusInfo.status === 'cancelado') {
+        return;
+      }
+      totalEvaluados++;
       if (statusInfo.status === 'caducado' || statusInfo.isExpired) {
         contratosCaducadosCount++;
+        totalNoConformes++;
         listaAlertas.push({
           id: `contract-cad-${c.id}`,
           tipo: 'contrato_caducado',
@@ -138,29 +385,53 @@ export const dashboardService = {
           enlace: `/residuos/contratos/${c.id}`,
           fecha: c.fecha_fin
         });
-      } else if (c.estado === 'vigente' && c.fecha_fin) {
-        const daysLeft = Math.ceil((new Date(c.fecha_fin).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        if (daysLeft >= 0 && daysLeft <= 60) {
-          contratosPorVencerCount++;
-          listaAlertas.push({
-            id: `contract-exp-${c.id}`,
-            tipo: 'contrato_proximo',
-            gravedad: 'advertencia',
-            titulo: `Contrato próximo a vencer (${daysLeft} días): ${c.numero_contrato}`,
-            descripcion: `Vence el ${c.fecha_fin}. Se recomienda iniciar la renovación con el gestor destinatario.`,
-            referencia: c.numero_contrato,
-            enlace: `/residuos/contratos/${c.id}`,
-            fecha: c.fecha_fin
-          });
+        } else if (c.estado === 'vigente') {
+          // A7-10: Verificar si un contrato vigente carece explícitamente de cantidad anual estimada/máxima definida
+          // (y no es un contrato externo adjunto), lo cual bloquea la salida de traslados (Art. 5 RD 553/2020)
+          const isExplicitlyMissingQuantity =
+            'cantidad_maxima_anual' in c &&
+            (!c.cantidad_maxima_anual || Number(c.cantidad_maxima_anual) <= 0) &&
+            !c.documento_url;
+          if (isExplicitlyMissingQuantity) {
+            totalNoConformes++;
+            listaAlertas.push({
+              id: `contract-noqty-${c.id}`,
+              tipo: 'sin_contrato',
+              gravedad: 'advertencia',
+              titulo: `Contrato vigente incompleto (sin cantidad anual): ${c.numero_contrato}`,
+              descripcion: `El contrato está firmado pero no define la cantidad estimada de residuos (Art. 5 RD 553/2020), lo que bloqueará la expedición de traslados hasta emitir una nueva revisión.`,
+              referencia: c.numero_contrato,
+              enlace: `/residuos/contratos/${c.id}`,
+              fecha: c.fecha_firma || c.fecha_contrato
+            });
+          }
+
+          if (c.fecha_fin) {
+            const daysLeft = Math.ceil((new Date(c.fecha_fin).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            if (daysLeft >= 0 && daysLeft <= 60) {
+              contratosPorVencerCount++;
+              listaAlertas.push({
+                id: `contract-exp-${c.id}`,
+                tipo: 'contrato_proximo',
+                gravedad: 'advertencia',
+                titulo: `Contrato próximo a vencer (${daysLeft} días): ${c.numero_contrato}`,
+                descripcion: `Vence el ${c.fecha_fin}. Se recomienda iniciar la renovación con el gestor destinatario.`,
+                referencia: c.numero_contrato,
+                enlace: `/residuos/contratos/${c.id}`,
+                fecha: c.fecha_fin
+              });
+            }
+          }
         }
-      }
-    });
+      });
 
     // Alertas de Autorizaciones Ambientales
     auths.forEach(a => {
+      totalEvaluados++;
       if (!a.es_indefinida && a.fecha_vencimiento) {
         if (a.fecha_vencimiento < todayStr) {
           autorizacionesPorVencerCount++;
+          totalNoConformes++;
           listaAlertas.push({
             id: `auth-venc-${a.id}`,
             tipo: 'autorizacion_vencida',
@@ -189,14 +460,14 @@ export const dashboardService = {
           ton = Number(d.peso_destino_kg) / 1000;
         } else if (d.peso_origen_kg && d.peso_origen_kg > 0) {
           ton = Number(d.peso_origen_kg) / 1000;
-        } else if (d.unidad === 'kg') {
+        } else if (d.unidad === 'kg' || d.unidad === 'litros' || d.unidad === 'unidades') {
           ton = (d.cantidad || 0) / 1000;
         } else {
           ton = d.cantidad || 0;
         }
 
         totalToneladas += ton;
-        const esPeligroso = d.peligrosidad === 'peligroso' || d.codigo_ler.includes('*');
+        const esPeligroso = d.peligrosidad === 'peligroso' || String(d.codigo_ler || '').includes('*');
 
         if (esPeligroso) {
           toneladasPeligrosas += ton;
@@ -239,6 +510,9 @@ export const dashboardService = {
       if (['abierta', 'en_transito'].includes(op.estado)) {
         operacionesAbiertas++;
       }
+      if (op.estado === 'cancelada' || op.estado === 'borrador') {
+        return;
+      }
       facturacionVenta += Number(op.ingreso_venta_total) || 0;
       costesTotales += (Number(op.coste_compra_total) || 0) + (Number(op.coste_transporte) || 0) + (Number(op.otros_costes) || 0);
       margenBrutoTotal += Number(op.margen_bruto_total) || 0;
@@ -249,13 +523,77 @@ export const dashboardService = {
     const margenMedioTon = totalTonComercial > 0 ? margenBrutoTotal / totalTonComercial : 0;
     const rentabilidadPorcentaje = facturacionVenta > 0 ? (margenBrutoTotal / facturacionVenta) * 100 : 0;
 
+    const totalConformes = Math.max(0, totalEvaluados - totalNoConformes);
+    const porcentajeConformidad =
+      totalEvaluados > 0 ? Math.round((totalConformes / totalEvaluados) * 100) : null;
+    const estadoConformidad: 'pendiente' | 'conforme' | 'incidencias' =
+      totalEvaluados === 0
+        ? 'pendiente'
+        : totalNoConformes > 0 || listaAlertas.some((a) => a.gravedad === 'critico')
+          ? 'incidencias'
+          : 'conforme';
+
+    // Priorizar alertas críticas arriba
+    const sortedAlertas = [...listaAlertas].sort((a, b) => {
+      const weight = (g: string) => (g === 'critico' ? 0 : g === 'advertencia' ? 1 : 2);
+      return weight(a.gravedad) - weight(b.gravedad);
+    });
+
+    // Métricas de planta / archivo cronológico y contratos
+    let entradasKg = 0;
+    let salidasKg = 0;
+    const stockMap: Record<string, { ler: string; descripcion: string; kg: number }> = {};
+
+    chronoEntries.forEach((entry: any) => {
+      const kg = Number(entry.cantidad_kg) || 0;
+      const ler = entry.codigo_ler || 'Sin LER';
+      const isThirdPartyBrokerage =
+        entry.origen_tipo === 'tercero_productor' && entry.destino_tipo === 'tercero_gestor';
+
+      if (!stockMap[ler]) {
+        stockMap[ler] = { ler, descripcion: entry.descripcion_residuo || ler, kg: 0 };
+      }
+
+      if (entry.tipo_operacion === 'entrada_recepcion' || entry.tipo_operacion === 'produccion_interna') {
+        entradasKg += kg;
+        stockMap[ler].kg += kg;
+      } else if ((entry.tipo_operacion === 'salida_traslado' || entry.tipo_operacion === 'merma_ajuste') && !isThirdPartyBrokerage) {
+        salidasKg += kg;
+        stockMap[ler].kg = Math.max(0, stockMap[ler].kg - kg);
+      }
+    });
+
+    const entradasToneladas = Number((entradasKg / 1000).toFixed(3));
+    const salidasToneladas = Number((salidasKg / 1000).toFixed(3));
+    const existenciasToneladas = Number(Math.max(0, (entradasKg - salidasKg) / 1000).toFixed(3));
+    const contratosVigentes = contracts.filter((c: any) => getContractEffectiveStatus(c).status === 'vigente').length;
+
+    const existenciasPorLer = Object.values(stockMap)
+      .filter(item => item.kg > 0)
+      .sort((a, b) => b.kg - a.kg)
+      .map(item => ({
+        ...item,
+        toneladas: Number((item.kg / 1000).toFixed(3)),
+      }));
+
     return {
+      conformidad: {
+        estado: estadoConformidad,
+        porcentaje: porcentajeConformidad,
+        totalEvaluados,
+        totalConformes,
+        totalNoConformes,
+        fechaEvaluacion: new Date().toISOString(),
+      },
       alertas: {
         totalCriticas: listaAlertas.filter(a => a.gravedad === 'critico').length,
         totalAdvertencias: listaAlertas.filter(a => a.gravedad === 'advertencia').length,
-        lista: listaAlertas.slice(0, 8),
+        lista: sortedAlertas.slice(0, 12),
         disEnTransitoCount,
         disDiscrepanciaCount,
+        disSinContratoCount,
+        disTratamientoNoAutorizadoCount,
+        tratamientoNoAutorizadoByDiId,
         contratosCaducadosCount,
         contratosPorVencerCount,
         autorizacionesPorVencerCount
@@ -265,7 +603,11 @@ export const dashboardService = {
         toneladasPeligrosas: Number(toneladasPeligrosas.toFixed(3)),
         toneladasNoPeligrosas: Number(toneladasNoPeligrosas.toFixed(3)),
         totalDIs: dis.length,
-        disCompletados: dis.filter(d => d.estado === 'completado').length,
+        disCompletados: dis.filter(d => d.estado === 'completado' || ['aceptado', 'tratado'].includes(d.estado_traslado || '')).length,
+        totalAsientosArchivo: chronoEntries.length,
+        toneladasArchivoCronologico: Number(
+          (chronoEntries.reduce((sum: number, e: any) => sum + Number(e.cantidad_kg || 0), 0) / 1000).toFixed(3)
+        ),
         topLER
       },
       comercial: {
@@ -276,6 +618,15 @@ export const dashboardService = {
         margenBrutoTotal: Number(margenBrutoTotal.toFixed(2)),
         margenMedioTon: Number(margenMedioTon.toFixed(2)),
         rentabilidadPorcentaje: Number(rentabilidadPorcentaje.toFixed(1))
+      },
+      planta: {
+        entradasToneladas,
+        salidasToneladas,
+        existenciasToneladas,
+        existenciasPorLer,
+        totalAsientos: chronoEntries.length,
+        totalContratos: contracts.length,
+        contratosVigentes,
       }
     };
   },
@@ -321,16 +672,19 @@ export const dashboardService = {
   /**
    * Obtener datos para el gráfico de producción mensual
    */
-  async getMonthlyWasteData() {
+  async getMonthlyWasteData(companyId?: number | null) {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
     const currentYear = new Date().getFullYear();
+    const filterColumn = companyId ? 'company_id' : 'user_id';
+    const filterValue = companyId ?? user.id;
+
     const { data } = await supabase
       .from('identification_documents')
       .select('cantidad, unidad, peso_destino_kg, peso_origen_kg, fecha_documento')
-      .eq('user_id', user.id)
+      .eq(filterColumn, filterValue)
       .gte('fecha_documento', `${currentYear}-01-01`)
       .order('fecha_documento', { ascending: true });
 
@@ -344,7 +698,7 @@ export const dashboardService = {
       let weight = 0;
       if (di.peso_destino_kg) weight = di.peso_destino_kg / 1000;
       else if (di.peso_origen_kg) weight = di.peso_origen_kg / 1000;
-      else if (di.unidad === 'kg') weight = (di.cantidad || 0) / 1000;
+      else if (di.unidad === 'kg' || di.unidad === 'litros' || di.unidad === 'unidades') weight = (di.cantidad || 0) / 1000;
       else weight = di.cantidad || 0;
 
       monthlyData[monthLabel] = (monthlyData[monthLabel] || 0) + weight;
@@ -357,17 +711,233 @@ export const dashboardService = {
   },
 
   /**
-   * Obtener actividades recientes
+   * Obtener series analíticas completas para las gráficas del dashboard
+   * (Residuos RP vs RNP, Balance de Planta, Evolución Comercial y Estado de DIs)
    */
-  async getRecentActivity() {
+  async getDashboardChartsData(options: DashboardChartsOptions = {}): Promise<DashboardChartsData> {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
+    const currentYear = new Date().getFullYear();
+    const targetYear = options.year ?? currentYear;
+    const availableYears = [currentYear, currentYear - 1, currentYear - 2];
+    const filterColumn = options.companyId ? 'company_id' : 'user_id';
+    const filterValue = options.companyId ?? user.id;
+    const includeCommercial = options.includeCommercial !== false;
+
+    const yearStart = `${targetYear}-01-01`;
+    const yearEnd = `${targetYear}-12-31`;
+
+    const [disRes, chronoRes, opsRes] = await Promise.all([
+      supabase
+        .from('identification_documents')
+        .select('cantidad, unidad, peso_destino_kg, peso_origen_kg, fecha_documento, peligrosidad, codigo_ler, estado, estado_traslado')
+        .eq(filterColumn, filterValue)
+        .gte('fecha_documento', yearStart)
+        .lte('fecha_documento', yearEnd)
+        .order('fecha_documento', { ascending: true }),
+      supabase
+        .from('chronological_registry')
+        .select('fecha, tipo_operacion, cantidad_kg, origen_tipo, destino_tipo')
+        .eq(filterColumn, filterValue)
+        .gte('fecha', yearStart)
+        .lte('fecha', yearEnd)
+        .order('fecha', { ascending: true }),
+      includeCommercial
+        ? supabase
+          .from('commercial_operations')
+          .select('fecha, estado, ingreso_venta_total, coste_compra_total, coste_transporte, otros_costes, margen_bruto_total')
+          .eq(filterColumn, filterValue)
+          .gte('fecha', yearStart)
+          .lte('fecha', yearEnd)
+          .order('fecha', { ascending: true })
+        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+    ]);
+
+    const dis = disRes.data || [];
+    const chronoEntries = chronoRes.data || [];
+    const ops = opsRes.data || [];
+
+    const wasteBuckets = MONTH_NAMES.map((name) => ({
+      name,
+      peligrosos: 0,
+      noPeligrosos: 0,
+      diCount: 0,
+    }));
+
+    const diStatusDistribution: DiStatusDistribution = {
+      completados: 0,
+      enTransito: 0,
+      borradores: 0,
+      incidencias: 0,
+      total: dis.length,
+    };
+
+    dis.forEach((di) => {
+      const estadoTraslado = di.estado_traslado || '';
+      if (['rechazado_parcial', 'rechazado_total'].includes(estadoTraslado)) {
+        diStatusDistribution.incidencias++;
+      } else if (di.estado === 'completado' || ['aceptado', 'tratado', 'recepcionado'].includes(estadoTraslado)) {
+        diStatusDistribution.completados++;
+      } else if (estadoTraslado === 'en_transito') {
+        diStatusDistribution.enTransito++;
+      } else {
+        diStatusDistribution.borradores++;
+      }
+
+      const isManagedWaste =
+        di.estado === 'completado' || ['aceptado', 'tratado', 'recepcionado'].includes(estadoTraslado);
+      if (!isManagedWaste) return;
+
+      const monthIdx = extractMonthIndex(di.fecha_documento);
+      if (monthIdx === null) return;
+
+      const weightTon = computeDiWeightTonnes(di);
+      const esPeligroso = di.peligrosidad === 'peligroso' || String(di.codigo_ler || '').includes('*');
+
+      if (esPeligroso) {
+        wasteBuckets[monthIdx].peligrosos += weightTon;
+      } else {
+        wasteBuckets[monthIdx].noPeligrosos += weightTon;
+      }
+      wasteBuckets[monthIdx].diCount += 1;
+    });
+
+    const monthlyWaste: MonthlyWastePoint[] = wasteBuckets.map((b) => {
+      const peligrosos = Number(b.peligrosos.toFixed(2));
+      const noPeligrosos = Number(b.noPeligrosos.toFixed(2));
+      const total = Number((b.peligrosos + b.noPeligrosos).toFixed(2));
+      return {
+        name: b.name,
+        total,
+        peligrosos,
+        noPeligrosos,
+        diCount: b.diCount,
+      };
+    });
+
+    const plantBuckets = MONTH_NAMES.map((name) => ({
+      name,
+      entradasKg: 0,
+      salidasKg: 0,
+    }));
+
+    chronoEntries.forEach((entry) => {
+      const monthIdx = extractMonthIndex(entry.fecha);
+      if (monthIdx === null) return;
+
+      const kg = Number(entry.cantidad_kg) || 0;
+      const isThirdPartyBrokerage =
+        entry.origen_tipo === 'tercero_productor' && entry.destino_tipo === 'tercero_gestor';
+
+      if (entry.tipo_operacion === 'entrada_recepcion' || entry.tipo_operacion === 'produccion_interna') {
+        plantBuckets[monthIdx].entradasKg += kg;
+      } else if (
+        (entry.tipo_operacion === 'salida_traslado' || entry.tipo_operacion === 'merma_ajuste') &&
+        !isThirdPartyBrokerage
+      ) {
+        plantBuckets[monthIdx].salidasKg += kg;
+      }
+    });
+
+    const monthlyPlantFlow: MonthlyPlantFlowPoint[] = plantBuckets.map((b) => {
+      const entradas = Number((b.entradasKg / 1000).toFixed(2));
+      const salidas = Number((b.salidasKg / 1000).toFixed(2));
+      return {
+        name: b.name,
+        entradas,
+        salidas,
+        neto: Number((entradas - salidas).toFixed(2)),
+      };
+    });
+
+    const commercialBuckets = MONTH_NAMES.map((name) => ({
+      name,
+      ingresos: 0,
+      costes: 0,
+      margen: 0,
+    }));
+
+    ops.forEach((op) => {
+      if (op.estado === 'cancelada' || op.estado === 'borrador') return;
+      const monthIdx = extractMonthIndex(op.fecha as string | null | undefined);
+      if (monthIdx === null) return;
+
+      commercialBuckets[monthIdx].ingresos += Number(op.ingreso_venta_total) || 0;
+      commercialBuckets[monthIdx].costes +=
+        (Number(op.coste_compra_total) || 0) +
+        (Number(op.coste_transporte) || 0) +
+        (Number(op.otros_costes) || 0);
+      commercialBuckets[monthIdx].margen += Number(op.margen_bruto_total) || 0;
+    });
+
+    const monthlyCommercial: MonthlyCommercialPoint[] = commercialBuckets.map((b) => ({
+      name: b.name,
+      ingresos: Number(b.ingresos.toFixed(2)),
+      costes: Number(b.costes.toFixed(2)),
+      margen: Number(b.margen.toFixed(2)),
+    }));
+
+    const totalToneladas = Number(
+      monthlyWaste.reduce((acc, m) => acc + m.total, 0).toFixed(2)
+    );
+    const totalPeligrosos = monthlyWaste.reduce((acc, m) => acc + m.peligrosos, 0);
+    const activeMonths = monthlyWaste.filter((m) => m.total > 0);
+    const promedioMensual =
+      activeMonths.length > 0 ? Number((totalToneladas / activeMonths.length).toFixed(2)) : 0;
+
+    let mesPico: { name: string; value: number } | null = null;
+    monthlyWaste.forEach((m) => {
+      if (m.total > 0 && (!mesPico || m.total > mesPico.value)) {
+        mesPico = { name: m.name, value: m.total };
+      }
+    });
+
+    const porcentajePeligrosos =
+      totalToneladas > 0 ? Number(((totalPeligrosos / totalToneladas) * 100).toFixed(1)) : 0;
+
+    // Variación porcentual entre los dos últimos meses con actividad (o último mes vs anterior)
+    let variacionUltimoMesPct: number | null = null;
+    const lastActiveIdx = monthlyWaste.reduce((last, m, idx) => (m.total > 0 ? idx : last), -1);
+    if (lastActiveIdx > 0 && monthlyWaste[lastActiveIdx - 1].total > 0) {
+      const prev = monthlyWaste[lastActiveIdx - 1].total;
+      const curr = monthlyWaste[lastActiveIdx].total;
+      variacionUltimoMesPct = Number((((curr - prev) / prev) * 100).toFixed(1));
+    }
+
+    return {
+      year: targetYear,
+      availableYears,
+      monthlyWaste,
+      monthlyPlantFlow,
+      monthlyCommercial,
+      diStatusDistribution,
+      summary: {
+        totalToneladas,
+        promedioMensual,
+        mesPico,
+        porcentajePeligrosos,
+        variacionUltimoMesPct,
+      },
+    };
+  },
+
+  /**
+   * Obtener actividades recientes
+   */
+  async getRecentActivity(companyId?: number | null) {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuario no autenticado');
+
+    const filterColumn = companyId ? 'company_id' : 'user_id';
+    const filterValue = companyId ?? user.id;
+
     const { data: recentDIs } = await supabase
       .from('identification_documents')
       .select('id, numero_documento, fecha_documento, productor_razon_social, gestor_razon_social, estado, estado_traslado')
-      .eq('user_id', user.id)
+      .eq(filterColumn, filterValue)
       .order('created_at', { ascending: false })
       .limit(6);
 

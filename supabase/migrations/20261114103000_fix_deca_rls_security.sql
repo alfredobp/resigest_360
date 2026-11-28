@@ -1,0 +1,44 @@
+-- ==============================================================================
+-- ENDURECIMIENTO RLS EN DECA_DOCUMENTS Y ACCESO PÚBLICO POR TOKEN VÍA RPC
+-- - Elimina la política abierta USING (true) en public.deca_documents que permitía
+--   listar todos los DeCA de todos los tenants con la clave anónima.
+-- - Crea la RPC SECURITY DEFINER public.get_deca_by_token(p_token TEXT) para que
+--   la inspección en carretera (/api/deca/[token]) y la vista móvil del conductor
+--   (/mobile/deca/[token]) consulten exclusivamente el documento asociado al token.
+-- ==============================================================================
+
+DROP POLICY IF EXISTS "Permitir lectura publica por token" ON public.deca_documents;
+
+DROP POLICY IF EXISTS "Users can view own DeCA documents" ON public.deca_documents;
+CREATE POLICY "Users can view own DeCA documents" ON public.deca_documents
+  FOR SELECT USING (
+    auth.uid() = user_id
+    OR public.has_company_access(company_id)
+    OR public.is_admin()
+  );
+
+CREATE OR REPLACE FUNCTION public.get_deca_by_token(p_token TEXT)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_result JSONB;
+BEGIN
+    IF p_token IS NULL OR length(btrim(p_token)) = 0 THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT to_jsonb(d) INTO v_result
+    FROM public.deca_documents d
+    WHERE d.token = btrim(p_token)
+    LIMIT 1;
+
+    RETURN v_result;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_deca_by_token(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_deca_by_token(TEXT) TO anon, authenticated;
+

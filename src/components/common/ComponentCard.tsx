@@ -1,37 +1,54 @@
+'use client';
+
 import React from "react";
+import { useTenant } from "@/context/TenantContext";
+import { shouldRenderUiHint } from "@/lib/ui/tipsPreference";
 
 interface ComponentCardProps {
-  title: string;
+  title?: string;
   children: React.ReactNode;
   className?: string; // Additional custom classes for styling
   desc?: string; // Description text
+  alwaysShowDesc?: boolean;
 }
 
 const ComponentCard: React.FC<ComponentCardProps> = ({
-  title,
+  title = "",
   children,
   className = "",
   desc = "",
+  alwaysShowDesc = false,
 }) => {
+  const { showUiTips } = useTenant();
+  const visibleDesc = desc?.trim() && shouldRenderUiHint(showUiTips, alwaysShowDesc) ? desc : "";
+  const hasHeader = Boolean(title?.trim() || visibleDesc);
+
   return (
     <div
-      className={`rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] ${className}`}
+      className={`rounded-[10px] border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-slate-800 dark:bg-[#111827] ${className}`}
     >
       {/* Card Header */}
-      <div className="px-6 py-5">
-        <h3 className="text-base font-medium text-gray-800 dark:text-white/90">
-          {title}
-        </h3>
-        {desc && (
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {desc}
-          </p>
-        )}
-      </div>
+      {hasHeader && (
+        <div className="px-4 py-3.5 sm:px-5">
+          {title && (
+            <h3 className="text-[13.5px] font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+              {title}
+            </h3>
+          )}
+          {visibleDesc && (
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              {visibleDesc}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Card Body */}
-      <div className="p-4 border-t border-gray-100 dark:border-gray-800 sm:p-6">
-        <div className="space-y-6">{children}</div>
+      <div
+        className={`p-4 sm:p-5 ${hasHeader ? "border-t border-slate-200/80 dark:border-slate-800" : ""
+          }`}
+      >
+        <div className="space-y-4">{children}</div>
       </div>
     </div>
   );

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es" data-variant="industrial" data-mode="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Memorias Anuales — ResiGest 360</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body data-nav="memorias">
+  <div class="app-shell">
+    <aside id="app-sidebar"></aside>
+    <div class="app-main">
+      <header id="app-topbar"></header>
+      <main class="content">
+        <div class="page-header">
+          <div>
+            <div class="page-title-row">
+              <h1 class="page-title">Memorias Anuales de Gestión</h1>
+              <span class="badge badge-success">Plazo Oficial: Antes 1 de Marzo</span>
+            </div>
+            <p class="page-subtitle">Agregación automática de balances de masas por centro NIMA, código LER y operación de tratamiento R/D para presentación autonómica.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline">📋 Validar Coherencia</button>
+            <button class="btn btn-primary">+ Generar Memoria 2026</button>
+          </div>
+        </div>
+
+        <section class="grid grid-3">
+          <div class="card card-featured">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <span class="badge badge-plain" style="background:rgba(255,255,255,0.18); color:#fff">Ejercicio en Curso · 2026</span>
+              <span class="mono" style="font-size:11px; opacity:0.85">NIMA 2800049182</span>
+            </div>
+            <div class="kpi-value">1.842,5 t</div>
+            <p class="kpi-sub" style="margin:6px 0 14px;">14 códigos LER · 0 descuadres de balance</p>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-outline btn-sm" style="background:#fff; color:#065f46; border:none;">Previsualizar Borrador</button>
+              <button class="btn btn-outline btn-sm" style="background:rgba(255,255,255,0.15); color:#fff; border-color:rgba(255,255,255,0.3);">Excel CCAA</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <span class="badge badge-success">Presentada · 2025</span>
+              <span class="mono cell-sub">CSV-MAD-99218</span>
+            </div>
+            <div class="kpi-value">1.690,2 t</div>
+            <p class="kpi-sub" style="margin:6px 0 14px;">Presentada 18/02/2026 · Comunidad de Madrid</p>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-outline btn-sm">📄 Justificante PDF</button>
+              <button class="btn btn-outline btn-sm">XML Oficial</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <span class="badge badge-success">Presentada · 2024</span>
+              <span class="mono cell-sub">CSV-MAD-74105</span>
+            </div>
+            <div class="kpi-value">1.412,8 t</div>
+            <p class="kpi-sub" style="margin:6px 0 14px;">Presentada 24/02/2025 · Comunidad de Madrid</p>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-outline btn-sm">📄 Justificante PDF</button>
+              <button class="btn btn-outline btn-sm">XML Oficial</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="card" style="padding:0; overflow:hidden;">
+          <div style="padding:var(--card-pad); display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color);">
+            <div>
+              <h2 class="card-title">Desglose Previo de Balance — Memoria 2026 (Planta Valdemoro)</h2>
+              <p class="card-subtitle">Resumen matemático directo del Archivo Cronológico</p>
+            </div>
+            <span class="badge badge-success">Cuadre 100% Verificado</span>
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Código LER</th>
+                  <th>Descripción</th>
+                  <th>Stock Inicial</th>
+                  <th>Entradas</th>
+                  <th>Salidas</th>
+                  <th>Stock Final</th>
+                  <th>Op. Principal</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="mono"><strong>17 04 05</strong></td>
+                  <td>Hierro y acero</td>
+                  <td>48,0 t</td>
+                  <td style="color:var(--brand)">+642,4 t</td>
+                  <td>-612,0 t</td>
+                  <td><strong>78,4 t</strong></td>
+                  <td><span class="mono badge badge-neutral badge-plain">R04</span></td>
+                </tr>
+                <tr>
+                  <td class="mono"><strong>15 01 02</strong></td>
+                  <td>Envases de plástico</td>
+                  <td>22,5 t</td>
+                  <td style="color:var(--brand)">+418,0 t</td>
+                  <td>-405,2 t</td>
+                  <td><strong>35,3 t</strong></td>
+                  <td><span class="mono badge badge-neutral badge-plain">R03</span></td>
+                </tr>
+                <tr>
+                  <td class="mono" style="color:var(--warning)"><strong>13 02 05*</strong></td>
+                  <td>Aceites minerales no clorados (RP)</td>
+                  <td>4,2 t</td>
+                  <td style="color:var(--brand)">+112,8 t</td>
+                  <td>-110,5 t</td>
+                  <td><strong>6,5 t</strong></td>
+                  <td><span class="mono badge badge-warning badge-plain">R09</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="../assets/app.js"></script>
+  <script src="../assets/shell.js"></script>
+</body>
+</html>
+

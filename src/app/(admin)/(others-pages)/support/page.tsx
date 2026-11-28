@@ -188,9 +188,9 @@ export default function SupportPage() {
       badge: 'Declaración Anual',
       summary: 'Consolidación de balances anuales de residuos para su presentación oficial ante las Consejerías de Medio Ambiente.',
       content: [
-        'Antes del 31 de marzo de cada año natural, los gestores de residuos y determinados productores deben remitir a las autoridades competentes una memoria resumen de la información contenida en el archivo cronológico.',
-        'Resigest 360 procesa todos los movimientos del año seleccionado y genera la memoria agregada por centro de producción, código LER y tipo de operación (R/D), calculando automáticamente las sumas totales en toneladas.',
-        'El informe resultante cumple con la estructura requerida por el Ministerio y las consejerías autonómicas.'
+        'Conforme al Artículo 65.1 de la Ley 7/2022, antes del 1 de marzo del año posterior respecto al cual se hayan recogido los datos, las personas físicas o jurídicas que realicen operaciones de tratamiento de residuos, las que recojan residuos con carácter profesional o los transporten, los negociantes y agentes, y los productores de residuos peligrosos, enviarán a la comunidad autónoma competente una memoria resumen de la información del archivo cronológico. (Nota: los productores de residuos no peligrosos están obligados al Archivo Cronológico del Art. 64, pero la Memoria Anual estatal general no les resulta exigible salvo disposición o requerimiento específico de su Comunidad Autónoma).',
+        'Resigest 360 procesa los movimientos del ejercicio seleccionado y genera el resumen agregado por centro de producción, código LER y tipo de operación (R/D), calculando automáticamente las cantidades totales en toneladas.',
+        'La memoria exportada sirve como soporte estructurado para su revisión previa y presentación ante el Ministerio o las consejerías autonómicas competentes.'
       ],
       steps: [
         'Diríjase a "Memorias Anuales".',
@@ -212,12 +212,12 @@ export default function SupportPage() {
       a: 'El NIMA (Número de Identificación de Medio Ambiente) lo asigna el órgano ambiental de la comunidad autónoma donde radica la instalación tras la presentación de la Comunicación Previa de Producción o la solicitud de Autorización Ambiental. Si ya ha presentado la comunicación y desconoce su NIMA, puede consultarlo en el Registro telemático de su CCAA o contactar con nuestro soporte para ayudarle en la localización.'
     },
     {
-      q: '¿Tienen validez legal las firmas electrónicas generadas en Resigest 360?',
-      a: 'Sí. Las firmas electrónicas generadas a través de Resigest 360 cumplen con el Reglamento Europeo (UE) Nº 910/2014 (eIDAS) relativo a la identificación electrónica y los servicios de confianza para las transacciones electrónicas en el mercado interior. Cada documento sellado incorpora código seguro de verificación (CSV), trazabilidad de fecha/hora (timestamping) e IP de suscripción.'
+      q: '¿Qué valor tiene el registro de firmas y aceptaciones en Resigest 360?',
+      a: 'Resigest 360 registra la aceptación operativa mediante traza de fecha y hora, usuario autenticado y captura gráfica de firma cuando se aporta en el flujo del traslado o DeCA. Cuando un trámite exija firma electrónica cualificada externa (eIDAS / certificado digital del firmante), el documento PDF/XML debe firmarse con los mecanismos certificados correspondientes.'
     },
     {
       q: '¿Por cuánto tiempo se conservan mis documentos y el Archivo Cronológico?',
-      a: 'La Ley 7/2022 estipula en su Artículo 64 que la información del archivo cronológico y los documentos de traslado deben guardarse al menos durante 5 años. Resigest 360 conserva todos los registros, PDFs y esquemas XML e3l de forma indefinida durante la vigencia de su suscripción, con copias de seguridad diarias redundantes en servidores ubicados dentro de la Unión Europea.'
+      a: 'La Ley 7/2022 (art. 64) y el RD 553/2020 establecen obligaciones mínimas de conservación documental (3 a 5 años según obligación y rol). Resigest 360 conserva los registros digitales generados mientras la cuenta permanezca activa y permite exportar en todo momento los PDFs, hojas de cálculo y ficheros XML e3l v3.6 para el archivo oficial propio del titular.'
     },
     {
       q: '¿Cómo se transmiten los DIs a la plataforma SIRA del Ministerio?',
@@ -251,8 +251,8 @@ export default function SupportPage() {
       <div className="relative overflow-hidden rounded-2xl bg-linear-to-r from-brand-600 via-brand-500 to-emerald-600 p-6 text-white shadow-lg lg:p-8">
         <div className="relative z-10 max-w-3xl">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold backdrop-blur-md">
-            <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            Sistemas Operativos (SIRA, e-SIR, MITECO) 100% Disponibles
+            <span className="flex h-2 w-2 rounded-full bg-emerald-400" />
+            Exportación local de ficheros XML e3l v3.6 (SIRA / e-SIR)
           </div>
           <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
             Centro de Soporte, Manual de Uso y Condiciones Legales
@@ -266,10 +266,10 @@ export default function SupportPage() {
               <span>{officialEmail}</span>
             </div>
             <div className="rounded-lg bg-black/20 px-3 py-2 text-xs font-medium backdrop-blur-xs">
-              <span>{phoneSupport} (Gratuito)</span>
+              <span>{phoneSupport} (Canal telefónico sujeto a horario comercial)</span>
             </div>
             <div className="rounded-lg bg-black/20 px-3 py-2 text-xs font-medium backdrop-blur-xs">
-              <span>L - V: 08:00 - 19:00 CET | Guardia 24/7</span>
+              <span>L - V: 09:00 - 18:00 CET | Formulario de incidencias 24h</span>
             </div>
           </div>
         </div>
@@ -372,14 +372,14 @@ export default function SupportPage() {
                 </button>
               </div>
               <span className="mt-3 inline-block text-[11px] font-medium text-amber-700 dark:text-amber-400">
-                Tiempo de respuesta: &lt; 2 horas
+                Atención prioritaria en horario de soporte
               </span>
             </div>
 
             {/* Teléfono */}
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-xs dark:border-gray-800 dark:bg-white/[0.03]">
               <h3 className="text-base font-semibold text-gray-900 dark:text-white">Atención Telefónica</h3>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Línea gratuita nacional de soporte a clientes.</p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Canal telefónico de soporte técnico para clientes activos.</p>
               <div className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-gray-50 p-2 text-xs font-mono dark:bg-white/5">
                 <span className="font-semibold text-gray-700 dark:text-gray-300">{phoneSupport}</span>
                 <button
@@ -391,7 +391,7 @@ export default function SupportPage() {
                 </button>
               </div>
               <span className="mt-3 inline-block text-[11px] text-gray-500 dark:text-gray-400">
-                L - V: 08:00 - 19:00 h CET
+                L - V: 09:00 - 18:00 h CET
               </span>
             </div>
 
@@ -424,6 +424,7 @@ export default function SupportPage() {
               <ComponentCard
                 title="Abrir Ticket de Soporte Técnico"
                 desc="Envíe su consulta o incidencia directamente a nuestro equipo de ingenieros de medio ambiente y soporte de Resigest 360."
+                alwaysShowDesc
               >
                 {ticketGenerated && (
                   <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
@@ -561,9 +562,9 @@ export default function SupportPage() {
             {/* Columna lateral de información de servicio */}
             <div className="space-y-6">
               <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-xs dark:border-gray-800 dark:bg-white/[0.03]">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Niveles de Servicio (SLA)</h3>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Objetivos de Atención de Incidencias</h3>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Tiempos máximos de primera respuesta según severidad:
+                  Priorización orientativa de consultas según impacto operativo (sujeta al acuerdo de servicio aplicable):
                 </p>
 
                 <div className="mt-4 space-y-3">
@@ -572,39 +573,38 @@ export default function SupportPage() {
                       <span className="h-2 w-2 rounded-full bg-red-600" />
                       Urgente (Bloqueo)
                     </span>
-                    <span className="font-semibold text-gray-800 dark:text-gray-200">&lt; 2 horas</span>
+                    <span className="font-semibold text-gray-800 dark:text-gray-200">Prioridad máxima en horario hábil</span>
                   </div>
                   <div className="flex items-center justify-between border-b border-gray-100 pb-2 text-xs dark:border-gray-800">
                     <span className="flex items-center gap-2 font-medium text-amber-600 dark:text-amber-400">
                       <span className="h-2 w-2 rounded-full bg-amber-600" />
                       Alta
                     </span>
-                    <span className="font-semibold text-gray-800 dark:text-gray-200">&lt; 6 horas</span>
+                    <span className="font-semibold text-gray-800 dark:text-gray-200">Misma jornada hábil</span>
                   </div>
                   <div className="flex items-center justify-between border-b border-gray-100 pb-2 text-xs dark:border-gray-800">
                     <span className="flex items-center gap-2 font-medium text-blue-600 dark:text-blue-400">
                       <span className="h-2 w-2 rounded-full bg-blue-600" />
                       Media
                     </span>
-                    <span className="font-semibold text-gray-800 dark:text-gray-200">&lt; 12 horas</span>
+                    <span className="font-semibold text-gray-800 dark:text-gray-200">Siguiente jornada hábil</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="flex items-center gap-2 font-medium text-gray-600 dark:text-gray-400">
                       <span className="h-2 w-2 rounded-full bg-gray-400" />
                       Baja / Consulta
                     </span>
-                    <span className="font-semibold text-gray-800 dark:text-gray-200">&lt; 24 horas</span>
+                    <span className="font-semibold text-gray-800 dark:text-gray-200">Según cola de soporte</span>
                   </div>
                 </div>
               </div>
 
               <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-xs dark:border-gray-800 dark:bg-white/[0.03]">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Sede Central y Asistencia</h3>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Titular del Servicio y Asistencia</h3>
                 <p className="mt-2 text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                  <strong>Resigest 360 Soluciones Tecnológicas S.L.</strong><br />
-                  Parque Tecnológico de Madrid, Calle Medio Ambiente 12, Planta 4<br />
-                  28050 Madrid (España)<br />
-                  CIF: B-89765432
+                  <strong>Resigest 360</strong><br />
+                  Datos registrales del titular (razón social, NIF y domicilio fiscal) pendientes de consignación contractual definitiva en este entorno.<br />
+                  Contacto administrativo y soporte: <code className="rounded-sm bg-gray-100 px-1 py-0.5 font-mono dark:bg-gray-800">{officialEmail}</code>
                 </p>
                 <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
                   <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -733,7 +733,8 @@ export default function SupportPage() {
           {/* Card 1: Términos Generales SaaS */}
           <ComponentCard
             title="1. Términos y Condiciones Generales de Uso del Servicio (SaaS)"
-            desc="Regulación contractual del uso de la plataforma Resigest 360 entre el cliente y Resigest 360 Soluciones Tecnológicas S.L."
+            desc="Marco general de uso de la plataforma Resigest 360 aplicable salvo pacto contractual expreso en contrario."
+            alwaysShowDesc
           >
             <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
               <p>
@@ -746,7 +747,7 @@ export default function SupportPage() {
                 <strong>1.3. Obligaciones del Usuario:</strong> El usuario se compromete a custodiar con la debida diligencia sus credenciales de acceso y certificados digitales. Queda terminantemente prohibida la manipulación fraudulenta de trazas, pesos o códigos de residuo con la finalidad de evadir obligaciones medioambientales o tributarias.
               </p>
               <p>
-                <strong>1.4. Disponibilidad y Mantenimiento:</strong> Resigest 360 garantiza un nivel de disponibilidad mensual del 99,8% (SLA), excluyendo ventanas de mantenimiento preventivo notificadas con un mínimo de 48 horas de antelación en días no hábiles.
+                <strong>1.4. Disponibilidad y Mantenimiento:</strong> La plataforma opera en infraestructura cloud gestionada y puede estar sujeta a ventanas de mantenimiento técnico o actualizaciones evolutivas. Cualquier compromiso específico de disponibilidad (SLA) se regirá por lo establecido en el contrato particular suscrito con el cliente.
               </p>
             </div>
           </ComponentCard>
@@ -755,10 +756,11 @@ export default function SupportPage() {
           <ComponentCard
             title="2. Política de Privacidad y Protección de Datos (RGPD y LOPDGDD)"
             desc="Tratamiento de datos personales de acuerdo con el Reglamento (UE) 2016/679 (RGPD) y la Ley Orgánica 3/2018 (LOPDGDD)."
+            alwaysShowDesc
           >
             <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
               <p>
-                <strong>2.1. Responsable del Tratamiento:</strong> Resigest 360 Soluciones Tecnológicas S.L., con NIF B-89765432 y domicilio social en Parque Tecnológico de Madrid, Calle Medio Ambiente 12, 28050 Madrid. Correo de contacto del Delegado de Protección de Datos: <code className="rounded-sm bg-gray-100 px-1.5 py-0.5 font-mono text-xs dark:bg-gray-800">{dpoEmail}</code>.
+                <strong>2.1. Responsable del Tratamiento:</strong> Plataforma operada por RESIGEST 360 TECNOLOGÍA AMBIENTAL S.L. (en fase previa a formalización mercantil y despliegue comercial). Domicilio y contacto corporativo: <code className="rounded-sm bg-gray-100 px-1.5 py-0.5 font-mono text-xs dark:bg-gray-800">legal@resigest.com</code>. Las condiciones de encargado del tratamiento se articulan en el contrato particular suscrito con cada cliente titular. Correo de contacto en materia de privacidad: <code className="rounded-sm bg-gray-100 px-1.5 py-0.5 font-mono text-xs dark:bg-gray-800">{dpoEmail}</code>.
               </p>
               <p>
                 <strong>2.2. Finalidad y Legitimación:</strong> Los datos se tratan con la finalidad exclusiva de prestar los servicios contratados, posibilitar la firma electrónica de traslados, generar los libros de archivo cronológico y dar cumplimiento a las obligaciones legales impuestas por la Ley 7/2022 de Residuos. La base legitimadora es la ejecución del contrato (art. 6.1.b RGPD) y el cumplimiento de obligaciones legales de carácter medioambiental y tributario (art. 6.1.c RGPD).
@@ -776,6 +778,7 @@ export default function SupportPage() {
           <ComponentCard
             title="3. Responsabilidad Medioambiental y Validez de las Declaraciones"
             desc="Régimen de responsabilidad sobre los traslados y exactitud de la información técnica declarada."
+            alwaysShowDesc
           >
             <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
               <p>
@@ -785,7 +788,7 @@ export default function SupportPage() {
                 <strong>3.2. Exactitud de las Declaraciones y Pesadas:</strong> La exactitud en la asignación de códigos LER, la calificación de peligrosidad (códigos HP), las pesadas de báscula y la tenencia de autorizaciones ambientales en vigor corresponde de forma exclusiva a los operadores jurídicos que emiten o firman los respectivos documentos.
               </p>
               <p>
-                <strong>3.3. Validez de la Firma Electrónica:</strong> Los documentos firmados a través de la plataforma cuentan con valor probatorio en juicio conforme al Reglamento (UE) Nº 910/2014 (eIDAS) y a la Ley 6/2020 de servicios electrónicos de confianza.
+                <strong>3.3. Registro de Conformidad y Evidencias:</strong> La plataforma registra la trazabilidad operativa de usuario autenticado, fecha/hora y firma manuscrita digitalizada cuando se aporta en el expediente. Dicha traza tiene carácter documental de soporte interno y no sustituye por sí sola la firma electrónica cualificada externa cuando la normativa aplicable así lo exija.
               </p>
             </div>
           </ComponentCard>
@@ -794,16 +797,17 @@ export default function SupportPage() {
           <ComponentCard
             title="4. Medidas de Seguridad, Cifrado y Copias de Seguridad"
             desc="Garantías técnicas de confidencialidad, integridad y disponibilidad de la información."
+            alwaysShowDesc
           >
             <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
               <p>
-                <strong>4.1. Cifrado en Tránsito y Reposo:</strong> Todas las comunicaciones se realizan mediante protocolos seguros HTTPS / TLS 1.3 con cifrado de 256 bits. Los ficheros y bases de datos se almacenan cifrados mediante el estándar AES-256.
+                <strong>4.1. Cifrado en Tránsito y Reposo:</strong> Todas las comunicaciones se realizan mediante protocolos seguros HTTPS / TLS 1.3 con cifrado de 256 bits gestionados de extremo a extremo a nivel de infraestructura. Los datos y copias de seguridad se almacenan cifrados mediante el estándar AES-256 en reposo sobre el almacenamiento cloud subyacente sin requerir configuración manual por el usuario.
               </p>
               <p>
-                <strong>4.2. Ubicación de los Servidores:</strong> La infraestructura de Resigest 360 está alojada íntegramente en centros de datos ubicados dentro del territorio de la Unión Europea (Frankfurt / Madrid), cumpliendo con los estándares de certificación ISO/IEC 27001, SOC 2 y el Esquema Nacional de Seguridad (ENS).
+                <strong>4.2. Seguridad y Alojamiento:</strong> Los datos de la aplicación se almacenan y procesan sobre infraestructura gestionada de base de datos y almacenamiento con control de acceso multiempresa por usuario/tenant (RLS) y comunicaciones cifradas HTTPS/TLS.
               </p>
               <p>
-                <strong>4.3. Respaldo Diario:</strong> Se ejecutan copias de seguridad incrementales horarias y copias completas diarias geo-redundantes con recuperación ante desastres en menos de 4 horas (RTO &lt; 4h, RPO &lt; 1h).
+                <strong>4.3. Copias y Exportación por el Titular:</strong> Además de los mecanismos de respaldo propios del proveedor de infraestructura, el usuario dispone de herramientas directas de exportación en formato PDF, CSV/Excel y XML e3l v3.6 para custodiar copias locales de su archivo documental.
               </p>
             </div>
           </ComponentCard>

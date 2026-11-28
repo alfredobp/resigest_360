@@ -3,12 +3,15 @@
 // ==============================================================================
 
 import { createClient } from '@/lib/supabase/client';
+import { auditService } from './auditService';
+import { applyTenantScope, getActiveCompanyCookie } from './tenantContextService';
 import {
   type ChronologicalEntry,
   type ChronologicalEntryFormData,
   type ChronologicalStats,
   type TipoOperacionCronologica,
-  type IdentificationDocument
+  type IdentificationDocument,
+  type CommercialOperation
 } from '@/types/wasteManagement';
 
 export interface ChronologicalFilter {
@@ -30,10 +33,12 @@ export async function getChronologicalEntries(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay usuario autenticado');
 
-  let query = supabase
-    .from('chronological_registry')
-    .select('*, production_center:production_centers(*)')
-    .eq('user_id', user.id)
+  let query = applyTenantScope(
+    supabase
+      .from('chronological_registry')
+      .select('*, production_center:production_centers(*)'),
+    user.id
+  )
     .order('fecha', { ascending: false })
     .order('id', { ascending: false });
 
@@ -161,6 +166,84 @@ export async function getChronologicalStats(
 }
 
 // =====================================================
+// GENERADOR CORRELATIVO UNIFICADO DE ASIENTOS
+// =====================================================
+async function getNextChronologicalAsientoNumber(
+  supabase: any,
+  userId: string,
+  year: number,
+  fallbackSeq = 1
+): Promise<string> {
+  const { data: existingEntries, count } = await supabase
+    .from('chronological_registry')
+    .select('id, numero_asiento', { count: 'exact' })
+    .eq('user_id', userId);
+
+  let maxSeq = typeof count === 'number' ? count : 0;
+  if (Array.isArray(existingEntries)) {
+    for (const item of existingEntries) {
+      const match = item.numero_asiento?.match(/-(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxSeq) {
+          maxSeq = num;
+        }
+      }
+    }
+  }
+
+  const hasQueryStats = typeof count === 'number' || Array.isArray(existingEntries);
+  const nextSeq = hasQueryStats ? maxSeq + 1 : Math.max(1, fallbackSeq);
+  return `AS-${year}-${String(nextSeq).padStart(6, '0')}`;
+}
+
+// =====================================================
+// NORMALIZACIÓN SEMÁNTICA ORIGEN / DESTINO (A04-03)
+// =====================================================
+export function normalizeEntryOriginDestination(
+  data: ChronologicalEntryFormData
+): ChronologicalEntryFormData {
+  if (data.tipo_operacion !== 'entrada_recepcion') {
+    return data;
+  }
+
+  // En una entrada por recepción en planta propia, el Origen es el tercero productor
+  // y el Destino es la instalación receptora propia.
+  const shouldSwap =
+    data.origen_tipo === 'propio' ||
+    (Boolean(data.origen_razon_social?.trim()) &&
+      Boolean(data.destino_razon_social?.trim()) &&
+      !data.origen_tipo &&
+      data.destino_tipo !== 'propio');
+
+  if (shouldSwap) {
+    return {
+      ...data,
+      origen_tipo: 'tercero_productor',
+      origen_nif: data.destino_nif || undefined,
+      origen_razon_social: data.destino_razon_social || undefined,
+      origen_nima: data.destino_nima || undefined,
+      origen_direccion: data.destino_direccion || undefined,
+      origen_municipio: data.destino_municipio || undefined,
+      origen_provincia: data.destino_provincia || undefined,
+      destino_tipo: 'propio',
+      destino_nif: data.origen_nif || undefined,
+      destino_razon_social: data.origen_razon_social || undefined,
+      destino_nima: data.origen_nima || undefined,
+      destino_direccion: data.origen_direccion || undefined,
+      destino_municipio: data.origen_municipio || undefined,
+      destino_provincia: data.origen_provincia || undefined,
+    };
+  }
+
+  return {
+    ...data,
+    origen_tipo: data.origen_tipo || 'tercero_productor',
+    destino_tipo: data.destino_tipo || 'propio',
+  };
+}
+
+// =====================================================
 // CREAR ASIENTO MANUAL
 // =====================================================
 export async function createChronologicalEntry(
@@ -170,23 +253,37 @@ export async function createChronologicalEntry(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay usuario autenticado');
 
-  const fechaObj = new Date(data.fecha || new Date());
+  const normalizedData = normalizeEntryOriginDestination(data);
+  const fechaObj = new Date(normalizedData.fecha || new Date());
   const year = isNaN(fechaObj.getFullYear()) ? new Date().getFullYear() : fechaObj.getFullYear();
 
-  // Generar número de asiento correlativo
-  const { count } = await supabase
-    .from('chronological_registry')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id);
+  const numero_asiento = await getNextChronologicalAsientoNumber(supabase, user.id, year, 1);
 
-  const nextSeq = (count || 0) + 1;
-  const numero_asiento = `AS-${year}-${String(nextSeq).padStart(6, '0')}`;
+  // RES6-I11: Resolver destino_nima si no viene explícito pero existe production_center_id
+  let destino_nima = normalizedData.destino_nima || null;
+  if (!destino_nima && data.production_center_id) {
+    try {
+      const pcTable: any = supabase.from('production_centers');
+      if (pcTable && typeof pcTable.select === 'function') {
+        const { data: center } = await pcTable
+          .select('nima')
+          .eq('id', data.production_center_id)
+          .maybeSingle();
+        if (center?.nima) destino_nima = center.nima;
+      }
+    } catch {
+      // Continuar con destino_nima existente
+    }
+  }
 
+  const resolvedCompanyId = normalizedData.company_id ?? getActiveCompanyCookie() ?? undefined;
   const payload = {
-    ...data,
+    ...normalizedData,
+    ...(resolvedCompanyId ? { company_id: resolvedCompanyId } : {}),
+    destino_nima,
     user_id: user.id,
     numero_asiento,
-    peligrosidad: data.codigo_ler.includes('*') ? 'peligroso' : data.peligrosidad
+    peligrosidad: normalizedData.codigo_ler.includes('*') ? 'peligroso' : normalizedData.peligrosidad
   };
 
   const { data: created, error } = await supabase
@@ -208,15 +305,60 @@ export async function createChronologicalEntry(
 // =====================================================
 export async function deleteChronologicalEntry(id: number): Promise<boolean> {
   const supabase = createClient();
-  const { error } = await supabase
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay usuario autenticado');
+
+  let existing: {
+    fecha?: string | null;
+    numero_asiento?: string | null;
+    codigo_ler?: string | null;
+    company_id?: number | null;
+  } | null = null;
+
+  const lookupBuilder: any = supabase.from('chronological_registry');
+  if (typeof lookupBuilder?.select === 'function') {
+    const lookupQuery = lookupBuilder
+      .select('fecha, numero_asiento, codigo_ler, company_id')
+      .eq('id', id);
+    const { data } = await applyTenantScope(lookupQuery, user.id)
+      .maybeSingle();
+    existing = data || null;
+
+    if (existing?.fecha) {
+      const entryDate = new Date(existing.fecha);
+      const fiveYearsAgo = new Date();
+      fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+      if (!Number.isNaN(entryDate.getTime()) && entryDate >= fiveYearsAgo) {
+        throw new Error(
+          'No se puede eliminar un asiento del archivo cronológico con menos de 5 años de antigüedad (Art. 64 Ley 7/2022).'
+        );
+      }
+    }
+  }
+
+  const deleteQuery = supabase
     .from('chronological_registry')
     .delete()
     .eq('id', id);
+
+  const { error } = await applyTenantScope(deleteQuery, user.id);
 
   if (error) {
     console.error('Error al eliminar asiento cronológico:', error);
     throw error;
   }
+
+  await auditService.logAction({
+    company_id: existing?.company_id ?? null,
+    entidad: 'archivo_cronologico',
+    entidad_id: id,
+    accion: 'eliminar',
+    detalles: {
+      numero_asiento: existing?.numero_asiento ?? null,
+      codigo_ler: existing?.codigo_ler ?? null,
+      fecha: existing?.fecha ?? null,
+    },
+  });
 
   return true;
 }
@@ -229,19 +371,26 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Verificar si ya existe registro para este DI
+  // Verificar si ya existe registro para este DI en la cuenta del usuario
   const { data: existing } = await supabase
     .from('chronological_registry')
     .select('id')
     .eq('identification_document_id', di.id)
+    .eq('user_id', user.id)
     .maybeSingle();
 
-  // Peso verificado con preferencia de báscula de destino
-  const cantidadKg = Number(di.peso_destino_kg) || Number(di.peso_origen_kg) || ((Number(di.cantidad) || 0) * 1000);
-  const fechaAsiento = di.fecha_entrega || di.fecha_salida || di.fecha_documento || new Date().toISOString().split('T')[0];
-
-  const year = new Date(fechaAsiento).getFullYear();
-  const numero_asiento = `AS-${year}-${String(di.id).padStart(6, '0')}`;
+  // Peso verificado con preferencia de báscula de destino y conversión homogénea según unidad
+  const rawCantidad = Number(di.cantidad) || 0;
+  const isTonnesOrM3 = !di.unidad || di.unidad === 'toneladas' || di.unidad === 'm3';
+  const cantidadEnKg = isTonnesOrM3 ? rawCantidad * 1000 : rawCantidad;
+  const grossCantidadKg = Number(di.peso_destino_kg) || Number(di.peso_origen_kg) || cantidadEnKg;
+  const isPartialRejection =
+    di.estado_traslado === 'rechazado_parcial' || di.resultado_recepcion === 'rechazado_parcial';
+  const rejectedKg =
+  isPartialRejection && Number(di.cantidad_rechazada_kg) > 0
+    ? Number(di.cantidad_rechazada_kg)
+    : 0;
+  const cantidadKg = Math.max(0, grossCantidadKg - rejectedKg);
 
   // Detectar si la empresa actual actúa como Gestor Receptora o Productor
   let isGestor = false;
@@ -253,17 +402,30 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
       .maybeSingle();
 
     if (userComp) {
-      isGestor =
-        userComp.tipo_empresa === 'gestor' ||
-        (Boolean(userComp.cif) && Boolean(di.gestor_cif) && userComp.cif.trim().toUpperCase() === di.gestor_cif.trim().toUpperCase());
+      const compCif = userComp.cif?.trim().toUpperCase() || '';
+      const gestorCif = di.gestor_cif?.trim().toUpperCase() || '';
+      const prodCif = di.productor_cif?.trim().toUpperCase() || '';
+      const matchesGestorCif = Boolean(compCif && gestorCif && compCif === gestorCif);
+      const matchesOnlyProducerCif = Boolean(compCif && prodCif && compCif === prodCif && !matchesGestorCif);
+      isGestor = matchesGestorCif || (userComp.tipo_empresa === 'gestor' && !matchesOnlyProducerCif);
     }
   }
+
+  // A04-09: Conservar fecha y hora exactas por tipo de evento (salida vs recepción en destino)
+  const fechaSalida = di.fecha_salida || di.fecha_documento;
+  const fechaRecepcion = di.fecha_llegada_destino || di.fecha_entrega || (di as any).fecha_recepcion || di.fecha_documento;
+  const fechaAsiento = isGestor
+    ? (fechaRecepcion || new Date().toISOString())
+    : (fechaSalida || new Date().toISOString());
+
+  const year = new Date(fechaAsiento).getFullYear();
 
   const payload: Partial<ChronologicalEntry> = {
     user_id: user.id,
     company_id: di.company_id,
     production_center_id: di.production_center_id,
     fecha: fechaAsiento,
+    fecha_hora_movimiento: fechaAsiento,
     tipo_operacion: isGestor ? 'entrada_recepcion' : 'salida_traslado',
     codigo_ler: di.codigo_ler,
     descripcion_residuo: di.descripcion_residuo,
@@ -291,10 +453,116 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
     destino_direccion: di.gestor_direccion,
     destino_municipio: di.gestor_municipio,
     destino_provincia: di.gestor_provincia,
-    operacion_rd: di.operacion_tratamiento,
+    operacion_rd: di.operacion_tratamiento_ejecutada || di.operacion_tratamiento,
     identification_document_id: di.id,
     numero_documento_referencia: di.numero_albaran_gestor || di.numero_documento,
-    observaciones: `Registro cronológico sincronizado desde DI ${di.numero_documento} (${isGestor ? 'Entrada / Recepción en planta' : 'Salida / Traslado'})`
+      observaciones: `Registro cronológico sincronizado desde DI ${di.numero_documento} (${isGestor ? 'Entrada / Recepción en planta' : 'Salida / Traslado'})${rejectedKg > 0
+      ? ` | Desglose recepción: Recibido=${grossCantidadKg} kg, Aceptado neto=${cantidadKg} kg, Rechazado=${rejectedKg} kg${di.motivo_incidencia ? ` (Motivo: ${di.motivo_incidencia})` : ''}`
+      : ''
+    }${di.operacion_tratamiento_ejecutada &&
+      di.operacion_tratamiento &&
+      di.operacion_tratamiento_ejecutada !== di.operacion_tratamiento
+      ? ` | Op. prevista: ${di.operacion_tratamiento}, Op. ejecutada: ${di.operacion_tratamiento_ejecutada}`
+      : ''
+    }`
+};
+
+if (existing) {
+  const { data: updated, error } = await supabase
+    .from('chronological_registry')
+    .update(payload)
+    .eq('id', existing.id)
+    .select()
+    .single();
+
+  if (error) console.error('Error al actualizar asiento desde DI:', error);
+  return updated;
+}
+
+const numero_asiento = await getNextChronologicalAsientoNumber(
+  supabase,
+  user.id,
+  year,
+  Number(di.id) || 1
+);
+const { data: created, error } = await supabase
+  .from('chronological_registry')
+  .insert([{ ...payload, numero_asiento }])
+  .select()
+  .single();
+
+if (error) console.error('Error al crear asiento desde DI:', error);
+return created;
+}
+
+// =====================================================
+// SINCRONIZAR DESDE OPERACIÓN COMERCIAL (NEGOCIANTE / AGENTE - ART. 64)
+// =====================================================
+export async function syncEntryFromCommercialOperation(
+  op: CommercialOperation
+): Promise<ChronologicalEntry | null> {
+  if (!op || !op.numero_operacion || !op.codigo_ler) return null;
+  // QA5-I02: Las operaciones de intermediación sin posesión física en planta propia no deben alterar el stock físico
+  if (op.modalidad_posesion === 'intermediacion_sin_posesion') {
+    return null;
+  }
+
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: existing } = await supabase
+    .from('chronological_registry')
+    .select('id')
+    .eq('numero_documento_referencia', op.numero_operacion)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  const toneladas =
+    op.cantidad_real_t && Number(op.cantidad_real_t) > 0
+      ? Number(op.cantidad_real_t)
+      : Number(op.cantidad_estimada_t) || 0;
+  const cantidadKg = Math.round(toneladas * 1000 * 1000) / 1000;
+  const fechaAsiento = op.fecha || new Date().toISOString().split('T')[0];
+  const parsedDate = new Date(fechaAsiento);
+  const year = isNaN(parsedDate.getFullYear()) ? new Date().getFullYear() : parsedDate.getFullYear();
+
+  const payload: Partial<ChronologicalEntry> = {
+    user_id: user.id,
+    company_id: op.company_id ?? null,
+    production_center_id: op.origen_center_id ?? null,
+    fecha: fechaAsiento,
+    tipo_operacion: 'salida_traslado',
+    codigo_ler: op.codigo_ler,
+    descripcion_residuo: op.descripcion_residuo,
+    peligrosidad: op.codigo_ler.includes('*') ? 'peligroso' : op.peligrosidad,
+    cantidad_kg: cantidadKg,
+    origen_tipo: 'propio',
+    origen_nif: op.origen_cif || op.proveedor_cif || op.origen_productor?.cif || null,
+    origen_razon_social:
+      op.origen_nombre_personalizado ||
+      op.origen_productor?.razon_social ||
+      op.proveedor_razon_social ||
+      null,
+    origen_nima: op.origen_nima || op.origen_productor?.nima || null,
+    transportista_nif: op.transportista_cif || op.transportista?.cif || null,
+    transportista_razon_social:
+      op.transportista_nombre_personalizado || op.transportista?.razon_social || null,
+    transportista_matricula: op.transportista_matricula || op.transportista?.matricula || null,
+    destino_tipo: 'tercero_gestor',
+    destino_nif: op.destino_cif || op.cliente_cif || op.destino_gestor?.cif || null,
+    destino_razon_social:
+      op.destino_nombre_personalizado ||
+      op.destino_gestor?.razon_social ||
+      op.cliente_razon_social ||
+      null,
+    destino_nima: op.destino_nima || (op as any).destino_center?.nima || op.destino_gestor?.nima || null,
+    destino_autorizacion:
+      op.destino_autorizacion || op.destino_gestor?.numero_autorizacion || null,
+    operacion_rd: op.operacion_rd || null,
+    identification_document_id: op.identification_document_id ?? null,
+    numero_documento_referencia: op.numero_operacion,
+    observaciones: `Registro cronológico de Negociante/Agente sincronizado desde Operación Comercial ${op.numero_operacion} (${op.estado})`,
   };
 
   if (existing) {
@@ -305,18 +573,24 @@ export async function syncEntryFromDI(di: IdentificationDocument): Promise<Chron
       .select()
       .single();
 
-    if (error) console.error('Error al actualizar asiento desde DI:', error);
+    if (error) console.error('Error al actualizar asiento desde operación comercial:', error);
     return updated;
-  } 
-    const { data: created, error } = await supabase
-      .from('chronological_registry')
-      .insert([{ ...payload, numero_asiento }])
-      .select()
-      .single();
+  }
 
-    if (error) console.error('Error al crear asiento desde DI:', error);
-    return created;
-  
+  const numero_asiento = await getNextChronologicalAsientoNumber(
+    supabase,
+    user.id,
+    year,
+    Number(op.id) || 1
+  );
+  const { data: created, error } = await supabase
+    .from('chronological_registry')
+    .insert([{ ...payload, numero_asiento }])
+    .select()
+    .single();
+
+  if (error) console.error('Error al crear asiento desde operación comercial:', error);
+  return created;
 }
 
 // =====================================================
@@ -404,14 +678,14 @@ export function exportChronologicalToCSV(entries: ChronologicalEntry[]): void {
     e.transportista_matricula || '',
     e.destino_nif || '',
     `"${(e.destino_razon_social || '').replace(/"/g, '""')}"`,
-    e.destino_nima || '',
+    e.destino_nima || e.production_center?.nima || '',
     e.destino_autorizacion || '',
     e.operacion_rd || '',
     e.numero_documento_referencia || '',
     `"${(e.observaciones || '').replace(/"/g, '""')}"`
   ]);
 
-  const csvContent = `\uFEFF${  [headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n')}`;
+  const csvContent = `\uFEFF${[headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n')}`;
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -450,7 +724,7 @@ export function exportChronologicalToExcelXML(entries: ChronologicalEntry[]): vo
       <Cell><Data ss:Type="String">${e.transportista_matricula || ''}</Data></Cell>
       <Cell><Data ss:Type="String">${e.destino_nif || ''}</Data></Cell>
       <Cell><Data ss:Type="String">${(e.destino_razon_social || '').replace(/[<>&]/g, '')}</Data></Cell>
-      <Cell><Data ss:Type="String">${e.destino_nima || ''}</Data></Cell>
+      <Cell><Data ss:Type="String">${e.destino_nima || e.production_center?.nima || ''}</Data></Cell>
       <Cell><Data ss:Type="String">${e.destino_autorizacion || ''}</Data></Cell>
       <Cell><Data ss:Type="String">${e.operacion_rd || ''}</Data></Cell>
       <Cell><Data ss:Type="String">${e.numero_documento_referencia || ''}</Data></Cell>
@@ -515,4 +789,84 @@ export function exportChronologicalToExcelXML(entries: ChronologicalEntry[]): vo
   if (typeof URL.revokeObjectURL === 'function') {
     URL.revokeObjectURL(url);
   }
+}
+
+export interface PendingDispatch {
+  id: number;
+  numero_documento: string;
+  fecha_documento: string;
+  fecha_inicio_traslado?: string;
+  codigo_ler: string;
+  descripcion_residuo: string;
+  peligrosidad: string;
+  cantidad_kg: number;
+  productor_razon_social: string;
+  productor_cif: string;
+  gestor_razon_social: string;
+  gestor_cif: string;
+  transportista_razon_social?: string;
+  estado_traslado: string;
+  production_center_id?: number;
+  notas?: string;
+}
+
+/**
+ * Obtiene los Documentos de Identificación que han iniciado salida y están en tránsito
+ * o pendientes de justificante de destino (UXDEV-06 / UX-09).
+ */
+export async function getPendingDispatches(filters?: {
+  año?: number;
+  production_center_id?: number | 'todos';
+}): Promise<PendingDispatch[]> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay usuario autenticado');
+
+  let query = supabase
+    .from('identification_documents')
+    .select('*')
+    .eq('user_id', user.id)
+    .in('estado_traslado', ['en_transito', 'recepcionado']);
+
+  if (filters?.production_center_id && filters.production_center_id !== 'todos') {
+    query = query.eq('production_center_id', filters.production_center_id);
+  }
+
+  const { data, error } = await query.order('fecha_documento', { ascending: false });
+  if (error) {
+    console.error('Error al obtener traslados pendientes:', error);
+    throw error;
+  }
+
+  let items: PendingDispatch[] = (data || []).map((d: any) => {
+    const rawQty = Number(d.cantidad || d.cantidad_kg || 0);
+    const fallbackKg = d.unidad === 'toneladas' || d.unidad === 'm3' ? rawQty * 1000 : rawQty;
+    return {
+      id: d.id,
+      numero_documento: d.numero_documento,
+      fecha_documento: d.fecha_documento,
+      fecha_inicio_traslado: d.fecha_salida || d.fecha_inicio_traslado || d.fecha_documento,
+      codigo_ler: d.codigo_ler,
+      descripcion_residuo: d.descripcion_residuo,
+      peligrosidad: d.peligrosidad,
+      cantidad_kg: Number(d.peso_origen_kg || fallbackKg || 0),
+      productor_razon_social: d.productor_razon_social,
+      productor_cif: d.productor_cif,
+      gestor_razon_social: d.gestor_razon_social,
+      gestor_cif: d.gestor_cif,
+      transportista_razon_social: d.transportista_razon_social,
+      estado_traslado: d.estado_traslado,
+      production_center_id: d.production_center_id,
+      notas: d.notas,
+    };
+  });
+
+  if (filters?.año) {
+    items = items.filter(i => {
+      const f = i.fecha_inicio_traslado || i.fecha_documento;
+      return Boolean(f && new Date(f).getFullYear() === filters.año);
+    });
+  }
+
+  return items;
 }

@@ -64,11 +64,19 @@ export const LerSelector: React.FC<LerSelectorProps> = ({
     };
   }, []);
 
+  // Normalizador flexible para comparar códigos LER ignorando espacios, puntos y guiones
+  const cleanLer = (s: string) => s.replace(/[\s.-]+/g, '').toLowerCase();
+
   // Encontrar el residuo seleccionado actual
   const selectedWaste = useMemo(() => {
     if (!value) return null;
-    const norm = value.trim().replace(/\s+/g, ' ');
-    return wasteTypes.find((w) => w.codigo_ler.trim().replace(/\s+/g, ' ') === norm) || null;
+    const normClean = cleanLer(value);
+    const normSpace = value.trim().replace(/\s+/g, ' ');
+    return (
+      wasteTypes.find((w) => cleanLer(w.codigo_ler) === normClean) ||
+      wasteTypes.find((w) => w.codigo_ler.trim().replace(/\s+/g, ' ') === normSpace) ||
+      null
+    );
   }, [value, wasteTypes]);
 
   // Cerrar al hacer clic fuera
@@ -82,19 +90,20 @@ export const LerSelector: React.FC<LerSelectorProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filtrado reactivo en tiempo real
+  // Filtrado reactivo en tiempo real (UXDEV-13: admite 170405, 17.04.05 y 17 04 05)
   const filteredList = useMemo(() => {
     if (!searchQuery.trim()) {
       return wasteTypes.slice(0, 40);
     }
-    const q = searchQuery.toLowerCase().trim();
+    const qClean = cleanLer(searchQuery);
+    const qRaw = searchQuery.toLowerCase().trim();
     return wasteTypes
-      .filter(
-        (w) =>
-          w.codigo_ler.toLowerCase().includes(q) ||
-          w.descripcion.toLowerCase().includes(q) ||
-          (w.subcapitulo_titulo && w.subcapitulo_titulo.toLowerCase().includes(q))
-      )
+      .filter((w) => {
+        const matchClean = cleanLer(w.codigo_ler).includes(qClean);
+        const matchDesc = w.descripcion.toLowerCase().includes(qRaw);
+        const matchSub = Boolean(w.subcapitulo_titulo && w.subcapitulo_titulo.toLowerCase().includes(qRaw));
+        return matchClean || matchDesc || matchSub;
+      })
       .slice(0, 50);
   }, [searchQuery, wasteTypes]);
 

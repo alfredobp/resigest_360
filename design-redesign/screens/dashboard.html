@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es" data-variant="industrial" data-mode="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Ejecutivo — ResiGest 360</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body data-nav="dashboard">
+  <div class="app-shell">
+    <aside id="app-sidebar"></aside>
+    <div class="app-main">
+      <header id="app-topbar"></header>
+      <main class="content">
+        <!-- Page Header -->
+        <div class="page-header">
+          <div>
+            <div class="page-title-row">
+              <h1 class="page-title">Centro de Control Ejecutivo</h1>
+              <span class="badge badge-success">Conformidad 98,4%</span>
+              <span class="badge badge-neutral badge-plain">Ejercicio 2026</span>
+            </div>
+            <p class="page-subtitle">Supervisión normativa RD 553/2020, balance de masas por código LER y margen comercial en tiempo real.</p>
+          </div>
+          <div class="page-actions">
+            <a href="archivo-cronologico.html" class="btn btn-outline">📒 Archivo Cronológico</a>
+            <a href="operaciones.html" class="btn btn-outline">⚖️ Entrada Báscula</a>
+            <a href="documentos-identificacion.html" class="btn btn-primary">+ Nuevo Traslado (DI)</a>
+          </div>
+        </div>
+
+        <!-- Control por Excepción / Alertas -->
+        <section class="alert-banner">
+          <div class="alert-banner-head">
+            <div class="alert-banner-title">
+              <span>⚠️ Control por Excepción:</span>
+              <span>2 Excepciones Críticas y 5 Advertencias activas</span>
+            </div>
+            <span class="mono" style="font-size:11px; color:var(--text-muted)">RD 553/2020 &amp; Ley 7/2022 · Evaluado hace 3 min</span>
+          </div>
+          <div class="alert-pills">
+            <a href="documentos-identificacion.html" class="alert-pill-item">
+              <div>
+                <span class="cell-sub">DIs en Tránsito</span>
+                <span class="cell-main" style="font-size:18px; color:var(--brand)">4</span>
+              </div>
+              <span style="font-size:11.5px; font-weight:700; color:var(--brand)">Revisar →</span>
+            </a>
+            <a href="documentos-identificacion.html" class="alert-pill-item">
+              <div>
+                <span class="cell-sub" style="color:var(--danger)">Discrepancia Báscula &gt;5%</span>
+                <span class="cell-main" style="font-size:18px; color:var(--danger)">1</span>
+              </div>
+              <span style="font-size:11.5px; font-weight:700; color:var(--danger)">Auditar →</span>
+            </a>
+            <a href="contratos.html" class="alert-pill-item">
+              <div>
+                <span class="cell-sub" style="color:var(--danger)">Contratos Caducados</span>
+                <span class="cell-main" style="font-size:18px; color:var(--danger)">1</span>
+              </div>
+              <span style="font-size:11.5px; font-weight:700; color:var(--danger)">Renovar →</span>
+            </a>
+            <a href="contratos.html" class="alert-pill-item">
+              <div>
+                <span class="cell-sub" style="color:var(--warning)">Vencimiento &lt;60 días</span>
+                <span class="cell-main" style="font-size:18px; color:var(--warning)">3</span>
+              </div>
+              <span style="font-size:11.5px; font-weight:700; color:var(--warning)">Atender →</span>
+            </a>
+          </div>
+        </section>
+
+        <!-- 4 KPI Cards -->
+        <section class="grid grid-4">
+          <div class="card kpi-card card-featured">
+            <div class="kpi-top">
+              <span class="kpi-label">Balance de Masas 2026</span>
+              <span class="kpi-icon">♻️</span>
+            </div>
+            <div class="kpi-value">1.842,5 <span style="font-size:14px; font-weight:600; opacity:0.75">t</span></div>
+            <div class="kpi-sub">
+              <span class="trend-up">+14,2%</span> vs mes anterior · 92% valorización
+            </div>
+          </div>
+
+          <div class="card kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Documentos DI Emitidos</span>
+              <span class="kpi-icon" style="background:var(--info-soft); color:var(--info)">📄</span>
+            </div>
+            <div class="kpi-value">328</div>
+            <div class="kpi-sub">314 completados · 10 en tránsito · 4 borrador</div>
+          </div>
+
+          <div class="card kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Facturación Comercial</span>
+              <span class="kpi-icon">💶</span>
+            </div>
+            <div class="kpi-value">142.850 €</div>
+            <div class="kpi-sub"><span class="trend-up">38,20 €/t</span> margen neto medio (27,4%)</div>
+          </div>
+
+          <div class="card kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Residuos Peligrosos (RP)</span>
+              <span class="kpi-icon" style="background:var(--warning-soft); color:var(--warning)">☣️</span>
+            </div>
+            <div class="kpi-value">184,2 <span style="font-size:14px; font-weight:600; color:var(--text-muted)">t</span></div>
+            <div class="kpi-sub">100% con NT vigente · Plazo almacenamiento OK</div>
+          </div>
+        </section>
+
+        <!-- Middle Row: Monthly Chart + Top LER -->
+        <section class="grid grid-12">
+          <div class="card col-8">
+            <div class="card-header">
+              <div>
+                <h2 class="card-title">Evolución Mensual de Residuos Gestionados (Toneladas)</h2>
+                <p class="card-subtitle">Entradas y salidas consolidadas de todos los centros de producción</p>
+              </div>
+              <div class="tabs">
+                <button class="tab-btn active">2026</button>
+                <button class="tab-btn">2025</button>
+              </div>
+            </div>
+            <div class="bar-chart">
+              <div class="bar-col"><div class="bar-stack" style="height:52%" title="124 t"></div><span class="bar-label">Ene</span></div>
+              <div class="bar-col"><div class="bar-stack" style="height:64%" title="152 t"></div><span class="bar-label">Feb</span></div>
+              <div class="bar-col"><div class="bar-stack" style="height:71%" title="168 t"></div><span class="bar-label">Mar</span></div>
+              <div class="bar-col"><div class="bar-stack" style="height:58%" title="138 t"></div><span class="bar-label">Abr</span></div>
+              <div class="bar-col"><div class="bar-stack" style="height:82%" title="195 t"></div><span class="bar-label">May</span></div>
+              <div class="bar-col"><div class="bar-stack" style="height:76%" title="180 t"></div><span class="bar-label">Jun</span></div>
+              <div class="bar-col"><div class="bar-stack" style="height:62%" title="147 t"></div><span class="bar-label">Jul</span></div>
+              <div class="bar-col"><div class="bar-stack" style="height:44%" title="104 t"></div><span class="bar-label">Ago</span></div>
+              <div class="bar-col"><div class="bar-stack" style="height:88%" title="210 t"></div><span class="bar-label">Sep</span></div>
+              <div class="bar-col"><div class="bar-stack" style="height:95%" title="226 t"></div><span class="bar-label">Oct</span></div>
+              <div class="bar-col"><div class="bar-stack" style="height:84%; opacity:0.65" title="198 t (en curso)"></div><span class="bar-label">Nov</span></div>
+            </div>
+          </div>
+
+          <div class="card col-4" style="display:flex; flex-direction:column; justify-content:space-between;">
+            <div>
+              <div class="card-header">
+                <h2 class="card-title">Top 5 Residuos por LER</h2>
+                <span class="badge badge-neutral badge-plain">2026</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:13px;">
+                <div>
+                  <div style="display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:3px;">
+                    <span class="mono" style="font-weight:700">17 04 05</span>
+                    <strong>642,4 t <span style="color:var(--text-muted); font-weight:400">(34,8%)</span></strong>
+                  </div>
+                  <div class="cell-sub" style="margin-bottom:5px;">Hierro y acero (Chatarra férrica)</div>
+                  <div class="progress-track"><div class="progress-fill" style="width:82%"></div></div>
+                </div>
+                <div>
+                  <div style="display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:3px;">
+                    <span class="mono" style="font-weight:700">15 01 02</span>
+                    <strong>418,0 t <span style="color:var(--text-muted); font-weight:400">(22,7%)</span></strong>
+                  </div>
+                  <div class="cell-sub" style="margin-bottom:5px;">Envases de plástico industrial</div>
+                  <div class="progress-track"><div class="progress-fill" style="width:62%"></div></div>
+                </div>
+                <div>
+                  <div style="display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:3px;">
+                    <span class="mono" style="font-weight:700; color:var(--warning)">13 02 05*</span>
+                    <strong>112,8 t <span style="color:var(--text-muted); font-weight:400">(6,1%)</span></strong>
+                  </div>
+                  <div class="cell-sub" style="margin-bottom:5px;">Aceites minerales no clorados (RP)</div>
+                  <div class="progress-track"><div class="progress-fill warn" style="width:32%"></div></div>
+                </div>
+                <div>
+                  <div style="display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:3px;">
+                    <span class="mono" style="font-weight:700">20 01 01</span>
+                    <strong>294,1 t <span style="color:var(--text-muted); font-weight:400">(15,9%)</span></strong>
+                  </div>
+                  <div class="cell-sub" style="margin-bottom:5px;">Papel y cartón recuperado</div>
+                  <div class="progress-track"><div class="progress-fill info" style="width:48%"></div></div>
+                </div>
+              </div>
+            </div>
+            <a href="archivo-cronologico.html" style="margin-top:14px; padding-top:10px; border-top:1px solid var(--border-color); font-size:12px; font-weight:700; color:var(--brand); display:flex; justify-content:space-between;">
+              <span>Abrir Libro de Registro Cronológico</span><span>→</span>
+            </a>
+          </div>
+        </section>
+
+        <!-- Bottom Row: Recent Transfers -->
+        <section class="card" style="padding:0; overflow:hidden;">
+          <div style="padding:var(--card-pad); display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color);">
+            <div>
+              <h2 class="card-title">Últimos Traslados y Documentos de Identificación</h2>
+              <p class="card-subtitle">Actividad en vivo sincronizada con báscula, firma móvil y SIRA</p>
+            </div>
+            <a href="documentos-identificacion.html" class="btn btn-outline btn-sm">Ver todos los DIs →</a>
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Nº Documento DI</th>
+                  <th>Origen ➔ Destino</th>
+                  <th>Código LER</th>
+                  <th>Peso Neto</th>
+                  <th>Estado</th>
+                  <th>SIRA</th>
+                  <th>Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="mono cell-main">DI-2026-0842</span><span class="cell-sub">NT-2026-0112</span></td>
+                  <td><span class="cell-main">Metalúrgicas del Norte S.L.</span><span class="cell-sub">➔ Eco-Valorizaciones Ibéricas</span></td>
+                  <td><span class="mono badge badge-neutral badge-plain">17 04 05</span></td>
+                  <td><strong>14,20 t</strong></td>
+                  <td><span class="badge badge-info">En Tránsito</span></td>
+                  <td><span class="badge badge-success">Enviado</span></td>
+                  <td>21/11/2026</td>
+                </tr>
+                <tr>
+                  <td><span class="mono cell-main">DI-2026-0841</span><span class="cell-sub">Peligroso (RP)</span></td>
+                  <td><span class="cell-main">Talleres Centrales Madrid</span><span class="cell-sub">➔ Gestor Aceites Sur S.A.</span></td>
+                  <td><span class="mono badge badge-warning badge-plain">13 02 05*</span></td>
+                  <td><strong>2,45 t</strong></td>
+                  <td><span class="badge badge-danger">Discrepancia +7,2%</span></td>
+                  <td><span class="badge badge-warning">Pendiente</span></td>
+                  <td>20/11/2026</td>
+                </tr>
+                <tr>
+                  <td><span class="mono cell-main">DI-2026-0840</span><span class="cell-sub">Firma móvil verificada</span></td>
+                  <td><span class="cell-main">Logística Levante S.L.</span><span class="cell-sub">➔ Eco-Valorizaciones Ibéricas</span></td>
+                  <td><span class="mono badge badge-neutral badge-plain">15 01 02</span></td>
+                  <td><strong>8,90 t</strong></td>
+                  <td><span class="badge badge-success">Completado</span></td>
+                  <td><span class="badge badge-success">Aceptado</span></td>
+                  <td>19/11/2026</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="../assets/app.js"></script>
+  <script src="../assets/shell.js"></script>
+</body>
+</html>
+

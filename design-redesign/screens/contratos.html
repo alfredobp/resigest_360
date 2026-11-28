@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es" data-variant="industrial" data-mode="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contratos de Tratamiento — ResiGest 360</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body data-nav="contratos">
+  <div class="app-shell">
+    <aside id="app-sidebar"></aside>
+    <div class="app-main">
+      <header id="app-topbar"></header>
+      <main class="content">
+        <div class="page-header">
+          <div>
+            <div class="page-title-row">
+              <h1 class="page-title">Contratos de Tratamiento</h1>
+              <span class="badge badge-success">Art. 5 RD 553/2020</span>
+            </div>
+            <p class="page-subtitle">Cobertura contractual obligatoria entre productor y gestor con alertas de caducidad a 60 días y firma digital pública.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline">🔗 Enlaces de Firma</button>
+            <button class="btn btn-primary">+ Nuevo Contrato</button>
+          </div>
+        </div>
+
+        <section class="grid grid-4">
+          <div class="card kpi-card">
+            <span class="kpi-label">Contratos Vigentes</span>
+            <div class="kpi-value" style="color:var(--brand)">42</div>
+            <span class="kpi-sub">100% con firma verificada</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label">Pendientes de Firma</span>
+            <div class="kpi-value" style="color:var(--info)">5</div>
+            <span class="kpi-sub">Enlace público enviado</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label">Vencen en &lt;60 Días</span>
+            <div class="kpi-value" style="color:var(--warning)">3</div>
+            <span class="kpi-sub">Renovación recomendada</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label">Caducados</span>
+            <div class="kpi-value" style="color:var(--danger)">1</div>
+            <span class="kpi-sub">Bloquea emisión de DI</span>
+          </div>
+        </section>
+
+        <section class="toolbar">
+          <div class="toolbar-group">
+            <input type="text" class="input" style="width:270px" placeholder="Buscar por Nº contrato, cliente, gestor o LER..." data-table-search="contractsTable" />
+            <select class="select">
+              <option>Estado: Todos</option>
+              <option>Vigente</option>
+              <option>Pendiente de firma</option>
+              <option>Próximo a vencer</option>
+              <option>Caducado</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <span class="cell-sub">Mostrando 4 de 51 contratos</span>
+          </div>
+        </section>
+
+        <section class="table-wrap">
+          <table class="data-table" id="contractsTable">
+            <thead>
+              <tr>
+                <th>Nº Contrato</th>
+                <th>Productor / Origen</th>
+                <th>Gestor / Planta Destino</th>
+                <th>Códigos LER Cubiertos</th>
+                <th>Vigencia</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="mono cell-main">CT-2026-018</span><span class="cell-sub">Firmado 02/01/2026</span></td>
+                <td><span class="cell-main">Metalúrgicas del Norte S.L.</span><span class="cell-sub mono">B84192011</span></td>
+                <td><span class="cell-main">Eco-Valorizaciones Ibéricas</span><span class="cell-sub">Op. R04 / R12</span></td>
+                <td><span class="mono badge badge-neutral badge-plain">17 04 05</span> <span class="mono badge badge-neutral badge-plain">12 01 01</span></td>
+                <td>01/01/2026 – 31/12/2027</td>
+                <td><span class="badge badge-success">Vigente</span></td>
+                <td>
+                  <div style="display:flex; gap:5px;">
+                    <button class="btn btn-outline btn-sm">PDF</button>
+                    <button class="btn btn-outline btn-sm">Editar</button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td><span class="mono cell-main">CT-2025-114</span><span class="cell-sub" style="color:var(--warning)">Vence en 28 días</span></td>
+                <td><span class="cell-main">Logística Levante S.L.</span><span class="cell-sub mono">B46901234</span></td>
+                <td><span class="cell-main">Eco-Valorizaciones Ibéricas</span><span class="cell-sub">Op. R03</span></td>
+                <td><span class="mono badge badge-neutral badge-plain">15 01 02</span> <span class="mono badge badge-neutral badge-plain">20 01 01</span></td>
+                <td>19/12/2024 – 19/12/2026</td>
+                <td><span class="badge badge-warning">Por Vencer</span></td>
+                <td>
+                  <div style="display:flex; gap:5px;">
+                    <button class="btn btn-soft btn-sm">Renovar</button>
+                    <button class="btn btn-outline btn-sm">PDF</button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td><span class="mono cell-main">CT-2026-092</span><span class="cell-sub">Enviado por email</span></td>
+                <td><span class="cell-main">Talleres Centrales Madrid</span><span class="cell-sub mono">B28771022</span></td>
+                <td><span class="cell-main">Gestor Aceites Sur S.A.</span><span class="cell-sub">Op. R09 (RP)</span></td>
+                <td><span class="mono badge badge-warning badge-plain">13 02 05*</span></td>
+                <td>25/11/2026 – 25/11/2028</td>
+                <td><span class="badge badge-info">Pendiente Firma</span></td>
+                <td>
+                  <div style="display:flex; gap:5px;">
+                    <button class="btn btn-primary btn-sm">Copiar Link Firma</button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td><span class="mono cell-main">CT-2024-041</span><span class="cell-sub" style="color:var(--danger)">Caducado hace 9 días</span></td>
+                <td><span class="cell-main">Almacenes Centro S.L.</span><span class="cell-sub mono">B81002399</span></td>
+                <td><span class="cell-main">Planta Áridos Reciclados</span><span class="cell-sub">Op. R05</span></td>
+                <td><span class="mono badge badge-neutral badge-plain">17 09 04</span></td>
+                <td>12/11/2024 – 12/11/2026</td>
+                <td><span class="badge badge-danger">Caducado</span></td>
+                <td>
+                  <div style="display:flex; gap:5px;">
+                    <button class="btn btn-danger-soft btn-sm">Regularizar</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="../assets/app.js"></script>
+  <script src="../assets/shell.js"></script>
+</body>
+</html>
+

@@ -3,23 +3,45 @@
 // ==============================================================================
 
 import { createClient } from '@/lib/supabase/client';
-import type { 
-  PlatformOverviewStats, 
-  PlatformCompanyRecord, 
+import {
+  delegationService,
+  isDelegationActive,
+  validateDelegationPayload,
+} from './delegationService';
+import type {
+  PlatformOverviewStats,
+  PlatformCompanyRecord,
   CompanyAuditDetail,
   Company,
   ProductionCenter,
   IdentificationDocument,
   WasteContract,
-  CompanyRole
+  CompanyRole,
+  AdminDelegationSummary,
+  MembershipRole,
 } from '@/types/wasteManagement';
 
 const ADMIN_EMAILS = [
   'alfredobape@gmail.com',
-  'demo@resigest.com',
   process.env.NEXT_PUBLIC_ADMIN_EMAIL || '',
   process.env.NOTIFICATION_ADMIN_EMAIL || ''
 ].filter(Boolean).map(e => e.toLowerCase().trim());
+
+/**
+ * Convierte la cantidad declarada en un DI a toneladas según su unidad ('kg' -> /1000, 'toneladas'/'t' -> *1).
+ */
+function toMetricTons(rawQty: unknown, unit?: string | null): number {
+  const val = parseFloat(String(rawQty ?? ''));
+  if (Number.isNaN(val) || !Number.isFinite(val)) return 0;
+  const normalizedUnit = (unit || 'kg').toLowerCase().trim();
+  if (normalizedUnit === 't' || normalizedUnit === 'tm' || normalizedUnit === 'toneladas' || normalizedUnit === 'tonelada') {
+    return val;
+  }
+  if (normalizedUnit === 'kg' || normalizedUnit === 'kilogramos' || normalizedUnit === 'kilos') {
+    return val / 1000;
+  }
+  return 0;
+}
 
 export const adminPlatformService = {
   /**
@@ -78,12 +100,12 @@ export const adminPlatformService = {
       // Continuar al fallback si el RPC no está creado aún
     }
 
-    // Fallback: consultas directas paralelas
+    // Fallback: consultas directas paralelas usando columnas reales del esquema
     try {
       const [compRes, usersRes, disRes, contractsRes, centersRes] = await Promise.all([
         supabase.from('companies').select('id, is_my_company', { count: 'exact' }),
         supabase.from('profiles').select('id', { count: 'exact' }),
-        supabase.from('identification_documents').select('id, cantidad, cantidad_estimada', { count: 'exact' }),
+        supabase.from('identification_documents').select('id, cantidad, unidad', { count: 'exact' }),
         supabase.from('waste_contracts').select('id', { count: 'exact' }),
         supabase.from('production_centers').select('id', { count: 'exact' })
       ]);
@@ -97,8 +119,9 @@ export const adminPlatformService = {
       const totalCenters = centersRes.count ?? (centersRes.data || []).length;
 
       const totalToneladas = (disRes.data || []).reduce((acc, curr: any) => {
-        const val = parseFloat(curr.cantidad ?? curr.cantidad_estimada);
-        return isNaN(val) ? acc : acc + val;
+        const rawQty = curr.cantidad ?? curr.cantidad_estimada;
+        const unit = curr.unidad ?? (curr.cantidad_estimada !== undefined && curr.cantidad === undefined ? 'toneladas' : 'toneladas');
+        return acc + toMetricTons(rawQty, curr.unidad ? curr.unidad : unit);
       }, 0);
 
       return {
@@ -177,11 +200,13 @@ export const adminPlatformService = {
       }
     }
 
-    // 3. Cargar conteos agregados de centros, DIs y contratos
+    // 3. Cargar conteos agregados y métricas de operación (usando columnas reales del esquema)
     const [centersRes, disRes, contractsRes] = await Promise.all([
       supabase.from('production_centers').select('id, company_id'),
-      supabase.from('identification_documents').select('id, company_id, gestor_id'),
-      supabase.from('waste_contracts').select('id, company_id, gestor_company_id')
+      supabase
+        .from('identification_documents')
+        .select('id, company_id, gestor_company_id, transportista_company_id, cantidad, unidad, created_at, fecha_documento'),
+      supabase.from('waste_contracts').select('id, company_id, gestor_company_id, created_at')
     ]);
 
     const centersByCompany = new Map<number, number>();
@@ -192,22 +217,42 @@ export const adminPlatformService = {
     });
 
     const disByCompany = new Map<number, number>();
-    (disRes.data || []).forEach(d => {
-      if (d.company_id) {
-        disByCompany.set(d.company_id, (disByCompany.get(d.company_id) || 0) + 1);
+    const tonsByCompany = new Map<number, number>();
+    const lastOpByCompany = new Map<number, string>();
+
+    const updateLastOp = (companyId: number, dateStr?: string | null) => {
+      if (!dateStr) return;
+      const current = lastOpByCompany.get(companyId);
+      if (!current || dateStr > current) {
+        lastOpByCompany.set(companyId, dateStr);
       }
-      if (d.gestor_id && d.gestor_id !== d.company_id) {
-        disByCompany.set(d.gestor_id, (disByCompany.get(d.gestor_id) || 0) + 1);
-      }
+    };
+
+    (disRes.data || []).forEach((d: any) => {
+      const validTons = toMetricTons(d.cantidad ?? d.cantidad_estimada, d.unidad);
+      const opDate = d.fecha_documento || d.created_at || null;
+      const participantIds = new Set<number>();
+      if (d.company_id) participantIds.add(Number(d.company_id));
+      if (d.gestor_company_id) participantIds.add(Number(d.gestor_company_id));
+      if (d.gestor_id) participantIds.add(Number(d.gestor_id));
+      if (d.transportista_company_id) participantIds.add(Number(d.transportista_company_id));
+
+      participantIds.forEach((cid) => {
+        disByCompany.set(cid, (disByCompany.get(cid) || 0) + 1);
+        tonsByCompany.set(cid, (tonsByCompany.get(cid) || 0) + validTons);
+        updateLastOp(cid, opDate);
+      });
     });
 
     const contractsByCompany = new Map<number, number>();
-    (contractsRes.data || []).forEach(ct => {
+    (contractsRes.data || []).forEach((ct: any) => {
       if (ct.company_id) {
         contractsByCompany.set(ct.company_id, (contractsByCompany.get(ct.company_id) || 0) + 1);
+        updateLastOp(ct.company_id, ct.created_at);
       }
       if (ct.gestor_company_id && ct.gestor_company_id !== ct.company_id) {
         contractsByCompany.set(ct.gestor_company_id, (contractsByCompany.get(ct.gestor_company_id) || 0) + 1);
+        updateLastOp(ct.gestor_company_id, ct.created_at);
       }
     });
 
@@ -221,14 +266,16 @@ export const adminPlatformService = {
         user_created_at: prof?.created_at,
         centers_count: centersByCompany.get(comp.id) || 0,
         dis_count: disByCompany.get(comp.id) || 0,
-        contracts_count: contractsByCompany.get(comp.id) || 0
+        contracts_count: contractsByCompany.get(comp.id) || 0,
+        total_toneladas: Math.round((tonsByCompany.get(comp.id) || 0) * 100) / 100,
+        last_operation_at: lastOpByCompany.get(comp.id) || null,
       };
     });
 
     // 5. Filtrar por búsqueda si aplica
     if (params?.search && params.search.trim()) {
       const q = params.search.toLowerCase().trim();
-      records = records.filter(c => 
+      records = records.filter(c =>
         (c.razon_social && c.razon_social.toLowerCase().includes(q)) ||
         (c.nombre_comercial && c.nombre_comercial.toLowerCase().includes(q)) ||
         (c.cif && c.cif.toLowerCase().includes(q)) ||
@@ -242,8 +289,8 @@ export const adminPlatformService = {
     // 6. Filtrar por rol si aplica
     if (params?.role && params.role !== 'all') {
       records = records.filter(c => {
-        const roles = Array.isArray(c.roles) && c.roles.length > 0 
-          ? c.roles 
+        const roles = Array.isArray(c.roles) && c.roles.length > 0
+          ? c.roles
           : (c.tipo_empresa ? [c.tipo_empresa] : ['productor']);
         return roles.includes(params.role as CompanyRole);
       });
@@ -287,11 +334,11 @@ export const adminPlatformService = {
       .eq('company_id', companyId)
       .order('nombre', { ascending: true });
 
-    // 4. Obtener DIs donde interviene la empresa
+    // 4. Obtener DIs donde interviene la empresa (productor, gestor o transportista)
     const { data: dis } = await supabase
       .from('identification_documents')
       .select('*')
-      .or(`company_id.eq.${companyId},gestor_id.eq.${companyId}`)
+      .or(`company_id.eq.${companyId},gestor_company_id.eq.${companyId},transportista_company_id.eq.${companyId}`)
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -315,8 +362,9 @@ export const adminPlatformService = {
     }
 
     const totalTons = (dis || []).reduce((acc, curr: any) => {
-      const val = parseFloat(curr.cantidad ?? curr.cantidad_estimada);
-      return isNaN(val) ? acc : acc + val;
+      const rawQty = curr.cantidad ?? curr.cantidad_estimada;
+      const unit = curr.unidad ?? 'toneladas';
+      return acc + toMetricTons(rawQty, unit);
     }, 0);
 
     return {
@@ -383,7 +431,7 @@ export const adminPlatformService = {
       c.created_at ? new Date(c.created_at).toLocaleDateString('es-ES') : ''
     ]);
 
-    const csvContent = `\uFEFF${  [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n')}`;
+    const csvContent = `\uFEFF${[headers.join(';'), ...rows.map(r => r.join(';'))].join('\n')}`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -399,7 +447,7 @@ export const adminPlatformService = {
    * Exportar el expediente y datos completos de una empresa a JSON estructurado
    */
   exportCompanyDataJSON(detail: CompanyAuditDetail): void {
-    const dataStr = `data:text/json;charset=utf-8,${  encodeURIComponent(JSON.stringify(detail, null, 2))}`;
+    const dataStr = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(detail, null, 2))}`;
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute('href', dataStr);
     const sanitizedName = (detail.company.razon_social || 'empresa').toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -407,6 +455,189 @@ export const adminPlatformService = {
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+  },
+
+  /**
+   * Obtiene el mapa de delegaciones activas o caducadas del administrador actual.
+   */
+  async getAdminDelegations(): Promise<Record<number, AdminDelegationSummary>> {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return {};
+    }
+
+    const authorized = await this.checkIsAdmin(user.email || '', user.id);
+    if (!authorized) {
+      throw new Error('Acceso denegado: Se requieren permisos de Administrador de Plataforma.');
+    }
+
+    const { data, error } = await supabase
+      .from('company_memberships')
+      .select(
+        'company_id, role, can_view_commercial, expires_at, delegation_reason, terms_accepted_at, created_at, updated_at'
+      )
+      .eq('user_id', user.id);
+
+    if (error) {
+      throw new Error(`Error al cargar delegaciones del administrador: ${error.message}`);
+    }
+
+    const map: Record<number, AdminDelegationSummary> = {};
+    (data || []).forEach((row: any) => {
+      if (!row?.company_id) return;
+      map[row.company_id] = {
+        company_id: row.company_id,
+        role: (row.role as MembershipRole) || 'consultor_admin',
+        can_view_commercial: Boolean(row.can_view_commercial),
+        expires_at: row.expires_at ?? null,
+        delegation_reason: row.delegation_reason ?? null,
+        terms_accepted_at: row.terms_accepted_at ?? null,
+        is_active: isDelegationActive(row.expires_at ?? null),
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+    });
+
+    return map;
+  },
+
+  /**
+   * Activa o actualiza la delegación explícita del administrador sobre una empresa titular
+   * exigiendo motivo/referencia y fecha de caducidad futura.
+   */
+  async delegateCompanyToSelf(
+    companyId: number,
+    options: {
+      role?: Exclude<MembershipRole, 'owner'>;
+      canViewCommercial?: boolean;
+      expiresAt: string;
+      reason: string;
+    }
+  ): Promise<AdminDelegationSummary> {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    const authorized = await this.checkIsAdmin(user.email || '', user.id);
+    if (!authorized) {
+      throw new Error('Acceso denegado: Se requieren permisos de Administrador de Plataforma.');
+    }
+
+    const role = options.role || 'consultor_admin';
+    const canViewCommercial = Boolean(options.canViewCommercial);
+
+    validateDelegationPayload(
+      {
+        companyId,
+        role,
+        canViewCommercial,
+        expiresAt: options.expiresAt,
+        reason: options.reason,
+        termsAccepted: false,
+      },
+      { requireTermsAcceptance: false, requireReason: true }
+    );
+
+    const record = await delegationService.grantPilotDelegation(
+      {
+        companyId,
+        role,
+        canViewCommercial,
+        expiresAt: options.expiresAt,
+        reason: options.reason.trim(),
+        termsAccepted: false,
+        delegateEmail: user.email || undefined,
+      },
+      { requireTermsAcceptance: false, requireReason: true }
+    );
+
+    return {
+      company_id: record.company_id,
+      role: record.role,
+      can_view_commercial: Boolean(record.can_view_commercial),
+      expires_at: record.expires_at ?? null,
+      delegation_reason: record.delegation_reason ?? options.reason.trim(),
+      terms_accepted_at: record.terms_accepted_at ?? null,
+      is_active: isDelegationActive(record.expires_at ?? null),
+      created_at: record.created_at,
+      updated_at: record.updated_at,
+    };
+  },
+
+  /**
+   * Revoca la delegación activa del administrador sobre una empresa.
+   */
+  async revokeAdminDelegation(companyId: number): Promise<void> {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    const authorized = await this.checkIsAdmin(user.email || '', user.id);
+    if (!authorized) {
+      throw new Error('Acceso denegado: Se requieren permisos de Administrador de Plataforma.');
+    }
+
+    await delegationService.revokeDelegation(companyId, user.id);
+  },
+
+  /**
+   * Bloquea o reactiva el acceso operativo de una empresa en la plataforma (vía RPC auditada).
+   */
+  async setCompanyAccessStatus(
+    companyId: number,
+    active: boolean,
+    reason?: string
+  ): Promise<{ id: number; activo: boolean; blocked_at: string | null; blocked_reason: string | null }> {
+    if (!Number.isInteger(companyId) || companyId <= 0) {
+      throw new Error('Identificador de empresa inválido.');
+    }
+
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    const authorized = await this.checkIsAdmin(user.email || '', user.id);
+    if (!authorized) {
+      throw new Error('Acceso denegado: Se requieren permisos de Administrador de Plataforma.');
+    }
+
+    if (!active && !reason?.trim()) {
+      throw new Error('Debes indicar un motivo para bloquear el acceso de la empresa.');
+    }
+
+    const { data, error } = await supabase.rpc('set_company_access_status', {
+      p_company_id: companyId,
+      p_active: active,
+      p_reason: reason?.trim() || null,
+    });
+
+    if (error || !data) {
+      throw new Error(
+        `No se pudo ${active ? 'activar' : 'bloquear'} la empresa: ${error?.message || 'Error desconocido'}`
+      );
+    }
+
+    return data as {
+      id: number;
+      activo: boolean;
+      blocked_at: string | null;
+      blocked_reason: string | null;
+    };
   }
 };
 

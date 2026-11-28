@@ -1,0 +1,632 @@
+const mockSupabase = {
+  auth: {
+    getUser: jest.fn(),
+  },
+  from: jest.fn(),
+};
+
+jest.mock('@/lib/supabase/client', () => ({
+  createClient: () => mockSupabase,
+}));
+
+import {
+  ACTIVE_COMPANY_COOKIE,
+  applyTenantScope,
+  applyDITenantScope,
+  getActiveCompanyCookie,
+  resolveTenantContext,
+  sanitizeCompanySecrets,
+  setActiveCompanyCookie,
+  tenantContextService,
+} from '../tenantContextService';
+
+describe('tenantContextService - Contexto Multi-Empresa, Perfiles y Permisos', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('Cookies de empresa activa', () => {
+    it('debe parsear correctamente la cookie resigest_active_company_id', () => {
+      expect(getActiveCompanyCookie('')).toBeNull();
+      expect(getActiveCompanyCookie('otra=1; foo=bar')).toBeNull();
+      expect(getActiveCompanyCookie(`${ACTIVE_COMPANY_COOKIE}=42; other=1`)).toBe(42);
+      expect(getActiveCompanyCookie(`${ACTIVE_COMPANY_COOKIE}=abc`)).toBeNull();
+    });
+
+    it('debe gestionar setActiveCompanyCookie de forma segura en entorno node/browser', () => {
+      setActiveCompanyCookie(99);
+      const originalDoc = (global as any).document;
+      (global as any).document = { cookie: '' };
+
+      setActiveCompanyCookie(77);
+      expect((global as any).document.cookie).toContain(`${ACTIVE_COMPANY_COOKIE}=77`);
+      expect(getActiveCompanyCookie()).toBe(77);
+
+      setActiveCompanyCookie(null);
+      expect((global as any).document.cookie).toContain('max-age=0');
+
+      (global as any).document = originalDoc;
+    });
+  });
+
+  describe('resolveTenantContext & getTenantContext', () => {
+    it('debe fallar si no hay usuario autenticado', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
+      await expect(tenantContextService.getTenantContext()).rejects.toThrow('Usuario no autenticado');
+    });
+
+    it('debe resolver un usuario nuevo sin empresas con onboarding pendiente', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-new', email: 'nuevo@resigest.test' } },
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'user' } }),
+          };
+        }
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({ data: [] }),
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data: [] }),
+        };
+      });
+
+      const ctx = await resolveTenantContext(mockSupabase);
+      expect(ctx.hasOwnCompany).toBe(false);
+      expect(ctx.hasCompletedOnboarding).toBe(false);
+      expect(ctx.activeCompany).toBeNull();
+      expect(ctx.isPlatformAdmin).toBe(false);
+    });
+
+    it('debe resolver empresa propia, membresías de consultoría y seleccionar la empresa activa', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-consultor', email: 'consultor@metodoambiental.test' } },
+      });
+
+      const ownCompany = {
+        id: 10,
+        user_id: 'uid-consultor',
+        razon_social: 'Método Ambiental S.L.',
+        tipo_empresa: 'agente',
+        is_my_company: true,
+        activo: true,
+        perfil_operativo: 'gestor_rp',
+        onboarding_completado: true,
+      };
+
+      const clientCompany = {
+        id: 20,
+        user_id: 'uid-prod',
+        razon_social: 'Productor Cliente S.L.',
+        tipo_empresa: 'productor',
+        is_my_company: true,
+        activo: true,
+        perfil_operativo: 'productor',
+        modulos_activos: ['di', 'contratos', 'operaciones_comerciales'],
+        onboarding_completado: true,
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'user' } }),
+          };
+        }
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({ data: [ownCompany] }),
+            }),
+          };
+        }
+        if (table === 'company_memberships') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({
+              data: [
+                {
+                  company_id: 20,
+                  role: 'consultor_admin',
+                  can_view_commercial: false,
+                  company: clientCompany,
+                },
+              ],
+            }),
+          };
+        }
+        return {};
+      });
+
+      // Sin cookie preferida -> empresa propia
+      const defaultCtx = await tenantContextService.getTenantContext();
+      expect(defaultCtx.activeCompanyId).toBe(10);
+      expect(defaultCtx.accessibleCompanies).toHaveLength(2);
+
+      // Cambiando a empresa cliente 20 (can_view_commercial = false debe ocultar operaciones_comerciales)
+      const switchedCtx = await tenantContextService.getTenantContext(20);
+      expect(switchedCtx.activeCompanyId).toBe(20);
+      expect(switchedCtx.membershipRole).toBe('consultor_admin');
+      expect(switchedCtx.canViewCommercial).toBe(false);
+      expect(switchedCtx.activeModules).toEqual(['di', 'contratos']);
+      expect(switchedCtx.activeModules).not.toContain('operaciones_comerciales');
+    });
+
+    it('debe identificar superadmin por role en profiles y permitir assertModuleAccess', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-admin', email: 'admin@empresa.es' } },
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'superadmin' } }),
+          };
+        }
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: 1,
+                    user_id: 'uid-admin',
+                    razon_social: 'Admin Corp',
+                    is_my_company: true,
+                    activo: true,
+                    perfil_operativo: 'productor',
+                    onboarding_completado: true,
+                  },
+                ],
+              }),
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data: [] }),
+        };
+      });
+
+      const ctx = await tenantContextService.assertModuleAccess('operaciones_comerciales');
+      expect(ctx.isPlatformAdmin).toBe(true);
+    });
+
+    it('debe denegar assertModuleAccess si el usuario normal no tiene el módulo habilitado', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-prod', email: 'prod@resigest.test' } },
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'user' } }),
+          };
+        }
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: 5,
+                    user_id: 'uid-prod',
+                    razon_social: 'Productor SA',
+                    is_my_company: true,
+                    activo: true,
+                    perfil_operativo: 'productor',
+                    onboarding_completado: true,
+                  },
+                ],
+              }),
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data: [] }),
+        };
+      });
+
+      await expect(
+        tenantContextService.assertModuleAccess('operaciones_comerciales')
+      ).rejects.toThrow('Acceso denegado');
+
+      const writeCtx = await tenantContextService.assertWriteAccess();
+      expect(writeCtx.canWrite).toBe(true);
+      expect(writeCtx.canManageCompany).toBe(true);
+    });
+
+    it('debe denegar assertWriteAccess cuando la membresía activa tiene rol lectura', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-reader', email: 'lector@resigest.test' } },
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'user' } }),
+          };
+        }
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({ data: [] }),
+            }),
+          };
+        }
+        if (table === 'company_memberships') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({
+              data: [
+                {
+                  company_id: 50,
+                  role: 'lectura',
+                  can_view_commercial: false,
+                  company: {
+                    id: 50,
+                    user_id: 'uid-owner',
+                    razon_social: 'Cliente Solo Lectura SL',
+                    is_my_company: true,
+                    activo: true,
+                    perfil_operativo: 'productor',
+                    onboarding_completado: true,
+                  },
+                },
+              ],
+            }),
+          };
+        }
+        return {};
+      });
+
+      const ctx = await tenantContextService.getTenantContext(50);
+      expect(ctx.membershipRole).toBe('lectura');
+      expect(ctx.canWrite).toBe(false);
+      expect(ctx.canManageCompany).toBe(false);
+
+      await expect(tenantContextService.assertWriteAccess(50)).rejects.toThrow(
+        'tu rol de solo lectura no permite crear'
+      );
+    });
+
+    it('debe tolerar errores en profiles o company_memberships', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-resilient', email: 'user@resigest.test' } },
+      });
+
+      mockSupabase.from.mockImplementation(() => {
+        throw new Error('Tabla no existe');
+      });
+
+      const ctx = await resolveTenantContext(mockSupabase);
+      expect(ctx.userId).toBe('uid-resilient');
+      expect(ctx.accessibleCompanies).toEqual([]);
+      tenantContextService.setActiveCompany(null);
+    });
+
+    it('debe sincronizar y corregir la cookie si contenía una empresa inaccesible de otra sesión', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-user-1', email: 'user@empresa.com' } },
+      });
+
+      // Cookie simula ID 999 de otra sesión/usuario anterior
+      (global as any).document = {
+        cookie: 'resigest_active_company_id=999',
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: 10,
+                    user_id: 'uid-user-1',
+                    razon_social: 'Empresa Propia',
+                    is_my_company: true,
+                    activo: true,
+                    perfil_operativo: 'productor',
+                    onboarding_completado: true,
+                  },
+                ],
+              }),
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data: [] }),
+        };
+      });
+
+      const ctx = await tenantContextService.getTenantContext();
+      expect(ctx.activeCompanyId).toBe(10);
+      expect((global as any).document.cookie).toContain('resigest_active_company_id=10');
+      delete (global as any).document;
+    });
+  });
+
+  describe('sanitizeCompanySecrets y applyTenantScope', () => {
+    it('enmascara credenciales SIRA y Holded para usuarios delegados o rol lectura y las conserva para propietarios', () => {
+      expect(sanitizeCompanySecrets(null, 'u1')).toBeNull();
+
+      const comp: any = {
+        id: 20,
+        user_id: 'uid-owner',
+        razon_social: 'Cliente S.L.',
+        sira_password: 'mi-password-secreto',
+        holded_api_key: '1234567890abcdef',
+      };
+
+      // Propietario normal conserva credenciales
+      expect(sanitizeCompanySecrets(comp, 'uid-owner', 'owner')).toEqual(comp);
+
+      // Consultor / delegado ve credenciales enmascaradas
+      const maskedDelegated = sanitizeCompanySecrets(comp, 'uid-consultor', 'consultor_admin');
+      expect(maskedDelegated?.sira_password).toBe('••••••••');
+      expect(maskedDelegated?.holded_api_key).toBe('••••cdef');
+
+      // Rol lectura incluso si coincidiera user_id también enmascara
+      const maskedReadOnly = sanitizeCompanySecrets(comp, 'uid-owner', 'lectura');
+      expect(maskedReadOnly?.sira_password).toBe('••••••••');
+      expect(maskedReadOnly?.holded_api_key).toBe('••••cdef');
+
+      // Sin credenciales no introduce valores falsos
+      const emptyComp: any = { id: 21, user_id: 'uid-owner', sira_password: '', holded_api_key: '' };
+      expect(sanitizeCompanySecrets(emptyComp, 'uid-consultor', 'lectura')).toEqual(emptyComp);
+    });
+
+    it('aplica aislamiento estricto .eq(company_id) cuando hay empresa activa o .eq(user_id) como fallback', () => {
+      const eqMock = jest.fn().mockReturnValue('eq-result');
+      const query = { eq: eqMock };
+
+      expect(applyTenantScope(query, 'u-1', 42)).toBe('eq-result');
+      expect(eqMock).toHaveBeenCalledWith('company_id', 42);
+
+      eqMock.mockClear();
+      expect(applyTenantScope(query, 'u-1', null)).toBe('eq-result');
+      expect(eqMock).toHaveBeenCalledWith('user_id', 'u-1');
+    });
+
+    it('applyDITenantScope aísla por empresa activa y CIF sin mezclar user_id cuando hay companyId', () => {
+      const orMock = jest.fn().mockReturnValue('or-di-result');
+      const eqMock = jest.fn().mockReturnValue('eq-di-result');
+      const queryWithOr = { or: orMock, eq: eqMock };
+      const queryWithoutOr = { eq: eqMock };
+
+      // Caso 1: con activeCompanyId y activeCompanyCif (sin user_id para evitar mezcla entre empresas)
+      expect(applyDITenantScope(queryWithOr, 'u-di-1', 50, 'B12345678')).toBe('or-di-result');
+      expect(orMock).toHaveBeenCalledWith(
+        'company_id.eq.50,transportista_company_id.eq.50,gestor_company_id.eq.50,transportista_cif.ilike.B12345678,gestor_cif.ilike.B12345678'
+      );
+
+      // Caso 2: solo con CIF (sin companyId)
+      orMock.mockClear();
+      expect(applyDITenantScope(queryWithOr, 'u-di-1', null, 'A99999999')).toBe('or-di-result');
+      expect(orMock).toHaveBeenCalledWith(
+        'user_id.eq.u-di-1,transportista_cif.ilike.A99999999,gestor_cif.ilike.A99999999'
+      );
+
+      // Caso 3: sin empresa ni CIF -> fallback eq(user_id)
+      expect(applyDITenantScope(queryWithOr, 'u-di-1', null, null)).toBe('eq-di-result');
+      expect(eqMock).toHaveBeenCalledWith('user_id', 'u-di-1');
+
+      // Caso 4: query sin .or -> fallback eq(user_id)
+      eqMock.mockClear();
+      expect(applyDITenantScope(queryWithoutOr, 'u-di-1', 50, 'B12345678')).toBe('eq-di-result');
+      expect(eqMock).toHaveBeenCalledWith('user_id', 'u-di-1');
+    });
+
+    it('filtra delegaciones caducadas y respeta permisos de delegación incluso para isPlatformAdmin', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-admin', email: 'alfredobape@gmail.com' } },
+      });
+
+      const futureIso = new Date(Date.now() + 86400000).toISOString();
+      const pastIso = new Date(Date.now() - 86400000).toISOString();
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({ data: [] }),
+            }),
+          };
+        }
+        if (table === 'company_memberships') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({
+              data: [
+                {
+                  company_id: 70,
+                  role: 'lectura',
+                  can_view_commercial: false,
+                  expires_at: futureIso,
+                  company: {
+                    id: 70,
+                    user_id: 'uid-cliente-1',
+                    razon_social: 'Cliente Vigente S.L.',
+                    is_my_company: true,
+                    activo: true,
+                    perfil_operativo: 'negociante',
+                    modulos_activos: ['di', 'operaciones_comerciales'],
+                    onboarding_completado: true,
+                  },
+                },
+                {
+                  company_id: 71,
+                  role: 'consultor_admin',
+                  can_view_commercial: true,
+                  expires_at: pastIso,
+                  company: {
+                    id: 71,
+                    user_id: 'uid-cliente-2',
+                    razon_social: 'Cliente Caducado S.L.',
+                    is_my_company: true,
+                    activo: true,
+                    perfil_operativo: 'productor',
+                    onboarding_completado: true,
+                  },
+                },
+              ],
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data: [] }),
+        };
+      });
+
+      const ctx = await tenantContextService.getTenantContext(70);
+      expect(ctx.isPlatformAdmin).toBe(true);
+      expect(ctx.isDelegated).toBe(true);
+      expect(ctx.accessibleCompanies).toHaveLength(1);
+      expect(ctx.activeCompanyId).toBe(70);
+      expect(ctx.canWrite).toBe(false);
+      expect(ctx.canViewCommercial).toBe(false);
+      expect(ctx.activeModules).not.toContain('operaciones_comerciales');
+
+      await expect(
+        tenantContextService.assertModuleAccess('operaciones_comerciales', 70)
+      ).rejects.toThrow('Acceso denegado');
+    });
+
+    it('envía a /platform-admin como homePath cuando el admin no tiene empresa propia ni delegada', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-admin-pure', email: 'alfredobape@gmail.com' } },
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({ data: [] }),
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data: [] }),
+        };
+      });
+
+      const ctx = await resolveTenantContext(mockSupabase);
+      expect(ctx.isPlatformAdmin).toBe(true);
+      expect(ctx.activeCompany).toBeNull();
+      expect(ctx.homePath).toBe('/platform-admin');
+    });
+
+    it('marca isAccountBlocked cuando la única empresa propia está bloqueada (activo = false)', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-blocked', email: 'bloqueada@empresa.es' } },
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'user' } }),
+          };
+        }
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: 99,
+                    user_id: 'uid-blocked',
+                    razon_social: 'Empresa Suspendida S.L.',
+                    is_my_company: true,
+                    activo: false,
+                    blocked_reason: 'Suspensión administrativa',
+                  },
+                ],
+              }),
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data: [] }),
+        };
+      });
+
+      const ctx = await resolveTenantContext(mockSupabase);
+      expect(ctx.isAccountBlocked).toBe(true);
+      expect(ctx.blockedReason).toBe('Suspensión administrativa');
+      expect(ctx.canWrite).toBe(false);
+      expect(ctx.hasCompletedOnboarding).toBe(true);
+    });
+
+    it('sincroniza y borra cookie si targetId no coincide con ninguna empresa accesible', async () => {
+      (global as any).document = { cookie: `${ACTIVE_COMPANY_COOKIE}=88` };
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'uid-no-comp', email: 'none@resigest.test' } },
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'user' } }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockReturnThis(),
+          order: jest.fn().mockReturnValue({
+            order: jest.fn().mockResolvedValue({ data: [] }),
+          }),
+        };
+      });
+
+      const ctx = await resolveTenantContext(mockSupabase, 88);
+      expect(ctx.activeCompany).toBeNull();
+      expect((global as any).document.cookie).toContain('max-age=0');
+    });
+  });
+});
+

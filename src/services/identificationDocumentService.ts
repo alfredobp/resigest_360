@@ -5,30 +5,446 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { syncEntryFromDI } from '@/services/chronologicalRegistryService';
+import { auditService } from '@/services/auditService';
+import { authorizationService } from '@/services/authorizationService';
+import { applyDITenantScope, getActiveCompanyCookie } from '@/services/tenantContextService';
+import { companyService } from '@/services/companyService';
+import { buildDICode, resolveDocumentYear } from '@/services/documentSequenceService';
 import type {
   IdentificationDocument,
   EstadoTraslado,
   RecordDeparturePayload,
   RecordReceptionPayload,
+  RecordExternalReceptionPayload,
   RecordIncidentPayload,
   CompleteTreatmentPayload,
+  JustifyDiscrepancyPayload,
+  WasteContract,
 } from '@/types/wasteManagement';
+import { isWeightDiscrepancy, parseDiscrepancyJustification } from '@/lib/validations/discrepancyJustification';
 
 const supabase = createClient();
 
+/**
+ * Comprueba si la empresa del usuario actúa exclusivamente como transportista sin capacidad de gestor ni consultora.
+ */
+export function isCallerTransportistaOnly(userCompany: any): boolean {
+  if (!userCompany) return false;
+  const isCarrierType =
+    userCompany.tipo_empresa === 'transportista' ||
+    userCompany.perfil_operativo === 'transportista';
+  const hasManagerOrProducerRole =
+    Array.isArray(userCompany.roles) &&
+    (userCompany.roles.includes('gestor') ||
+      userCompany.roles.includes('productor') ||
+      userCompany.roles.includes('consultor'));
+  const hasManagerOrProducerProfile =
+    userCompany.perfil_operativo === 'gestor' ||
+    userCompany.perfil_operativo === 'instalacion_tratamiento' ||
+    userCompany.perfil_operativo === 'chatarreria' ||
+    userCompany.perfil_operativo === 'productor' ||
+    userCompany.perfil_operativo === 'consultora';
+  return isCarrierType && !hasManagerOrProducerRole && !hasManagerOrProducerProfile;
+}
+
+/**
+ * Comprueba si la empresa del usuario actúa exclusivamente como productor sin capacidad de gestor.
+ */
+function isCallerProductorOnly(userCompany: any): boolean {
+  if (!userCompany) return false;
+  const roles = userCompany.roles || [];
+  return userCompany.tipo_empresa === 'productor' && !roles.includes('gestor') && !roles.includes('gestor_final');
+}
+
+/**
+ * Normaliza códigos de operación R/D para comparaciones consistentes (ej: 'R4' -> 'R04', 'D1' -> 'D01', 'R1201' -> 'R1201').
+ */
+export function normalizeOperationCode(op?: string | null): string {
+  if (!op) return '';
+  const cleaned = op.trim().toUpperCase();
+  return cleaned.replace(/^([RD])(\d)$/, '$10$2');
+}
+
+/**
+ * Evalúa si un traslado está sujeto obligatoriamente a Notificación Previa (Art. 3.2 RD 553/2020):
+ * - Operaciones de eliminación (D01–D15 y subcódigos).
+ * - Valorización energética / incineración (R01 y subcódigos).
+ * - Residuos peligrosos (peligrosidad === 'peligroso' o LER con '*').
+ * - Residuos domésticos mezclados (LER 20 03 01).
+ */
+export function requiresPriorNotification(
+  doc: Partial<IdentificationDocument>,
+  operationCode?: string | null
+): { required: boolean; reason?: string } {
+  const op = normalizeOperationCode(operationCode || doc.operacion_tratamiento_ejecutada || doc.operacion_tratamiento);
+  const cleanLer = String(doc.codigo_ler || '').replace(/\D/g, '');
+  const isDangerous = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
+
+  if (op.startsWith('D')) {
+    return { required: true, reason: `la operación de eliminación ${op}` };
+  }
+  if (op === 'R01' || op.startsWith('R01')) {
+    return { required: true, reason: `la operación ${op} (valorización/incineración)` };
+  }
+  if (isDangerous) {
+    return { required: true, reason: `el residuo peligroso (LER ${doc.codigo_ler || 'peligroso'})` };
+  }
+  if (cleanLer === '200301') {
+    return { required: true, reason: 'el residuo mezclado municipal (LER 20 03 01)' };
+  }
+  return { required: false };
+}
+
+/**
+ * Evalúa si un traslado sujeto a Notificación Previa (Art. 3.2 y Arts. 8–9 RD 553/2020)
+ * cuenta con una NT real, perteneciente al tenant, acreditada/presentada y vigente en la fecha de salida.
+ * Bloquea expediciones con NT en borrador, futura, caducada o referencia manual inexistente (INC02).
+ */
+export async function validatePriorNotificationForDeparture(
+  doc: Partial<IdentificationDocument>,
+  userId: string,
+  departureDateIso: string,
+  plannedOp?: string | null
+): Promise<void> {
+  const ntCheck = requiresPriorNotification(doc, plannedOp);
+  const needsNt = ntCheck.required || doc.tipo_notificacion === 'con-notificacion-previa';
+  if (!needsNt) return;
+
+  if (doc.tipo_notificacion === 'sin-notificacion' && ntCheck.required) {
+    throw new Error(
+      `No se puede iniciar el traslado: ${ntCheck.reason} exige Notificación Previa (art. 3.2 RD 553/2020).`
+    );
+  }
+
+  const ntId = doc.prior_notification_id;
+  const ntNumber = (doc.numero_notificacion || '').trim();
+  if (!ntId && !ntNumber) {
+    throw new Error(
+      'No se puede iniciar el traslado: falta una Notificación Previa (NT) acreditada y vigente para este traslado (arts. 8 y 9 RD 553/2020).'
+    );
+  }
+
+  let matchedNt: {
+    id?: number;
+    numero_notificacion?: string;
+    estado?: string;
+    fecha_inicio?: string;
+    fecha_fin?: string;
+    company_id?: number;
+    user_id?: string;
+  } | null = null;
+
+  const ntTable = supabase.from('prior_notifications');
+  if (ntTable && typeof ntTable.select === 'function') {
+    let query: any = ntTable.select('id, numero_notificacion, estado, fecha_inicio, fecha_fin, company_id, user_id');
+    if (ntId) {
+      query = query.eq('id', ntId);
+    } else {
+      query = query.eq('numero_notificacion', ntNumber);
+    }
+    if (doc.company_id) {
+      query = query.eq('company_id', doc.company_id);
+    } else if (userId) {
+      query = query.eq('user_id', userId);
+    }
+    const res =
+      typeof query.maybeSingle === 'function'
+        ? await query.maybeSingle()
+        : typeof query.single === 'function'
+          ? await query.single()
+          : await query;
+    matchedNt = res?.data || null;
+  }
+
+  if (!matchedNt) {
+    throw new Error(
+      `No se puede iniciar el traslado: la Notificación Previa ${ntNumber || `#${ntId}`} no existe o no pertenece a tu organización. Un código introducido manualmente no sustituye una NT acreditada (art. 8 RD 553/2020).`
+    );
+  }
+
+  const allowedStates = ['enviada_sira', 'aceptada'];
+  const ntState = (matchedNt.estado || 'borrador').toLowerCase();
+  if (!allowedStates.includes(ntState)) {
+    throw new Error(
+      `No se puede iniciar el traslado: la Notificación Previa ${matchedNt.numero_notificacion || ntNumber || `#${matchedNt.id}`} está en estado '${ntState}' y debe estar presentada o aceptada ante la autoridad competente (arts. 8 y 9 RD 553/2020).`
+    );
+  }
+
+  const departureDay = departureDateIso.split('T')[0];
+  const startDay = matchedNt.fecha_inicio ? String(matchedNt.fecha_inicio).split('T')[0] : null;
+  const endDay = matchedNt.fecha_fin ? String(matchedNt.fecha_fin).split('T')[0] : null;
+
+  if (startDay && departureDay < startDay) {
+    throw new Error(
+      `No se puede iniciar el traslado el ${departureDay}: la Notificación Previa ${matchedNt.numero_notificacion || ntNumber} no inicia su vigencia hasta el ${startDay} (art. 8 RD 553/2020).`
+    );
+  }
+
+  if (endDay && departureDay > endDay) {
+    throw new Error(
+      `No se puede iniciar el traslado el ${departureDay}: la Notificación Previa ${matchedNt.numero_notificacion || ntNumber} caducó el ${endDay} (art. 8 RD 553/2020).`
+    );
+  }
+}
+
+/**
+ * Convierte un valor datetime-local ('YYYY-MM-DDTHH:mm') o ISO a ISO UTC conservando el instante local.
+ */
+export function normalizeLocalDateTimeToIso(value?: string | null): string {
+  if (!value) return new Date().toISOString();
+  const trimmed = value.trim();
+  // Si ya incluye zona horaria ('Z' o '+HH:MM' / '-HH:MM'), respetar tal cual
+  if (/(Z|[+-]\d{2}:\d{2})$/.test(trimmed)) {
+    return trimmed;
+  }
+  const parsed = new Date(trimmed);
+  if (isNaN(parsed.getTime())) {
+    return new Date().toISOString();
+  }
+  return parsed.toISOString();
+}
+
+/**
+ * Carga el contrato vinculado (si existe) y el alcance de autorización ambiental del gestor destinatario.
+ */
+async function resolveDestinationValidationContext(
+  doc: IdentificationDocument,
+  userId: string,
+  overrideContractId?: number,
+  referenceDate?: string
+): Promise<{
+  contract: WasteContract | null;
+  gestorCompanyId: number | null;
+  hasAuthConfigured: boolean;
+  isAuthValid: boolean;
+  authorizedOpsForLer: string[];
+}> {
+  let contract: WasteContract | null = doc.contract || null;
+  const effectiveContractId = overrideContractId || doc.contract_id;
+
+  if (!contract && effectiveContractId) {
+    try {
+      const wcBuilder = supabase.from('waste_contracts');
+      if (wcBuilder) {
+        const { data } = await wcBuilder
+          .select('*, contract_waste_codes(*)')
+          .eq('id', effectiveContractId)
+          .maybeSingle();
+        if (data) contract = data as WasteContract;
+      }
+    } catch {
+      // Ignorar si no es accesible en mock
+    }
+  } else if (contract && (!contract.contract_waste_codes || contract.contract_waste_codes.length === 0)) {
+    try {
+      const cwcBuilder = supabase.from('contract_waste_codes');
+      if (cwcBuilder) {
+        const { data: wasteCodes } = await cwcBuilder
+          .select('*')
+          .eq('contract_id', contract.id);
+        if (wasteCodes) contract.contract_waste_codes = wasteCodes;
+      }
+    } catch {
+      // Ignorar si mock parcial
+    }
+  }
+
+  let gestorCompanyId: number | null = contract?.gestor_company_id || null;
+  if (!gestorCompanyId && doc.gestor_cif) {
+    try {
+      const compBuilder = supabase.from('companies');
+      if (compBuilder) {
+        const { data: comps } = await compBuilder
+          .select('id, cif')
+          .eq('user_id', userId);
+        const normGestorCif = doc.gestor_cif.trim().toUpperCase();
+        const found = (comps || []).find(
+          (c: any) => c.cif && String(c.cif).trim().toUpperCase() === normGestorCif
+        );
+        if (found) gestorCompanyId = found.id;
+      }
+    } catch {
+      // Ignorar en mock parcial
+    }
+  }
+
+  let hasAuthConfigured = false;
+  let isAuthValid = true;
+  let authorizedOpsForLer: string[] = [];
+
+  if (gestorCompanyId) {
+    const scope = await authorizationService.getAuthorizedScope(
+      gestorCompanyId,
+      contract?.gestor_center_id || null,
+      referenceDate || doc.fecha_documento
+    );
+    hasAuthConfigured = scope.hasAnyAuthorizationConfigured;
+    isAuthValid = scope.isAuthorized;
+    const cleanLer = (doc.codigo_ler || '').trim();
+    const rawOps = scope.authorizedLers[cleanLer] || [];
+    authorizedOpsForLer = rawOps.map((op) => normalizeOperationCode(op));
+  }
+
+  return {
+    contract,
+    gestorCompanyId,
+    hasAuthConfigured,
+    isAuthValid,
+    authorizedOpsForLer,
+  };
+}
+
+/**
+ * Calcula el peso en origen en kg sin convertir automáticamente volumen (m3 / litros) a masa
+ * salvo que exista una densidad técnica justificada (densidad_justificada_kg_m3 > 0).
+ */
+export function resolveOriginWeightKg(doc: Partial<IdentificationDocument>): number {
+  if (typeof doc.peso_origen_kg === 'number' && doc.peso_origen_kg > 0) {
+    return doc.peso_origen_kg;
+  }
+  const qty = Number(doc.cantidad || 0);
+  if (qty <= 0) return 0;
+
+  if (doc.unidad === 'toneladas') {
+    return qty * 1000;
+  }
+  if (doc.unidad === 'm3') {
+    const containerDetails = doc.contenedor_detalles as any;
+    const density = Number(doc.densidad_justificada_kg_m3 || containerDetails?.densidad_kg_m3 || 0);
+    return density > 0 ? parseFloat((qty * density).toFixed(3)) : 0;
+  }
+  if (doc.unidad === 'litros') {
+    const containerDetails = doc.contenedor_detalles as any;
+    const density = Number(doc.densidad_justificada_kg_m3 || containerDetails?.densidad_kg_m3 || 0);
+    return density > 0 ? parseFloat((qty * (density / 1000)).toFixed(3)) : 0;
+  }
+  return qty;
+}
+
+/**
+ * Resuelve la empresa activa del usuario para aplicar alcance multi-actor en DI (QA5-I01 / INC07)
+ * y guardas de rol operativo (A04-06). Si no existe la cookie active_company_id (ej. primer login de transportista),
+ * hace fallback a la empresa titular (`is_my_company = true`) del usuario autenticado para que reciba sus traslados compartidos.
+ */
+async function resolveActiveCompanyForDI(userId?: string): Promise<{
+  id: number;
+  cif?: string;
+  nima?: string;
+  tipo_empresa?: string;
+  perfil_operativo?: string;
+  roles?: string[];
+} | null> {
+  const activeCompanyId = getActiveCompanyCookie();
+  if (!activeCompanyId && !userId) return null;
+  try {
+    const compBuilder = supabase.from('companies');
+    if (compBuilder && typeof compBuilder.select === 'function') {
+      const selectChain = compBuilder.select('id, cif, nima, tipo_empresa, perfil_operativo, roles, is_my_company');
+      if (activeCompanyId && selectChain && typeof selectChain.eq === 'function') {
+        const eqChain = selectChain.eq('id', activeCompanyId);
+        if (eqChain && typeof eqChain.maybeSingle === 'function') {
+          const { data } = await eqChain.maybeSingle();
+          if (data) return data;
+        }
+      } else if (userId && selectChain && typeof selectChain.eq === 'function') {
+        const userChain: any = selectChain.eq('user_id', userId);
+        const myChain = typeof userChain?.eq === 'function' ? userChain.eq('is_my_company', true) : userChain;
+        if (myChain && typeof myChain.maybeSingle === 'function') {
+          const { data } = await myChain.maybeSingle();
+          if (data) return data;
+        }
+      }
+    }
+  } catch {
+    // Fallback silencioso en tests con mocks simples
+  }
+  return activeCompanyId ? { id: activeCompanyId } : null;
+}
+
+/**
+ * Guarda de rol en servidor (A04-06):
+ * Impide que un actor con perfil exclusivo Transportista ejecute acciones reservadas al Gestor
+ * (recepción en báscula, registro de incidencias de destino, cierre de tratamiento o firma como gestor/productor).
+ */
+export async function assertActorAllowedForDIAction(
+  doc: Partial<IdentificationDocument> | null,
+  action: 'reception' | 'incident' | 'treatment' | 'sign_gestor' | 'sign_productor',
+  explicitCompany?: {
+    id?: number;
+    cif?: string;
+    tipo_empresa?: string;
+    perfil_operativo?: string;
+    roles?: string[];
+  } | null
+): Promise<void> {
+  const activeComp = explicitCompany !== undefined ? explicitCompany : await resolveActiveCompanyForDI();
+  if (!activeComp) return;
+
+  const isGestorOrConsultorProfile =
+    activeComp.perfil_operativo === 'gestor' ||
+    activeComp.perfil_operativo === 'instalacion_tratamiento' ||
+    activeComp.perfil_operativo === 'chatarreria' ||
+    activeComp.perfil_operativo === 'consultora' ||
+    (Array.isArray(activeComp.roles) && activeComp.roles.includes('gestor'));
+
+  const isCarrierProfile =
+    (activeComp.perfil_operativo === 'transportista' || activeComp.tipo_empresa === 'transportista') &&
+    !isGestorOrConsultorProfile;
+
+  const normCompCif = activeComp.cif?.trim().toUpperCase();
+  const normTransCif = doc?.transportista_cif?.trim().toUpperCase();
+  const normGestorCif = doc?.gestor_cif?.trim().toUpperCase();
+  const normProdCif = doc?.productor_cif?.trim().toUpperCase();
+
+  const isMatchedCarrierOnlyOnDoc =
+    Boolean(doc) &&
+    !isGestorOrConsultorProfile &&
+    ((activeComp.id && doc?.transportista_company_id === activeComp.id && doc?.gestor_company_id !== activeComp.id && doc?.company_id !== activeComp.id) ||
+      (normCompCif && normTransCif === normCompCif && normGestorCif !== normCompCif && normProdCif !== normCompCif));
+
+  if (isCarrierProfile || isMatchedCarrierOnlyOnDoc) {
+    if (action === 'sign_gestor' || action === 'sign_productor') {
+      throw new Error(
+        'Acceso denegado (RD 553/2020): el perfil Transportista solo está autorizado para firmar en calidad de Transportista.'
+      );
+    }
+    throw new Error(
+      'Acceso denegado (RD 553/2020): el perfil Transportista no está autorizado para recepcionar en báscula, registrar incidencias de destino ni cerrar tratamientos de gestor.'
+    );
+  }
+}
+
+/**
+ * Valida la justificación de discrepancia y construye los campos a persistir (con autoría y fecha).
+ */
+async function buildJustificationFields(input: JustifyDiscrepancyPayload): Promise<Partial<IdentificationDocument>> {
+  const { causa, texto } = parseDiscrepancyJustification(input);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('Usuario no autenticado');
+  }
+  const metadata = (user.user_metadata || {}) as { full_name?: string; name?: string };
+  return {
+    causa_discrepancia: causa,
+    justificacion_discrepancia: texto,
+    justificacion_discrepancia_at: new Date().toISOString(),
+    justificacion_discrepancia_by: user.id,
+    justificacion_discrepancia_by_nombre: metadata.full_name || metadata.name || user.email || null,
+  };
+}
+
 export const identificationDocumentService = {
   /**
-   * Generar número de documento de identificación
-   * Formato: NIMA + AÑO + CORRELATIVO
+   * Generar vista previa de código de Documento de Identificación (DI) conforme a E3L 3.3:
+   * DCS + origen (2) + NIMA (10) + AÑO (4) + CORRELATIVO (7 dígitos).
+   * La asignación consecutiva definitiva se realiza atómicamente en BD al insertar.
    */
   generateDocumentNumber(nima: string): string {
-    const year = new Date().getFullYear();
-    const random = Math.floor(Math.random() * 9999999).toString().padStart(7, '0');
-    return `${nima}${year}${random}`;
+    return buildDICode(nima, new Date().getFullYear(), 1);
   },
 
   /**
-   * Obtener todos los documentos del usuario
+   * Obtener todos los documentos del usuario o empresa participante (Productor, Transportista, Gestor o Consultora) (RES6-I03 / QA5-I01)
    */
   async getAll(): Promise<IdentificationDocument[]> {
     const { data: { user } } = await supabase.auth.getUser();
@@ -37,7 +453,9 @@ export const identificationDocumentService = {
       throw new Error('Usuario no autenticado');
     }
 
-    const { data, error } = await supabase
+    const activeComp = await resolveActiveCompanyForDI(user.id);
+
+    const baseQuery = supabase
       .from('identification_documents')
       .select(`
         *,
@@ -45,22 +463,35 @@ export const identificationDocumentService = {
         production_center:production_centers(*),
         contract:waste_contracts(*),
         waste_type:waste_types(*)
-      `)
-      .eq('user_id', user.id)
-      .order('fecha_documento', { ascending: false });
+      `);
+
+    const scopedQuery = applyDITenantScope(baseQuery, user.id, activeComp?.id, activeComp?.cif);
+    const { data, error } = await (scopedQuery as any).order('fecha_documento', { ascending: false });
 
     if (error) {
       throw new Error(`Error al obtener documentos: ${error.message}`);
     }
 
-    return data as IdentificationDocument[];
+    return (data || []) as IdentificationDocument[];
   },
 
   /**
-   * Obtener documento por ID
+   * Obtener documento por ID (accesible para cualquiera de las partes intervinientes del DI)
+   * RES6-I03 & RES6-I14: Sanitizar ID, permitir participantes (transportista/gestor) y evitar errores crudos
    */
   async getById(id: number): Promise<IdentificationDocument> {
-    const { data, error } = await supabase
+    if (!id || isNaN(id) || id <= 0) {
+      throw new Error('Identificador de documento de identificación no válido.');
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    const activeComp = await resolveActiveCompanyForDI(user.id);
+
+    const baseQuery = supabase
       .from('identification_documents')
       .select(`
         *,
@@ -69,11 +500,22 @@ export const identificationDocumentService = {
         contract:waste_contracts(*),
         waste_type:waste_types(*)
       `)
-      .eq('id', id)
-      .single();
+      .eq('id', id);
+
+    const scopedQuery = applyDITenantScope(baseQuery, user.id, activeComp?.id, activeComp?.cif);
+
+    const fetcher = typeof (scopedQuery as any)?.maybeSingle === 'function'
+      ? (scopedQuery as any).maybeSingle.bind(scopedQuery)
+      : (typeof (scopedQuery as any)?.single === 'function' ? (scopedQuery as any).single.bind(scopedQuery) : null);
+
+    const { data, error } = fetcher ? await fetcher() : await (scopedQuery as any);
 
     if (error) {
       throw new Error(`Error al obtener documento: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('Documento de identificación no encontrado o sin permisos de acceso para tu organización.');
     }
 
     return data as IdentificationDocument;
@@ -83,6 +525,11 @@ export const identificationDocumentService = {
    * Obtener documentos por contrato
    */
   async getByContract(contractId: number): Promise<IdentificationDocument[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
     const { data, error } = await supabase
       .from('identification_documents')
       .select(`
@@ -92,6 +539,7 @@ export const identificationDocumentService = {
         waste_type:waste_types(*)
       `)
       .eq('contract_id', contractId)
+      .eq('user_id', user.id)
       .order('fecha_documento', { ascending: false });
 
     if (error) {
@@ -111,10 +559,28 @@ export const identificationDocumentService = {
       throw new Error('Usuario no autenticado');
     }
 
+    const { numero_documento: _ignoredDocNumber, ...insertData } = documentData;
+    void _ignoredDocNumber;
+
+    if (
+      insertData.fecha_recogida &&
+      insertData.fecha_entrega &&
+      String(insertData.fecha_entrega).split('T')[0] < String(insertData.fecha_recogida).split('T')[0]
+    ) {
+      throw new Error('La fecha de entrega no puede ser anterior a la fecha de recogida.');
+    }
+
+    const fallbackCode = buildDICode(
+      insertData.productor_nima || insertData.gestor_nima,
+      resolveDocumentYear(insertData.fecha_documento),
+      1
+    );
+
     const { data, error } = await supabase
       .from('identification_documents')
       .insert({
-        ...documentData,
+        ...insertData,
+        numero_documento: fallbackCode,
         user_id: user.id,
       })
       .select(`
@@ -130,17 +596,50 @@ export const identificationDocumentService = {
       throw new Error(`Error al crear documento: ${error.message}`);
     }
 
-    return data as IdentificationDocument;
+    const created = data as IdentificationDocument;
+    await auditService.logAction({
+      company_id: created.company_id,
+      entidad: 'di',
+      entidad_id: created.id,
+      accion: 'crear',
+      detalles: {
+        numero_documento: created.numero_documento,
+        codigo_ler: created.codigo_ler,
+        operacion_prevista: created.operacion_tratamiento,
+        contract_id: created.contract_id || null,
+      },
+    });
+
+    return created;
   },
 
   /**
-   * Actualizar documento
+   * Actualizar documento (accesible para productor, transportista, gestor o consultora delegada)
    */
   async update(id: number, documentData: Partial<IdentificationDocument>): Promise<IdentificationDocument> {
-    const { data, error } = await supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    const activeComp = await resolveActiveCompanyForDI(user.id);
+    const { numero_documento: _immutableDocNumber, ...mutableData } = documentData;
+    void _immutableDocNumber;
+
+    if (
+      mutableData.fecha_recogida &&
+      mutableData.fecha_entrega &&
+      String(mutableData.fecha_entrega).split('T')[0] < String(mutableData.fecha_recogida).split('T')[0]
+    ) {
+      throw new Error('La fecha de entrega no puede ser anterior a la fecha de recogida.');
+    }
+
+    const baseQuery = supabase
       .from('identification_documents')
-      .update(documentData)
-      .eq('id', id)
+      .update(mutableData)
+      .eq('id', id);
+
+    const { data, error } = await applyDITenantScope(baseQuery, user.id, activeComp?.id, activeComp?.cif)
       .select(`
         *,
         company:companies!identification_documents_company_id_fkey(*),
@@ -160,14 +659,27 @@ export const identificationDocumentService = {
    * Eliminar documento
    */
   async delete(id: number): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
     const { error } = await supabase
       .from('identification_documents')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', user.id);
 
     if (error) {
       throw new Error(`Error al eliminar documento: ${error.message}`);
     }
+
+    await auditService.logAction({
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'eliminar',
+      detalles: { identification_document_id: id },
+    });
   },
 
   /**
@@ -181,51 +693,399 @@ export const identificationDocumentService = {
   },
 
   /**
-   * Firmar documento (productor, gestor o transportista)
+   * Subir firma en base64 a Supabase Storage y retornar su URL pública
+   */
+  async uploadSignatureImage(id: number, role: string, signatureBase64: string): Promise<string> {
+    const base64Data = signatureBase64.includes(',') ? signatureBase64.split(',')[1] : signatureBase64;
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'image/png' });
+
+    const fileName = `signature-${role}-${id}-${Date.now()}.png`;
+    const filePath = `identification_documents/${id}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('images')
+      .upload(filePath, blob, {
+        contentType: 'image/png',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      throw new Error(`Error al subir firma: ${uploadError.message}`);
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('images')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  },
+
+  /**
+   * Firmar documento digitalmente (productor, gestor o transportista)
    */
   async signDocument(
     id: number,
-    role: 'productor' | 'gestor' | 'transportista'
+    role: 'productor' | 'gestor' | 'transportista',
+    signatureBase64?: string,
+    signerInfo?: { nombre?: string; dni?: string }
   ): Promise<IdentificationDocument> {
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date().toISOString();
+    let signatureUrl: string | undefined;
+
+    // A04-06: Verificación de actor en el servidor (Transportista solo puede firmar como transportista)
+    if (role === 'gestor' || role === 'productor') {
+      const userCompany = await companyService.getUserCompany().catch(() => null);
+      if (isCallerTransportistaOnly(userCompany)) {
+        throw new Error(
+          role === 'gestor'
+            ? 'Permiso denegado: El transportista no puede firmar como Gestor Destinatario.'
+            : 'Permiso denegado: El transportista no puede firmar como Productor Remitente.'
+        );
+      }
+      await assertActorAllowedForDIAction(null, role === 'gestor' ? 'sign_gestor' : 'sign_productor', userCompany);
+    }
+
+    if (signatureBase64) {
+      signatureUrl = await this.uploadSignatureImage(id, role, signatureBase64);
+    }
 
     const updateData: Partial<IdentificationDocument> = {};
 
     if (role === 'productor') {
       updateData.firmado_productor = true;
-      updateData.fecha_firma_productor = today;
+      updateData.fecha_firma_productor = now;
+      if (signatureUrl) updateData.firma_productor_url = signatureUrl;
+      if (signerInfo?.nombre) updateData.nombre_productor = signerInfo.nombre;
+      if (signerInfo?.dni) updateData.dni_productor = signerInfo.dni;
+
+      // Si el DI ya estaba tratado y pendiente de firma del productor, promover a completado
+      const currentDoc = await this.getById(id).catch(() => null);
+      if (currentDoc && currentDoc.estado_traslado === 'tratado' && currentDoc.estado === 'pendiente-firma') {
+        updateData.estado = 'completado';
+      }
     } else if (role === 'gestor') {
       updateData.firmado_gestor = true;
-      updateData.fecha_firma_gestor = today;
+      updateData.fecha_firma_gestor = now;
+      if (signatureUrl) updateData.firma_gestor_url = signatureUrl;
+      if (signerInfo?.nombre) updateData.nombre_gestor = signerInfo.nombre;
+      if (signerInfo?.dni) updateData.dni_gestor = signerInfo.dni;
     } else if (role === 'transportista') {
       updateData.firmado_transportista = true;
-      updateData.fecha_firma_transportista = today;
+      updateData.fecha_firma_transportista = now;
+      if (signatureUrl) updateData.firma_transportista_url = signatureUrl;
+      if (signerInfo?.nombre) updateData.nombre_transportista = signerInfo.nombre;
+      if (signerInfo?.dni) updateData.dni_transportista = signerInfo.dni;
     }
 
-    return this.update(id, updateData);
+    const updated = await this.update(id, updateData);
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'actualizar',
+      detalles: { role, firmado: true, con_trazo: Boolean(signatureUrl) },
+    });
+    return updated;
+  },
+
+  /**
+   * Obtener Documento de Identificación por token de firma pública (RPC SECURITY DEFINER)
+   */
+  async getBySigningToken(token: string): Promise<IdentificationDocument | null> {
+    if (!token || typeof token !== 'string' || !token.trim()) {
+      return null;
+    }
+    const cleanToken = token.trim();
+
+    const { data, error } = await supabase.rpc('get_di_by_signing_token', { p_token: cleanToken });
+
+    if (error) {
+      // Fallback a consulta directa si la función RPC aún no está desplegada en base de datos o hay problemas de permisos
+      if (error.code === '42883' || error.message?.includes('function') || error.code === '42501') {
+        try {
+          const lookup: any = supabase.from('identification_documents');
+          if (typeof lookup?.select === 'function') {
+            const { data: directData, error: directErr } = await lookup
+              .select('*')
+              .eq('signing_token', cleanToken)
+              .maybeSingle();
+
+            if (!directErr && directData) {
+              return (directData as IdentificationDocument) ?? null;
+            }
+          }
+        } catch {
+          // Continuar para reportar el error original de la RPC
+        }
+      }
+      throw new Error(`Error al obtener DI por token: ${error.message}`);
+    }
+
+    return (data as IdentificationDocument | null) ?? null;
+  },
+
+  /**
+   * Firmar Documento de Identificación mediante token público sin sesión autenticada
+   */
+  async signDocumentByToken(
+    token: string,
+    role: 'productor' | 'transportista' | 'gestor',
+    signatureBase64: string,
+    signerInfo?: { nombre?: string; dni?: string }
+  ): Promise<IdentificationDocument> {
+    const doc = await this.getBySigningToken(token);
+    if (!doc) {
+      throw new Error('Documento de Identificación no encontrado o token inválido');
+    }
+
+    // Verificar si la parte solicitada ya ha sido firmada previamente (evitar sobrescrituras)
+    if (role === 'productor' && doc.firmado_productor && doc.firma_productor_url) {
+      throw new Error('La parte Productor ya ha firmado este documento y no puede ser modificada.');
+    }
+    if (role === 'transportista' && doc.firmado_transportista && doc.firma_transportista_url) {
+      throw new Error('La parte Transportista ya ha firmado este documento y no puede ser modificada.');
+    }
+    if (role === 'gestor' && doc.firmado_gestor && doc.firma_gestor_url) {
+      throw new Error('La parte Gestor ya ha firmado este documento y no puede ser modificada.');
+    }
+
+    // Intentar subida a Supabase Storage con fallback a Data URI si hay bloqueo RLS o red
+    let publicUrl: string;
+    try {
+      publicUrl = await this.uploadSignatureImage(doc.id, `public-${role}`, signatureBase64);
+    } catch (uploadErr: any) {
+      console.warn('[DI Public Sign] Storage remoto no disponible o bloqueado por RLS, guardando trazo como Data URI:', uploadErr?.message);
+      publicUrl = signatureBase64.startsWith('data:')
+        ? signatureBase64
+        : `data:image/png;base64,${signatureBase64}`;
+    }
+
+    let updatedDoc: IdentificationDocument;
+    const { data: rpcData, error: updateError } = await supabase.rpc('sign_di_by_signing_token', {
+      p_token: token,
+      p_role: role,
+      p_signature_url: publicUrl,
+      p_signer_name: signerInfo?.nombre?.trim() || null,
+      p_signer_dni: signerInfo?.dni?.trim() || null,
+    });
+
+    if (updateError && !updateError.message?.includes('function') && updateError.code !== '42883') {
+      throw new Error(`Error al registrar firma pública del DI: ${updateError.message}`);
+    }
+
+    if (!rpcData) {
+      // Fallback directo a actualización de base de datos si la RPC aún no ha sido desplegada
+      const now = new Date().toISOString();
+      const updatePayload: Record<string, any> = { updated_at: now };
+      if (role === 'productor') {
+        updatePayload.firmado_productor = true;
+        updatePayload.firma_productor_url = publicUrl;
+        updatePayload.fecha_firma_productor = now;
+        if (signerInfo?.nombre?.trim()) updatePayload.nombre_productor = signerInfo.nombre.trim();
+        if (signerInfo?.dni?.trim()) updatePayload.dni_productor = signerInfo.dni.trim();
+      } else if (role === 'transportista') {
+        updatePayload.firmado_transportista = true;
+        updatePayload.firma_transportista_url = publicUrl;
+        updatePayload.fecha_firma_transportista = now;
+        if (signerInfo?.nombre?.trim()) updatePayload.nombre_transportista = signerInfo.nombre.trim();
+        if (signerInfo?.dni?.trim()) updatePayload.dni_transportista = signerInfo.dni.trim();
+      } else {
+        updatePayload.firmado_gestor = true;
+        updatePayload.firma_gestor_url = publicUrl;
+        updatePayload.fecha_firma_gestor = now;
+        if (signerInfo?.nombre?.trim()) updatePayload.nombre_gestor = signerInfo.nombre.trim();
+        if (signerInfo?.dni?.trim()) updatePayload.dni_gestor = signerInfo.dni.trim();
+      }
+
+      const { data: directData, error: directError } = await supabase
+        .from('identification_documents')
+        .update(updatePayload)
+        .eq('id', doc.id)
+        .select()
+        .single();
+
+      if (directError || !directData) {
+        throw new Error(`Error al registrar firma pública del DI: ${directError?.message || updateError?.message || 'Error desconocido'}`);
+      }
+      updatedDoc = directData as IdentificationDocument;
+    } else {
+      updatedDoc = rpcData as IdentificationDocument;
+    }
+
+    try {
+      await auditService.logAction({
+        company_id: updatedDoc.company_id ?? doc.company_id ?? null,
+        entidad: 'di',
+        entidad_id: doc.id,
+        accion: 'actualizar',
+        detalles: {
+          numero_documento: doc.numero_documento,
+          rol_firma: role,
+          via: 'enlace_publico',
+          firmante_nombre: signerInfo?.nombre || undefined,
+        },
+      });
+    } catch {
+      // Silenciar si no hay sesión para registrar auditoría directa
+    }
+
+    return updatedDoc;
   },
 
   /**
    * 1. Iniciar Traslado / Registrar Salida (Transportista)
+   * Exige contrato vigente compatible o acreditación externa antes de pasar a 'en_transito' (F03).
    */
   async recordDeparture(id: number, payload: RecordDeparturePayload): Promise<IdentificationDocument> {
-    const now = new Date().toISOString();
-    return this.update(id, {
-      ...payload,
+    const { data: { user } } = await supabase.auth.getUser();
+    const doc = await this.getById(id);
+
+    if (doc.estado === 'cancelado') {
+      throw new Error('No se puede iniciar el traslado de un DI cancelado.');
+    }
+    if (doc.estado_traslado && doc.estado_traslado !== 'borrador') {
+      throw new Error(`No se puede iniciar el traslado: el DI ya se encuentra en estado '${doc.estado_traslado}'.`);
+    }
+
+    const effectiveContractId = payload.contract_id || doc.contract_id;
+    const extRef = (payload.contrato_externo_referencia || doc.contrato_externo_referencia || '').trim();
+    const extEvidence = (payload.contrato_externo_evidencia_url || doc.contrato_externo_evidencia_url || '').trim();
+    const exceptionReason = (payload.supuesto_excepcion_contrato || doc.supuesto_excepcion_contrato || '').trim();
+
+    // Validación de contrato o acreditación externa (art. 5 RD 553/2020)
+    const { contract, hasAuthConfigured, isAuthValid, authorizedOpsForLer } =
+      await resolveDestinationValidationContext(
+        doc,
+        user?.id || doc.user_id,
+        effectiveContractId,
+        payload.fecha_salida || doc.fecha_documento
+      );
+
+    if (effectiveContractId) {
+      if (!contract) {
+        throw new Error('No se puede iniciar el traslado: el contrato vinculado no existe o no es accesible.');
+      }
+      if (contract.estado !== 'vigente') {
+        throw new Error(`No se puede iniciar el traslado: el contrato ${contract.numero_contrato || contract.id} está en estado '${contract.estado}' y debe estar vigente.`);
+      }
+      // N10: Un contrato incompleto o sin formalizar no puede autorizar la salida (art. 5 RD 553/2020)
+      const hasContractDoc = Boolean(contract.documento_url);
+      if (contract.firmado_productor === false && contract.firmado_gestor === false && !hasContractDoc && !extRef && !extEvidence) {
+        throw new Error(
+          `No se puede iniciar el traslado: el contrato ${contract.numero_contrato || contract.id} está incompleto o pendiente de formalización (requiere firmas digitales de ambas partes o documento contractual formalizado adjunto según art. 5 RD 553/2020).`
+        );
+      }
+      const depDate = new Date(payload.fecha_salida || doc.fecha_documento || new Date());
+      if (contract.fecha_fin && new Date(contract.fecha_fin) < new Date(depDate.toISOString().split('T')[0])) {
+        throw new Error(`No se puede iniciar el traslado: el contrato ${contract.numero_contrato || contract.id} venció el ${contract.fecha_fin}.`);
+      }
+      if (
+        contract.codigos_ler &&
+        contract.codigos_ler.length > 0 &&
+        doc.codigo_ler &&
+        !contract.codigos_ler.some((ler) => ler.trim() === doc.codigo_ler.trim())
+      ) {
+        throw new Error(`No se puede iniciar el traslado: el LER ${doc.codigo_ler} no está incluido en el contrato ${contract.numero_contrato || contract.id}.`);
+      }
+      // N10: Un contrato sin cantidad anual definida y sin anexo/documento contractual adjunto está incompleto para autorizar salidas
+      const hasContractQty = typeof contract.cantidad_maxima_anual === 'number' && contract.cantidad_maxima_anual > 0;
+      if (!hasContractQty && !hasContractDoc && !extRef && !extEvidence) {
+        throw new Error(
+          `No se puede iniciar el traslado: el contrato ${contract.numero_contrato || contract.id} tiene cantidad contractual no definida y requiere completar la cantidad estimada/máxima o incorporar anexo contractual suficiente para autorizar la salida (art. 5 RD 553/2020).`
+        );
+      }
+    } else if (!extRef || (!extEvidence && !exceptionReason)) {
+      throw new Error(
+        'No se puede iniciar el traslado: debe vincular un contrato de tratamiento vigente o acreditar un contrato externo (referencia y justificante/supuesto legal según art. 5 RD 553/2020).'
+      );
+    }
+
+    // Validar operación prevista contra autorización ambiental y Notificación Previa (INC02)
+    const plannedOp = normalizeOperationCode(doc.operacion_tratamiento);
+    if (hasAuthConfigured) {
+      if (!isAuthValid) {
+        throw new Error('No se puede iniciar el traslado: la autorización ambiental del gestor destinatario ha caducado.');
+      }
+      if (doc.codigo_ler && authorizedOpsForLer.length === 0) {
+        throw new Error(`No se puede iniciar el traslado: el gestor destino no tiene autorizado el LER ${doc.codigo_ler}.`);
+      }
+      if (plannedOp && authorizedOpsForLer.length > 0 && !authorizedOpsForLer.includes(plannedOp)) {
+        throw new Error(
+          `No se puede iniciar el traslado: la operación prevista ${plannedOp} no está autorizada para el LER ${doc.codigo_ler} (autorizadas: ${authorizedOpsForLer.join(', ')}).`
+        );
+      }
+    }
+
+    const fechaSalidaIso = normalizeLocalDateTimeToIso(payload.fecha_salida);
+    await validatePriorNotificationForDeparture(doc, user?.id || doc.user_id, fechaSalidaIso, plannedOp);
+
+    const { signatureBase64, ...rest } = payload;
+    let firma_transportista_url = payload.firma_transportista_url;
+
+    if (signatureBase64) {
+      firma_transportista_url = await this.uploadSignatureImage(id, 'transportista', signatureBase64);
+    }
+
+    const updated = await this.update(id, {
+      ...rest,
+      fecha_salida: fechaSalidaIso,
+      firma_transportista_url,
       estado_traslado: 'en_transito',
+      ...(doc.estado === 'borrador' ? { estado: 'pendiente-firma' as const } : {}),
       firmado_transportista: true,
-      fecha_firma_transportista: payload.fecha_salida || now,
+      fecha_firma_transportista: fechaSalidaIso,
     });
+
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'cambiar_estado',
+      detalles: {
+        estado_traslado: 'en_transito',
+        contract_id: updated.contract_id || null,
+        contrato_externo_referencia: updated.contrato_externo_referencia || null,
+        fecha_salida: fechaSalidaIso,
+      },
+    });
+
+    return updated;
   },
 
   /**
    * 2. Registrar Recepción y Pesada en Báscula de Destino (Gestor)
    */
   async recordReception(id: number, payload: RecordReceptionPayload): Promise<IdentificationDocument> {
-    const doc = await this.getById(id);
-    const now = new Date().toISOString();
+    // A04-06: Verificación de actor en el servidor
+    const userCompany = await companyService.getUserCompany().catch(() => null);
+    if (isCallerTransportistaOnly(userCompany)) {
+      throw new Error('Permiso denegado: El transportista no puede registrar la recepción en báscula del gestor.');
+    }
 
-    const pesoOrigen = doc.peso_origen_kg || (doc.unidad === 'toneladas' ? doc.cantidad * 1000 : doc.cantidad) || 0;
+    const doc = await this.getById(id);
+    await assertActorAllowedForDIAction(doc, 'reception', userCompany);
+
+    if (doc.estado === 'cancelado') {
+      throw new Error('No se puede recepcionar un DI cancelado.');
+    }
+    if (doc.estado_traslado && !['en_transito', 'recepcionado'].includes(doc.estado_traslado)) {
+      throw new Error(`No se puede registrar la recepción: el DI se encuentra en estado '${doc.estado_traslado}' (debe estar en tránsito o recepcionado).`);
+    }
+
+    const { signatureBase64, causa_discrepancia, justificacion_discrepancia, ...rest } = payload;
+    let firma_gestor_url = payload.firma_gestor_url;
+
+    if (signatureBase64) {
+      firma_gestor_url = await this.uploadSignatureImage(id, 'gestor', signatureBase64);
+    }
+
+    const pesoOrigen = resolveOriginWeightKg(doc);
     const pesoDestino = payload.peso_destino_kg;
     const diferencia = pesoDestino - pesoOrigen;
     const porcentaje = pesoOrigen > 0 ? (diferencia / pesoOrigen) * 100 : 0;
@@ -239,17 +1099,31 @@ export const identificationDocumentService = {
       nuevoEstadoTraslado = 'rechazado_total';
     }
 
+    const fechaLlegadaIso = normalizeLocalDateTimeToIso(payload.fecha_llegada_destino);
+
+    // Justificación de discrepancia aportada en la propia recepción (solo si se superan los umbrales)
+    let justificationFields: Partial<IdentificationDocument> = {};
+    if (isWeightDiscrepancy(pesoOrigen, pesoDestino) && (causa_discrepancia || justificacion_discrepancia?.trim())) {
+      justificationFields = await buildJustificationFields({
+        causa: causa_discrepancia as JustifyDiscrepancyPayload['causa'],
+        texto: justificacion_discrepancia || '',
+      });
+    }
+
     const updated = await this.update(id, {
-      ...payload,
+      ...rest,
+      fecha_llegada_destino: fechaLlegadaIso,
+      firma_gestor_url,
       peso_origen_kg: pesoOrigen,
       diferencia_peso_kg: parseFloat(diferencia.toFixed(3)),
       porcentaje_discrepancia: parseFloat(porcentaje.toFixed(2)),
       estado_traslado: nuevoEstadoTraslado,
       firmado_gestor: true,
-      fecha_firma_gestor: payload.fecha_llegada_destino || now,
+      fecha_firma_gestor: fechaLlegadaIso,
+      ...justificationFields,
     });
 
-    if (nuevoEstadoTraslado === 'aceptado') {
+    if (nuevoEstadoTraslado === 'aceptado' || nuevoEstadoTraslado === 'rechazado_parcial') {
       try {
         await syncEntryFromDI(updated);
       } catch (e) {
@@ -257,34 +1131,308 @@ export const identificationDocumentService = {
       }
     }
 
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'recepcionar_pesada',
+      detalles: {
+        estado_traslado: nuevoEstadoTraslado,
+        peso_origen_kg: pesoOrigen,
+        peso_destino_kg: pesoDestino,
+        diferencia_peso_kg: updated.diferencia_peso_kg,
+        porcentaje_discrepancia: updated.porcentaje_discrepancia,
+        fecha_llegada_destino: fechaLlegadaIso,
+      },
+    });
+
     return updated;
   },
 
   /**
-   * 3. Registrar Incidencia o Rechazo
+   * 2b. Registrar Justificante de Recepción de Gestor Externo (Flujo Productor Simplificado - RES6-I05)
+   * Permite al productor registrar el peso recibido en destino y adjuntar el albarán/justificante externo,
+   * sin arrogarse la autocertificación de tratamiento como gestor.
+   */
+  async recordExternalReceptionProof(
+    id: number,
+    payload: RecordExternalReceptionPayload
+  ): Promise<IdentificationDocument> {
+    const userCompany = await companyService.getUserCompany().catch(() => null);
+    if (isCallerTransportistaOnly(userCompany)) {
+      throw new Error('Permiso denegado: El transportista no puede registrar justificantes de recepción en destino.');
+    }
+
+    const doc = await this.getById(id);
+    if (doc.estado === 'cancelado') {
+      throw new Error('No se puede registrar justificante de recepción en un DI cancelado.');
+    }
+    if (doc.estado_traslado && !['en_transito', 'recepcionado'].includes(doc.estado_traslado)) {
+      throw new Error(`No se puede registrar justificante de recepción: el DI se encuentra en estado '${doc.estado_traslado}'.`);
+    }
+
+    const pesoOrigen = resolveOriginWeightKg(doc);
+    const pesoDestino = payload.peso_destino_kg;
+    const diferencia = pesoDestino - pesoOrigen;
+    const porcentaje = pesoOrigen > 0 ? (diferencia / pesoOrigen) * 100 : 0;
+    const fechaLlegadaIso = normalizeLocalDateTimeToIso(payload.fecha_llegada_destino);
+    const docEvidenciaUrl = payload.justificante_recepcion_url || payload.ticket_pesada_url || '';
+
+    const resultadoRecepcion: 'aceptado' | 'rechazado_parcial' | 'rechazado_total' =
+      (payload as any).resultado_recepcion === 'rechazado_parcial' ||
+        (payload as any).resultado_recepcion === 'rechazado_total'
+        ? (payload as any).resultado_recepcion
+        : 'aceptado';
+
+    let justificationFields: Partial<IdentificationDocument> = {};
+    if (isWeightDiscrepancy(pesoOrigen, pesoDestino) && (payload.causa_discrepancia || payload.justificacion_discrepancia?.trim())) {
+      justificationFields = await buildJustificationFields({
+        causa: payload.causa_discrepancia as JustifyDiscrepancyPayload['causa'],
+        texto: payload.justificacion_discrepancia || '',
+      });
+    }
+
+    const notaJustificante = payload.observaciones
+      ? `[Justificante de Recepción Externo]: ${payload.observaciones}`
+      : '[Justificante de Recepción Externo registrado por Productor]';
+
+    const cantidadRechazadaNum =
+      (payload as any).cantidad_rechazada_kg !== undefined && (payload as any).cantidad_rechazada_kg !== null
+        ? Number((payload as any).cantidad_rechazada_kg)
+        : undefined;
+    const motivoIncidencia =
+      resultadoRecepcion !== 'aceptado'
+        ? ((payload as any).motivo_incidencia || payload.observaciones || doc.motivo_incidencia || undefined)
+        : doc.motivo_incidencia;
+    const tipoIncidencia =
+      resultadoRecepcion !== 'aceptado'
+        ? ((payload as any).tipo_incidencia || doc.tipo_incidencia || 'residuo_no_conforme')
+        : doc.tipo_incidencia;
+
+    const updated = await this.update(id, {
+      peso_origen_kg: pesoOrigen,
+      peso_destino_kg: pesoDestino,
+      diferencia_peso_kg: parseFloat(diferencia.toFixed(3)),
+      porcentaje_discrepancia: parseFloat(porcentaje.toFixed(2)),
+      fecha_llegada_destino: fechaLlegadaIso,
+      numero_albaran_gestor: payload.numero_albaran_gestor || doc.numero_albaran_gestor,
+      ticket_pesada_url: docEvidenciaUrl || doc.ticket_pesada_url,
+      justificante_recepcion_url: docEvidenciaUrl || doc.justificante_recepcion_url,
+      resultado_recepcion: resultadoRecepcion,
+      cantidad_rechazada_kg: cantidadRechazadaNum,
+      ...(motivoIncidencia ? { motivo_incidencia: motivoIncidencia } : {}),
+      ...(tipoIncidencia ? { tipo_incidencia: tipoIncidencia } : {}),
+      estado_traslado: resultadoRecepcion,
+      firmado_gestor: true,
+      fecha_firma_gestor: doc.fecha_firma_gestor || fechaLlegadaIso,
+      notas: doc.notas ? `${doc.notas}\n${notaJustificante}` : notaJustificante,
+      ...justificationFields,
+    });
+
+    if (resultadoRecepcion !== 'rechazado_total') {
+      try {
+        await syncEntryFromDI(updated);
+      } catch {
+        // Ignorar fallo de sincronización en recepción externa
+      }
+    }
+
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'recepcionar_pesada',
+      detalles: {
+        tipo: 'justificante_recepcion_externo',
+        registrado_por: 'productor',
+        peso_origen_kg: pesoOrigen,
+        peso_destino_kg: pesoDestino,
+        diferencia_peso_kg: updated.diferencia_peso_kg,
+        numero_albaran_gestor: payload.numero_albaran_gestor,
+        evidencia_url: docEvidenciaUrl,
+        fecha_llegada_destino: fechaLlegadaIso,
+      },
+    });
+
+    return updated;
+  },
+
+  /**
+   * 3. Registrar Incidencia o Rechazo (exclusivo Gestor)
    */
   async recordIncident(id: number, payload: RecordIncidentPayload): Promise<IdentificationDocument> {
-    return this.update(id, {
+    // A04-06: Verificación de actor en el servidor
+    const userCompany = await companyService.getUserCompany().catch(() => null);
+    if (isCallerTransportistaOnly(userCompany)) {
+      throw new Error('Permiso denegado: El transportista no puede registrar incidencias o rechazos de recepción en destino.');
+    }
+    const existingDoc = await this.getById(id).catch(() => null);
+    if (existingDoc) {
+      if (existingDoc.estado === 'cancelado' || existingDoc.estado_traslado === 'tratado') {
+        throw new Error(`No se puede registrar incidencia sobre un DI en estado '${existingDoc.estado_traslado || existingDoc.estado}'.`);
+      }
+    }
+    await assertActorAllowedForDIAction(existingDoc, 'incident', userCompany);
+
+    const updated = await this.update(id, {
       tipo_incidencia: payload.tipo_incidencia,
       motivo_incidencia: payload.motivo_incidencia,
       resultado_recepcion: payload.resultado_recepcion,
       cantidad_rechazada_kg: payload.cantidad_rechazada_kg,
       estado_traslado: payload.resultado_recepcion,
     });
+
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'registrar_incidencia',
+      detalles: { ...payload },
+    });
+
+    return updated;
   },
 
   /**
    * 4. Certificar Tratamiento y Cierre (RD 553/2020)
+   * Valida autorización, contrato y régimen de notificación antes de escribir (F02),
+   * y conserva por separado operación prevista y ejecutada.
    */
   async completeTreatment(id: number, payload: CompleteTreatmentPayload): Promise<IdentificationDocument> {
-    const now = new Date().toISOString();
+    // A04-06 / RES6-I05: Verificación de actor en el servidor
+    const userCompany = await companyService.getUserCompany().catch(() => null);
+    if (isCallerTransportistaOnly(userCompany)) {
+      throw new Error('Permiso denegado: El transportista no puede certificar tratamientos ni cerrar el DI del gestor.');
+    }
+    if (isCallerProductorOnly(userCompany)) {
+      throw new Error(
+        'Permiso denegado: Un productor no puede certificar operaciones de tratamiento como gestor (Art. 6 RD 553/2020). Debe registrar el justificante de recepción del gestor externo.'
+      );
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    const doc = await this.getById(id);
+    await assertActorAllowedForDIAction(doc, 'treatment', userCompany);
+
+    if (doc.estado === 'cancelado') {
+      throw new Error('No se puede certificar tratamiento de un DI cancelado.');
+    }
+    if (
+      doc.estado_traslado &&
+      ['borrador', 'en_transito', 'rechazado_total'].includes(doc.estado_traslado)
+    ) {
+      throw new Error(
+        `No se puede certificar tratamiento: el DI se encuentra en estado '${doc.estado_traslado}' (debe estar aceptado o con rechazo parcial).`
+      );
+    }
+
+    const executedOp = normalizeOperationCode(payload.operacion_tratamiento);
+
+    if (!executedOp || !/^(R(0[1-9]|1[0-5])|D(0[1-9]|1[0-5]))(\d{2})?$/.test(executedOp)) {
+      throw new Error(`Operación de tratamiento inválida: '${payload.operacion_tratamiento}'. Debe indicar un código R01–R15, D01–D15 o subcódigo desagregado (ej. R1201).`);
+    }
+
+    // Idempotencia y rectificación: si ya está tratado con la misma operación, permitir rectificar notas/descripción/fecha
+    if (doc.estado_traslado === 'tratado' && (doc.estado === 'completado' || doc.estado === 'pendiente-firma')) {
+      const currentExec = normalizeOperationCode(doc.operacion_tratamiento_ejecutada || doc.operacion_tratamiento);
+      if (currentExec !== executedOp) {
+        throw new Error(`El DI ya fue cerrado anteriormente con la operación ${currentExec} y no puede sobrescribirse.`);
+      }
+
+      // Si la operación es la misma, actualizar campos descriptivos y registrar rectificación en auditoría
+      const fechaTratamientoIso = payload.fecha_tratamiento
+        ? normalizeLocalDateTimeToIso(payload.fecha_tratamiento)
+        : doc.fecha_tratamiento;
+
+      const newNotas = payload.notas !== undefined ? payload.notas : payload.descripcion_tratamiento;
+      const newDesc = payload.descripcion_tratamiento !== undefined ? payload.descripcion_tratamiento : payload.notas;
+
+      const updated = await this.update(id, {
+        descripcion_tratamiento: newDesc !== undefined ? newDesc : doc.descripcion_tratamiento,
+        notas: newNotas !== undefined ? newNotas : doc.notas,
+        fecha_tratamiento: fechaTratamientoIso,
+      });
+
+      await auditService.logAction({
+        company_id: updated.company_id,
+        entidad: 'di',
+        entidad_id: id,
+        accion: 'rectificar',
+        detalles: {
+          motivo: 'Rectificación de tratamiento / notas en DI ya tratado',
+          operacion: executedOp,
+          notas_anteriores: doc.notas || doc.descripcion_tratamiento || '',
+          notas_nuevas: updated.notas || updated.descripcion_tratamiento || '',
+          fecha_tratamiento: fechaTratamientoIso,
+        },
+      });
+
+      return updated;
+    }
+
+    // Validar compatibilidad con régimen de notificación previa (art. 3.2 RD 553/2020)
+    if (doc.tipo_notificacion === 'sin-notificacion') {
+      const ntCheck = requiresPriorNotification(doc, executedOp);
+      if (ntCheck.required) {
+        throw new Error(
+          `Operación ${executedOp} denegada: ${ntCheck.reason} requieren Notificación Previa y este DI figura como 'Sin Notificación' (art. 3.2 RD 553/2020).`
+        );
+      }
+    }
+
+    // Validar contrato y autorización ambiental del gestor destino para el LER y operación
+    const { contract, hasAuthConfigured, isAuthValid, authorizedOpsForLer } =
+      await resolveDestinationValidationContext(
+        doc,
+        user?.id || doc.user_id,
+        doc.contract_id,
+        payload.fecha_tratamiento || doc.fecha_documento
+      );
+
+    if (contract) {
+      const contractOps = (contract.contract_waste_codes || [])
+        .filter((wc) => wc.codigo_ler?.trim() === doc.codigo_ler?.trim())
+        .map((wc) => normalizeOperationCode(wc.operacion_tratamiento));
+      const fallbackOps = (contract.operaciones_tratamiento || []).map((op) => normalizeOperationCode(op));
+      const allowedContractOps = contractOps.length > 0 ? contractOps : fallbackOps;
+
+      if (allowedContractOps.length > 0 && !allowedContractOps.includes(executedOp)) {
+        throw new Error(
+          `Operación ${executedOp} denegada: no está amparada por el contrato ${contract.numero_contrato || contract.id} para el LER ${doc.codigo_ler} (amparadas: ${allowedContractOps.join(', ')}).`
+        );
+      }
+    }
+
+    if (hasAuthConfigured) {
+      if (!isAuthValid) {
+        throw new Error('Operación denegada: la autorización ambiental del gestor destinatario ha caducado.');
+      }
+      if (authorizedOpsForLer.length === 0) {
+        throw new Error(`Operación ${executedOp} denegada: el LER ${doc.codigo_ler} no figura autorizado en el destino.`);
+      }
+      if (!authorizedOpsForLer.includes(executedOp)) {
+        throw new Error(
+          `Operación ${executedOp} denegada: la autorización del gestor para el LER ${doc.codigo_ler} solo contempla ${authorizedOpsForLer.join(', ')}.`
+        );
+      }
+    }
+
+    const fechaTratamientoIso = normalizeLocalDateTimeToIso(payload.fecha_tratamiento);
+
+    // A04-08: Distinguir cierre técnico del gestor (estado_traslado = 'tratado') de la formalización documental completa.
+    // Si firmado_productor es explícitamente false, el expediente queda en 'pendiente-firma' hasta su firma.
+    const nextDocumentStatus: IdentificationDocument['estado'] =
+      doc.firmado_productor === false ? 'pendiente-firma' : 'completado';
+
+    // Conservar operacion_tratamiento (prevista) intacta; guardar ejecutada por separado
     const updated = await this.update(id, {
-      operacion_tratamiento: payload.operacion_tratamiento,
-      descripcion_tratamiento: payload.descripcion_tratamiento,
-      fecha_tratamiento: payload.fecha_tratamiento || now,
+      operacion_tratamiento: doc.operacion_tratamiento || executedOp,
+      operacion_tratamiento_ejecutada: executedOp,
+      descripcion_tratamiento: payload.descripcion_tratamiento ?? payload.notas,
+      fecha_tratamiento: fechaTratamientoIso,
       estado_traslado: 'tratado',
-      estado: 'completado',
-      notas: payload.notas,
+      estado: nextDocumentStatus,
+      notas: payload.notas ?? payload.descripcion_tratamiento,
     });
 
     try {
@@ -292,6 +1440,150 @@ export const identificationDocumentService = {
     } catch (e) {
       console.warn('Advertencia: no se pudo sincronizar automáticamente con el archivo cronológico:', e);
     }
+
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'cambiar_estado',
+      detalles: {
+        estado_traslado: 'tratado',
+        operacion_prevista: updated.operacion_tratamiento,
+        operacion_ejecutada: executedOp,
+        fecha_tratamiento: fechaTratamientoIso,
+      },
+    });
+
+    return updated;
+  },
+
+  /**
+   * 5. Justificar documentalmente una discrepancia de báscula (RD 553/2020).
+   * Editable mientras el DI no esté cerrado; en estado 'tratado' solo puede añadirse si no existía.
+   */
+  async justifyDiscrepancy(id: number, payload: JustifyDiscrepancyPayload): Promise<IdentificationDocument> {
+    const userCompany = await companyService.getUserCompany().catch(() => null);
+    if (isCallerTransportistaOnly(userCompany)) {
+      throw new Error('Permiso denegado: El transportista no puede justificar discrepancias de báscula.');
+    }
+
+    // getById filtra por user_id del tenant autenticado
+    const doc = await this.getById(id);
+    const meta = getTrackingStatusMeta(doc);
+
+    if (!meta.hasDiscrepancy) {
+      throw new Error('El DI no presenta una discrepancia de báscula que requiera justificación.');
+    }
+    if (doc.estado_traslado === 'tratado' && doc.justificacion_discrepancia?.trim()) {
+      throw new Error('El DI está cerrado y la justificación ya registrada no puede modificarse.');
+    }
+
+    const fields = await buildJustificationFields(payload);
+    const updated = await this.update(id, fields);
+
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'justificar_discrepancia',
+      detalles: {
+        causa_discrepancia: fields.causa_discrepancia,
+        justificacion_discrepancia: fields.justificacion_discrepancia,
+        diferencia_peso_kg: doc.diferencia_peso_kg,
+        porcentaje_discrepancia: doc.porcentaje_discrepancia,
+        es_modificacion: !!doc.justificacion_discrepancia,
+      },
+    });
+
+    return updated;
+  },
+
+  /**
+   * 5b. Rectificación Versionada Trazable de un DI aceptado o cerrado (P09 / X05)
+   * Conserva en el historial de versiones los valores anteriores (peso, albarán, cantidad, fecha)
+   * junto con el motivo obligatorio de la rectificación y resincroniza el Archivo Cronológico.
+   */
+  async rectifyDocument(
+    id: number,
+    payload: {
+      peso_destino_kg?: number;
+      cantidad?: number;
+      numero_albaran_gestor?: string;
+      motivo_rectificacion: string;
+    }
+  ): Promise<IdentificationDocument> {
+    const userCompany = await companyService.getUserCompany().catch(() => null);
+    if (isCallerTransportistaOnly(userCompany)) {
+      throw new Error('Permiso denegado: El transportista no puede rectificar cantidades o pesadas de un DI.');
+    }
+
+    const motivo = (payload.motivo_rectificacion || '').trim();
+    if (motivo.length < 10) {
+      throw new Error('Debe indicar el motivo de la rectificación documental (mínimo 10 caracteres).');
+    }
+
+    const doc = await this.getById(id);
+    if (doc.estado === 'cancelado') {
+      throw new Error('No se puede rectificar un DI cancelado.');
+    }
+
+    const existingRectifications = parseDIRectificationHistory(doc.notas);
+    const nextVersion = existingRectifications.length + 2;
+    const nowIso = new Date().toISOString();
+
+    const prevPesoOrigen = resolveOriginWeightKg(doc);
+    const prevPesoDestino = doc.peso_destino_kg ?? prevPesoOrigen;
+    const prevAlbaran = doc.numero_albaran_gestor || 'S/N';
+
+    const newCantidad = payload.cantidad || doc.cantidad;
+    const isTonOrM3 = doc.unidad === 'toneladas' || doc.unidad === 'm3';
+    const newPesoOrigen = payload.cantidad ? (isTonOrM3 ? payload.cantidad * 1000 : payload.cantidad) : prevPesoOrigen;
+    const newPesoDestino = payload.peso_destino_kg ?? prevPesoDestino;
+    const newAlbaran = (payload.numero_albaran_gestor ?? doc.numero_albaran_gestor ?? '').trim();
+
+    const diferencia = parseFloat((newPesoDestino - newPesoOrigen).toFixed(3));
+    const porcentaje =
+      newPesoOrigen > 0
+        ? parseFloat((((newPesoDestino - newPesoOrigen) / newPesoOrigen) * 100).toFixed(2))
+        : 0;
+
+    const snapshotLine = `[RECTIFICACIÓN v${nextVersion} | ${nowIso}]: Motivo: ${motivo} | Anterior (v${nextVersion - 1}): Origen=${prevPesoOrigen}kg, Destino=${prevPesoDestino}kg, Albarán=${prevAlbaran} -> Nuevo (v${nextVersion}): Origen=${newPesoOrigen}kg, Destino=${newPesoDestino}kg, Albarán=${newAlbaran || 'S/N'}`;
+    const updatedNotas = doc.notas ? `${doc.notas}\n${snapshotLine}` : snapshotLine;
+
+    const updated = await this.update(id, {
+      cantidad: newCantidad,
+      peso_origen_kg: newPesoOrigen,
+      peso_destino_kg: newPesoDestino,
+      diferencia_peso_kg: diferencia,
+      porcentaje_discrepancia: porcentaje,
+      numero_albaran_gestor: newAlbaran,
+      notas: updatedNotas,
+    });
+
+    if (['aceptado', 'rechazado_parcial', 'tratado'].includes(updated.estado_traslado || '')) {
+      try {
+        await syncEntryFromDI(updated);
+      } catch {
+        // Best-effort sync
+      }
+    }
+
+    await auditService.logAction({
+      company_id: updated.company_id,
+      entidad: 'di',
+      entidad_id: id,
+      accion: 'rectificar',
+      detalles: {
+        version_resultante: nextVersion,
+        motivo_rectificacion: motivo,
+        peso_origen_anterior_kg: prevPesoOrigen,
+        peso_destino_anterior_kg: prevPesoDestino,
+        albaran_anterior: prevAlbaran,
+        peso_origen_nuevo_kg: newPesoOrigen,
+        peso_destino_nuevo_kg: newPesoDestino,
+        albaran_nuevo: newAlbaran,
+      },
+    });
 
     return updated;
   },
@@ -332,40 +1624,66 @@ export function getTrackingStatusMeta(doc: IdentificationDocument): {
   step: number;
   hasDiscrepancy: boolean;
   discrepancyMessage?: string;
+  isDiscrepancyJustified: boolean;
 } {
   const estado: EstadoTraslado = doc.estado_traslado || 'borrador';
 
-  const pesoOrigen = doc.peso_origen_kg || (doc.unidad === 'toneladas' ? doc.cantidad * 1000 : doc.cantidad) || 0;
-  const pesoDestino = doc.peso_destino_kg;
-  let hasDiscrepancy = false;
-  let discrepancyMessage = undefined;
-
-  if (pesoDestino !== undefined && pesoDestino !== null && pesoOrigen > 0) {
-    const diff = Math.abs(pesoDestino - pesoOrigen);
-    const pct = Math.abs((diff / pesoOrigen) * 100);
-    if (pct > 5 || diff > 200) {
-      hasDiscrepancy = true;
-      discrepancyMessage = `Discrepancia de peso: ${(doc.diferencia_peso_kg || 0) > 0 ? '+' : ''}${doc.diferencia_peso_kg || 0} kg (${doc.porcentaje_discrepancia || 0}%)`;
-    }
-  }
+  const pesoOrigen = resolveOriginWeightKg(doc);
+  const hasDiscrepancy = isWeightDiscrepancy(pesoOrigen, doc.peso_destino_kg);
+  const discrepancyMessage = hasDiscrepancy
+    ? `Discrepancia de peso: ${(doc.diferencia_peso_kg || 0) > 0 ? '+' : ''}${doc.diferencia_peso_kg || 0} kg (${doc.porcentaje_discrepancia || 0}%)`
+    : undefined;
+  const isDiscrepancyJustified = hasDiscrepancy && !!doc.justificacion_discrepancia?.trim();
+  const common = { hasDiscrepancy, discrepancyMessage, isDiscrepancyJustified };
 
   switch (estado) {
     case 'en_transito':
-      return { key: estado, label: 'En Tránsito', badgeColor: 'info', step: 2, hasDiscrepancy, discrepancyMessage };
+      return { key: estado, label: 'En Tránsito', badgeColor: 'info', step: 2, ...common };
     case 'recepcionado':
-      return { key: estado, label: 'Recepcionado en Báscula', badgeColor: 'warning', step: 3, hasDiscrepancy, discrepancyMessage };
+      return { key: estado, label: 'Recepcionado en Báscula', badgeColor: 'warning', step: 3, ...common };
     case 'aceptado':
-      return { key: estado, label: 'Aceptado por Gestor', badgeColor: 'success', step: 4, hasDiscrepancy, discrepancyMessage };
+      return { key: estado, label: 'Aceptado por Gestor', badgeColor: 'success', step: 4, ...common };
     case 'rechazado_parcial':
-      return { key: estado, label: 'Aceptado Parcial / Rechazo', badgeColor: 'warning', step: 4, hasDiscrepancy, discrepancyMessage };
+      return { key: estado, label: 'Aceptado Parcial / Rechazo', badgeColor: 'warning', step: 4, ...common };
     case 'rechazado_total':
-      return { key: estado, label: 'Rechazo Total en Destino', badgeColor: 'error', step: 4, hasDiscrepancy, discrepancyMessage };
+      return { key: estado, label: 'Rechazo Total en Destino', badgeColor: 'error', step: 4, ...common };
     case 'tratado':
-      return { key: estado, label: 'Tratado y Cerrado', badgeColor: 'success', step: 5, hasDiscrepancy, discrepancyMessage };
+      if (doc.firmado_productor === false || doc.estado === 'pendiente-firma') {
+        return { key: estado, label: 'Tratado (Pendiente Firma Productor)', badgeColor: 'warning', step: 5, ...common };
+      }
+      return { key: estado, label: 'Tratado y Cerrado', badgeColor: 'success', step: 5, ...common };
     case 'borrador':
     default:
-      return { key: 'borrador', label: 'Borrador / Registrado', badgeColor: 'light', step: 1, hasDiscrepancy, discrepancyMessage };
+      return { key: 'borrador', label: 'Borrador / Registrado', badgeColor: 'light', step: 1, ...common };
   }
+}
+
+export interface DIRectificationRecord {
+  version: number;
+  timestamp: string;
+  motivo: string;
+  summary: string;
+}
+
+/**
+ * Extrae el historial inmutable de rectificaciones versionadas registradas sobre un DI (P09 / X05).
+ */
+export function parseDIRectificationHistory(notas?: string | null): DIRectificationRecord[] {
+  if (!notas) return [];
+  const records: DIRectificationRecord[] = [];
+  const lines = notas.split('\n');
+  for (const line of lines) {
+    const match = line.match(/^\[RECTIFICACIÓN v(\d+)\s*\|\s*([^\]]+)\]:\s*Motivo:\s*([^|]+)\|\s*(.+)$/);
+    if (match) {
+      records.push({
+        version: parseInt(match[1], 10),
+        timestamp: match[2].trim(),
+        motivo: match[3].trim(),
+        summary: match[4].trim(),
+      });
+    }
+  }
+  return records;
 }
 
 export default identificationDocumentService;

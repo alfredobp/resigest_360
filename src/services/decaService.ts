@@ -4,6 +4,8 @@
 // ==============================================================================
 
 import { createClient } from '@/lib/supabase/client';
+import { auditService } from './auditService';
+import { applyTenantScope, getActiveCompanyCookie } from './tenantContextService';
 import type { DecaDocument, DecaFormData, DecaAuditLog } from '@/types/deca';
 import type { IdentificationDocument } from '@/types/wasteManagement';
 
@@ -15,10 +17,68 @@ const supabase = createClient();
 function generateSecureToken(): string {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
   let token = 'dca_';
+  if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.getRandomValues === 'function') {
+    const randomBytes = new Uint8Array(32);
+    globalThis.crypto.getRandomValues(randomBytes);
+    for (let i = 0; i < 32; i++) {
+      token += chars.charAt(randomBytes[i] % chars.length);
+    }
+    return token;
+  }
   for (let i = 0; i < 32; i++) {
     token += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return token;
+}
+
+/**
+ * RES6-I09 / UXDEV-04 / UX-12:
+ * Resuelve y clasifica documentos DeCA garantizando coherencia de familia documental:
+ * Para cualquier servicio con múltiples versiones (v1, v2...), solo la versión más reciente
+ * representa el estado del servicio. Una versión histórica v1 nunca se muestra como activa en ruta
+ * si existe una v2 o si la revisión actual está finalizada.
+ */
+export function filterVigenteServices(decas: DecaDocument[]): {
+  activeDecas: DecaDocument[];
+  finishedDecas: DecaDocument[];
+  allLatest: DecaDocument[];
+} {
+  if (!decas || decas.length === 0) {
+    return { activeDecas: [], finishedDecas: [], allLatest: [] };
+  }
+
+  // Agrupar por identificador base de familia
+  const familyMap = new Map<string, DecaDocument[]>();
+
+  for (const doc of decas) {
+    const rawNum = doc.numero_deca || '';
+    const baseNum = rawNum.replace(/-v\d+$/, '').trim() || `id-${doc.id}`;
+    const list = familyMap.get(baseNum) || [];
+    list.push(doc);
+    familyMap.set(baseNum, list);
+  }
+
+  const allLatest: DecaDocument[] = [];
+  const activeDecas: DecaDocument[] = [];
+  const finishedDecas: DecaDocument[] = [];
+
+  for (const [, docs] of familyMap) {
+    // Ordenar de mayor a menor versión e ID
+    docs.sort((a, b) => (b.version - a.version) || (b.id - a.id));
+    const latest = docs[0];
+    allLatest.push(latest);
+
+    if (latest.estado === 'finalizado') {
+      finishedDecas.push(latest);
+    } else if (
+      (latest.estado === 'vigente' || latest.estado === 'en_transito') &&
+      latest.is_vigente !== false
+    ) {
+      activeDecas.push(latest);
+    }
+  }
+
+  return { activeDecas, finishedDecas, allLatest };
 }
 
 export const decaService = {
@@ -29,10 +89,11 @@ export const decaService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
-    const { data, error } = await supabase
+    const baseQuery = supabase
       .from('deca_documents')
-      .select('*')
-      .eq('user_id', user.id)
+      .select('*');
+
+    const { data, error } = await applyTenantScope(baseQuery, user.id)
       .order('fecha_transporte', { ascending: false })
       .order('id', { ascending: false });
 
@@ -48,10 +109,15 @@ export const decaService = {
    * Obtener DeCA por su ID
    */
   async getById(id: number): Promise<DecaDocument | null> {
-    const { data, error } = await supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuario no autenticado');
+
+    const baseQuery = supabase
       .from('deca_documents')
       .select('*')
-      .eq('id', id)
+      .eq('id', id);
+
+    const { data, error } = await applyTenantScope(baseQuery, user.id)
       .maybeSingle();
 
     if (error) {
@@ -67,6 +133,17 @@ export const decaService = {
    */
   async getByToken(token: string): Promise<DecaDocument | null> {
     if (!token) return null;
+
+    if (typeof (supabase as any).rpc === 'function') {
+      const rpcRes = await (supabase as any).rpc('get_deca_by_token', { p_token: token });
+      if (rpcRes && !rpcRes.error) {
+        const doc = Array.isArray(rpcRes.data) ? rpcRes.data[0] : rpcRes.data;
+        if (!doc) {
+          console.warn('[DeCA Service] No se encontró fila en deca_documents para el token:', token);
+        }
+        return (doc || null) as DecaDocument | null;
+      }
+    }
 
     const { data, error } = await supabase
       .from('deca_documents')
@@ -87,73 +164,194 @@ export const decaService = {
   },
 
   /**
-   * Generar el siguiente número correlativo de DeCA
+   * Obtener los documentos DeCA vinculados a un Documento de Identificación (DI)
+   * (A7-05: compartido entre Productor, Transportista y Gestor del mismo DI sin filtrar por user_id del creador)
+   */
+  async getByIdentificationDocument(diId: number): Promise<DecaDocument[]> {
+    if (!diId) return [];
+
+    const query = supabase
+      .from('deca_documents')
+      .select('*')
+      .eq('identification_document_id', diId);
+
+    const { data, error } = await query.order('version', { ascending: false });
+
+    if (error) {
+      console.error('[DeCA Service] Error al consultar DeCA por DI:', error.message);
+      return [];
+    }
+
+    return (data || []) as DecaDocument[];
+  },
+
+  /**
+   * Obtener la versión vigente actual de un DeCA sustituido/histórico
+   */
+  async getLatestActiveVersion(currentDoc: DecaDocument): Promise<DecaDocument | null> {
+    if (!currentDoc) return null;
+    if (currentDoc.is_vigente) return currentDoc;
+
+    // N05: Si el conductor consulta sin sesión autenticada, invocar la RPC SECURITY DEFINER
+    if (currentDoc.token && typeof (supabase as any).rpc === 'function') {
+      try {
+        const rpcRes = await (supabase as any).rpc('get_active_deca_by_token', { p_token: currentDoc.token });
+        if (rpcRes && !rpcRes.error && rpcRes.data) {
+          const doc = Array.isArray(rpcRes.data) ? rpcRes.data[0] : rpcRes.data;
+          if (doc) return doc as DecaDocument;
+        }
+      } catch (rpcErr) {
+        console.warn('[DeCA Service] RPC get_active_deca_by_token no disponible, intentando query directa:', rpcErr);
+      }
+    }
+
+    const baseNumero = (currentDoc.numero_deca || '').replace(/-v\d+$/, '');
+
+    let query = supabase
+      .from('deca_documents')
+      .select('*')
+      .ilike('numero_deca', `${baseNumero}%`)
+      .eq('is_vigente', true);
+
+    if (currentDoc.user_id) {
+      query = query.eq('user_id', currentDoc.user_id);
+    }
+
+    const { data, error } = await query
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[DeCA Service] Error al obtener versión vigente DeCA:', error.message);
+      return null;
+    }
+
+    return (data || null) as DecaDocument | null;
+  },
+
+  /**
+   * Generar el siguiente número correlativo de DeCA evitando colisiones por sufijos '-v2' o múltiples registros
    */
   async getNextNumero(): Promise<string> {
+    const { data: { user } } = await supabase.auth.getUser();
     const currentYear = new Date().getFullYear();
     const prefix = `DECA-${currentYear}-`;
 
-    const { data } = await supabase
+    let query = supabase
       .from('deca_documents')
       .select('numero_deca')
-      .ilike('numero_deca', `${prefix}%`)
+      .ilike('numero_deca', `${prefix}%`);
+
+    if (user) {
+      query = query.eq('user_id', user.id);
+    }
+
+    const { data } = await query
       .order('id', { ascending: false })
-      .limit(1);
+      .limit(50);
 
     if (!data || data.length === 0) {
       return `${prefix}00001`;
     }
 
-    const lastNumStr = data[0].numero_deca.replace(prefix, '');
-    const nextSeq = (parseInt(lastNumStr, 10) || 0) + 1;
+    let maxSeq = 0;
+    for (const row of data) {
+      const match = String(row.numero_deca || '').match(/^DECA-\d{4}-(?:[A-Z0-9]+-)?(\d+)/);
+      if (match) {
+        const parsed = parseInt(match[1], 10);
+        if (!isNaN(parsed) && parsed > maxSeq) {
+          maxSeq = parsed;
+        }
+      }
+    }
+
+    const nextSeq = maxSeq + 1;
     return `${prefix}${String(nextSeq).padStart(5, '0')}`;
   },
 
   /**
-   * Crear un nuevo DeCA autónomo
+   * Crear un nuevo DeCA autónomo (con resiliencia ante colisiones de numeración entre tenants)
    */
   async create(formData: DecaFormData): Promise<DecaDocument> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
-    const numero_deca = formData.numero_deca || await this.getNextNumero();
+    const activeCompanyId = formData.company_id ?? getActiveCompanyCookie() ?? undefined;
+    const hasExplicitNumero = Boolean(formData.numero_deca && formData.numero_deca.trim());
+    const baseNumero = hasExplicitNumero ? formData.numero_deca.trim() : await this.getNextNumero();
     const token = generateSecureToken();
+    const currentYear = new Date().getFullYear();
+    const seqMatch = baseNumero.match(/(\d+)$/);
+    const baseSeq = seqMatch ? parseInt(seqMatch[1], 10) : 1;
+    const scopeTag = activeCompanyId ? `E${activeCompanyId}` : `U${user.id.slice(0, 4).toUpperCase()}`;
 
-    const insertPayload = {
-      ...formData,
-      user_id: user.id,
-      numero_deca,
-      version: 1,
-      is_vigente: true,
-      token,
-      estado: formData.estado || 'vigente',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    let createdData: any = null;
+    let lastError: any = null;
 
-    const { data, error } = await supabase
-      .from('deca_documents')
-      .insert(insertPayload)
-      .select()
-      .single();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidateNumero =
+        attempt === 0
+          ? baseNumero
+          : `DECA-${currentYear}-${scopeTag}-${String(baseSeq + attempt - 1).padStart(5, '0')}`;
 
-    if (error) {
-      throw new Error(`Error al crear documento DeCA: ${error.message}`);
+      const insertPayload = {
+        ...formData,
+        ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
+        user_id: user.id,
+        numero_deca: candidateNumero,
+        version: 1,
+        is_vigente: true,
+        token,
+        estado: formData.estado || 'vigente',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('deca_documents')
+        .insert(insertPayload)
+        .select()
+        .single();
+
+      if (!error && data) {
+        createdData = data;
+        lastError = null;
+        break;
+      }
+
+      lastError = error;
+      const errMsg = String(error?.message || '');
+      const isUniqueCollision =
+        error?.code === '23505' ||
+        errMsg.includes('duplicate key') ||
+        errMsg.includes('deca_documents_numero_deca_key') ||
+        errMsg.includes('idx_deca_user_numero_version_unique');
+
+      // Si el usuario indicó un número explícito y colisionó, o si es otro error distinto a clave única, no reintentar silenciosamente
+      if (!isUniqueCollision || (hasExplicitNumero && attempt > 0)) {
+        break;
+      }
+    }
+
+    if (lastError || !createdData) {
+      throw new Error(`Error al crear documento DeCA: ${lastError?.message || 'Error desconocido'}`);
     }
 
     // Registrar log de auditoría
-    await this.logAudit(data.id, 'creacion', 1, {
-      numero_deca,
-      cargador: data.cargador_razon_social,
-      transportista: data.transportista_razon_social,
+    await this.logAudit(createdData.id, 'creacion', 1, {
+      numero_deca: createdData.numero_deca,
+      cargador: createdData.cargador_razon_social,
+      transportista: createdData.transportista_razon_social,
     });
 
-    return data as DecaDocument;
+    return createdData as DecaDocument;
   },
 
   /**
    * Crear DeCA a partir de un Documento de Identificación (DI) de residuos
-   * Precarga automáticamente todos los campos medioambientales y de transporte
+   * Precarga automáticamente todos los campos medioambientales y de transporte.
+   * A7-05: Garantiza idempotencia y relación única de servicio DeCA entre todas las cuentas intervinientes.
    */
   async createFromIdentificationDocument(
     di: IdentificationDocument,
@@ -167,15 +365,54 @@ export const decaService = {
       observaciones_reservas?: string;
       matricula_tractora?: string;
       matricula_remolque?: string;
+      forceRevisionReason?: string;
     }
   ): Promise<DecaDocument> {
-    const pesoKg = di.unidad === 'toneladas' ? di.cantidad * 1000 : di.cantidad;
+    if (di.id) {
+      const existingDecas = await this.getByIdentificationDocument(di.id).catch(() => [] as DecaDocument[]);
+      const latest = existingDecas.find((d) => d.is_vigente) || existingDecas[0];
+      if (latest) {
+        if (latest.estado === 'finalizado') {
+          throw new Error(
+            `El servicio de transporte ${latest.numero_deca} vinculado a este DI ya fue finalizado. No se puede emitir un segundo DeCA paralelo para un traslado cerrado.`
+          );
+        }
+
+        if (cargadorData.forceRevisionReason?.trim()) {
+          return await this.createNewVersion(
+            latest,
+            {
+              cargador_razon_social: cargadorData.cargador_razon_social,
+              cargador_nif: cargadorData.cargador_nif,
+              cargador_domicilio: cargadorData.cargador_domicilio,
+              matricula_tractora: cargadorData.matricula_tractora || latest.matricula_tractora,
+              matricula_remolque: cargadorData.matricula_remolque,
+              observaciones_reservas: cargadorData.observaciones_reservas,
+            },
+            cargadorData.forceRevisionReason.trim()
+          );
+        }
+
+        return latest;
+      }
+    }
+
+    const pesoKg =
+      di.peso_destino_kg ||
+      di.peso_origen_kg ||
+      ((di.unidad === 'toneladas' || di.unidad === 'm3') ? di.cantidad * 1000 : di.cantidad);
+
+    const activeCompanyId = getActiveCompanyCookie();
+    const resolvedCompanyId =
+      activeCompanyId ??
+      (di as any).transportista_company_id ??
+      di.company_id;
 
     const formData: DecaFormData = {
       identification_document_id: di.id,
-      company_id: di.company_id,
+      company_id: resolvedCompanyId,
       numero_deca: '', // Se calculará automáticamente
-      
+
       // Cargador Contractual (definido por el usuario o empresa)
       cargador_razon_social: cargadorData.cargador_razon_social || di.productor_razon_social,
       cargador_nif: cargadorData.cargador_nif || di.productor_cif,
@@ -240,22 +477,34 @@ export const decaService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuario no autenticado');
 
-    // 1. Marcar versión anterior como no vigente
-    await supabase
+    if (currentDeca.estado === 'finalizado' || currentDeca.estado === 'sustituido') {
+      throw new Error(`No se puede versionar un DeCA en estado '${currentDeca.estado}'.`);
+    }
+
+    // 1. Marcar versión anterior como no vigente y sustituida (RES6-I09 / UXDEV-04)
+    const supersedeQuery = supabase
       .from('deca_documents')
-      .update({ is_vigente: false, updated_at: new Date().toISOString() })
+      .update({ is_vigente: false, estado: 'sustituido', updated_at: new Date().toISOString() })
       .eq('id', currentDeca.id);
+    await applyTenantScope(supersedeQuery, user.id);
 
     // 2. Crear nueva fila con version + 1 y nuevo token criptográfico
     const nextVersion = currentDeca.version + 1;
     const newToken = generateSecureToken();
 
+    const resolvedCompanyId =
+      updatedFields.company_id ?? currentDeca.company_id ?? getActiveCompanyCookie() ?? undefined;
+
     const newDocPayload = {
       ...currentDeca,
       ...updatedFields,
+      ...(resolvedCompanyId ? { company_id: resolvedCompanyId } : {}),
       id: undefined, // nuevo id autonumérico
       version: nextVersion,
       is_vigente: true,
+      estado: updatedFields.estado || 'vigente',
+      fecha_finalizacion: undefined,
+      hora_cierre: undefined,
       previous_version_id: currentDeca.id,
       token: newToken,
       created_at: new Date().toISOString(),
@@ -281,12 +530,25 @@ export const decaService = {
         .insert(fallbackPayload)
         .select()
         .single();
-      
+
       data = retryResult.data;
       error = retryResult.error;
     }
 
     if (error) {
+      try {
+        const rollbackQuery = supabase
+          .from('deca_documents')
+          .update({
+            is_vigente: true,
+            estado: currentDeca.estado || 'vigente',
+            updated_at: currentDeca.updated_at || new Date().toISOString(),
+          })
+          .eq('id', currentDeca.id);
+        await applyTenantScope(rollbackQuery, user.id);
+      } catch {
+        // Best-effort rollback si falla la inserción de la nueva versión
+      }
       throw new Error(`Error al versionar DeCA: ${error.message}`);
     }
 
@@ -305,8 +567,11 @@ export const decaService = {
    * Finalizar servicio de transporte (inicia el cómputo de 7 días naturales para el acceso público de inspección)
    */
   async finalizeService(id: number): Promise<DecaDocument> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuario no autenticado');
+
     const now = new Date().toISOString();
-    const { data, error } = await supabase
+    const finalizeQuery = supabase
       .from('deca_documents')
       .update({
         estado: 'finalizado',
@@ -314,7 +579,9 @@ export const decaService = {
         hora_cierre: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
         updated_at: now,
       })
-      .eq('id', id)
+      .eq('id', id);
+
+    const { data, error } = await applyTenantScope(finalizeQuery, user.id)
       .select()
       .single();
 
@@ -322,8 +589,38 @@ export const decaService = {
       throw new Error(`Error al finalizar servicio DeCA: ${error.message}`);
     }
 
+    // RES6-I09 / UXDEV-04: Unificar cierre de familia documental; cerrar versiones previas para que no queden vigentes
+    if (data?.numero_deca) {
+      try {
+        const baseNumero = data.numero_deca.replace(/-v\d+$/, '').trim();
+        const closeHistoryQuery = supabase
+          .from('deca_documents')
+          .update({ is_vigente: false, estado: 'finalizado', updated_at: now })
+          .ilike('numero_deca', `${baseNumero}%`)
+          .neq('id', id);
+        await applyTenantScope(closeHistoryQuery, user.id);
+      } catch (e) {
+        console.warn('Nota al cerrar versiones históricas de DeCA:', e);
+      }
+    }
+
     await this.logAudit(id, 'finalizacion', data.version, { fecha_finalizacion: now });
     return data as DecaDocument;
+  },
+
+  /**
+   * RES6-I09 / UXDEV-04 / UX-12:
+   * Resuelve y clasifica documentos DeCA garantizando coherencia de familia documental:
+   * Para cualquier servicio con múltiples versiones (v1, v2...), solo la versión más reciente
+   * representa el estado del servicio. Una versión histórica v1 nunca se muestra como activa en ruta
+   * si existe una v2 o si la revisión actual está finalizada.
+   */
+  filterVigenteServices(decas: DecaDocument[]): {
+    activeDecas: DecaDocument[];
+    finishedDecas: DecaDocument[];
+    allLatest: DecaDocument[];
+  } {
+    return filterVigenteServices(decas);
   },
 
   /**
@@ -345,6 +642,16 @@ export const decaService = {
         detalles: detalles || {},
         created_at: new Date().toISOString(),
       });
+      await auditService.logAction({
+        entidad: 'deca',
+        entidad_id: decaId,
+        accion: accion === 'creacion' ? 'crear' : accion === 'finalizacion' ? 'cambiar_estado' : 'actualizar',
+        detalles: {
+          deca_accion: accion,
+          version_resultante: versionResultante,
+          ...(detalles || {}),
+        },
+      });
     } catch (err) {
       console.warn('Advertencia al registrar auditoría DeCA:', err);
     }
@@ -359,5 +666,71 @@ export const decaService = {
     const now = new Date();
     const diffDays = (now.getTime() - finishDate.getTime()) / (1000 * 60 * 60 * 24);
     return diffDays > 7;
+  },
+
+  /**
+   * Extrae la confirmación de recepción de la versión vigente por parte del conductor (Hito C.2 / L13)
+   */
+  getDriverReceiptConfirmation(deca: DecaDocument): {
+    confirmed: boolean;
+    conductorNombre?: string;
+    timestamp?: string;
+    version?: number;
+  } {
+    const obs = deca.observaciones_reservas || '';
+    const regex = new RegExp(`\\[CONDUCTOR_CONFIRMA_V${deca.version}:([^|\\]]+)\\|([^\\]]+)\\]`);
+    const match = obs.match(regex);
+    if (!match) {
+      return { confirmed: false };
+    }
+    return {
+      confirmed: true,
+      conductorNombre: match[1].trim(),
+      timestamp: match[2].trim(),
+      version: deca.version,
+    };
+  },
+
+  /**
+   * Registra que el conductor ha recibido y verificado la versión vigente del DeCA (Hito C.2 / L13)
+   */
+  async confirmDriverReceipt(
+    deca: DecaDocument,
+    conductorNombre?: string
+  ): Promise<DecaDocument> {
+    const nombre = (conductorNombre || deca.conductor_nombre || 'Conductor asignado').trim();
+    const nowIso = new Date().toISOString();
+    const tag = `[CONDUCTOR_CONFIRMA_V${deca.version}:${nombre}|${nowIso}]`;
+    const baseObs = (deca.observaciones_reservas || '')
+      .replace(new RegExp(`\\s*\\[CONDUCTOR_CONFIRMA_V${deca.version}:[^\\]]+\\]`, 'g'), '')
+      .trim();
+    const nextObs = baseObs ? `${baseObs}\n${tag}` : tag;
+
+    const { data, error } = await supabase
+      .from('deca_documents')
+      .update({
+        observaciones_reservas: nextObs,
+        updated_at: nowIso,
+      })
+      .eq('id', deca.id)
+      .select()
+      .maybeSingle();
+
+    await this.logAudit(deca.id, 'inspeccion_descarga', deca.version, {
+      evento: 'confirmacion_recepcion_conductor',
+      conductor_nombre: nombre,
+      version: deca.version,
+      confirmed_at: nowIso,
+    });
+
+    if (error || !data) {
+      return {
+        ...deca,
+        observaciones_reservas: nextObs,
+        updated_at: nowIso,
+      };
+    }
+
+    return data as DecaDocument;
   }
 };

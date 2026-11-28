@@ -87,6 +87,7 @@ const Select: React.FC<SelectProps> = ({
         onChange={handleChange}
         onBlur={onBlur}
         disabled={disabled}
+        required={required}
         aria-invalid={error ? "true" : undefined}
         aria-required={required ? "true" : undefined}
       >

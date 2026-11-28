@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es" data-variant="industrial" data-mode="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Empresas, Gestores y Transportistas — ResiGest 360</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body data-nav="actores">
+  <div class="app-shell">
+    <aside id="app-sidebar"></aside>
+    <div class="app-main">
+      <header id="app-topbar"></header>
+      <main class="content">
+        <div class="page-header">
+          <div>
+            <div class="page-title-row">
+              <h1 class="page-title">Mi Empresa, Actores y Autorizaciones</h1>
+              <span class="badge badge-success">Multicentro NIMA</span>
+            </div>
+            <p class="page-subtitle">Directorio unificado de tu empresa y centros de producción, clientes productores, gestores autorizados R/D y flota transportista.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline">⬇ Importar Excel</button>
+            <button class="btn btn-primary">+ Nuevo Registro</button>
+          </div>
+        </div>
+
+        <section class="toolbar">
+          <div class="tabs" data-tab-group="actors">
+            <button class="tab-btn active" data-tab-target="mi-empresa">Mi Empresa &amp; Centros (2)</button>
+            <button class="tab-btn" data-tab-target="gestores">Gestores Autorizados (14)</button>
+            <button class="tab-btn" data-tab-target="transportistas">Transportistas &amp; Flota (9)</button>
+            <button class="tab-btn" data-tab-target="contactos">Empresas Clientes (38)</button>
+          </div>
+          <input type="text" class="input" style="width:230px" placeholder="Buscar CIF, NIMA, autorización..." />
+        </section>
+
+        <div data-tab-panels="actors">
+          <!-- Panel 1: Mi Empresa & Centros -->
+          <div data-tab-panel="mi-empresa" class="grid grid-12">
+            <div class="card col-7">
+              <div class="card-header">
+                <div>
+                  <h2 class="card-title">Ficha Fiscal y Ambiental Principal</h2>
+                  <p class="card-subtitle">Datos utilizados por defecto en cabeceras de DI, NT, Contratos y SIRA</p>
+                </div>
+                <button class="btn btn-soft btn-sm">Guardar Cambios</button>
+              </div>
+              <div class="grid grid-2" style="gap:12px;">
+                <div>
+                  <label class="cell-sub" style="margin-bottom:4px;">Razón Social</label>
+                  <input class="input" style="width:100%" value="Eco-Valorizaciones Ibéricas S.L." />
+                </div>
+                <div>
+                  <label class="cell-sub" style="margin-bottom:4px;">CIF / NIF</label>
+                  <input class="input mono" style="width:100%" value="B87654321" />
+                </div>
+                <div>
+                  <label class="cell-sub" style="margin-bottom:4px;">Nº Autorización Gestor</label>
+                  <input class="input mono" style="width:100%" value="28G02A1900041289H" />
+                </div>
+                <div>
+                  <label class="cell-sub" style="margin-bottom:4px;">Certificado Digital SIRA (.p12)</label>
+                  <div class="pill-select" style="width:100%; justify-content:space-between; color:var(--brand)">
+                    <span>🔒 FNMT Activo · Caduca 09/2028</span>
+                    <span class="badge badge-success badge-plain">OK</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card col-5">
+              <div class="card-header">
+                <div>
+                  <h2 class="card-title">Centros de Producción (NIMA)</h2>
+                  <p class="card-subtitle">Instalaciones autorizadas</p>
+                </div>
+                <button class="btn btn-outline btn-sm">+ Centro</button>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <div style="padding:12px; border:1px solid var(--brand-soft-border); background:var(--brand-soft); border-radius:var(--radius-md);">
+                  <div style="display:flex; justify-content:space-between;">
+                    <strong>Planta Valdemoro (Principal)</strong>
+                    <span class="mono badge badge-success badge-plain">NIMA 2800049182</span>
+                  </div>
+                  <div class="cell-sub" style="margin-top:4px;">Pol. Ind. La Postura, Nave 14 · Valdemoro (Madrid)</div>
+                  <div style="margin-top:6px; display:flex; gap:5px; flex-wrap:wrap;">
+                    <span class="mono badge badge-neutral badge-plain">R03</span>
+                    <span class="mono badge badge-neutral badge-plain">R04</span>
+                    <span class="mono badge badge-neutral badge-plain">R12</span>
+                    <span class="mono badge badge-neutral badge-plain">R13</span>
+                  </div>
+                </div>
+                <div style="padding:12px; border:1px solid var(--border-color); border-radius:var(--radius-md);">
+                  <div style="display:flex; justify-content:space-between;">
+                    <strong>Centro Transferencia Getafe Sur</strong>
+                    <span class="mono badge badge-neutral badge-plain">NIMA 2800091204</span>
+                  </div>
+                  <div class="cell-sub" style="margin-top:4px;">Av. de los Ángeles 42 · Getafe (Madrid)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Panel 2: Gestores -->
+          <div data-tab-panel="gestores" class="table-wrap" style="display:none;">
+            <table class="data-table">
+              <thead>
+                <tr><th>Gestor / Planta</th><th>NIMA</th><th>Operaciones R/D</th><th>Caducidad Aut.</th><th>Estado</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="cell-main">Gestor Aceites Sur S.A.</span><span class="cell-sub">Toledo · Peligrosos</span></td>
+                  <td class="mono">4500018291</td>
+                  <td><span class="mono badge badge-warning badge-plain">R09</span> <span class="mono badge badge-neutral badge-plain">R13</span></td>
+                  <td>15/06/2029</td>
+                  <td><span class="badge badge-success">Vigente</span></td>
+                </tr>
+                <tr>
+                  <td><span class="cell-main">Planta Áridos Reciclados S.L.</span><span class="cell-sub">Madrid · RCD</span></td>
+                  <td class="mono">2800071190</td>
+                  <td><span class="mono badge badge-neutral badge-plain">R05</span></td>
+                  <td>02/01/2027</td>
+                  <td><span class="badge badge-warning">Renovar &lt;60d</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Panel 3: Transportistas -->
+          <div data-tab-panel="transportistas" class="table-wrap" style="display:none;">
+            <table class="data-table">
+              <thead>
+                <tr><th>Transportista</th><th>Nº Inscripción</th><th>Matrícula Principal</th><th>ADR Peligrosos</th><th>Estado</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="cell-main">Trans-Residuos Express S.A.</span><span class="cell-sub mono">A28991044</span></td>
+                  <td class="mono">28T02A1800012938Z</td>
+                  <td class="mono">4892-LMX</td>
+                  <td><span class="badge badge-success">Autorizado ADR</span></td>
+                  <td><span class="badge badge-success">Activo</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Panel 4: Contactos -->
+          <div data-tab-panel="contactos" class="table-wrap" style="display:none;">
+            <table class="data-table">
+              <thead>
+                <tr><th>Empresa Cliente</th><th>CIF</th><th>NIMA</th><th>Contratos Activos</th><th>Último DI</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="cell-main">Metalúrgicas del Norte S.L.</span><span class="cell-sub">Alcobendas, Madrid</span></td>
+                  <td class="mono">B84192011</td>
+                  <td class="mono">2800049182</td>
+                  <td>2 vigentes</td>
+                  <td>21/11/2026</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="../assets/app.js"></script>
+  <script src="../assets/shell.js"></script>
+</body>
+</html>
+

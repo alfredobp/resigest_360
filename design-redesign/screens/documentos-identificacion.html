@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es" data-variant="industrial" data-mode="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Documentos de Identificación (DI) — ResiGest 360</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body data-nav="di">
+  <div class="app-shell">
+    <aside id="app-sidebar"></aside>
+    <div class="app-main">
+      <header id="app-topbar"></header>
+      <main class="content">
+        <div class="page-header">
+          <div>
+            <div class="page-title-row">
+              <h1 class="page-title">Documentos de Identificación (DI)</h1>
+              <span class="badge badge-success">RD 553/2020</span>
+            </div>
+            <p class="page-subtitle">Trazabilidad completa de traslados, validación de báscula (&lt;5%), envío telemático SIRA y emisión de DeCA.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline">⬇ Exportar e3l XML</button>
+            <button class="btn btn-primary">+ Nuevo Documento DI</button>
+          </div>
+        </div>
+
+        <!-- Mini KPI Strip -->
+        <section class="grid grid-4">
+          <div class="card kpi-card">
+            <span class="kpi-label">Total DIs (2026)</span>
+            <div class="kpi-value">328</div>
+            <span class="kpi-sub">314 aceptados en destino</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label">En Tránsito Ahora</span>
+            <div class="kpi-value" style="color:var(--info)">10</div>
+            <span class="kpi-sub">4 con DeCA QR activo</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label">Discrepancias &gt;5%</span>
+            <div class="kpi-value" style="color:var(--danger)">1</div>
+            <span class="kpi-sub">Requiere validación gestor</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label">Sincronización SIRA</span>
+            <div class="kpi-value" style="color:var(--brand)">99,1%</div>
+            <span class="kpi-sub">325 acuses oficiales OK</span>
+          </div>
+        </section>
+
+        <!-- Workflow Filter & Search Toolbar -->
+        <section class="toolbar">
+          <div class="toolbar-group">
+            <input type="text" class="input" style="width:260px" placeholder="Buscar por Nº DI, LER, productor o matrícula..." data-table-search="diTable" />
+            <select class="select">
+              <option>Todos los centros (3)</option>
+              <option>Planta Valdemoro (2800049182)</option>
+              <option>Centro Getafe Sur (2800091204)</option>
+            </select>
+            <select class="select">
+              <option>Todos los estados</option>
+              <option>En Tránsito</option>
+              <option>En Báscula</option>
+              <option>Completado</option>
+              <option>Discrepancia &gt;5%</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <div class="tabs">
+              <button class="tab-btn active">Tabla</button>
+              <button class="tab-btn">Tarjetas</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Master-Detail Split: Table + Quick Inspector Preview -->
+        <section class="grid grid-12">
+          <div class="col-8 table-wrap">
+            <table class="data-table" id="diTable">
+              <thead>
+                <tr>
+                  <th>Documento</th>
+                  <th>Productor ➔ Gestor</th>
+                  <th>LER / Op.</th>
+                  <th>Estimado / Real</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="background:var(--brand-soft)">
+                  <td>
+                    <span class="mono cell-main">DI-2026-0842</span>
+                    <span class="cell-sub">21/11/2026 · 4892-LMX</span>
+                  </td>
+                  <td>
+                    <span class="cell-main">Metalúrgicas del Norte S.L.</span>
+                    <span class="cell-sub">➔ Eco-Valorizaciones Ibéricas</span>
+                  </td>
+                  <td>
+                    <span class="mono cell-main">17 04 05</span>
+                    <span class="cell-sub">R04 · No Peligroso</span>
+                  </td>
+                  <td>
+                    <span class="cell-main">14.200 kg</span>
+                    <span class="cell-sub" style="color:var(--brand)">+1,4% Conforme</span>
+                  </td>
+                  <td><span class="badge badge-info">En Tránsito</span></td>
+                  <td>
+                    <div style="display:flex; gap:4px;">
+                      <button class="btn btn-outline btn-sm" title="Generar DeCA">🚚 DeCA</button>
+                      <button class="btn btn-soft btn-sm" title="Enviar a SIRA">📡 SIRA</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <span class="mono cell-main">DI-2026-0841</span>
+                    <span class="cell-sub">20/11/2026 · 9104-KTR</span>
+                  </td>
+                  <td>
+                    <span class="cell-main">Talleres Centrales Madrid</span>
+                    <span class="cell-sub">➔ Gestor Aceites Sur S.A.</span>
+                  </td>
+                  <td>
+                    <span class="mono cell-main" style="color:var(--warning)">13 02 05*</span>
+                    <span class="cell-sub">R09 · Peligroso</span>
+                  </td>
+                  <td>
+                    <span class="cell-main">2.450 kg</span>
+                    <span class="cell-sub" style="color:var(--danger)">+7,2% Discrepancia</span>
+                  </td>
+                  <td><span class="badge badge-danger">Incidencia</span></td>
+                  <td>
+                    <div style="display:flex; gap:4px;">
+                      <button class="btn btn-danger-soft btn-sm">Revisar</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <span class="mono cell-main">DI-2026-0840</span>
+                    <span class="cell-sub">19/11/2026 · 2219-MNB</span>
+                  </td>
+                  <td>
+                    <span class="cell-main">Logística Levante S.L.</span>
+                    <span class="cell-sub">➔ Eco-Valorizaciones Ibéricas</span>
+                  </td>
+                  <td>
+                    <span class="mono cell-main">15 01 02</span>
+                    <span class="cell-sub">R03 · No Peligroso</span>
+                  </td>
+                  <td>
+                    <span class="cell-main">8.900 kg</span>
+                    <span class="cell-sub" style="color:var(--brand)">0,0% Exacto</span>
+                  </td>
+                  <td><span class="badge badge-success">Completado</span></td>
+                  <td>
+                    <div style="display:flex; gap:4px;">
+                      <button class="btn btn-outline btn-sm">PDF</button>
+                      <button class="btn btn-outline btn-sm">Clonar</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <span class="mono cell-main">DI-2026-0839</span>
+                    <span class="cell-sub">18/11/2026 · 4892-LMX</span>
+                  </td>
+                  <td>
+                    <span class="cell-main">Construcciones Ibéricas S.A.</span>
+                    <span class="cell-sub">➔ Planta Áridos Reciclados</span>
+                  </td>
+                  <td>
+                    <span class="mono cell-main">17 09 04</span>
+                    <span class="cell-sub">R05 · RCD Mezclados</span>
+                  </td>
+                  <td>
+                    <span class="cell-main">21.500 kg</span>
+                    <span class="cell-sub" style="color:var(--brand)">-0,8% Conforme</span>
+                  </td>
+                  <td><span class="badge badge-success">Completado</span></td>
+                  <td>
+                    <div style="display:flex; gap:4px;">
+                      <button class="btn btn-outline btn-sm">PDF</button>
+                      <button class="btn btn-outline btn-sm">Clonar</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Quick Inspector Drawer Card (UX Improvement!) -->
+          <aside class="card col-4" style="display:flex; flex-direction:column; gap:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+              <div>
+                <span class="badge badge-info" style="margin-bottom:6px;">Inspector Rápido</span>
+                <h3 class="card-title mono">DI-2026-0842</h3>
+                <p class="card-subtitle">Contrato CT-2026-018 · Vigente</p>
+              </div>
+              <button class="btn btn-outline btn-sm">Abrir ficha ↗</button>
+            </div>
+
+            <div class="stepper">
+              <span class="step-item done">✓ Emitido</span>
+              <span class="step-item done">✓ Firmado Origen</span>
+              <span class="step-item current">● En Tránsito</span>
+              <span class="step-item">Báscula Destino</span>
+            </div>
+
+            <div style="display:grid; gap:8px; font-size:12px; background:var(--bg-subtle); padding:12px; border-radius:var(--radius-md);">
+              <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">NIMA Origen</span><strong class="mono">2800049182</strong></div>
+              <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">NIMA Destino</span><strong class="mono">2800077410</strong></div>
+              <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">Transportista</span><strong>Trans-Residuos Express</strong></div>
+              <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">Matrícula</span><strong class="mono">4892-LMX</strong></div>
+              <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">Acuse SIRA</span><strong class="mono" style="color:var(--brand)">SIRA-2026-99412A</strong></div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              <button class="btn btn-primary btn-sm">✍️ Enlace Firma Móvil</button>
+              <button class="btn btn-outline btn-sm">📄 Descargar PDF</button>
+            </div>
+          </aside>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="../assets/app.js"></script>
+  <script src="../assets/shell.js"></script>
+</body>
+</html>
+

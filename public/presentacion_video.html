@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video de Presentación - ResiGest 360</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --card-bg: rgba(18, 24, 38, 0.85);
+      --primary: #10b981;
+      --primary-glow: rgba(16, 185, 129, 0.35);
+      --primary-light: #34d399;
+      --accent-blue: #3b82f6;
+      --accent-cyan: #06b6d4;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: rgba(255, 255, 255, 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 20%, #0f172a 0%, var(--bg-dark) 100%);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      overflow-x: hidden;
+    }
+
+    .header-bar {
+      width: 100%;
+      max-width: 1100px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px var(--primary-glow);
+    }
+
+    .brand-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-title span {
+      color: var(--primary-light);
+    }
+
+    .badge-pill {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--primary-light);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Video Canvas Container */
+    .video-viewport {
+      width: 100%;
+      max-width: 1060px;
+      aspect-ratio: 16 / 9;
+      background: #020617;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    canvas#videoCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+    }
+
+    /* Controls Bar */
+    .controls-panel {
+      width: 100%;
+      max-width: 1060px;
+      margin-top: 18px;
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .timeline-container {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .time-display {
+      font-family: monospace;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      min-width: 90px;
+    }
+
+    .progress-bar-bg {
+      flex: 1;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      position: relative;
+      cursor: pointer;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #10b981, #06b6d4);
+      border-radius: 999px;
+      transition: width 0.1s linear;
+    }
+
+    .buttons-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .left-buttons, .right-buttons {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn {
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--text-main);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.13);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #10b981, #059669);
+      border: none;
+      color: white;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #059669, #047857);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+    }
+
+    .btn-download {
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      border: none;
+      color: white;
+      box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+    }
+
+    .btn-download:hover {
+      background: linear-gradient(135deg, #2563eb, #1e40af);
+      box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+    }
+
+    .status-recording {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      color: #ef4444;
+      font-weight: 700;
+      font-size: 0.85rem;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .red-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #ef4444;
+      box-shadow: 0 0 10px #ef4444;
+    }
+
+    .scene-chips {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-top: 4px;
+    }
+
+    .scene-chip {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+
+    .scene-chip.active {
+      background: rgba(16, 185, 129, 0.2);
+      border-color: var(--primary);
+      color: var(--primary-light);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header-bar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+      </div>
+      <div class="brand-title">ResiGest <span>360</span></div>
+    </div>
+    <div class="badge-pill">
+      <span>●</span> Video Oficial de Presentación
+    </div>
+  </div>
+
+  <div class="video-viewport">
+    <canvas id="videoCanvas" width="1920" height="1080"></canvas>
+  </div>
+
+  <div class="controls-panel">
+    <div class="timeline-container">
+      <div class="time-display" id="timeDisplay">00:00 / 01:12</div>
+      <div class="progress-bar-bg" id="progressBar" onclick="seek(event)">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <div class="buttons-row">
+      <div class="left-buttons">
+        <button class="btn btn-primary" id="playBtn" onclick="togglePlay()">
+          <span id="playIcon">▶ Reproducir</span>
+        </button>
+        <button class="btn" onclick="restart()">
+          <span>↺ Reiniciar</span>
+        </button>
+        <button class="btn" id="voiceBtn" onclick="toggleVoice()">
+          <span id="voiceIcon">🔊 Voz en Off: Activada</span>
+        </button>
+      </div>
+
+      <div class="right-buttons">
+        <div class="status-recording" id="recStatus">
+          <div class="red-dot"></div> GRABANDO VIDEO...
+        </div>
+        <button class="btn btn-download" id="downloadBtn" onclick="recordAndExportVideo()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Descargar Archivo de Video (.webm)
+        </button>
+      </div>
+    </div>
+
+    <div class="scene-chips" id="sceneChips">
+      <div class="scene-chip active" onclick="jumpToScene(0)">1. Introducción 360°</div>
+      <div class="scene-chip" onclick="jumpToScene(1)">2. Dashboard & KPIs</div>
+      <div class="scene-chip" onclick="jumpToScene(2)">3. Documentos DI & Firma</div>
+      <div class="scene-chip" onclick="jumpToScene(3)">4. Archivo Cronológico</div>
+      <div class="scene-chip" onclick="jumpToScene(4)">5. Integración SIRA / e-SIR</div>
+      <div class="scene-chip" onclick="jumpToScene(5)">6. Conclusión & Demo</div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('videoCanvas');
+    const ctx = canvas.getContext('2d');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const progressFill = document.getElementById('progressFill');
+    const playIcon = document.getElementById('playIcon');
+    const voiceIcon = document.getElementById('voiceIcon');
+    const recStatus = document.getElementById('recStatus');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let isPlaying = false;
+    let voiceEnabled = true;
+    let currentTime = 0;
+    const totalDuration = 72; // seconds
+    let lastTimestamp = null;
+    let animationFrameId = null;
+    let currentSceneIndex = 0;
+    let currentSpeechUtterance = null;
+
+    // SCENES DEFINITION
+    const scenes = [
+      {
+        start: 0,
+        end: 12,
+        title: "ResiGest 360",
+        subtitle: "Plataforma de Gestión Integral de Residuos",
+        tagline: "Trazabilidad 360° • Ley 7/2022 • RD 553/2020",
+        voice: "En el sector de los residuos, la normativa medioambiental exige rigor absoluto. Te presentamos ResiGest 360, el ecosistema digital diseñado para garantizar la trazabilidad total y el cumplimiento legal de principio a fin.",
+        type: "intro"
+      },
+      {
+        start: 12,
+        end: 25,
+        title: "DASHBOARD EJECUTIVO & BALANCE DE MASAS",
+        subtitle: "Control en tiempo real de operaciones, entradas y salidas",
+        voice: "Desde el panel central, supervisas en tiempo real los volúmenes de residuos peligrosos y no peligrosos, consultando métricas clave y evitando cualquier desviación antes de que se convierta en sanción.",
+        type: "dashboard"
+      },
+      {
+        start: 25,
+        end: 40,
+        title: "DOCUMENTOS DE IDENTIFICACIÓN (DI) DIGITALES",
+        subtitle: "Validación LER automática, transportistas y firma electrónica",
+        voice: "Emitir Documentos de Identificación ahora toma menos de un minuto. El sistema valida los códigos LER, asigna transportistas autorizados e integra la firma digital de productores y gestores con total validez jurídica.",
+        type: "di"
+      },
+      {
+        start: 40,
+        end: 54,
+        title: "ARCHIVO CRONOLÓGICO DIGITAL OFICIAL",
+        subtitle: "Conforme al Art. 64 de la Ley 7/2022 y RD 553/2020",
+        voice: "El Archivo Cronológico Oficial se genera de forma completamente automática. Filtra por fechas, centros o residuos y exporta informes certificados para inspecciones ambientales con solo hacer un clic.",
+        type: "archivo"
+      },
+      {
+        start: 54,
+        end: 64,
+        title: "CONTRATOS & INTEROPERABILIDAD SIRA / e-SIR",
+        subtitle: "Conexión directa con plataformas ministeriales y autonómicas",
+        voice: "Centraliza tus contratos de tratamiento y mantén la sincronización directa con el Ministerio y Comunidades Autónomas, asegurando cero discrepancias documentales y máxima agilidad operativa.",
+        type: "sira"
+      },
+      {
+        start: 64,
+        end: 72,
+        title: "DIGITALIZA TU GESTIÓN CON RESIGEST 360",
+        subtitle: "Ahorra un 85% de tiempo administrativo y blinda tu operativa legal",
+        tagline: "Solicita tu demo hoy en info@resigest360.com",
+        voice: "ResiGest 360: digitaliza tus procesos, ahorra hasta un 85% de tiempo administrativo y lidera la economía circular con total tranquilidad. Solicita tu demostración hoy mismo.",
+        type: "outro"
+      }
+    ];
+
+    function speakSceneVoice(scene) {
+      if (!voiceEnabled || !window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(scene.voice);
+      utter.lang = 'es-ES';
+      utter.rate = 1.05;
+      utter.pitch = 1.0;
+      
+      const voices = window.speechSynthesis.getVoices();
+      const spanishVoice = voices.find(v => v.lang.startsWith('es'));
+      if (spanishVoice) utter.voice = spanishVoice;
+      
+      window.speechSynthesis.speak(utter);
+      currentSpeechUtterance = utter;
+    }
+
+    function toggleVoice() {
+      voiceEnabled = !voiceEnabled;
+      if (!voiceEnabled && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        voiceIcon.textContent = "🔇 Voz en Off: Desactivada";
+      } else {
+        voiceIcon.textContent = "🔊 Voz en Off: Activada";
+        if (isPlaying) speakSceneVoice(scenes[currentSceneIndex]);
+      }
+    }
+
+    // Particles system
+    const particles = [];
+    for (let i = 0; i < 45; i++) {
+      particles.push({
+        x: Math.random() * 1920,
+        y: Math.random() * 1080,
+        size: Math.random() * 2.5 + 1,
+        speedX: (Math.random() - 0.5) * 0.4,
+        speedY: (Math.random() - 0.5) * 0.4,
+        opacity: Math.random() * 0.6 + 0.2
+      });
+    }
+
+    function drawBackground(progress) {
+      const grad = ctx.createRadialGradient(960, 540, 200, 960, 540, 1100);
+      grad.addColorStop(0, '#0c1626');
+      grad.addColorStop(0.6, '#060a12');
+      grad.addColorStop(1, '#020408');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 1920, 1080);
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
+      ctx.lineWidth = 1;
+      const gridSize = 60;
+      for (let x = 0; x < 1920; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, 1080);
+        ctx.stroke();
+      }
+      for (let y = 0; y < 1080; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(1920, y);
+        ctx.stroke();
+      }
+
+      particles.forEach(p => {
+        p.x += p.speedX;
+        p.y += p.speedY;
+        if (p.x < 0) p.x = 1920;
+        if (p.x > 1920) p.x = 0;
+        if (p.y < 0) p.y = 1080;
+        if (p.y > 1080) p.y = 0;
+
+        ctx.fillStyle = `rgba(16, 185, 129, ${p.opacity * 0.7})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function drawIntroScene(localProgress, scene) {
+      const alpha = Math.min(1, localProgress * 2.5);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+
+      const centerGlow = ctx.createRadialGradient(960, 480, 50, 960, 480, 400);
+      centerGlow.addColorStop(0, 'rgba(16, 185, 129, 0.22)');
+      centerGlow.addColorStop(1, 'rgba(16, 185, 129, 0)');
+      ctx.fillStyle = centerGlow;
+      ctx.fillRect(0, 0, 1920, 1080);
+
+      const iconSize = 130;
+      const iconX = 960 - iconSize / 2;
+      const iconY = 320;
+      
+      ctx.shadowColor = 'rgba(16, 185, 129, 0.6)';
+      ctx.shadowBlur = 35;
+      ctx.fillStyle = '#10b981';
+      roundRect(ctx, iconX, iconY, iconSize, iconSize, 28, true, false);
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(960, iconY + 65, 32, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 8;
+      ctx.stroke();
+      
+      ctx.font = '800 84px Outfit, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('ResiGest ', 900, 560);
+      ctx.fillStyle = '#34d399';
+      ctx.fillText('360', 1070, 560);
+
+      ctx.font = '500 32px "Plus Jakarta Sans", sans-serif';
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillText(scene.subtitle, 960, 630);
+
+      const badges = ['Ley 7/2022', 'RD 553/2020', 'Trazabilidad 360°', 'e-SIR / SIRA'];
+      let bx = 960 - ((badges.length * 200) / 2) + 20;
+      badges.forEach(b => {
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.12)';
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.4)';
+        ctx.lineWidth = 1.5;
+        roundRect(ctx, bx, 690, 180, 50, 25, true, true);
+        ctx.font = '600 18px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = '#34d399';
+        ctx.fillText(b, bx + 90, 722);
+        bx += 200;
+      });
+
+      ctx.restore();
+    }
+
+    function drawDashboardScene(localProgress, scene) {
+      drawHeaderBanner(scene.title, scene.subtitle);
+
+      const kpis = [
+        { label: "Masa Total Gestionada", val: "1.428,50 Tn", sub: "+12.4% este mes", color: "#10b981" },
+        { label: "Residuos Peligrosos", val: "312,20 Tn", sub: "Control RP activo", color: "#f59e0b" },
+        { label: "DIs Tramitados", val: "847", sub: "100% validados", color: "#3b82f6" },
+        { label: "Auditoría Ambiental", val: "0 Sanciones", sub: "Cumplimiento 100%", color: "#06b6d4" }
+      ];
+
+      const startX = 220;
+      const cardW = 340;
+      const cardH = 170;
+      const gap = 26;
+
+      kpis.forEach((kpi, idx) => {
+        const x = startX + idx * (cardW + gap);
+        const y = 240;
+
+        ctx.fillStyle = 'rgba(18, 28, 48, 0.85)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        roundRect(ctx, x, y, cardW, cardH, 16, true, true);
+
+        ctx.fillStyle = kpi.color;
+        roundRect(ctx, x, y, cardW, 4, { tl: 16, tr: 16, br: 0, bl: 0 }, true, false);
+
+        ctx.font = '500 18px "Plus Jakarta Sans", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText(kpi.label, x + 24, y + 48);
+
+        ctx.font = '700 38px Outfit, sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(kpi.val, x + 24, y + 104);
+
+        ctx.font = '600 15px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = kpi.color;
+        ctx.fillText(kpi.sub, x + 24, y + 140);
+      });
+
+      const chartX = 220;
+      const chartY = 445;
+      const chartW = 1480;
+      const chartH = 390;
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      roundRect(ctx, chartX, chartY, chartW, chartH, 18, true, true);
+
+      ctx.font = '700 22px Outfit, sans-serif';
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillText('Evolución Mensual de Traslados y Tipologías LER (e-SIR)', chartX + 32, chartY + 50);
+
+      const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct'];
+      const barBaseY = chartY + 320;
+      const stepX = 138;
+
+      months.forEach((m, i) => {
+        const bx = chartX + 110 + i * stepX;
+        const h1 = 70 + (i * 18) % 180 + Math.sin(i + localProgress * 2) * 15;
+        const h2 = 40 + (i * 12) % 110;
+
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.85)';
+        roundRect(ctx, bx, barBaseY - h1, 36, h1, 6, true, false);
+
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.85)';
+        roundRect(ctx, bx + 42, barBaseY - h2, 36, h2, 6, true, false);
+
+        ctx.font = '500 16px "Plus Jakarta Sans", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#64748b';
+        ctx.fillText(m, bx + 39, barBaseY + 30);
+      });
+    }
+
+    function drawDIScene(localProgress, scene) {
+      drawHeaderBanner(scene.title, scene.subtitle);
+
+      const boxX = 220;
+      const boxY = 240;
+      const boxW = 1480;
+      const boxH = 590;
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      roundRect(ctx, boxX, boxY, boxW, boxH, 20, true, true);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+      roundRect(ctx, boxX, boxY, boxW, 70, { tl: 20, tr: 20, br: 0, bl: 0 }, true, false);
+
+      ctx.font = '700 22px Outfit, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#34d399';
+      ctx.fillText('● DOCUMENTO DE IDENTIFICACIÓN: DI-2026-0842', boxX + 32, boxY + 44);
+
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.2)';
+      ctx.strokeStyle = '#10b981';
+      roundRect(ctx, boxX + boxW - 220, boxY + 18, 180, 36, 18, true, true);
+      ctx.font = '700 14px "Plus Jakarta Sans", sans-serif';
+      ctx.fillStyle = '#34d399';
+      ctx.textAlign = 'center';
+      ctx.fillText('✓ FIRMADO & EN REGLA', boxX + boxW - 130, boxY + 41);
+
+      const blocks = [
+        { role: "1. CENTRO PRODUCTOR", name: "EcoIndustrias Levante S.L.", nima: "NIMA: 4600029182", status: "Firma Electrónica Válida" },
+        { role: "2. TRANSPORTISTA AUTORIZADO", name: "TransResiduos Iberia S.A.", nima: "NIMA: 2800019283", status: "Vehículo 4829-KMW" },
+        { role: "3. GESTOR DE DESTINO (VALORIZACIÓN)", name: "Planta Reciclaje Circular S.L.", nima: "NIMA: 0800049281", status: "Op. Tratamiento R12" }
+      ];
+
+      const bW = 440;
+      blocks.forEach((b, idx) => {
+        const bx = boxX + 40 + idx * (bW + 40);
+        const by = boxY + 105;
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        roundRect(ctx, bx, by, bW, 200, 14, true, true);
+
+        ctx.font = '700 15px "Plus Jakarta Sans", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillText(b.role, bx + 22, by + 40);
+
+        ctx.font = '600 20px Outfit, sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(b.name, bx + 22, by + 80);
+
+        ctx.font = '500 16px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText(b.nima, bx + 22, by + 120);
+
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+        roundRect(ctx, bx + 22, by + 144, 230, 32, 8, true, false);
+        ctx.font = '600 13px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = '#34d399';
+        ctx.fillText(`✓ ${b.status}`, bx + 34, by + 165);
+      });
+
+      const wY = boxY + 340;
+      ctx.fillStyle = 'rgba(245, 158, 11, 0.08)';
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.3)';
+      roundRect(ctx, boxX + 40, wY, boxW - 80, 200, 16, true, true);
+
+      ctx.font = '700 20px Outfit, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillText('Código LER: 15 01 10* — Envases que contienen restos de sustancias peligrosas', boxX + 70, wY + 50);
+
+      ctx.font = '500 17px "Plus Jakarta Sans", sans-serif';
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillText('Cantidad: 1.850 Kg  •  Envases: 4 GRG / IBC de 1.000 L  •  Operación de destino: R05 Reciclado', boxX + 70, wY + 95);
+      ctx.fillText('Notificación Previa de Traslado (NT): NT-2026-VAL-004921 (Aceptada sin reparos)', boxX + 70, wY + 140);
+    }
+
+    function drawArchivoScene(localProgress, scene) {
+      drawHeaderBanner(scene.title, scene.subtitle);
+
+      const tableX = 220;
+      const tableY = 240;
+      const tableW = 1480;
+      const tableH = 590;
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      roundRect(ctx, tableX, tableY, tableW, tableH, 18, true, true);
+
+      ctx.font = '700 22px Outfit, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('Libro de Registro Cronológico Digital — Ejercicio 2026', tableX + 32, tableY + 50);
+
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.2)';
+      ctx.strokeStyle = '#10b981';
+      roundRect(ctx, tableX + tableW - 380, tableY + 22, 160, 40, 10, true, true);
+      ctx.font = '600 14px "Plus Jakarta Sans", sans-serif';
+      ctx.fillStyle = '#34d399';
+      ctx.textAlign = 'center';
+      ctx.fillText('⬇ Exportar Excel', tableX + tableW - 300, tableY + 47);
+
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.2)';
+      ctx.strokeStyle = '#3b82f6';
+      roundRect(ctx, tableX + tableW - 200, tableY + 22, 160, 40, 10, true, true);
+      ctx.fillStyle = '#60a5fa';
+      ctx.fillText('📄 Certificado PDF', tableX + tableW - 120, tableY + 47);
+
+      const rows = [
+        { fecha: "29/10/2026", tipo: "Salida", ler: "15 01 10*", desc: "Envases plásticos contaminados", cant: "1.850 Kg", gestor: "Reciclajes Levante S.L.", estado: "Conciliado" },
+        { fecha: "27/10/2026", tipo: "Salida", ler: "13 02 05*", desc: "Aceites minerales de motor", cant: "920 L", gestor: "Sigaus Gestión S.A.", estado: "Conciliado" },
+        { fecha: "24/10/2026", tipo: "Entrada", ler: "15 01 02", desc: "Envases de plástico no peligrosos", cant: "4.300 Kg", gestor: "EcoPlast S.L.", estado: "Conciliado" },
+        { fecha: "21/10/2026", tipo: "Salida", ler: "16 01 07*", desc: "Filtros de aceite usados", cant: "450 Kg", gestor: "Valoriza Medioambiental", estado: "Conciliado" },
+        { fecha: "18/10/2026", tipo: "Entrada", ler: "15 01 01", desc: "Envases de papel y cartón", cant: "3.200 Kg", gestor: "Cartonajes del Turia", estado: "Conciliado" }
+      ];
+
+      const rH = 75;
+      const startRY = tableY + 90;
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.fillRect(tableX, startRY, tableW, 45);
+      ctx.font = '700 14px "Plus Jakarta Sans", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText('FECHA', tableX + 30, startRY + 28);
+      ctx.fillText('TIPO', tableX + 160, startRY + 28);
+      ctx.fillText('CÓDIGO LER', tableX + 270, startRY + 28);
+      ctx.fillText('DESCRIPCIÓN DEL RESIDUO', tableX + 440, startRY + 28);
+      ctx.fillText('CANTIDAD', tableX + 880, startRY + 28);
+      ctx.fillText('GESTOR AUTORIZADO', tableX + 1040, startRY + 28);
+      ctx.fillText('ESTADO', tableX + 1330, startRY + 28);
+
+      rows.forEach((r, idx) => {
+        const ry = startRY + 45 + idx * rH;
+        ctx.fillStyle = idx % 2 === 0 ? 'rgba(255, 255, 255, 0.015)' : 'transparent';
+        ctx.fillRect(tableX, ry, tableW, rH);
+
+        ctx.font = '500 16px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillText(r.fecha, tableX + 30, ry + 44);
+
+        ctx.fillStyle = r.tipo === 'Salida' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)';
+        roundRect(ctx, tableX + 155, ry + 22, 75, 30, 6, true, false);
+        ctx.font = '700 13px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = r.tipo === 'Salida' ? '#f87171' : '#34d399';
+        ctx.fillText(r.tipo, tableX + 172, ry + 42);
+
+        ctx.font = '700 16px Outfit, sans-serif';
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillText(r.ler, tableX + 270, ry + 44);
+
+        ctx.font = '500 16px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillText(r.desc, tableX + 440, ry + 44);
+
+        ctx.font = '700 16px Outfit, sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(r.cant, tableX + 880, ry + 44);
+
+        ctx.font = '500 15px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText(r.gestor, tableX + 1040, ry + 44);
+
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.2)';
+        roundRect(ctx, tableX + 1320, ry + 22, 100, 30, 6, true, false);
+        ctx.font = '600 13px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = '#34d399';
+        ctx.fillText('✓ Legal', tableX + 1348, ry + 42);
+      });
+    }
+
+    function drawSiraScene(localProgress, scene) {
+      drawHeaderBanner(scene.title, scene.subtitle);
+
+      const cx = 960;
+      const cy = 520;
+
+      ctx.fillStyle = '#10b981';
+      ctx.shadowColor = 'rgba(16, 185, 129, 0.5)';
+      ctx.shadowBlur = 40;
+      roundRect(ctx, cx - 180, cy - 90, 360, 180, 24, true, false);
+      ctx.shadowBlur = 0;
+
+      ctx.font = '800 36px Outfit, sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText('ResiGest 360', cx, cy - 10);
+      ctx.font = '600 18px "Plus Jakarta Sans", sans-serif';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.fillText('Motor de Sincronización Telemática', cx, cy + 30);
+
+      const nodes = [
+        { name: "e-SIR Ministerio (MITERD)", x: cx - 480, y: cy - 140, tag: "E3L XML v3.4" },
+        { name: "SIRA / Plataformas CCAA", x: cx + 480, y: cy - 140, tag: "Interoperabilidad Autonómica" },
+        { name: "Firma Electrónica Avanzada", x: cx - 480, y: cy + 140, tag: "eIDAS Certificado" },
+        { name: "ERP & Básculas de Pesaje", x: cx + 480, y: cy + 140, tag: "Integración API REST" }
+      ];
+
+      nodes.forEach(n => {
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.5)';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([8, 8]);
+        ctx.lineDashOffset = -currentTime * 20;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(n.x, n.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        roundRect(ctx, n.x - 170, n.y - 55, 340, 110, 18, true, true);
+
+        ctx.font = '700 20px Outfit, sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText(n.name, n.x, n.y - 8);
+
+        ctx.font = '600 14px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = '#34d399';
+        ctx.fillText(n.tag, n.x, n.y + 24);
+      });
+    }
+
+    function drawOutroScene(localProgress, scene) {
+      const alpha = Math.min(1, localProgress * 2.5);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+
+      const centerGlow = ctx.createRadialGradient(960, 480, 50, 960, 480, 550);
+      centerGlow.addColorStop(0, 'rgba(16, 185, 129, 0.25)');
+      centerGlow.addColorStop(1, 'rgba(16, 185, 129, 0)');
+      ctx.fillStyle = centerGlow;
+      ctx.fillRect(0, 0, 1920, 1080);
+
+      ctx.font = '800 76px Outfit, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('Digitaliza tu Operativa con ', 960 - 140, 420);
+      ctx.fillStyle = '#34d399';
+      ctx.fillText('ResiGest 360', 960 + 360, 420);
+
+      ctx.font = '500 32px "Plus Jakarta Sans", sans-serif';
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillText(scene.subtitle, 960, 495);
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+      ctx.lineWidth = 2;
+      roundRect(ctx, 620, 580, 680, 140, 24, true, true);
+
+      ctx.font = '700 30px Outfit, sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('Solicita tu Demostración Personalizada', 960, 635);
+
+      ctx.font = '600 22px "Plus Jakarta Sans", sans-serif';
+      ctx.fillStyle = '#34d399';
+      ctx.fillText('✉ info@resigest360.com   •   🌐 www.resigest360.com', 960, 685);
+
+      ctx.restore();
+    }
+
+    function drawHeaderBanner(title, subtitle) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+      ctx.fillRect(0, 0, 1920, 110);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.beginPath();
+      ctx.moveTo(0, 110);
+      ctx.lineTo(1920, 110);
+      ctx.stroke();
+
+      ctx.font = '800 28px Outfit, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('ResiGest ', 220, 68);
+      ctx.fillStyle = '#34d399';
+      ctx.fillText('360', 335, 68);
+
+      ctx.font = '700 24px Outfit, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillText(title, 1700, 52);
+
+      ctx.font = '500 16px "Plus Jakarta Sans", sans-serif';
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(subtitle, 1700, 82);
+    }
+
+    function drawSubtitles(scene) {
+      const barH = 100;
+      const barY = 1080 - barH;
+
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.88)';
+      ctx.fillRect(0, barY, 1920, barH);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.beginPath();
+      ctx.moveTo(0, barY);
+      ctx.lineTo(1920, barY);
+      ctx.stroke();
+
+      ctx.font = '500 24px "Plus Jakarta Sans", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillText(`"${scene.voice}"`, 960, barY + 58);
+    }
+
+    function render(timestamp) {
+      if (isPlaying) {
+        if (!lastTimestamp) lastTimestamp = timestamp;
+        const delta = (timestamp - lastTimestamp) / 1000;
+        currentTime += delta;
+        lastTimestamp = timestamp;
+
+        if (currentTime >= totalDuration) {
+          currentTime = totalDuration;
+          pause();
+        }
+      }
+
+      let sceneIdx = 0;
+      for (let i = 0; i < scenes.length; i++) {
+        if (currentTime >= scenes[i].start && currentTime < scenes[i].end) {
+          sceneIdx = i;
+          break;
+        }
+      }
+      if (currentTime >= totalDuration) sceneIdx = scenes.length - 1;
+
+      if (sceneIdx !== currentSceneIndex) {
+        currentSceneIndex = sceneIdx;
+        updateSceneChips(sceneIdx);
+        if (isPlaying) speakSceneVoice(scenes[sceneIdx]);
+      }
+
+      const scene = scenes[sceneIdx];
+      const localProgress = (currentTime - scene.start) / (scene.end - scene.start);
+
+      drawBackground(currentTime / totalDuration);
+
+      switch (scene.type) {
+        case 'intro': drawIntroScene(localProgress, scene); break;
+        case 'dashboard': drawDashboardScene(localProgress, scene); break;
+        case 'di': drawDIScene(localProgress, scene); break;
+        case 'archivo': drawArchivoScene(localProgress, scene); break;
+        case 'sira': drawSiraScene(localProgress, scene); break;
+        case 'outro': drawOutroScene(localProgress, scene); break;
+      }
+
+      drawSubtitles(scene);
+      updateControlsUI();
+
+      animationFrameId = requestAnimationFrame(render);
+    }
+
+    function updateControlsUI() {
+      const curM = String(Math.floor(currentTime / 60)).padStart(2, '0');
+      const curS = String(Math.floor(currentTime % 60)).padStart(2, '0');
+      const totM = String(Math.floor(totalDuration / 60)).padStart(2, '0');
+      const totS = String(Math.floor(totalDuration % 60)).padStart(2, '0');
+      timeDisplay.textContent = `${curM}:${curS} / ${totM}:${totS}`;
+
+      const pct = (currentTime / totalDuration) * 100;
+      progressFill.style.width = `${pct}%`;
+    }
+
+    function updateSceneChips(idx) {
+      const chips = document.querySelectorAll('.scene-chip');
+      chips.forEach((c, i) => {
+        if (i === idx) c.classList.add('active');
+        else c.classList.remove('active');
+      });
+    }
+
+    function togglePlay() {
+      if (isPlaying) pause();
+      else play();
+    }
+
+    function play() {
+      if (currentTime >= totalDuration) currentTime = 0;
+      isPlaying = true;
+      lastTimestamp = null;
+      playIcon.textContent = "⏸ Pausar";
+      speakSceneVoice(scenes[currentSceneIndex]);
+    }
+
+    function pause() {
+      isPlaying = false;
+      playIcon.textContent = "▶ Reproducir";
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+    }
+
+    function restart() {
+      currentTime = 0;
+      currentSceneIndex = 0;
+      updateSceneChips(0);
+      if (isPlaying) {
+        speakSceneVoice(scenes[0]);
+      }
+    }
+
+    function seek(e) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+      currentTime = ratio * totalDuration;
+      lastTimestamp = null;
+      if (isPlaying) {
+        speakSceneVoice(scenes[currentSceneIndex]);
+      }
+    }
+
+    function jumpToScene(idx) {
+      currentTime = scenes[idx].start;
+      currentSceneIndex = idx;
+      updateSceneChips(idx);
+      lastTimestamp = null;
+      if (isPlaying) {
+        speakSceneVoice(scenes[idx]);
+      }
+    }
+
+    function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+      if (typeof radius === 'undefined') radius = 5;
+      if (typeof radius === 'number') {
+        radius = { tl: radius, tr: radius, br: radius, bl: radius };
+      } else {
+        const defaultRadius = { tl: 0, tr: 0, br: 0, bl: 0 };
+        for (let side in defaultRadius) radius[side] = radius[side] || defaultRadius[side];
+      }
+      ctx.beginPath();
+      ctx.moveTo(x + radius.tl, y);
+      ctx.lineTo(x + width - radius.tr, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + radius.tr);
+      ctx.lineTo(x + width, y + height - radius.br);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - radius.br, y + height);
+      ctx.lineTo(x + radius.bl, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - radius.bl);
+      ctx.lineTo(x, y + radius.tl);
+      ctx.quadraticCurveTo(x, y, x + radius.tl, y);
+      ctx.closePath();
+      if (fill) ctx.fill();
+      if (stroke) ctx.stroke();
+    }
+
+    // EXPORT TO REAL VIDEO FILE (WebM / MP4)
+    async function recordAndExportVideo() {
+      if (!window.MediaRecorder) {
+        alert("Tu navegador no soporta MediaRecorder para grabar video directamente.");
+        return;
+      }
+
+      recStatus.style.display = 'flex';
+      downloadBtn.disabled = true;
+      downloadBtn.innerHTML = "⏳ Generando archivo de video...";
+
+      restart();
+      play();
+
+      const stream = canvas.captureStream(30);
+      const recordedChunks = [];
+
+      let options = { mimeType: 'video/webm;codecs=vp9' };
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: 'video/webm' };
+      }
+
+      const recorder = new MediaRecorder(stream, options);
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          recordedChunks.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `ResiGest_360_Presentacion_Oficial.webm`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        }, 100);
+
+        recStatus.style.display = 'none';
+        downloadBtn.disabled = false;
+        downloadBtn.innerHTML = `
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Descargar Archivo de Video (.webm)
+        `;
+        alert("¡Video generado y descargado con éxito en tu equipo!");
+      };
+
+      recorder.start();
+
+      const checkInterval = setInterval(() => {
+        if (currentTime >= totalDuration || !isPlaying) {
+          clearInterval(checkInterval);
+          recorder.stop();
+          pause();
+        }
+      }, 500);
+    }
+
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>

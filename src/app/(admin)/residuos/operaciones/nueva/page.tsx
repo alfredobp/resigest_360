@@ -3,17 +3,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import commercialOperationService, {
-  calculateProfitability
+  calculateProfitability,
+  validateOperatorMandate
 } from '@/services/commercialOperationService';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import identificationDocumentService from '@/services/identificationDocumentService';
 import {
   type CommercialOperationFormData,
+  type CommercialMaterialLine,
   type Company,
   type ProductionCenter,
   type IdentificationDocument
 } from '@/types/wasteManagement';
+import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
@@ -25,7 +28,7 @@ export default function NuevaOperacionComercialPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Catálogos
-  const [, setCompanies] = useState<Company[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [, setCenters] = useState<ProductionCenter[]>([]);
   const [documents, setDocuments] = useState<IdentificationDocument[]>([]);
 
@@ -33,11 +36,16 @@ export default function NuevaOperacionComercialPage() {
   const [formData, setFormData] = useState<CommercialOperationFormData>({
     fecha: new Date().toISOString().split('T')[0],
     estado: 'abierta',
+    modalidad_posesion: 'intermediacion_sin_posesion',
+    actua_como_operador: false,
+    mandato_referencia: '',
+    mandato_fecha: '',
+    mandato_otorgante: '',
     codigo_ler: '',
     descripcion_residuo: '',
     peligrosidad: 'no-peligroso',
     operacion_rd: 'R13',
-    cantidad_estimada_t: 1.0,
+    cantidad_estimada_t: 0,
     cantidad_real_t: 0,
     tipo_precio_compra: 'por_tonelada',
     precio_unitario_compra: 0,
@@ -65,6 +73,7 @@ export default function NuevaOperacionComercialPage() {
       setDocuments(docs);
 
       if (myComp) {
+        setFormData(prev => ({ ...prev, company_id: myComp.id }));
         const myCenters = await productionCenterService.getByCompanyId(myComp.id);
         setCenters(myCenters);
       }
@@ -93,6 +102,81 @@ export default function NuevaOperacionComercialPage() {
     }));
   };
 
+  // Hito C.4: Gestión de líneas adicionales en operación comercial multimaterial
+  const handleAddMaterialLine = () => {
+    setFormData((prev) => {
+      const existing = prev.lineas_materiales || [];
+      const baseFirstLine: CommercialMaterialLine[] =
+        existing.length === 0 && prev.codigo_ler
+          ? [
+              {
+                id: `mat-${Date.now()}-1`,
+                codigo_ler: prev.codigo_ler,
+                descripcion_residuo: prev.descripcion_residuo || 'Material principal',
+                peligrosidad: prev.peligrosidad || 'no-peligroso',
+                cantidad_t: prev.cantidad_real_t || prev.cantidad_estimada_t || 1,
+                tipo_precio: prev.tipo_precio_compra || 'por_tonelada',
+                precio_unitario_compra: prev.precio_unitario_compra || 0,
+                precio_unitario_venta: prev.precio_unitario_venta || 0,
+                di_referencia: prev.identification_document_id ? `DI #${prev.identification_document_id}` : '',
+              },
+            ]
+          : existing;
+      const newLine: CommercialMaterialLine = {
+        id: `mat-${Date.now()}-${baseFirstLine.length + 1}`,
+        codigo_ler: '17 04 01',
+        descripcion_residuo: 'Cobre, bronce, latón',
+        peligrosidad: 'no-peligroso',
+        cantidad_t: 1,
+        tipo_precio: prev.tipo_precio_compra || 'por_tonelada',
+        precio_unitario_compra: 0,
+        precio_unitario_venta: 0,
+        di_referencia: '',
+      };
+      const nextLines = [...baseFirstLine, newLine];
+      const totalT = nextLines.reduce((acc, l) => acc + (Number(l.cantidad_t) || 0), 0);
+      return {
+        ...prev,
+        lineas_materiales: nextLines,
+        cantidad_estimada_t: Number(totalT.toFixed(3)),
+      };
+    });
+  };
+
+  const handleUpdateMaterialLine = (idx: number, field: keyof CommercialMaterialLine, value: any) => {
+    setFormData((prev) => {
+      const next = [...(prev.lineas_materiales || [])];
+      next[idx] = { ...next[idx], [field]: value };
+      if (field === 'codigo_ler') {
+        next[idx].peligrosidad = String(value).includes('*') ? 'peligroso' : 'no-peligroso';
+      }
+      const totalT = next.reduce((acc, l) => acc + (Number(l.cantidad_t) || 0), 0);
+      return {
+        ...prev,
+        lineas_materiales: next,
+        ...(idx === 0
+          ? {
+              codigo_ler: next[0].codigo_ler || prev.codigo_ler,
+              descripcion_residuo: next[0].descripcion_residuo || prev.descripcion_residuo,
+            }
+          : {}),
+        cantidad_estimada_t: totalT > 0 ? Number(totalT.toFixed(3)) : prev.cantidad_estimada_t,
+      };
+    });
+  };
+
+  const handleRemoveMaterialLine = (idx: number) => {
+    setFormData((prev) => {
+      const next = (prev.lineas_materiales || []).filter((_, i) => i !== idx);
+      const totalT = next.reduce((acc, l) => acc + (Number(l.cantidad_t) || 0), 0);
+      return {
+        ...prev,
+        lineas_materiales: next.length > 0 ? next : undefined,
+        ...(next.length > 0 && totalT > 0 ? { cantidad_estimada_t: Number(totalT.toFixed(3)) } : {}),
+      };
+    });
+  };
+
   // Sincronización desde DI seleccionado
   const handleDISelect = (diIdStr: string) => {
     if (!diIdStr) {
@@ -106,10 +190,10 @@ export default function NuevaOperacionComercialPage() {
     const ton = selectedDI.peso_destino_kg
       ? selectedDI.peso_destino_kg / 1000
       : selectedDI.peso_origen_kg
-      ? selectedDI.peso_origen_kg / 1000
-      : selectedDI.unidad === 'kg'
-      ? selectedDI.cantidad / 1000
-      : selectedDI.cantidad;
+        ? selectedDI.peso_origen_kg / 1000
+        : selectedDI.unidad === 'kg'
+          ? selectedDI.cantidad / 1000
+          : selectedDI.cantidad;
 
     setFormData(prev => ({
       ...prev,
@@ -136,19 +220,37 @@ export default function NuevaOperacionComercialPage() {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (loading) return;
     if (!formData.codigo_ler || !formData.descripcion_residuo) {
       setError('Por favor especifique el código LER y la descripción del residuo.');
+      return;
+    }
+
+    if (!formData.cantidad_estimada_t || formData.cantidad_estimada_t <= 0) {
+      setError('Indique una cantidad estimada mayor que 0 toneladas.');
+      return;
+    }
+
+    const mandateCheck = validateOperatorMandate(formData);
+    if (!mandateCheck.valid) {
+      setError(mandateCheck.error || 'Falta acreditar el mandato escrito para actuar como operador.');
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
-      const created = await commercialOperationService.create(formData);
+      const idempotencyKey =
+        formData.idempotency_key ||
+        `op-${formData.identification_document_id || 'manual'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const created = await commercialOperationService.create({
+        ...formData,
+        idempotency_key: idempotencyKey,
+      });
       router.push(`/residuos/operaciones/${created.id}`);
     } catch (err: any) {
       console.error(err);
-      setError(`Error al crear la operación comercial: ${  err.message || ''}`);
+      setError(`Error al crear la operación comercial: ${err.message || ''}`);
       setLoading(false);
     }
   };
@@ -157,6 +259,7 @@ export default function NuevaOperacionComercialPage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
+      <PageBreadCrumb pageTitle="Nueva Operación Comercial" />
       {/* Cabecera */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -184,7 +287,7 @@ export default function NuevaOperacionComercialPage() {
 
       {error && <Alert variant="error" title="Atención" message={error} />}
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6" noValidate>
         {/* Columna Principal: Formularios */}
         <div className="lg:col-span-2 space-y-6">
           {/* Bloque 1: Datos de Operación y Residuo */}
@@ -284,6 +387,108 @@ export default function NuevaOperacionComercialPage() {
                 </div>
               </div>
 
+              {/* Intervención Ambiental Estructurada (UXDEV-11 / UX-22) */}
+              <div className="p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/50 dark:bg-indigo-950/20 space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-xs font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wider">
+                    Intervención Ambiental (RD 553/2020)
+                  </span>
+                  <span className="text-[11px] text-indigo-700 dark:text-indigo-400">
+                    Campos estructurados de posesión y representación
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      Modalidad de Posesión Física *
+                    </label>
+                    <select
+                      value={formData.modalidad_posesion || 'intermediacion_sin_posesion'}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          modalidad_posesion: e.target.value as 'intermediacion_sin_posesion' | 'almacenamiento_planta_propia',
+                        }))
+                      }
+                      className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-700"
+                    >
+                      <option value="intermediacion_sin_posesion">
+                        Sin posesión física (Intermediación — no genera stock propio)
+                      </option>
+                      <option value="almacenamiento_planta_propia">
+                        Con posesión física en instalación propia autorizada
+                      </option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center pt-4">
+                    <label className="flex items-start gap-2 text-xs text-gray-800 dark:text-gray-200 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(formData.actua_como_operador)}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            actua_como_operador: e.target.checked,
+                          }))
+                        }
+                        className="mt-0.5 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                      />
+                      <span>
+                        <strong className="block">Actúo como Operador del Traslado (Art. 2.h RD 553/2020)</strong>
+                        <span className="text-[11px] text-gray-500">
+                          Requiere mandato o autorización escrita del productor/poseedor
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                {formData.actua_como_operador && (
+                  <div className="pt-2 border-t border-indigo-200/70 dark:border-indigo-800/50 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-indigo-900 dark:text-indigo-200 mb-1">
+                        Ref. Mandato / Representación Escrita *
+                      </label>
+                      <input
+                        type="text"
+                        required={Boolean(formData.actua_como_operador)}
+                        placeholder="Ej. MAND-2026-004"
+                        value={formData.mandato_referencia || ''}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, mandato_referencia: e.target.value }))}
+                        className="w-full text-xs rounded-lg border border-indigo-300 dark:border-indigo-700 p-2 bg-white dark:bg-gray-700 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-indigo-900 dark:text-indigo-200 mb-1">
+                        Otorgante (Productor / Poseedor)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Empresa que otorga el mandato"
+                        value={formData.mandato_otorgante || ''}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, mandato_otorgante: e.target.value }))}
+                        className="w-full text-xs rounded-lg border border-indigo-300 dark:border-indigo-700 p-2 bg-white dark:bg-gray-700"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-indigo-900 dark:text-indigo-200 mb-1">
+                        Fecha del Mandato
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.mandato_fecha || ''}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, mandato_fecha: e.target.value }))}
+                        className="w-full text-xs rounded-lg border border-indigo-300 dark:border-indigo-700 p-2 bg-white dark:bg-gray-700"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Cantidades */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -303,7 +508,7 @@ export default function NuevaOperacionComercialPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                    Cantidad Real en Báscula (Toneladas)
+                    Peso Recibido Declarado / Báscula (Toneladas)
                   </label>
                   <input
                     type="number"
@@ -315,6 +520,109 @@ export default function NuevaOperacionComercialPage() {
                     className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-2 font-mono bg-white dark:bg-gray-700"
                   />
                 </div>
+              </div>
+
+              {/* Hito C.4 / N04: Operación Comercial Multimaterial con Justificante Conjunto */}
+              <div className="p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300">
+                      Desglose Multimaterial (Justificante Comercial Conjunto)
+                    </span>
+                    <p className="text-[11px] text-gray-500">
+                      Permite agrupar varios materiales (LER) en una misma liquidación comercial manteniendo separados los DI ambientales de cada traslado (RD 553/2020).
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleAddMaterialLine}
+                  >
+                    + Añadir Material (LER)
+                  </Button>
+                </div>
+
+                {formData.lineas_materiales && formData.lineas_materiales.length > 0 && (
+                  <div className="space-y-2.5 pt-2">
+                    {formData.lineas_materiales.map((line, idx) => (
+                      <div
+                        key={line.id}
+                        className="p-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 grid grid-cols-1 sm:grid-cols-6 gap-2 items-end text-xs"
+                      >
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-500 mb-1">Código LER</label>
+                          <input
+                            type="text"
+                            value={line.codigo_ler}
+                            onChange={(e) => handleUpdateMaterialLine(idx, 'codigo_ler', e.target.value)}
+                            placeholder="17 04 05"
+                            className="w-full rounded border border-gray-300 dark:border-gray-600 p-1.5 font-mono text-xs bg-white dark:bg-gray-700"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-[10px] font-semibold text-gray-500 mb-1">Material / Descripción</label>
+                          <input
+                            type="text"
+                            value={line.descripcion_residuo}
+                            onChange={(e) => handleUpdateMaterialLine(idx, 'descripcion_residuo', e.target.value)}
+                            placeholder="Hierro, cobre, aluminio..."
+                            className="w-full rounded border border-gray-300 dark:border-gray-600 p-1.5 text-xs bg-white dark:bg-gray-700"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-500 mb-1">Toneladas (t)</label>
+                          <input
+                            type="number"
+                            step="0.001"
+                            min="0.001"
+                            value={line.cantidad_t}
+                            onChange={(e) => handleUpdateMaterialLine(idx, 'cantidad_t', Number(e.target.value))}
+                            className="w-full rounded border border-gray-300 dark:border-gray-600 p-1.5 font-mono text-xs bg-white dark:bg-gray-700"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-500 mb-1">Compra / Venta (€)</label>
+                          <div className="flex gap-1">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={line.precio_unitario_compra}
+                              onChange={(e) => handleUpdateMaterialLine(idx, 'precio_unitario_compra', Number(e.target.value))}
+                              placeholder="Compra"
+                              className="w-1/2 rounded border border-gray-300 dark:border-gray-600 p-1.5 text-xs bg-white dark:bg-gray-700"
+                            />
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={line.precio_unitario_venta}
+                              onChange={(e) => handleUpdateMaterialLine(idx, 'precio_unitario_venta', Number(e.target.value))}
+                              placeholder="Venta"
+                              className="w-1/2 rounded border border-gray-300 dark:border-gray-600 p-1.5 text-xs bg-white dark:bg-gray-700"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={line.di_referencia || ''}
+                            onChange={(e) => handleUpdateMaterialLine(idx, 'di_referencia', e.target.value)}
+                            placeholder="Ref. DI"
+                            className="w-full rounded border border-gray-300 dark:border-gray-600 p-1.5 font-mono text-xs bg-white dark:bg-gray-700"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMaterialLine(idx)}
+                            className="px-2 py-1.5 text-red-600 hover:bg-red-50 rounded text-xs font-bold"
+                            title="Quitar línea"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </ComponentCard>
@@ -481,11 +789,30 @@ export default function NuevaOperacionComercialPage() {
                     </label>
                     <input
                       type="text"
+                      list="clientes-comerciales-list"
                       placeholder="Empresa a quien se vende"
                       value={formData.cliente_razon_social || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, cliente_razon_social: e.target.value }))}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const matched = companies.find(
+                          (c) => c.razon_social.trim().toLowerCase() === value.trim().toLowerCase()
+                        );
+                        setFormData(prev => ({
+                          ...prev,
+                          cliente_razon_social: value,
+                          cliente_comercial_id: matched ? matched.id : undefined,
+                          cliente_cif: matched?.cif || prev.cliente_cif,
+                        }));
+                      }}
                       className="w-full text-xs rounded-lg border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-700"
                     />
+                    <datalist id="clientes-comerciales-list">
+                      {companies.map((c) => (
+                        <option key={c.id} value={c.razon_social}>
+                          {c.cif ? `${c.razon_social} (${c.cif})` : c.razon_social}
+                        </option>
+                      ))}
+                    </datalist>
                   </div>
 
                   <div>
@@ -581,20 +908,18 @@ export default function NuevaOperacionComercialPage() {
         {/* Columna Lateral: Tarjeta Fija de Rentabilidad en Vivo */}
         <div className="space-y-6">
           <div className="sticky top-6 space-y-4">
-            <div className={`p-5 rounded-2xl shadow-sm border transition-all ${
-              isRentable
+            <div className={`p-5 rounded-2xl shadow-sm border transition-all ${isRentable
                 ? 'bg-emerald-50/70 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800'
                 : 'bg-red-50/70 border-red-200 dark:bg-red-950/30 dark:border-red-800'
-            }`}>
+              }`}>
               <div className="flex items-center justify-between pb-3 border-b border-gray-200/60 dark:border-gray-700">
                 <span className="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-200">
                   Rentabilidad en Vivo
                 </span>
-                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                  isRentable
+                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${isRentable
                     ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
                     : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300'
-                }`}>
+                  }`}>
                   {isRentable ? 'Positivo' : 'Negativo'}
                 </span>
               </div>
@@ -638,7 +963,6 @@ export default function NuevaOperacionComercialPage() {
 
             <Button
               type="submit"
-              onClick={() => handleSubmit()}
               disabled={loading}
               className="w-full bg-primary hover:bg-primary/90 text-white py-3 font-semibold"
             >

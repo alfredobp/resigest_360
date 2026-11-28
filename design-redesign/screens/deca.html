@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es" data-variant="industrial" data-mode="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Control DeCA — ResiGest 360</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body data-nav="deca">
+  <div class="app-shell">
+    <aside id="app-sidebar"></aside>
+    <div class="app-main">
+      <header id="app-topbar"></header>
+      <main class="content">
+        <div class="page-header">
+          <div>
+            <div class="page-title-row">
+              <h1 class="page-title">Documentos de Control Administrativo (DeCA)</h1>
+              <span class="badge badge-info">Ley 9/2025 · Orden FOM/2861/2012</span>
+            </div>
+            <p class="page-subtitle">Control electrónico obligatorio en transporte de mercancías por carretera con código QR verificable en inspección.</p>
+          </div>
+          <div class="page-actions">
+            <a href="vista-conductor.html" class="btn btn-outline">📲 Ver Pantalla Conductor</a>
+            <button class="btn btn-primary">+ Nuevo DeCA</button>
+          </div>
+        </div>
+
+        <section class="grid grid-12">
+          <div class="col-8" style="display:flex; flex-direction:column; gap:var(--gap-grid);">
+            <div class="toolbar">
+              <div class="toolbar-group">
+                <input type="text" class="input" style="width:240px" placeholder="Buscar DeCA, matrícula o conductor..." data-table-search="decaTable" />
+                <select class="select">
+                  <option>Estado: Todos</option>
+                  <option>Vigente en Ruta</option>
+                  <option>Finalizado</option>
+                </select>
+              </div>
+              <span class="badge badge-success">12 DeCAs vigentes hoy</span>
+            </div>
+
+            <div class="table-wrap">
+              <table class="data-table" id="decaTable">
+                <thead>
+                  <tr>
+                    <th>Nº DeCA / DI</th>
+                    <th>Ruta (Origen ➔ Destino)</th>
+                    <th>Vehículo y Conductor</th>
+                    <th>Mercancía / Peso</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="background:var(--brand-soft)">
+                    <td><span class="mono cell-main">DECA-2026-0419</span><span class="cell-sub">DI-2026-0842 · v1</span></td>
+                    <td><span class="cell-main">Alcobendas (Madrid)</span><span class="cell-sub">➔ Valdemoro (Madrid)</span></td>
+                    <td><span class="mono cell-main">4892-LMX / R-2190-BBD</span><span class="cell-sub">Carlos Martínez</span></td>
+                    <td><strong>14.200 kg</strong><span class="cell-sub">Chatarra férrica</span></td>
+                    <td><span class="badge badge-info">En Ruta</span></td>
+                    <td><button class="btn btn-soft btn-sm">QR</button></td>
+                  </tr>
+                  <tr>
+                    <td><span class="mono cell-main">DECA-2026-0418</span><span class="cell-sub">DI-2026-0841 · v2</span></td>
+                    <td><span class="cell-main">Getafe (Madrid)</span><span class="cell-sub">➔ Toledo (Toledo)</span></td>
+                    <td><span class="mono cell-main">9104-KTR</span><span class="cell-sub">Javier Ruiz (ADR)</span></td>
+                    <td><strong>2.450 kg</strong><span class="cell-sub">Aceite mineral RP</span></td>
+                    <td><span class="badge badge-info">En Ruta</span></td>
+                    <td><button class="btn btn-outline btn-sm">QR</button></td>
+                  </tr>
+                  <tr>
+                    <td><span class="mono cell-main">DECA-2026-0417</span><span class="cell-sub">DI-2026-0840 · v1</span></td>
+                    <td><span class="cell-main">Paterna (Valencia)</span><span class="cell-sub">➔ Valdemoro (Madrid)</span></td>
+                    <td><span class="mono cell-main">2219-MNB / R-8812-BBC</span><span class="cell-sub">Laura Gómez</span></td>
+                    <td><strong>8.900 kg</strong><span class="cell-sub">Envases PEAD</span></td>
+                    <td><span class="badge badge-success">Finalizado</span></td>
+                    <td><button class="btn btn-outline btn-sm">PDF</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Live QR Inspection Card -->
+          <aside class="card col-4" style="display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px;">
+            <span class="badge badge-info">Inspección en Carretera · QR Oficial</span>
+            <h3 class="card-title mono">DECA-2026-0419</h3>
+            <div style="width:168px; height:168px; border-radius:var(--radius-lg); background:#fff; border:2px solid var(--border-color); padding:12px; display:grid; place-items:center;">
+              <svg viewBox="0 0 100 100" width="136" height="136" fill="#0f172a">
+                <rect x="4" y="4" width="26" height="26" rx="3" fill="none" stroke="#0f172a" stroke-width="6"/>
+                <rect x="11" y="11" width="12" height="12" fill="#059669"/>
+                <rect x="70" y="4" width="26" height="26" rx="3" fill="none" stroke="#0f172a" stroke-width="6"/>
+                <rect x="77" y="11" width="12" height="12" fill="#0f172a"/>
+                <rect x="4" y="70" width="26" height="26" rx="3" fill="none" stroke="#0f172a" stroke-width="6"/>
+                <rect x="11" y="77" width="12" height="12" fill="#0f172a"/>
+                <rect x="38" y="8" width="8" height="8"/><rect x="52" y="8" width="8" height="8"/>
+                <rect x="38" y="24" width="14" height="8"/><rect x="40" y="40" width="20" height="20" rx="2" fill="#059669"/>
+                <rect x="66" y="40" width="10" height="10"/><rect x="82" y="46" width="12" height="12"/>
+                <rect x="40" y="68" width="12" height="12"/><rect x="58" y="74" width="16" height="16"/>
+                <rect x="80" y="72" width="12" height="20"/>
+              </svg>
+            </div>
+            <p class="cell-sub">Escaneable por Guardia Civil / Inspección de Transportes sin necesidad de app ni login.</p>
+            <div style="width:100%; display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              <button class="btn btn-primary btn-sm">📲 Enviar WhatsApp</button>
+              <button class="btn btn-outline btn-sm">📄 PDF DeCA</button>
+            </div>
+          </aside>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="../assets/app.js"></script>
+  <script src="../assets/shell.js"></script>
+</body>
+</html>
+

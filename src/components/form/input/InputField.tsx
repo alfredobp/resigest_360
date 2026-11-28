@@ -19,6 +19,7 @@ interface InputProps {
   success?: boolean;
   error?: boolean;
   hint?: string; // Optional hint text
+  list?: string;
 }
 
 const Input: FC<InputProps> = ({
@@ -40,22 +41,35 @@ const Input: FC<InputProps> = ({
   success = false,
   error = false,
   hint,
+  list,
 }) => {
-  // Determine input styles based on state (disabled, success, error)
-  let inputClasses = `h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 ${className}`;
+  const isDateOrTime = type === "date" || type === "time";
+
+  // Determine input styles based on state (Precisión Industrial)
+  let inputClasses = `h-9.5 w-full rounded-md border ${isDateOrTime ? "" : "appearance-none"} px-3 py-1.5 text-[13px] shadow-[0_1px_2px_rgba(15,23,42,0.03)] placeholder:text-slate-400 focus:outline-hidden focus:ring-2 dark:bg-[#0d1321] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand-600 transition-colors ${className}`;
 
   // Add styles for the different states
   if (disabled) {
-    inputClasses += ` text-gray-500 border-gray-300 cursor-not-allowed dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700`;
+    inputClasses += ` bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed dark:bg-slate-800/80 dark:text-slate-400 dark:border-slate-700`;
   } else if (readOnly) {
     inputClasses += ` bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700 cursor-default`;
   } else if (error) {
-    inputClasses += ` bg-error-50/30 text-error-900 border-error-500 ring-1 ring-error-500/50 focus:border-error-500 focus:ring-3 focus:ring-error-500/20 dark:bg-error-950/30 dark:text-error-300 dark:border-error-500 dark:focus:border-error-400`;
+    inputClasses += ` bg-error-50/30 text-error-900 border-error-500 ring-1 ring-error-500/40 focus:border-error-500 focus:ring-2 focus:ring-error-500/20 dark:bg-error-950/30 dark:text-error-300 dark:border-error-500 dark:focus:border-error-400`;
   } else if (success) {
-    inputClasses += ` text-success-500 border-success-400 focus:ring-success-500/10 focus:border-success-300  dark:text-success-400 dark:border-success-500`;
+    inputClasses += ` text-success-600 border-success-400 focus:ring-success-500/15 focus:border-success-500 dark:text-success-400 dark:border-success-500`;
   } else {
-    inputClasses += ` bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800`;
+    inputClasses += ` bg-white text-slate-900 border-slate-200 hover:border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-[#0d1321] dark:text-slate-100 dark:focus:border-brand-500`;
   }
+
+  const handleClick = (e: React.MouseEvent<HTMLInputElement>) => {
+    if (isDateOrTime && !disabled && !readOnly) {
+      try {
+        e.currentTarget.showPicker?.();
+      } catch {
+        // Ignorar si el navegador no soporta showPicker o lanza excepción
+      }
+    }
+  };
 
   return (
     <div className="relative">
@@ -68,11 +82,14 @@ const Input: FC<InputProps> = ({
         defaultValue={defaultValue}
         onChange={onChange}
         onBlur={onBlur}
+        onClick={handleClick}
         min={min}
         max={max}
         step={step}
         disabled={disabled}
         readOnly={readOnly}
+        required={required}
+        list={list}
         aria-invalid={error ? "true" : undefined}
         aria-required={required ? "true" : undefined}
         className={inputClasses}

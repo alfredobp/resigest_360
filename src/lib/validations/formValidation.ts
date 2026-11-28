@@ -10,7 +10,7 @@ export const VALIDATION_MESSAGES = {
   REQUIRED: 'Este campo es requerido',
   REQUIRED_FIELD: (field: string) => `El campo ${field} es obligatorio`,
   CIF_INVALID: 'El formato del CIF/NIF/NIE no es válido (ej: B12345678 o 12345678Z)',
-  NIMA_INVALID: 'El NIMA debe contener entre 10 y 12 caracteres alfanuméricos',
+  NIMA_INVALID: 'El NIMA debe contener 10 dígitos numéricos oficiales (código provincial 01-52 seguido de 8 dígitos)',
   EMAIL_INVALID: 'Introduce un correo electrónico válido',
   PHONE_INVALID: 'El teléfono debe contener entre 9 y 15 dígitos numéricos válidos',
   POSTAL_CODE_INVALID: 'El código postal debe tener 5 dígitos numéricos',
@@ -69,7 +69,8 @@ export function validateNIMA(nima: string, isRequired = false): string | null {
     return isRequired ? VALIDATION_MESSAGES.REQUIRED : null;
   }
 
-  const nimaRegex = /^[A-Za-z0-9]{10,12}$/;
+  // Estándar oficial estatal de NIMA: 10 dígitos numéricos (código provincial 01-52 + 8 dígitos)
+  const nimaRegex = /^(0[1-9]|[1-4][0-9]|5[0-2])\d{8}$/;
   if (!nimaRegex.test(trimmed)) {
     return VALIDATION_MESSAGES.NIMA_INVALID;
   }

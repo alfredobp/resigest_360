@@ -6,8 +6,11 @@
 // ==============================================================================
 
 import { type NextRequest, NextResponse } from 'next/server';
+import { createClient as createAdminClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server';
 import { decaService } from '@/services/decaService';
 import { generateDecaPDF } from '@/lib/pdfUtils';
+import type { DecaDocument } from '@/types/deca';
 
 export async function GET(
   request: NextRequest,
@@ -23,7 +26,23 @@ export async function GET(
       );
     }
 
-    const deca = await decaService.getByToken(token);
+    const supabase = await createClient();
+    let deca: DecaDocument | null = null;
+
+    if (typeof (supabase as any).rpc === 'function') {
+      const rpcRes = await (supabase as any).rpc('get_deca_by_token', { p_token: token });
+      if (rpcRes && !rpcRes.error) {
+        const doc = Array.isArray(rpcRes.data) ? rpcRes.data[0] : rpcRes.data;
+        deca = doc as DecaDocument | null;
+      }
+    } else {
+      const { data } = await supabase
+        .from('deca_documents')
+        .select('*')
+        .eq('token', token)
+        .maybeSingle();
+      deca = data as DecaDocument | null;
+    }
 
     if (!deca) {
       return new Response(
@@ -80,14 +99,61 @@ export async function GET(
     // Registrar en auditoría la descarga por inspección
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('remote-addr') || 'desconocida';
     const userAgent = request.headers.get('user-agent') || 'desconocido';
-    decaService.logAudit(deca.id, 'inspeccion_descarga', deca.version, { ip, userAgent });
+    try {
+      await supabase.from('deca_audit_logs').insert({
+        deca_id: deca.id,
+        user_id: deca.user_id || null,
+        accion: 'inspeccion_descarga',
+        version_resultante: deca.version,
+        detalles: { ip, userAgent },
+        created_at: new Date().toISOString(),
+      });
+    } catch (auditErr) {
+      console.warn('Advertencia al registrar auditoría DeCA en servidor:', auditErr);
+    }
 
     // Generar el PDF oficial digital nativo
     const host = request.headers.get('host') || 'resigest.com';
     const protocol = request.headers.get('x-forwarded-proto') || 'https';
     const inspectionUrl = `${protocol}://${host}/api/deca/${token}`;
 
-    const pdfDoc = await generateDecaPDF(deca, inspectionUrl);
+    // INC12: Si es v2+, recuperar la marca temporal original de v1 para no atribuir la hora de v2 a v1.
+    // Usamos previous_version_id o la RPC SECURITY DEFINER get_deca_by_token si no hay sesión autenticada.
+    let firstVersionCreatedAt: string | null = null;
+    if (deca.version > 1 && deca.numero_deca) {
+      try {
+        const baseNumero = deca.numero_deca.replace(/-v\d+$/i, '');
+        const { data: v1Row } = await supabase
+          .from('deca_documents')
+          .select('created_at')
+          .eq('numero_deca', baseNumero)
+          .eq('version', 1)
+          .maybeSingle();
+        if (v1Row?.created_at) {
+          firstVersionCreatedAt = v1Row.created_at;
+        } else if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+          const adminSb = createAdminClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
+            process.env.SUPABASE_SERVICE_ROLE_KEY,
+            { auth: { persistSession: false, autoRefreshToken: false } }
+          );
+          const { data: adminV1 } = await adminSb
+            .from('deca_documents')
+            .select('created_at')
+            .eq('user_id', deca.user_id)
+            .eq('numero_deca', baseNumero)
+            .eq('version', 1)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          firstVersionCreatedAt = adminV1?.created_at || null;
+        }
+      } catch {
+        // Fallback seguro: generateDecaPDF omitirá v1 si no se pudo recuperar
+      }
+    }
+
+    const pdfDoc = await generateDecaPDF(deca, inspectionUrl, { firstVersionCreatedAt });
     const pdfArrayBuffer = pdfDoc.output('arraybuffer');
     const pdfBuffer = Buffer.from(pdfArrayBuffer);
 

@@ -27,30 +27,54 @@ export const Modal: React.FC<ModalProps> = ({
   }, []);
 
   useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
+        return;
+      }
+
+      if (event.key === "Tab" && modalRef.current) {
+        const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey) {
+          if (document.activeElement === first || document.activeElement === modalRef.current) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     };
 
     if (isOpen) {
-      document.addEventListener("keydown", handleEscape);
+      document.addEventListener("keydown", handleKeyDown);
     }
 
     return () => {
-      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen, onClose]);
 
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
+    if (!isOpen) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    // Enfocar el modal para navegación por teclado accesible
+    requestAnimationFrame(() => {
+      modalRef.current?.focus();
+    });
 
     return () => {
-      document.body.style.overflow = "unset";
+      document.body.style.overflow = previousOverflow || "unset";
+      previouslyFocused?.focus?.();
     };
   }, [isOpen]);
 
@@ -58,19 +82,25 @@ export const Modal: React.FC<ModalProps> = ({
 
   const contentClasses = isFullscreen
     ? "w-full h-full"
-    : "relative w-full rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-100 dark:border-gray-800";
+    : "relative w-full max-h-[90vh] overflow-y-auto rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-100 dark:border-gray-800 focus:outline-none animate-[fadeInScale_150ms_ease-out]";
 
   const modalElement = (
-    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto modal z-[999999] p-4 sm:p-6">
+    <div
+      className="fixed inset-0 flex items-center justify-center overflow-y-auto modal z-[999999] p-4 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+    >
       {!isFullscreen && (
         <div
           className="fixed inset-0 h-full w-full bg-gray-900/60 backdrop-blur-sm transition-opacity"
           onClick={onClose}
+          aria-hidden="true"
         />
       )}
       <div
         ref={modalRef}
-        className={`${contentClasses} ${className}`}
+        tabIndex={-1}
+        className={`${contentClasses} ${className || ""}`}
         onClick={(e) => e.stopPropagation()}
       >
         {showCloseButton && (
@@ -104,3 +134,6 @@ export const Modal: React.FC<ModalProps> = ({
     ? createPortal(modalElement, document.body)
     : null;
 };
+
+export { ConfirmModal } from "./ConfirmModal";
+export type { ConfirmModalProps, ConfirmVariant } from "./ConfirmModal";

@@ -31,37 +31,37 @@ const Badge: React.FC<BadgeProps> = ({
   className = "",
 }) => {
   const baseStyles =
-    "inline-flex items-center px-2.5 py-0.5 justify-center gap-1 rounded-full font-medium";
+    "inline-flex items-center px-2 py-0.5 justify-center gap-1.5 rounded-full font-semibold tracking-tight border";
 
   // Define size styles
   const sizeStyles = {
-    sm: "text-theme-xs", // Smaller padding and font size
-    md: "text-sm", // Default padding and font size
+    sm: "text-[11px] leading-4",
+    md: "text-xs leading-4",
   };
 
-  // Define color styles for variants
+  // Define color styles for variants (Precisión Industrial)
   const variants = {
     light: {
       primary:
-        "bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400",
+        "bg-brand-50 text-brand-700 border-brand-200/80 dark:bg-brand-500/15 dark:text-brand-300 dark:border-brand-500/25",
       success:
-        "bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-500",
+        "bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/25",
       error:
-        "bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-500",
+        "bg-red-50 text-red-700 border-red-200/80 dark:bg-red-500/15 dark:text-red-300 dark:border-red-500/25",
       warning:
-        "bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-orange-400",
-      info: "bg-blue-light-50 text-blue-light-500 dark:bg-blue-light-500/15 dark:text-blue-light-500",
-      light: "bg-gray-100 text-gray-700 dark:bg-white/5 dark:text-white/80",
-      dark: "bg-gray-500 text-white dark:bg-white/5 dark:text-white",
+        "bg-amber-50 text-amber-700 border-amber-200/80 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/25",
+      info: "bg-sky-50 text-sky-700 border-sky-200/80 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/25",
+      light: "bg-slate-100 text-slate-700 border-slate-200/80 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+      dark: "bg-slate-700 text-white border-slate-700 dark:bg-slate-800 dark:text-white dark:border-slate-700",
     },
     solid: {
-      primary: "bg-brand-500 text-white dark:text-white",
-      success: "bg-success-500 text-white dark:text-white",
-      error: "bg-error-500 text-white dark:text-white",
-      warning: "bg-warning-500 text-white dark:text-white",
-      info: "bg-blue-light-500 text-white dark:text-white",
-      light: "bg-gray-400 dark:bg-white/5 text-white dark:text-white/80",
-      dark: "bg-gray-700 text-white dark:text-white",
+      primary: "bg-brand-500 text-white border-brand-600/20",
+      success: "bg-emerald-600 text-white border-emerald-700/20",
+      error: "bg-red-600 text-white border-red-700/20",
+      warning: "bg-amber-600 text-white border-amber-700/20",
+      info: "bg-sky-600 text-white border-sky-700/20",
+      light: "bg-slate-500 text-white border-slate-600/20",
+      dark: "bg-slate-900 text-white border-slate-800",
     },
   };
 
