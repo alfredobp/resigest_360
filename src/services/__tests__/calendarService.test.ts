@@ -72,6 +72,97 @@ describe('calendarService', () => {
     });
 
     expect(events.map((e) => e.category)).toEqual(['di', 'nt', 'contrato', 'autorizacion']);
+    expect(events[0].details?.some((d) => d.label === 'Productor / Origen')).toBe(true);
+    expect(events[0].details?.some((d) => d.label === 'Residuo (LER)')).toBe(true);
+    expect(events[1].status).toBe('Aceptada');
+  });
+
+  it('populates full structured details across all categories and optional branches', () => {
+    const events = buildCalendarEvents({
+      isTransportista: true,
+      dis: [
+        {
+          id: 100,
+          numero_documento: 'DI-FULL',
+          codigo_ler: '16 06 01*',
+          descripcion_residuo: 'Baterías de plomo',
+          fecha_recogida: '2026-09-29',
+          productor_razon_social: 'Prod S.L.',
+          productor_municipio: 'Madrid',
+          gestor_razon_social: 'Gestor S.A.',
+          gestor_municipio: 'Toledo',
+          cantidad: 850,
+          unidad: 'kg',
+          peligrosidad: 'peligroso',
+          operacion_tratamiento: 'R04',
+          transportista_razon_social: 'Trans S.L.',
+          transportista_matricula: '1234ABC',
+          numero_notificacion: 'NT-2026-1',
+        } as never,
+      ],
+      nts: [
+        {
+          id: 101,
+          numero_notificacion: '',
+          fecha_notificacion: '2026-10-01',
+          estado: 'en_vigor',
+          productor_razon_social: 'Prod S.L.',
+          gestor_razon_social: 'Gestor S.A.',
+          descripcion_residuo: 'Residuo sin LER',
+          cantidad_estimada_kg: 5000,
+          operacion_tratamiento: 'R01',
+        } as never,
+      ],
+      contracts: [
+        {
+          id: 102,
+          numero_contrato: '',
+          tipo_contrato: 'tratamiento',
+          codigos_ler: ['15 01 01', '15 01 02'],
+          cantidad_maxima_anual: 120,
+          fecha_inicio: '2026-01-01',
+          fecha_fin: '2026-12-31',
+          estado: 'vigente',
+        } as never,
+      ],
+      authorizations: [
+        {
+          id: 103,
+          numero_autorizacion: 'AUT-INACTIVA',
+          titulo: 'AAI Planta',
+          organismo_emisor: 'Junta',
+          fecha_emision: '2020-01-01',
+          fecha_vencimiento: '2026-12-31',
+          activo: false,
+        } as never,
+      ],
+      decas: [
+        {
+          id: 104,
+          numero_deca: 'DECA-FULL',
+          matricula_tractora: '2727ZZZ',
+          matricula_remolque: 'R9999AA',
+          origen_municipio: 'Almansa',
+          origen_provincia: 'Albacete',
+          destino_municipio: 'Valencia',
+          destino_provincia: 'Valencia',
+          cargador_razon_social: 'Cargador S.L.',
+          conductor_nombre: 'Juan',
+          naturaleza_mercancia: 'Cartón',
+          peso_kg: 600,
+          codigo_ler: '15 01 01',
+          numero_di: 'DI-FULL',
+          fecha_transporte: '2026-11-28',
+          estado: 'en_transito',
+          is_vigente: true,
+        } as never,
+      ],
+    });
+
+    expect(events).toHaveLength(5);
+    expect(events[0].status).toBe('Residuo Peligroso');
+    expect(events[3].status).toBe('Inactiva');
+    expect(events[4].details?.some((d) => d.label === 'Peso / LER')).toBe(true);
   });
 
   it('includes DeCA, ITV, Seguro, ADR and CAP events in transportista mode', () => {

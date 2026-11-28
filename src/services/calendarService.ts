@@ -23,6 +23,11 @@ export type CalendarEventCategory =
   | 'flota_itv_seguro'
   | 'flota_adr_cap';
 
+export interface CalendarEventDetailItem {
+  label: string;
+  value: string;
+}
+
 export interface OperationalCalendarEvent {
   id: string;
   title: string;
@@ -34,6 +39,8 @@ export interface OperationalCalendarEvent {
   description: string;
   href: string;
   badgeLabel: string;
+  status?: string;
+  details?: CalendarEventDetailItem[];
 }
 
 export const CALENDAR_CATEGORY_META: Record<
@@ -53,6 +60,21 @@ function toIsoDate(value?: string | null): string | null {
   if (!value) return null;
   const datePart = value.split('T')[0];
   return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : null;
+}
+
+function compactDetails(
+  entries: Array<[string, string | number | undefined | null]>
+): CalendarEventDetailItem[] {
+  return entries
+    .filter(([, val]) => val !== undefined && val !== null && String(val).trim() !== '')
+    .map(([label, val]) => ({ label, value: String(val).trim() }));
+}
+
+function formatEstadoLabel(raw?: string | null): string | undefined {
+  if (!raw) return undefined;
+  return raw
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export interface BuildCalendarEventsInput {
@@ -77,6 +99,13 @@ export function buildCalendarEvents(
   for (const di of input.dis) {
     const start = toIsoDate(di.fecha_recogida || di.fecha_documento);
     if (!start) continue;
+    const origen = di.productor_municipio
+      ? `${di.productor_razon_social} (${di.productor_municipio})`
+      : di.productor_razon_social;
+    const destino = di.gestor_municipio
+      ? `${di.gestor_razon_social} (${di.gestor_municipio})`
+      : di.gestor_razon_social;
+
     events.push({
       id: `di-${di.id}`,
       title: `DI ${di.numero_documento} · ${di.codigo_ler}`,
@@ -87,6 +116,17 @@ export function buildCalendarEvents(
       description: `${di.productor_razon_social} → ${di.gestor_razon_social} (${di.cantidad} ${di.unidad})`,
       href: `/residuos/documentos-identificacion/${di.id}`,
       badgeLabel: 'DI',
+      status: formatEstadoLabel(di.estado_traslado) || (di.peligrosidad === 'peligroso' ? 'Residuo Peligroso' : 'No Peligroso'),
+      details: compactDetails([
+        ['Productor / Origen', origen],
+        ['Gestor / Destino', destino],
+        ['Residuo (LER)', `${di.codigo_ler}${di.descripcion_residuo ? ` · ${di.descripcion_residuo}` : ''}`],
+        ['Cantidad', `${di.cantidad} ${di.unidad}`],
+        ['Operación', di.operacion_tratamiento_ejecutada || di.operacion_tratamiento],
+        ['Transportista', di.transportista_razon_social],
+        ['Matrícula', di.transportista_matricula],
+        ['NT vinculada', di.numero_notificacion],
+      ]),
     });
   }
 
@@ -105,6 +145,15 @@ export function buildCalendarEvents(
       description: `Notificación Previa (${nt.estado})`,
       href: '/residuos/notificaciones-previas',
       badgeLabel: 'NT',
+      status: formatEstadoLabel(nt.estado),
+      details: compactDetails([
+        ['Productor', nt.productor_razon_social],
+        ['Gestor destino', nt.gestor_razon_social],
+        ['Residuo (LER)', nt.codigo_ler ? `${nt.codigo_ler}${nt.descripcion_residuo ? ` · ${nt.descripcion_residuo}` : ''}` : nt.descripcion_residuo],
+        ['Cantidad estimada', nt.cantidad_estimada_kg ? `${nt.cantidad_estimada_kg} kg` : undefined],
+        ['Operación', nt.operacion_tratamiento],
+        ['Transportista', nt.transportista_razon_social],
+      ]),
     });
   }
 
@@ -113,7 +162,7 @@ export function buildCalendarEvents(
     if (!expiry) continue;
     events.push({
       id: `contrato-${contract.id}`,
-      title: `Caduca Contrato ${contract.numero_contrato}`,
+      title: `Caduca Contrato ${contract.numero_contrato || contract.id}`,
       start: expiry,
       allDay: true,
       category: 'contrato',
@@ -121,6 +170,15 @@ export function buildCalendarEvents(
       description: `Vencimiento de contrato de tratamiento (${contract.estado})`,
       href: `/residuos/contratos/${contract.id}`,
       badgeLabel: 'Contrato',
+      status: formatEstadoLabel(contract.estado),
+      details: compactDetails([
+        ['Tipo de contrato', formatEstadoLabel(contract.tipo_contrato)],
+        ['Códigos LER', contract.codigos_ler?.length ? contract.codigos_ler.join(', ') : undefined],
+        ['Descripción', contract.descripcion_residuos],
+        ['Frecuencia', contract.frecuencia_recogida],
+        ['Cantidad máx. anual', contract.cantidad_maxima_anual ? `${contract.cantidad_maxima_anual} ${contract.unidad_cantidad || 'kg'}` : undefined],
+        ['Inicio vigencia', toIsoDate(contract.fecha_inicio)],
+      ]),
     });
   }
 
@@ -137,6 +195,13 @@ export function buildCalendarEvents(
       description: auth.organismo_emisor || 'Autorización ambiental vigente',
       href: '/residuos/mi-empresa',
       badgeLabel: 'Autorización',
+      status: auth.activo ? 'Vigente' : 'Inactiva',
+      details: compactDetails([
+        ['Título', auth.titulo],
+        ['Nº Autorización', auth.numero_autorizacion],
+        ['Organismo emisor', auth.organismo_emisor],
+        ['Fecha emisión', toIsoDate(auth.fecha_emision)],
+      ]),
     });
   }
 
@@ -155,11 +220,28 @@ export function buildCalendarEvents(
         description: `${deca.origen_municipio} → ${deca.destino_municipio} (${deca.estado})`,
         href: '/residuos/deca',
         badgeLabel: 'DeCA',
+        status: formatEstadoLabel(deca.estado),
+        details: compactDetails([
+          ['Cargador', deca.cargador_razon_social],
+          ['Ruta', `${deca.origen_municipio}${deca.origen_provincia ? ` (${deca.origen_provincia})` : ''} → ${deca.destino_municipio}${deca.destino_provincia ? ` (${deca.destino_provincia})` : ''}`],
+          ['Vehículo', [deca.matricula_tractora, deca.matricula_remolque].filter(Boolean).join(' / ')],
+          ['Conductor', deca.conductor_nombre],
+          ['Mercancía', deca.naturaleza_mercancia],
+          ['Peso / LER', [deca.peso_kg ? `${deca.peso_kg} kg` : null, deca.codigo_ler].filter(Boolean).join(' · ')],
+          ['DI / NT', [deca.numero_di, deca.numero_nt].filter(Boolean).join(' · ')],
+        ]),
       });
     }
 
     for (const v of input.vehicles || []) {
       if (!v.activo) continue;
+      const baseVehicleDetails = compactDetails([
+        ['Matrícula', v.matricula],
+        ['Tipo', v.tipo],
+        ['Marca / Modelo', v.marca_modelo],
+        ['Remolque habitual', v.remolque_habitual],
+        ['Tarjeta transporte', v.tarjeta_transporte],
+      ]);
       const itv = toIsoDate(v.fecha_caducidad_itv);
       if (itv) {
         events.push({
@@ -172,6 +254,8 @@ export function buildCalendarEvents(
           description: `Vencimiento ITV vehículo ${v.matricula} (${v.tipo})`,
           href: '/residuos/flota?tab=vehiculos',
           badgeLabel: 'ITV',
+          status: 'Vencimiento Flota',
+          details: baseVehicleDetails,
         });
       }
       const seguro = toIsoDate(v.fecha_caducidad_seguro);
@@ -186,6 +270,8 @@ export function buildCalendarEvents(
           description: `Vencimiento seguro vehículo ${v.matricula}`,
           href: '/residuos/flota?tab=vehiculos',
           badgeLabel: 'Seguro',
+          status: 'Vencimiento Flota',
+          details: baseVehicleDetails,
         });
       }
       const adrVeh = toIsoDate(v.fecha_caducidad_adr);
@@ -200,12 +286,21 @@ export function buildCalendarEvents(
           description: `Certificado ADR del vehículo ${v.matricula}`,
           href: '/residuos/flota?tab=vehiculos',
           badgeLabel: 'ADR',
+          status: 'Certificado ADR',
+          details: baseVehicleDetails,
         });
       }
     }
 
     for (const d of input.drivers || []) {
       if (!d.activo) continue;
+      const baseDriverDetails = compactDetails([
+        ['Conductor', d.nombre],
+        ['DNI', d.dni],
+        ['Vehículo asignado', d.vehiculo_asignado],
+        ['Teléfono', d.telefono],
+        ['Permiso', d.carnet_tipo],
+      ]);
       const adrDrv = toIsoDate(d.fecha_caducidad_adr);
       if (d.tiene_adr && adrDrv) {
         events.push({
@@ -218,6 +313,8 @@ export function buildCalendarEvents(
           description: `Carné ADR del conductor ${d.nombre}`,
           href: '/residuos/flota?tab=conductores',
           badgeLabel: 'ADR Conductor',
+          status: 'Certificado ADR',
+          details: baseDriverDetails,
         });
       }
       const cap = toIsoDate(d.fecha_caducidad_cap);
@@ -232,6 +329,8 @@ export function buildCalendarEvents(
           description: `Certificado CAP del conductor ${d.nombre}`,
           href: '/residuos/flota?tab=conductores',
           badgeLabel: 'CAP',
+          status: 'Certificado CAP',
+          details: baseDriverDetails,
         });
       }
     }
