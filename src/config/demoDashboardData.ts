@@ -21,12 +21,22 @@ export function getDemoDashboardData(role?: CompanyRole | null): DemoDashboardPa
   const isNegociante = role === 'negociante';
 
   const overview: ExecutiveDashboardData = {
+    conformidad: {
+      estado: 'conforme',
+      porcentaje: 96,
+      totalEvaluados: isTransportista ? 32 : 19,
+      totalConformes: isTransportista ? 31 : 18,
+      totalNoConformes: 1,
+      fechaEvaluacion: new Date().toISOString(),
+    },
     alertas: {
       totalCriticas: 1,
       totalAdvertencias: 3,
       lista: [],
       disEnTransitoCount: isTransportista ? 4 : 2,
       disDiscrepanciaCount: 1,
+      disSinContratoCount: 0,
+      disTratamientoNoAutorizadoCount: 0,
       contratosCaducadosCount: 0,
       contratosPorVencerCount: 2,
       autorizacionesPorVencerCount: 0,
