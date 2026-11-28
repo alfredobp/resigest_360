@@ -243,6 +243,18 @@ export const ONBOARDING_TOURS: Record<CompanyRole, OnboardingTourStep[]> = {
       },
     },
     ...SHARED_DI_NT_STEPS,
+    {
+      id: 'transportista-calendario',
+      route: '/residuos/calendario',
+      element: '[data-tour="calendario-header"]',
+      popover: {
+        title: 'Calendario Operativo',
+        description:
+          'Visualiza en formato calendario tus traslados DI, NTs, portes DeCA, caducidades de contratos, ITV, seguros y ADR/CAP.',
+        side: 'bottom',
+        align: 'start',
+      },
+    },
     REPLAY_TIP_STEP,
   ],
 
@@ -351,6 +363,18 @@ export const ONBOARDING_TOURS: Record<CompanyRole, OnboardingTourStep[]> = {
       },
     },
     ...SHARED_DI_NT_STEPS,
+    {
+      id: 'transportista-calendario',
+      route: '/residuos/calendario',
+      element: '[data-tour="calendario-header"]',
+      popover: {
+        title: 'Calendario Operativo',
+        description:
+          'Visualiza en formato calendario tus traslados DI, NTs, portes DeCA, caducidades de contratos, ITV, seguros y ADR/CAP.',
+        side: 'bottom',
+        align: 'start',
+      },
+    },
     REPLAY_TIP_STEP,
   ],
 

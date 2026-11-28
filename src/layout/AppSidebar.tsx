@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
 import {
   LayoutDashboard,
+  CalendarDays,
   Smartphone,
   Send,
   FileText,
@@ -85,6 +86,11 @@ const navGroups: NavGroup[] = [
         icon: <ClipboardCheck className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
         name: "Control DeCA",
         path: "/residuos/deca",
+      },
+      {
+        icon: <CalendarDays className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Calendario Operativo",
+        path: "/residuos/calendario",
       },
       {
         icon: <CircleDollarSign className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
