@@ -220,12 +220,12 @@ export const ONBOARDING_TOURS: Record<CompanyRole, OnboardingTourStep[]> = {
     ...SHARED_COMPANY_PROFILE_STEPS,
     {
       id: 'transportista-flota',
-      route: '/residuos/transportistas',
-      element: '[data-tour="transportistas-header"]',
+      route: '/residuos/flota',
+      element: '[data-tour="flota-header"]',
       popover: {
-        title: 'Gestión de Flota y Conductores',
+        title: 'Mi Flota y Conductores',
         description:
-          'Da de alta vehículos, matrículas y datos de contacto de tus transportistas para asignarlos a cada traslado.',
+        'Da de alta vehículos propios (tractoras, remolques, cisternas), conductores y controla vencimientos de ITV, Seguro y ADR.',
         side: 'bottom',
         align: 'start',
       },

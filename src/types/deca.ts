@@ -82,6 +82,10 @@ export interface DecaDocument {
   estado: DecaEstado;
   motivo_exclusion?: string;
   observaciones_reservas?: string;
+  ticket_bascula_url?: string;
+  incidencia_movil?: string;
+  firma_conductor_url?: string;
+  fecha_firma_conductor?: string;
 
   created_at: string;
   updated_at: string;

@@ -56,6 +56,12 @@ export default function DocumentosIdentificacionPage() {
   };
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('pendienteFirma') === '1') {
+        setFilterStatus('pendiente_firma');
+      }
+    }
     loadData();
   }, []);
 
@@ -183,6 +189,8 @@ export default function DocumentosIdentificacionPage() {
     let matchStatus = true;
     if (filterStatus === 'all') {
       matchStatus = true;
+    } else if (filterStatus === 'pendiente_firma') {
+      matchStatus = !d.firmado_transportista && d.estado_traslado !== 'tratado' && d.estado_traslado !== 'rechazado_total';
     } else if (filterStatus === 'incidencias') {
       matchStatus = d.estado_traslado === 'rechazado_parcial' || d.estado_traslado === 'rechazado_total';
     } else if (filterStatus === 'borrador') {
@@ -271,6 +279,13 @@ export default function DocumentosIdentificacionPage() {
               onClick={() => setFilterStatus('en_transito')}
             >
               En Tránsito ({documents.filter(d => d.estado_traslado === 'en_transito').length})
+            </Button>
+            <Button
+              variant={filterStatus === 'pendiente_firma' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => setFilterStatus('pendiente_firma')}
+            >
+              Pendientes Firma ({documents.filter(d => !d.firmado_transportista && d.estado_traslado !== 'tratado' && d.estado_traslado !== 'rechazado_total').length})
             </Button>
             <Button
               variant={filterStatus === 'recepcionado' ? 'primary' : 'outline'}

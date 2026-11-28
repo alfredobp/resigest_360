@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation';
 import dashboardService, { type ExecutiveDashboardData } from '@/services/dashboardService';
 import { getDemoDashboardData } from '@/config/demoDashboardData';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { isTransportistaMode } from '@/lib/roleHelpers';
+import companyService from '@/services/companyService';
+import TransportistaDashboard from '@/components/dashboard/TransportistaDashboard';
 import MonthlyWasteChart from '@/components/dashboard/MonthlyWasteChart';
 import ComponentCard from '@/components/common/ComponentCard';
 import Badge from '@/components/ui/badge/Badge';
@@ -15,22 +18,27 @@ import { Eye, EyeOff, Sparkles } from 'lucide-react';
 export default function ExecutiveDashboardPage() {
   const router = useRouter();
   const { activeRole } = useOnboarding();
+  const [companyType, setCompanyType] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [executiveData, setExecutiveData] = useState<ExecutiveDashboardData | null>(null);
   const [monthlyData, setMonthlyData] = useState<Array<{ name: string; value: number }>>([]);
   const [recentDIs, setRecentDIs] = useState<any[]>([]);
   const [showDemoPreview, setShowDemoPreview] = useState(false);
 
+  const isTransportista = isTransportistaMode(activeRole, companyType);
+
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true);
-        const [overview, monthly, recent] = await Promise.all([
+        const [company, overview, monthly, recent] = await Promise.all([
+          companyService.getUserCompany().catch(() => null),
           dashboardService.getExecutiveOverview(),
           dashboardService.getMonthlyWasteData(),
           dashboardService.getRecentActivity()
         ]);
 
+        setCompanyType(company?.tipo_empresa ?? null);
         setExecutiveData(overview);
         setMonthlyData(monthly);
         setRecentDIs(recent);
@@ -43,6 +51,10 @@ export default function ExecutiveDashboardPage() {
 
     loadData();
   }, []);
+
+  if (isTransportista) {
+    return <TransportistaDashboard />;
+  }
 
   if (loading) {
     return (
@@ -125,19 +137,17 @@ export default function ExecutiveDashboardPage() {
       {(isWorkspaceEmpty || showDemoPreview) && (
         <div
           data-tour="dashboard-demo-preview"
-          className={`rounded-2xl p-4 border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
-            showDemoPreview
+          className={`rounded-2xl p-4 border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${showDemoPreview
               ? 'bg-blue-50/80 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800'
               : 'bg-gray-50/90 dark:bg-gray-800/40 border-gray-200 dark:border-gray-800'
-          }`}
+            }`}
         >
           <div className="flex items-start sm:items-center gap-3">
             <div
-              className={`p-2 rounded-xl shrink-0 ${
-                showDemoPreview
+              className={`p-2 rounded-xl shrink-0 ${showDemoPreview
                   ? 'bg-blue-600 text-white'
                   : 'bg-brand-100 dark:bg-brand-950/60 text-brand-600 dark:text-brand-400'
-              }`}
+                }`}
             >
               <Sparkles className="w-4 h-4" />
             </div>
@@ -165,11 +175,10 @@ export default function ExecutiveDashboardPage() {
           <button
             type="button"
             onClick={() => setShowDemoPreview((prev) => !prev)}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold shrink-0 transition shadow-xs ${
-              showDemoPreview
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold shrink-0 transition shadow-xs ${showDemoPreview
                 ? 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:bg-gray-50'
                 : 'bg-brand-500 hover:bg-brand-600 text-white'
-            }`}
+              }`}
           >
             {showDemoPreview ? (
               <>
@@ -429,34 +438,34 @@ export default function ExecutiveDashboardPage() {
                     ? '/residuos/documentos-identificacion'
                     : `/residuos/documentos-identificacion/${di.id}`;
                   return (
-                  <div key={di.id} className="flex items-center justify-between p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                    <Link href={targetHref} className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-xs text-gray-900 dark:text-white">
-                          {di.numero_documento}
-                        </span>
-                        {di.estado_traslado && (
-                          <span className="text-[10px] bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 px-2 py-0.5 rounded-full font-semibold">
-                            {di.estado_traslado}
+                    <div key={di.id} className="flex items-center justify-between p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                      <Link href={targetHref} className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-xs text-gray-900 dark:text-white">
+                            {di.numero_documento}
                           </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-gray-500">
-                        {di.productor_razon_social} ➔ {di.gestor_razon_social}
-                      </p>
-                    </Link>
+                          {di.estado_traslado && (
+                            <span className="text-[10px] bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 px-2 py-0.5 rounded-full font-semibold">
+                              {di.estado_traslado}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-gray-500">
+                          {di.productor_razon_social} ➔ {di.gestor_razon_social}
+                        </p>
+                      </Link>
 
-                    <div className="text-right">
-                      <span className="text-[11px] text-gray-400">
-                        {new Date(di.fecha_documento).toLocaleDateString('es-ES')}
-                      </span>
-                      <div>
-                        <Link href={targetHref} className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium">
-                          {showDemoPreview ? 'Ejemplo' : 'Detalle'}
-                        </Link>
+                      <div className="text-right">
+                        <span className="text-[11px] text-gray-400">
+                          {new Date(di.fecha_documento).toLocaleDateString('es-ES')}
+                        </span>
+                        <div>
+                          <Link href={targetHref} className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium">
+                            {showDemoPreview ? 'Ejemplo' : 'Detalle'}
+                          </Link>
+                        </div>
                       </div>
                     </div>
-                  </div>
                   );
                 })
               )}

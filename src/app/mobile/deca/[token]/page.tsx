@@ -6,12 +6,25 @@
 // o descargar el PDF oficial digital nativo en el dispositivo.
 // ==============================================================================
 
-import React, { useEffect, useState, use } from 'react';
+import React, { useEffect, useRef, useState, use } from 'react';
 import Link from 'next/link';
 import QRCode from 'qrcode';
 import { decaService } from '@/services/decaService';
 import type { DecaDocument } from '@/types/deca';
-import { Download, Share2, CheckCircle2, AlertTriangle, Truck, MapPin, Package, ArrowRight } from 'lucide-react';
+import {
+  Download,
+  Share2,
+  CheckCircle2,
+  AlertTriangle,
+  Truck,
+  MapPin,
+  Package,
+  ArrowRight,
+  Navigation,
+  PenTool,
+  Camera,
+  Flag,
+} from 'lucide-react';
 
 export default function DecaDriverMobilePage({
   params,
@@ -26,6 +39,16 @@ export default function DecaDriverMobilePage({
   const [error, setError] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
+
+  // Acciones móviles del conductor
+  const [driverDniOrPin, setDriverDniOrPin] = useState('');
+  const [incidentNote, setIncidentNote] = useState('');
+  const [ticketDataUrl, setTicketDataUrl] = useState<string>('');
+  const [actionMsg, setActionMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [showSignPad, setShowSignPad] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isDrawingRef = useRef(false);
 
   useEffect(() => {
     async function loadData() {
@@ -114,6 +137,84 @@ export default function DecaDriverMobilePage({
 
   const isExpired = decaService.isTokenExpired(deca);
   const pdfDownloadUrl = `/api/deca/${token}`;
+  const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
+    `${deca.origen_direccion}, ${deca.origen_municipio}`
+  )}&destination=${encodeURIComponent(
+    `${deca.destino_direccion}, ${deca.destino_municipio}`
+  )}`;
+
+  const startDraw = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    isDrawingRef.current = true;
+  };
+
+  const moveDraw = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.stroke();
+  };
+
+  const endDraw = () => {
+    isDrawingRef.current = false;
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const sendDriverAction = async (payload: Record<string, unknown>) => {
+    setActionLoading(true);
+    setActionMsg(null);
+    try {
+      const res = await fetch(`/api/deca/${token}/driver-action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ driverDniOrPin, ...payload }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setActionMsg({ type: 'err', text: json.error || 'Error al procesar acción' });
+        return;
+      }
+      setActionMsg({ type: 'ok', text: json.message || 'Acción completada' });
+      const refreshed = await decaService.getByToken(token);
+      if (refreshed) setDeca(refreshed);
+    } catch {
+      setActionMsg({ type: 'err', text: 'Error de conexión con el servidor' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleTicketFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setTicketDataUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6 max-w-lg mx-auto">
@@ -131,11 +232,10 @@ export default function DecaDriverMobilePage({
           </div>
           <div className="text-right">
             <span
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                isExpired
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${isExpired
                   ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                   : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-              }`}
+                }`}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
               {isExpired ? 'Finalizado (>7d)' : `v${deca.version} Vigente`}
@@ -240,6 +340,137 @@ export default function DecaDriverMobilePage({
             <p className="text-slate-200 font-medium line-clamp-2 mt-0.5">{deca.naturaleza_mercancia}</p>
           </div>
         </div>
+
+        {/* Panel Operativo del Conductor */}
+        {deca.estado !== 'finalizado' && (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-blue-400">
+              Operativa del Conductor
+            </h2>
+
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">
+                Tu DNI o PIN de conductor (requerido para firmar o finalizar)
+              </label>
+              <input
+                type="text"
+                value={driverDniOrPin}
+                onChange={(e) => setDriverDniOrPin(e.target.value)}
+                placeholder="Ej. 12345678A o PIN 1234"
+                className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white placeholder:text-slate-600"
+              />
+            </div>
+
+            {actionMsg && (
+              <div
+                className={`p-2.5 rounded-xl text-xs ${actionMsg.type === 'ok'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                  }`}
+              >
+                {actionMsg.text}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setShowSignPad((v) => !v)}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-100 py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
+              >
+                <PenTool className="w-3.5 h-3.5" />
+                {deca.firma_conductor_url ? 'Firmado ✓' : 'Firmar Porte'}
+              </button>
+
+              <label className="bg-slate-800 hover:bg-slate-700 text-slate-100 py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer">
+                <Camera className="w-3.5 h-3.5" />
+                {ticketDataUrl || deca.ticket_bascula_url ? 'Ticket Adjunto ✓' : 'Subir Ticket'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleTicketFile}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            {showSignPad && (
+              <div className="space-y-2 pt-1">
+                <canvas
+                  ref={canvasRef}
+                  width={340}
+                  height={140}
+                  onPointerDown={startDraw}
+                  onPointerMove={moveDraw}
+                  onPointerUp={endDraw}
+                  onPointerLeave={endDraw}
+                  className="w-full h-32 bg-white rounded-xl touch-none border border-slate-600"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={clearCanvas}
+                    className="flex-1 bg-slate-800 text-slate-300 py-2 rounded-lg text-xs"
+                  >
+                    Limpiar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={() => {
+                      const dataUrl = canvasRef.current?.toDataURL('image/png');
+                      if (dataUrl) sendDriverAction({ action: 'sign', signatureDataUrl: dataUrl });
+                    }}
+                    className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-xs font-semibold"
+                  >
+                    Guardar Firma
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {(ticketDataUrl || incidentNote) && (
+              <div className="space-y-2 pt-1">
+                <input
+                  type="text"
+                  value={incidentNote}
+                  onChange={(e) => setIncidentNote(e.target.value)}
+                  placeholder="Observación o incidencia en báscula (opcional)"
+                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white"
+                />
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() =>
+                    sendDriverAction({
+                      action: 'report_ticket',
+                      ticketDataUrl: ticketDataUrl || undefined,
+                      incidentNote: incidentNote || undefined,
+                    })
+                  }
+                  className="w-full bg-amber-600 hover:bg-amber-500 text-white py-2 rounded-xl text-xs font-semibold"
+                >
+                  Enviar Ticket / Nota
+                </button>
+              </div>
+            )}
+
+            <button
+              type="button"
+              disabled={actionLoading}
+              onClick={() => {
+                if (confirm('¿Confirmar entrega y finalizar este servicio de transporte?')) {
+                  sendDriverAction({ action: 'finalize' });
+                }
+              }}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2"
+            >
+              <Flag className="w-4 h-4" />
+              Confirmar Entrega / Finalizar Servicio
+            </button>
+          </div>
+        )}
       </main>
 
       {/* Botones de Acción */}
@@ -255,6 +486,15 @@ export default function DecaDriverMobilePage({
         </a>
 
         <div className="flex gap-2">
+          <a
+            href={mapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 bg-slate-900 hover:bg-slate-800 text-slate-300 font-medium py-2.5 px-3 rounded-xl border border-slate-800 flex items-center justify-center gap-2 text-xs transition"
+          >
+            <Navigation className="w-4 h-4 text-blue-400" />
+            Abrir Ruta Maps
+          </a>
           <button
             onClick={handleShare}
             className="flex-1 bg-slate-900 hover:bg-slate-800 text-slate-300 font-medium py-2.5 px-3 rounded-xl border border-slate-800 flex items-center justify-center gap-2 text-xs transition"

@@ -8,7 +8,11 @@
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { decaService } from '@/services/decaService';
+import fleetService from '@/services/fleetService';
+import identificationDocumentService from '@/services/identificationDocumentService';
 import type { DecaDocument, DecaFormData } from '@/types/deca';
+import type { FleetDriver, FleetVehicle } from '@/types/fleet';
+import type { IdentificationDocument } from '@/types/wasteManagement';
 import { toast } from '@/context/ToastContext';
 import { Modal } from '@/components/ui/modal';
 import Label from '@/components/form/Label';
@@ -40,6 +44,9 @@ import {
 
 export default function DecaManagementPage() {
   const [documents, setDocuments] = useState<DecaDocument[]>([]);
+  const [fleetVehicles, setFleetVehicles] = useState<FleetVehicle[]>([]);
+  const [fleetDrivers, setFleetDrivers] = useState<FleetDriver[]>([]);
+  const [availableDIs, setAvailableDIs] = useState<IdentificationDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -117,7 +124,47 @@ export default function DecaManagementPage() {
 
   useEffect(() => {
     loadDocuments();
+    Promise.all([
+      fleetService.getVehicles().catch(() => []),
+      fleetService.getDrivers().catch(() => []),
+      identificationDocumentService.getAll().catch(() => []),
+    ]).then(([vehicles, drivers, dis]) => {
+      setFleetVehicles(vehicles.filter((v) => v.activo));
+      setFleetDrivers(drivers.filter((d) => d.activo));
+      setAvailableDIs(dis);
+    });
   }, []);
+
+  const handleImportFromDI = (diIdStr: string) => {
+    const di = availableDIs.find((item) => String(item.id) === diIdStr);
+    if (!di) return;
+    const pesoKg = di.unidad === 'toneladas' ? di.cantidad * 1000 : di.cantidad;
+    setFormData((prev) => ({
+      ...prev,
+      identification_document_id: di.id,
+      numero_di: di.numero_documento,
+      cargador_razon_social: di.productor_razon_social || prev.cargador_razon_social,
+      cargador_nif: di.productor_cif || prev.cargador_nif,
+      cargador_domicilio: di.productor_direccion || prev.cargador_domicilio,
+      cargador_municipio: di.productor_municipio || prev.cargador_municipio,
+      cargador_provincia: di.productor_provincia || prev.cargador_provincia,
+      transportista_razon_social: di.transportista_razon_social || prev.transportista_razon_social,
+      transportista_nif: di.transportista_cif || prev.transportista_nif,
+      matricula_tractora: di.transportista_matricula || prev.matricula_tractora,
+      origen_direccion: di.productor_direccion || prev.origen_direccion,
+      origen_municipio: di.productor_municipio || prev.origen_municipio,
+      origen_provincia: di.productor_provincia || prev.origen_provincia,
+      destino_direccion: di.gestor_direccion || prev.destino_direccion,
+      destino_municipio: di.gestor_municipio || prev.destino_municipio,
+      destino_provincia: di.gestor_provincia || prev.destino_provincia,
+      naturaleza_mercancia: `${di.descripcion_residuo || 'Residuo'} (LER ${di.codigo_ler})`,
+      codigo_ler: di.codigo_ler,
+      peso_kg: pesoKg,
+      es_residuo_peligroso: di.peligrosidad === 'peligroso' || di.codigo_ler?.includes('*'),
+      fecha_transporte: di.fecha_recogida || di.fecha_documento || prev.fecha_transporte,
+    }));
+    toast.success(`Datos importados desde el DI ${di.numero_documento}`);
+  };
 
   const handleOpenQrModal = async (doc: DecaDocument) => {
     setQrModalDoc(doc);
@@ -697,6 +744,25 @@ export default function DecaManagementPage() {
                 antes de iniciar el servicio en carretera.
               </div>
 
+              {availableDIs.length > 0 && (
+                <div className="border border-brand-200 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-950/20 p-3 rounded-xl">
+                  <Label htmlFor="deca_import_di">Importar datos desde un DI existente (Opcional)</Label>
+                  <select
+                    id="deca_import_di"
+                    defaultValue=""
+                    onChange={(e) => handleImportFromDI(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-brand-300 dark:border-brand-700 bg-white dark:bg-gray-900 px-3 py-2 text-xs"
+                  >
+                    <option value="">-- Seleccionar DI para autorrellenar --</option>
+                    {availableDIs.slice(0, 30).map((di) => (
+                      <option key={di.id} value={String(di.id)}>
+                        {di.numero_documento} · {di.productor_razon_social} → {di.gestor_razon_social} ({di.codigo_ler})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Cargador Contractual */}
               <div className="border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl space-y-3">
                 <h4 className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300">
@@ -793,6 +859,69 @@ export default function DecaManagementPage() {
                       onChange={(e) => setFormData({ ...formData, transportista_autorizacion: e.target.value })}
                     />
                   </div>
+
+                  {(fleetVehicles.length > 0 || fleetDrivers.length > 0) && (
+                    <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+                      {fleetVehicles.length > 0 && (
+                        <div>
+                          <Label htmlFor="deca_select_vehicle">Autocompletar Vehículo de Flota</Label>
+                          <select
+                            id="deca_select_vehicle"
+                            defaultValue=""
+                            onChange={(e) => {
+                              const veh = fleetVehicles.find((v) => String(v.id) === e.target.value);
+                              if (!veh) return;
+                              setFormData((prev) => ({
+                                ...prev,
+                                ...(veh.tipo === 'remolque' || veh.tipo === 'cisterna'
+                                  ? { matricula_remolque: veh.matricula }
+                                  : { matricula_tractora: veh.matricula }),
+                                ...(veh.autorizacion_transporte
+                                  ? { transportista_autorizacion: veh.autorizacion_transporte }
+                                  : {}),
+                              }));
+                              clearCreateError('matricula_tractora');
+                            }}
+                            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-gray-900 px-2.5 py-1.5 text-xs"
+                          >
+                            <option value="">-- Seleccionar vehículo --</option>
+                            {fleetVehicles.map((v) => (
+                              <option key={v.id} value={String(v.id)}>
+                                {v.matricula} ({v.tipo})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      {fleetDrivers.length > 0 && (
+                        <div>
+                          <Label htmlFor="deca_select_driver">Autocompletar Conductor</Label>
+                          <select
+                            id="deca_select_driver"
+                            defaultValue=""
+                            onChange={(e) => {
+                              const drv = fleetDrivers.find((d) => String(d.id) === e.target.value);
+                              if (!drv) return;
+                              setFormData((prev) => ({
+                                ...prev,
+                                conductor_nombre: drv.nombre_completo,
+                                conductor_dni: drv.dni,
+                                conductor_telefono: drv.telefono || prev.conductor_telefono,
+                              }));
+                            }}
+                            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-gray-900 px-2.5 py-1.5 text-xs"
+                          >
+                            <option value="">-- Seleccionar conductor --</option>
+                            {fleetDrivers.map((d) => (
+                              <option key={d.id} value={String(d.id)}>
+                                {d.nombre_completo} ({d.dni})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div>
                     <Label htmlFor="deca_create_matricula_tractora" required>Matrícula Tractora</Label>
