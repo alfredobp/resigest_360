@@ -100,6 +100,14 @@ describe('/api/push/subscribe', () => {
     // Test 403 when Premium is not active
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
     mockCheckPremium.mockResolvedValueOnce({ active: false, status: 'basic' });
-    expect((await POST(okReq)).status).toBe(403);
+    const req403 = new NextRequest('http://localhost/api/push/subscribe', {
+      method: 'POST',
+      headers: { cookie: `${DRIVER_SESSION_COOKIE}=${token}` },
+      body: JSON.stringify({
+        endpoint: 'https://push/1',
+        keys: { p256dh: 'p', auth: 'a' },
+      }),
+    });
+    expect((await POST(req403)).status).toBe(403);
   });
 });
