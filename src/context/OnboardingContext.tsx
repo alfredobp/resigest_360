@@ -11,7 +11,11 @@ import React, {
 import { usePathname, useRouter } from 'next/navigation';
 import { driver, type Driver, type DriveStep } from 'driver.js';
 import onboardingService from '@/services/onboardingService';
-import { getTourStepsForRole, type OnboardingTourStep } from '@/config/onboardingTours';
+import {
+  getTourStepsForRole,
+  ONBOARDING_ROLE_OPTIONS,
+  type OnboardingTourStep,
+} from '@/config/onboardingTours';
 import type { CompanyRole } from '@/types/wasteManagement';
 
 interface OnboardingContextType {
@@ -101,18 +105,59 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         await waitForElement(firstStep.element, 1500);
       }
 
+      const roleLabel =
+        ONBOARDING_ROLE_OPTIONS.find((item) => item.role === role)?.label ||
+        (role ? role.charAt(0).toUpperCase() + role.slice(1) : 'ResiGest 360');
+
       const driverObj: Driver = driver({
         showProgress: true,
         allowClose: true,
         animate: true,
-        overlayOpacity: 0.55,
-        stagePadding: 8,
-        stageRadius: 12,
+        overlayOpacity: 0.5,
+        stagePadding: 4,
+        stageRadius: 10,
+        popoverOffset: 12,
         popoverClass: 'resigest-driver-popover',
         nextBtnText: 'Siguiente',
         prevBtnText: 'Anterior',
         doneBtnText: 'Finalizar',
-        progressText: 'Paso {{current}} de {{total}}',
+        progressText: '{{current}} / {{total}}',
+        onPopoverRender: (popover, { state }) => {
+          const totalSteps = steps.length;
+          const currentIndex = (state.activeIndex ?? 0) + 1;
+          const progressPct = Math.round((currentIndex / Math.max(totalSteps, 1)) * 100);
+
+          // Insertar badge de perfil y barra de progreso encima del título
+          const metaBar = document.createElement('div');
+          metaBar.className = 'resigest-tour-meta';
+          const badge = document.createElement('span');
+          badge.className = 'resigest-tour-badge';
+          badge.textContent = `Perfil: ${roleLabel}`;
+          metaBar.appendChild(badge);
+
+          const progressTrack = document.createElement('div');
+          progressTrack.className = 'resigest-tour-progress-track';
+          const progressFill = document.createElement('div');
+          progressFill.className = 'resigest-tour-progress-fill';
+          progressFill.style.width = `${progressPct}%`;
+          progressTrack.appendChild(progressFill);
+
+          popover.wrapper.insertBefore(progressTrack, popover.title);
+          popover.wrapper.insertBefore(metaBar, progressTrack);
+
+          // Añadir botón explícito "Saltar tour" si aún no es el último paso
+          if (currentIndex < totalSteps) {
+            const skipBtn = document.createElement('button');
+            skipBtn.type = 'button';
+            skipBtn.className = 'resigest-tour-skip-btn';
+            skipBtn.textContent = 'Saltar';
+            skipBtn.addEventListener('click', () => {
+              void finishOnboarding(role);
+              driverObj.destroy();
+            });
+            popover.footerButtons.insertBefore(skipBtn, popover.previousButton);
+          }
+        },
         onCloseClick: () => {
           void finishOnboarding(role);
           driverObj.destroy();

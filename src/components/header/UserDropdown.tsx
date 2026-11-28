@@ -135,7 +135,7 @@ export default function UserDropdown() {
       <button
         onClick={toggleDropdown}
         data-tour="user-menu-trigger"
-        className="flex items-center text-gray-700 dark:text-gray-400 dropdown-toggle"
+        className="flex items-center px-2 py-1 rounded-xl text-gray-700 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition dropdown-toggle"
       >
         <span className="mr-3 overflow-hidden rounded-full h-11 w-11 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center justify-center flex-shrink-0 shadow-sm">
           <Image

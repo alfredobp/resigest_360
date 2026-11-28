@@ -4,17 +4,22 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import dashboardService, { type ExecutiveDashboardData } from '@/services/dashboardService';
+import { getDemoDashboardData } from '@/config/demoDashboardData';
+import { useOnboarding } from '@/context/OnboardingContext';
 import MonthlyWasteChart from '@/components/dashboard/MonthlyWasteChart';
 import ComponentCard from '@/components/common/ComponentCard';
 import Badge from '@/components/ui/badge/Badge';
 import Button from '@/components/ui/button/Button';
+import { Eye, EyeOff, Sparkles } from 'lucide-react';
 
 export default function ExecutiveDashboardPage() {
   const router = useRouter();
+  const { activeRole } = useOnboarding();
   const [loading, setLoading] = useState(true);
   const [executiveData, setExecutiveData] = useState<ExecutiveDashboardData | null>(null);
   const [monthlyData, setMonthlyData] = useState<Array<{ name: string; value: number }>>([]);
   const [recentDIs, setRecentDIs] = useState<any[]>([]);
+  const [showDemoPreview, setShowDemoPreview] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -50,11 +55,21 @@ export default function ExecutiveDashboardPage() {
     );
   }
 
-  const { alertas, residuos, comercial } = executiveData || {
+  const realOverview = executiveData || {
     alertas: { totalCriticas: 0, totalAdvertencias: 0, lista: [], disEnTransitoCount: 0, disDiscrepanciaCount: 0, contratosCaducadosCount: 0, contratosPorVencerCount: 0, autorizacionesPorVencerCount: 0 },
     residuos: { totalToneladas: 0, toneladasPeligrosas: 0, toneladasNoPeligrosas: 0, totalDIs: 0, disCompletados: 0, topLER: [] },
     comercial: { totalOperaciones: 0, operacionesAbiertas: 0, facturacionVenta: 0, costesTotales: 0, margenBrutoTotal: 0, margenMedioTon: 0, rentabilidadPorcentaje: 0 }
   };
+
+  const isWorkspaceEmpty =
+    realOverview.residuos.totalDIs === 0 &&
+    realOverview.comercial.totalOperaciones === 0 &&
+    recentDIs.length === 0;
+
+  const demoPayload = showDemoPreview ? getDemoDashboardData(activeRole) : null;
+  const { alertas, residuos, comercial } = demoPayload ? demoPayload.overview : realOverview;
+  const displayedMonthlyData = demoPayload ? demoPayload.monthlyData : monthlyData;
+  const displayedRecentDIs = demoPayload ? demoPayload.recentDIs : recentDIs;
 
   const hasAlerts = alertas.totalCriticas > 0 || alertas.totalAdvertencias > 0;
 
@@ -105,6 +120,71 @@ export default function ExecutiveDashboardPage() {
           </Button>
         </div>
       </div>
+
+      {/* BANNER VISTA PREVIA CON DATOS DE EJEMPLO (cuando no hay datos reales o está activo) */}
+      {(isWorkspaceEmpty || showDemoPreview) && (
+        <div
+          data-tour="dashboard-demo-preview"
+          className={`rounded-2xl p-4 border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
+            showDemoPreview
+              ? 'bg-blue-50/80 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800'
+              : 'bg-gray-50/90 dark:bg-gray-800/40 border-gray-200 dark:border-gray-800'
+          }`}
+        >
+          <div className="flex items-start sm:items-center gap-3">
+            <div
+              className={`p-2 rounded-xl shrink-0 ${
+                showDemoPreview
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-brand-100 dark:bg-brand-950/60 text-brand-600 dark:text-brand-400'
+              }`}
+            >
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-bold text-gray-900 dark:text-white">
+                  {showDemoPreview
+                    ? 'Vista previa activa con datos de ejemplo'
+                    : 'Tu panel aún no tiene movimientos registrados'}
+                </span>
+                {showDemoPreview && (
+                  <Badge variant="light" color="info" size="sm">
+                    Datos ficticios (no guardados)
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                {showDemoPreview
+                  ? 'Estás viendo una simulación de cómo lucirá tu Centro de Control cuando registres traslados, contratos y operaciones reales.'
+                  : 'Activa la vista previa para ver cómo quedarán tus gráficas, márgenes y alertas sin crear registros reales en tu base de datos.'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowDemoPreview((prev) => !prev)}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold shrink-0 transition shadow-xs ${
+              showDemoPreview
+                ? 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:bg-gray-50'
+                : 'bg-brand-500 hover:bg-brand-600 text-white'
+            }`}
+          >
+            {showDemoPreview ? (
+              <>
+                <EyeOff className="w-3.5 h-3.5" />
+                <span>Volver a mis datos reales</span>
+              </>
+            ) : (
+              <>
+                <Eye className="w-3.5 h-3.5" />
+                <span>Ver ejemplo con datos</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* CENTRO DE ALERTAS Y CONTROL POR EXCEPCIÓN */}
       {hasAlerts ? (
@@ -270,7 +350,7 @@ export default function ExecutiveDashboardPage() {
       <div className="grid grid-cols-12 gap-6">
         {/* Gráfico Mensual */}
         <div className="col-span-12 xl:col-span-8">
-          <MonthlyWasteChart data={monthlyData} />
+          <MonthlyWasteChart data={displayedMonthlyData} />
         </div>
 
         {/* Top 5 Residuos Gestionados por LER */}
@@ -341,12 +421,16 @@ export default function ExecutiveDashboardPage() {
             </div>
 
             <div className="space-y-3">
-              {recentDIs.length === 0 ? (
+              {displayedRecentDIs.length === 0 ? (
                 <p className="text-xs text-gray-500 text-center py-4">No hay traslados recientes registrados.</p>
               ) : (
-                recentDIs.map((di) => (
+                displayedRecentDIs.map((di) => {
+                  const targetHref = showDemoPreview
+                    ? '/residuos/documentos-identificacion'
+                    : `/residuos/documentos-identificacion/${di.id}`;
+                  return (
                   <div key={di.id} className="flex items-center justify-between p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                    <Link href={`/residuos/documentos-identificacion/${di.id}`} className="space-y-0.5">
+                    <Link href={targetHref} className="space-y-0.5">
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold text-xs text-gray-900 dark:text-white">
                           {di.numero_documento}
@@ -367,13 +451,14 @@ export default function ExecutiveDashboardPage() {
                         {new Date(di.fecha_documento).toLocaleDateString('es-ES')}
                       </span>
                       <div>
-                        <Link href={`/residuos/documentos-identificacion/${di.id}`} className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium">
-                          Detalle
+                        <Link href={targetHref} className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium">
+                          {showDemoPreview ? 'Ejemplo' : 'Detalle'}
                         </Link>
                       </div>
                     </div>
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
