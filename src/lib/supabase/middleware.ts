@@ -112,7 +112,6 @@ export async function updateSession(request: NextRequest) {
     !pathname.startsWith('/mockups/') && // Design mockups showcase
     !pathname.startsWith('/mobile/deca/') && // Public driver view for DeCA inspection
     !pathname.startsWith('/mobile/conductor') && // Accessory Driver PWA portal (uses driver cookie)
-    pathname !== '/manifest.webmanifest' &&
     pathname !== '/sw.js'
   ) {
     // Store the original URL to redirect back after login

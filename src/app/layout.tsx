@@ -28,15 +28,8 @@ export const metadata: Metadata = {
   description: "Software integral para la trazabilidad, gestión y cumplimiento legal de residuos (DI, DCS, NT, SIRA/e-SIR).",
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/images/logo/pwa-192.png", sizes: "192x192", type: "image/png" }
-    ],
-    apple: "/images/logo/apple-touch-icon.png"
-  },
-  appleWebApp: {
-    capable: true,
-    title: "ResiGest",
-    statusBarStyle: "black-translucent"
+      { url: "/favicon.ico", sizes: "any" }
+    ]
   }
 };
 

@@ -1,13 +1,13 @@
-import type { MetadataRoute } from 'next';
+import { NextResponse } from 'next/server';
 
-export default function manifest(): MetadataRoute.Manifest {
-  return {
+export function GET() {
+  const manifest = {
     name: 'ResiGest 360 — Conductores',
     short_name: 'ResiGest',
     description:
       'Portal móvil para conductores: consulta tus DeCAs asignados, firma portes, sube tickets y recibe avisos en ruta.',
     start_url: '/mobile/conductor',
-    scope: '/',
+    scope: '/mobile/',
     display: 'standalone',
     orientation: 'portrait',
     background_color: '#020617',
@@ -27,5 +27,11 @@ export default function manifest(): MetadataRoute.Manifest {
       },
     ],
   };
-}
 
+  return NextResponse.json(manifest, {
+    headers: {
+      'Content-Type': 'application/manifest+json; charset=utf-8',
+      'Cache-Control': 'public, max-age=3600',
+    },
+  });
+}

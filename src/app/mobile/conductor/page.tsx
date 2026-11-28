@@ -122,7 +122,7 @@ export default function DriverPortalPwaPage() {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
       setPushSupported(true);
       navigator.serviceWorker
-        .register('/sw.js')
+        .register('/sw.js', { scope: '/mobile/' })
         .then((reg) => reg.pushManager.getSubscription())
         .then((sub) => setPushSubscribed(Boolean(sub)))
         .catch(() => undefined);
