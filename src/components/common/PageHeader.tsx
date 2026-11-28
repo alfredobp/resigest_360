@@ -1,0 +1,101 @@
+'use client';
+
+import React from 'react';
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
+import PageBreadCrumb from '@/components/common/PageBreadCrumb';
+import Button from '@/components/ui/button/Button';
+import { useTenant } from '@/context/TenantContext';
+import { shouldRenderUiHint } from '@/lib/ui/tipsPreference';
+
+export interface PageHeaderProps {
+  title: string;
+  breadcrumbTitle?: string;
+  hideBreadcrumb?: boolean;
+  description?: string;
+  badge?: React.ReactNode;
+  backHref?: string;
+  backLabel?: string;
+  onBack?: () => void;
+  actions?: React.ReactNode;
+  className?: string;
+  alwaysShowDescription?: boolean;
+  alwaysShowBadge?: boolean;
+}
+
+const PageHeader: React.FC<PageHeaderProps> = ({
+  title,
+  breadcrumbTitle,
+  hideBreadcrumb = false,
+  description,
+  badge,
+  backHref,
+  backLabel = 'Volver',
+  onBack,
+  actions,
+  className = '',
+  alwaysShowDescription = false,
+  alwaysShowBadge = false,
+}) => {
+  const { showUiTips } = useTenant();
+  const visibleDescription =
+    description && shouldRenderUiHint(showUiTips, alwaysShowDescription) ? description : undefined;
+  const visibleBadge =
+    badge && shouldRenderUiHint(showUiTips, alwaysShowBadge) ? badge : undefined;
+
+  return (
+    <div className={`flex flex-col sm:flex-row sm:items-start justify-between gap-3 ${className}`}>
+      <div className="flex items-start sm:items-center gap-3 min-w-0">
+        {backHref && (
+          <Link
+            href={backHref}
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:bg-[#111827] dark:text-slate-300 dark:border-slate-700/90 dark:hover:bg-slate-800/80 transition-colors shrink-0"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>{backLabel}</span>
+          </Link>
+        )}
+        {!backHref && onBack && (
+          <Button
+            variant="outline"
+            size="sm"
+            startIcon={<ArrowLeft className="w-3.5 h-3.5" />}
+            onClick={onBack}
+            className="shrink-0"
+          >
+            {backLabel}
+          </Button>
+        )}
+
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white truncate">
+              {title}
+            </h1>
+            {visibleBadge}
+          </div>
+          {visibleDescription && (
+            <p className="mt-0.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+              {visibleDescription}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {(!hideBreadcrumb || actions) && (
+        <div className="flex flex-col items-start sm:items-end gap-2 shrink-0">
+          {!hideBreadcrumb && (
+            <PageBreadCrumb pageTitle={breadcrumbTitle ?? title} className="!mb-0" />
+          )}
+          {actions && (
+            <div className="flex flex-wrap items-center gap-2">
+              {actions}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default PageHeader;

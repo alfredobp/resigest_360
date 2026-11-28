@@ -54,6 +54,8 @@ function dispatchToastEvent(type: ToastType, message: string, title?: string, du
   }
 }
 
+const MAX_VISIBLE_TOASTS = 4;
+
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
@@ -74,15 +76,9 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         duration: defaultDuration,
       };
 
-      setToasts((prev) => [...prev, newToast]);
-
-      if (defaultDuration > 0) {
-        setTimeout(() => {
-          removeToast(id);
-        }, defaultDuration);
-      }
+      setToasts((prev) => [...prev, newToast].slice(-MAX_VISIBLE_TOASTS));
     },
-    [removeToast]
+    []
   );
 
   const success = useCallback(
@@ -182,7 +178,7 @@ const ToastContainer: React.FC<{
   return (
     <div
       aria-live="polite"
-      className="fixed top-5 right-5 z-[999999] flex flex-col gap-2.5 max-w-sm sm:max-w-md w-full pointer-events-none px-4 sm:px-0 transition-all"
+      className="fixed top-5 right-5 z-[1000010] flex flex-col gap-2.5 max-w-sm sm:max-w-md w-full pointer-events-none px-4 sm:px-0 transition-all"
     >
       {toasts.map((t) => (
         <ToastCard key={t.id} item={t} onDismiss={() => onDismiss(t.id)} />
@@ -195,6 +191,17 @@ const ToastCard: React.FC<{
   item: ToastItem;
   onDismiss: () => void;
 }> = ({ item, onDismiss }) => {
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    const duration = item.duration ?? 4500;
+    if (duration <= 0 || paused) return;
+    const timer = setTimeout(() => {
+      onDismiss();
+    }, duration);
+    return () => clearTimeout(timer);
+  }, [item.id, item.duration, paused, onDismiss]);
+
   const config = {
     success: {
       border: 'border-emerald-500/30 dark:border-emerald-500/30',
@@ -233,7 +240,9 @@ const ToastCard: React.FC<{
   return (
     <div
       role="alert"
-      className={`pointer-events-auto relative overflow-hidden rounded-xl border shadow-xl backdrop-blur-md transition-all duration-300 ease-out transform translate-y-0 opacity-100 flex items-start p-4 gap-3.5 ${config.bg} ${config.border}`}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      className={`pointer-events-auto relative overflow-hidden rounded-xl border shadow-xl backdrop-blur-md transition-all duration-300 ease-out animate-[toastSlideIn_180ms_ease-out] flex items-start p-4 gap-3.5 ${config.bg} ${config.border}`}
     >
       {/* Accent left line */}
       <div className={`absolute left-0 top-0 bottom-0 w-1 ${config.accentBar}`} />

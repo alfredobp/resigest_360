@@ -1,4 +1,4 @@
-import { siraValidationSchema } from '../sira';
+import { siraValidationSchema, isSiraTestModeCensusOnlyError, hasSiraSoapFault } from '../sira';
 
 describe('siraValidationSchema - Validaciones normativas SIRA', () => {
   const validBasePayload = {
@@ -110,16 +110,16 @@ describe('siraValidationSchema - Validaciones normativas SIRA', () => {
   });
 
   describe('Operación de tratamiento (operacion_tratamiento)', () => {
-    it.each(['R1', 'R13', 'r01', 'D1', 'D10', 'd5'])(
-      'debe aceptar código de operación válido: %s',
-      (code) => {
-        const result = siraValidationSchema.safeParse({
-          ...validBasePayload,
-          operacion_tratamiento: code,
-        });
-        expect(result.success).toBe(true);
-      }
-    );
+      it.each(['R1', 'R13', 'R14', 'R15', 'R1201', 'D1501', 'r01', 'D1', 'D10', 'd5'])(
+        'debe aceptar código de operación válido: %s',
+        (code) => {
+          const result = siraValidationSchema.safeParse({
+            ...validBasePayload,
+            operacion_tratamiento: code,
+          });
+          expect(result.success).toBe(true);
+        }
+      );
 
     it('debe fallar si tiene menos de 2 caracteres', () => {
       const result = siraValidationSchema.safeParse({
@@ -332,5 +332,51 @@ describe('siraValidationSchema - Validaciones normativas SIRA', () => {
 
       expect(result.success).toBe(true);
     });
+  });
+});
+
+describe('isSiraTestModeCensusOnlyError', () => {
+  it('devuelve true si todos los resultWrong son JA000002 o JA000027 y no hay errores XSD ni Fault', () => {
+    const xml =
+      '<ns3:sendWasteNTResponse><return><result><resultWrong><resultErrorList>' +
+      '<resultWrong code="JA000002" description="NIMA no autorizado"/>' +
+      '<resultWrong code="JA000027" description="NT no presentada"/>' +
+      '</resultErrorList></resultWrong></result></return></ns3:sendWasteNTResponse>';
+
+    expect(isSiraTestModeCensusOnlyError(xml)).toBe(true);
+  });
+
+  it('devuelve false si hay un error de esquema JA000026 o SAXParseException/cvc-', () => {
+    const xmlXsd =
+      '<resultErrorList><resultWrong code="JA000026" description="El mensaje de la petición es incorrecto"/></resultErrorList>';
+    const xmlSax =
+      '<resultErrorList><resultWrong code="JA000002" description="org.xml.sax.SAXParseException cvc-complex-type.4"/></resultErrorList>';
+
+    expect(isSiraTestModeCensusOnlyError(xmlXsd)).toBe(false);
+    expect(isSiraTestModeCensusOnlyError(xmlSax)).toBe(false);
+  });
+
+  it('devuelve false si hay SOAP Fault (cualquier prefijo), códigos ajenos como JA000018, sin resultWrong o cadena vacía', () => {
+    expect(
+      isSiraTestModeCensusOnlyError('<soapenv:Fault><resultWrong code="JA000002"/></soapenv:Fault>')
+    ).toBe(false);
+    expect(
+      isSiraTestModeCensusOnlyError('<ns2:Fault xmlns:ns2="http://schemas.xmlsoap.org/soap/envelope/"><resultWrong code="JA000002"/></ns2:Fault>')
+    ).toBe(false);
+    expect(
+      isSiraTestModeCensusOnlyError('<resultWrong code="JA000002"/><resultWrong code="JA000018"/>')
+    ).toBe(false);
+    expect(isSiraTestModeCensusOnlyError('<IdSira>OK-1</IdSira>')).toBe(false);
+    expect(isSiraTestModeCensusOnlyError('')).toBe(false);
+  });
+});
+
+describe('hasSiraSoapFault', () => {
+  it('detecta cualquier SOAP Fault independientemente del prefijo', () => {
+    expect(hasSiraSoapFault('<ns2:Fault><faultstring>Error</faultstring></ns2:Fault>')).toBe(true);
+    expect(hasSiraSoapFault('<soapenv:Fault></soapenv:Fault>')).toBe(true);
+    expect(hasSiraSoapFault('<Fault></Fault>')).toBe(true);
+    expect(hasSiraSoapFault('<resultOK code="03"/>')).toBe(false);
+    expect(hasSiraSoapFault('')).toBe(false);
   });
 });

@@ -5,6 +5,187 @@
 
 import { type SiraSubmission, type SiraSubmissionStatus } from '@/types/wasteManagement';
 import { createClient } from '@/lib/supabase/client';
+import { hasSiraSoapFault } from '@/lib/validations/sira';
+
+export const DEFAULT_SIRA_WS_URL =
+  'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones';
+export const ESIR_PROD_WS_URL =
+  'https://esir.miteco.gob.es/esir-service/WastesOperationServiceExt';
+
+export type TelematicPlatformId = 'sira' | 'esir' | 'autonomica_no_integrada';
+
+export interface TelematicPlatformInfo {
+  platform: TelematicPlatformId;
+  code: string;
+  name: string;
+  shortLabel: string;
+  endpointUrl: string | null;
+  supported: boolean;
+  provinceCode: string;
+  caCode: string;
+  reason: string;
+}
+
+const NON_INTEGRATED_REGIONAL_PLATFORMS: Record<string, { code: string; name: string }> = {
+  '09': { code: 'SDR', name: 'SDR (Agència de Residus de Catalunya)' },
+  '10': { code: 'ADCR', name: 'ADCR (Comunitat Valenciana)' },
+  '12': { code: 'GaIA', name: 'GaIA / eResiduos (Galicia)' },
+  '16': { code: 'IKS-eeM', name: 'IKS-eeM / Ingurunet (País Vasco)' },
+};
+
+/**
+ * Resuelve la URL del servicio SOAP de SIRA/e-SIR según variables de entorno.
+ * Permite configurar un endpoint alternativo (p. ej. SIRA_WS_URL o SIRA_ENV=esir).
+ */
+export const getSiraEndpointUrl = (): string => {
+  const customUrl = process.env.SIRA_WS_URL?.trim();
+  if (customUrl) {
+    return customUrl;
+  }
+  const envMode = process.env.SIRA_ENV?.trim().toLowerCase();
+  if (envMode === 'esir' || envMode === 'esir_prod') {
+    return ESIR_PROD_WS_URL;
+  }
+  return DEFAULT_SIRA_WS_URL;
+};
+
+/**
+ * Determina automáticamente la plataforma telemática (SIRA o e-SIR) en función de
+ * la provincia o del prefijo provincial del NIMA de la instalación.
+ */
+export const resolveTelematicPlatform = (options: {
+  province?: string | null;
+  nima?: string | null;
+  forcePlatform?: 'auto' | 'sira' | 'esir';
+}): TelematicPlatformInfo => {
+  const customUrl = typeof process !== 'undefined' ? process.env?.SIRA_WS_URL?.trim() : undefined;
+  const envMode = typeof process !== 'undefined' ? process.env?.SIRA_ENV?.trim().toLowerCase() : undefined;
+
+  let provCode = options.province ? getProvinceCodeByName(options.province) : '00';
+  if (provCode === '00' && options.nima) {
+    const digits = String(options.nima).replace(/\D/g, '');
+    if (/^(0[1-9]|[1-4][0-9]|5[0-2])/.test(digits)) {
+      provCode = digits.slice(0, 2);
+    }
+  }
+  const caCode = provCode !== '00' ? getCACodeByProvince(provCode) : '01';
+
+  if (customUrl) {
+    const isEsirCustom = /esir\.miteco\.gob\.es|WastesOperationServiceExt/i.test(customUrl);
+    return {
+      platform: isEsirCustom ? 'esir' : 'sira',
+      code: isEsirCustom ? 'e-SIR' : 'SIRA',
+      name: isEsirCustom ? 'e-SIR (MITECO — Endpoint personalizado)' : 'SIRA (Endpoint personalizado)',
+      shortLabel: isEsirCustom ? 'e-SIR' : 'SIRA',
+      endpointUrl: customUrl,
+      supported: true,
+      provinceCode: provCode,
+      caCode,
+      reason: 'Endpoint configurado manualmente mediante SIRA_WS_URL',
+    };
+  }
+
+  if (options.forcePlatform === 'sira' || envMode === 'sira') {
+    return {
+      platform: 'sira',
+      code: 'SIRA',
+      name: 'SIRA (Junta de Andalucía)',
+      shortLabel: 'SIRA',
+      endpointUrl: DEFAULT_SIRA_WS_URL,
+      supported: true,
+      provinceCode: provCode,
+      caCode,
+      reason: 'Plataforma SIRA seleccionada explícitamente',
+    };
+  }
+
+  if (options.forcePlatform === 'esir' || envMode === 'esir' || envMode === 'esir_prod') {
+    return {
+      platform: 'esir',
+      code: 'e-SIR',
+      name: 'e-SIR (MITECO)',
+      shortLabel: 'e-SIR',
+      endpointUrl: ESIR_PROD_WS_URL,
+      supported: true,
+      provinceCode: provCode,
+      caCode,
+      reason: 'Plataforma e-SIR seleccionada explícitamente',
+    };
+  }
+
+  if (caCode === '01') {
+    return {
+      platform: 'sira',
+      code: 'SIRA',
+      name: 'SIRA (Junta de Andalucía)',
+      shortLabel: 'SIRA',
+      endpointUrl: DEFAULT_SIRA_WS_URL,
+      supported: true,
+      provinceCode: provCode,
+      caCode,
+      reason: 'Instalación ubicada en Andalucía (CCAA 01)',
+    };
+  }
+
+  const regional = NON_INTEGRATED_REGIONAL_PLATFORMS[caCode];
+  if (regional) {
+    return {
+      platform: 'autonomica_no_integrada',
+      code: regional.code,
+      name: regional.name,
+      shortLabel: regional.code,
+      endpointUrl: null,
+      supported: false,
+      provinceCode: provCode,
+      caCode,
+      reason: `La CCAA ${caCode} opera mediante su plataforma autonómica propia (${regional.name})`,
+    };
+  }
+
+  return {
+    platform: 'esir',
+    code: 'e-SIR',
+    name: 'e-SIR (MITECO)',
+    shortLabel: 'e-SIR',
+    endpointUrl: ESIR_PROD_WS_URL,
+    supported: true,
+    provinceCode: provCode,
+    caCode,
+    reason: `Instalación en CCAA ${caCode} adherida a e-SIR (MITECO)`,
+  };
+};
+
+/**
+ * Resuelve la plataforma telemática para un DI conforme al RD 553/2020:
+ * - Fase D/T (destino/recepción): CCAA de la instalación de destino (gestor).
+ * - Fase R/C (origen/remitente): CCAA de la instalación de origen (productor).
+ */
+export const resolvePlatformForDI = (doc: any): TelematicPlatformInfo => {
+  const compData = Array.isArray(doc?.company) ? doc.company[0] : doc?.company;
+  const isDest = isDestinationDCSPhase(doc);
+  if (isDest) {
+    return resolveTelematicPlatform({
+      province: doc?.gestor_provincia || doc?.productor_provincia || compData?.provincia_instalacion || compData?.provincia,
+      nima: doc?.gestor_nima || doc?.productor_nima || compData?.nima,
+    });
+  }
+  return resolveTelematicPlatform({
+    province: doc?.productor_provincia || compData?.provincia_instalacion || compData?.provincia,
+    nima: doc?.productor_nima || compData?.nima,
+  });
+};
+
+/**
+ * Resuelve la plataforma telemática para una Notificación Previa (NT) conforme al RD 553/2020:
+ * se presenta ante la autoridad competente de la CCAA de origen del traslado.
+ */
+export const resolvePlatformForNT = (nt: any): TelematicPlatformInfo => {
+  const compData = Array.isArray(nt?.company) ? nt.company[0] : nt?.company;
+  return resolveTelematicPlatform({
+    province: nt?.productor_provincia || nt?.operador_provincia || compData?.provincia_instalacion || compData?.provincia,
+    nima: nt?.productor_nima || nt?.operador_nima || compData?.nima,
+  });
+};
 
 // ============================================================================
 // FUNCIONES AUXILIARES PRIVADAS (Generación de bloques XML E3L v3.6)
@@ -14,7 +195,7 @@ import { createClient } from '@/lib/supabase/client';
  * Mapeo de códigos de provincia (simplificado)
  * Intenta obtener el código INE de 2 dígitos a partir del nombre
  */
-const getProvinceCodeByName = (provinceName: string): string => {
+export const getProvinceCodeByName = (provinceName: string): string => {
   if (!provinceName) return '00';
   const p = provinceName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const map: Record<string, string> = {
@@ -35,6 +216,173 @@ const getProvinceCodeByName = (provinceName: string): string => {
     if (p.includes(key)) return map[key];
   }
   return '00';
+};
+
+const PROVINCE_DEFAULT_MUNICIPALITY: Record<string, string> = {
+  '01': '010014', '02': '020019', '03': '030015', '04': '040010', '05': '050013',
+  '06': '060016', '07': '070027', '08': '080018', '09': '090011', '10': '100015',
+  '11': '110012', '12': '120022', '13': '130013', '14': '140018', '15': '150011',
+  '16': '160014', '17': '170010', '18': '180016', '19': '190019', '20': '200013',
+  '21': '210010', '22': '220015', '23': '230011', '24': '240016', '25': '250019',
+  '26': '260012', '27': '270018', '28': '280014', '29': '290017', '30': '300011',
+  '31': '310018', '32': '320013', '33': '330019', '34': '340014', '35': '350017',
+  '36': '360209', '37': '370016', '38': '380012', '39': '390015', '40': '400019',
+  '41': '410016', '42': '420011', '43': '430017', '44': '440012', '45': '450015',
+  '46': '460018', '47': '470014', '48': '480010', '49': '490028', '50': '500016',
+  '51': '510013', '52': '520018'
+};
+
+const MUNICIPALITY_INE_PATTERNS: Array<[RegExp, string]> = [
+  [/puerto\s*real/i, '110282'],
+  [/c[aá]diz/i, '110125'],
+  [/jerez/i, '110200'],
+  [/algeciras/i, '110042'],
+  [/san\s*fernando/i, '110319'],
+  [/puerto\s+de\s+santa\s+mar[ií]a/i, '110276'],
+  [/chiclana/i, '110150'],
+  [/sevilla/i, '410917'],
+  [/dos\s*hermanas/i, '410388'],
+  [/alcal[aá]\s+de\s+guada[ií]ra/i, '410040'],
+  [/m[aá]laga/i, '290672'],
+  [/marbella/i, '290691'],
+  [/c[oó]rdoba/i, '140214'],
+  [/lucena/i, '140389'],
+  [/granada/i, '180877'],
+  [/motril/i, '181401'],
+  [/ja[eé]n/i, '230503'],
+  [/linares/i, '230555'],
+  [/almer[ií]a/i, '040139'],
+  [/el\s*ejido/i, '049027'],
+  [/huelva/i, '210417'],
+  [/madrid/i, '280796'],
+  [/barcelona/i, '080193'],
+  [/valencia/i, '462508'],
+  [/zaragoza/i, '502973'],
+  [/bilbao/i, '480200'],
+  [/murcia/i, '300302'],
+  [/valladolid/i, '471868'],
+];
+
+const ANDALUSIA_PROVINCE_CODES = new Set(['04', '11', '14', '18', '21', '23', '29', '41']);
+
+/**
+ * Mapeo de código INE de provincia (01-52) a código INE de Comunidad Autónoma (01-19)
+ * conforme al catálogo oficial de E3L / SIRA.
+ */
+const PROVINCE_TO_CA_CODE: Record<string, string> = {
+  '04': '01', '11': '01', '14': '01', '18': '01', '21': '01', '23': '01', '29': '01', '41': '01', // Andalucía
+  '22': '02', '44': '02', '50': '02', // Aragón
+  '33': '03', // Asturias
+  '07': '04', // Illes Balears
+  '35': '05', '38': '05', // Canarias
+  '39': '06', // Cantabria
+  '05': '07', '09': '07', '24': '07', '34': '07', '37': '07', '40': '07', '42': '07', '47': '07', '49': '07', // Castilla y León
+  '02': '08', '13': '08', '16': '08', '19': '08', '45': '08', // Castilla-La Mancha
+  '08': '09', '17': '09', '25': '09', '43': '09', // Cataluña
+  '03': '10', '12': '10', '46': '10', // Comunitat Valenciana
+  '06': '11', '10': '11', // Extremadura
+  '15': '12', '27': '12', '32': '12', '36': '12', // Galicia
+  '28': '13', // Comunidad de Madrid
+  '30': '14', // Región de Murcia
+  '31': '15', // Comunidad Foral de Navarra
+  '01': '16', '20': '16', '48': '16', // País Vasco
+  '26': '17', // La Rioja
+  '51': '18', // Ceuta
+  '52': '19', // Melilla
+};
+
+export const getCACodeByProvince = (provCode: string): string => {
+  return PROVINCE_TO_CA_CODE[provCode] || '01';
+};
+
+/**
+ * Construye el bloque obligatorio <authorizationId> conforme a EsirAugiasPR2.xsd
+ * (authorizationIdNumber si cumple patrón de 17 chars, authorizationIdFree si es libre,
+ * o authorizationIdEffects="No disponible" si no consta inscripción).
+ */
+export const buildAuthorizationIdXml = (
+  rawAuthNumber: string | undefined | null,
+  safeNima?: string,
+  indent = '            '
+): string => {
+  const cleaned = rawAuthNumber !== undefined && rawAuthNumber !== null
+    ? escapeXml(String(rawAuthNumber)).trim()
+    : '';
+  const effectiveAuth = cleaned && cleaned !== safeNima ? cleaned : '';
+
+  if (!effectiveAuth) {
+    return `${indent}<authorizationId>\n${indent}    <authorizationIdEffects>No disponible</authorizationIdEffects>\n${indent}</authorizationId>`;
+  }
+  if (/^\d{2}[A-Z]\d{2}\d{12}$/.test(effectiveAuth)) {
+    return `${indent}<authorizationId>\n${indent}    <authorizationIdNumber>${effectiveAuth}</authorizationIdNumber>\n${indent}</authorizationId>`;
+  }
+  return `${indent}<authorizationId>\n${indent}    <authorizationIdFree>${effectiveAuth}</authorizationIdFree>\n${indent}</authorizationId>`;
+};
+
+const getMunicipalityCodeByProvince = (provCode: string, muniName?: string): string => {
+  if (muniName) {
+    for (const [pattern, ineCode] of MUNICIPALITY_INE_PATTERNS) {
+      if (pattern.test(muniName)) return ineCode;
+    }
+  }
+  return PROVINCE_DEFAULT_MUNICIPALITY[provCode] || '110012';
+};
+
+/**
+ * Normaliza y valida un NIMA conforme al patrón XSD de SIRA: (0[1-9]|[1-4][0-9]|5[0-2])\d{8}
+ */
+export const formatNima = (rawNima: string | undefined | null, provCode?: string): string => {
+  const digits = String(rawNima || '').replace(/\D/g, '');
+  const prov = /^(0[1-9]|[1-4][0-9]|5[0-2])$/.test(provCode || '') ? (provCode as string) : '11';
+
+  // Si ya cumple exactamente el patrón XSD de 10 dígitos (provincia 01-52 + 8 dígitos)
+  if (/^(0[1-9]|[1-4][0-9]|5[0-2])\d{8}$/.test(digits)) {
+    return digits;
+  }
+
+  // N04 / N07: Si el usuario introdujo más de 10 dígitos (ej: 783989383983), nunca truncar
+  // silenciosamente ni sustituir por provincia inventada durante la exportación.
+  if (digits.length > 10) {
+    return digits;
+  }
+
+  // Si tiene 10 dígitos pero el prefijo provincial no es válido (ej: '0000000014')
+  if (digits.length === 10 && digits.startsWith('00')) {
+    return `${prov}${digits.slice(2)}`;
+  }
+
+  // Si tiene 10 dígitos, preservar tal cual
+  if (digits.length === 10) {
+    return digits;
+  }
+
+  // Si tiene hasta 8 dígitos o viene vacío, asegurar 8 dígitos de correlativo y prefijo provincial
+  const seq = (digits || '1').padStart(8, '0').slice(-8);
+  return `${prov}${seq}`;
+};
+
+/**
+ * Formatea el código de DI (DCSCode) al estándar E3L 3.3 (26 caracteres):
+ * DCS + tipo_origen (2) + NIMA (10) + año (4) + correlativo (7)
+ */
+export const formatDCSCode = (
+  rawCode: string | undefined | null,
+  nima: string,
+  docId?: number | string
+): string => {
+  const cleanCode = String(rawCode || '').trim();
+  const validPattern = /^DCS(([01][0-9]9999999999)|([01][0-9]|[235]0)(0[1-9]|[1-4][0-9]|5[0-2])\d{8})\d{4}\d{7}$/;
+  if (validPattern.test(cleanCode)) {
+    return cleanCode;
+  }
+
+  const currentYear = new Date().getFullYear().toString();
+  const validNima = /^(0[1-9]|[1-4][0-9]|5[0-2])\d{8}$/.test(nima) ? nima : '9999999999';
+  const origin = validNima === '9999999999' ? '01' : '10';
+  const seqDigits = String(docId || '').replace(/\D/g, '') || String(cleanCode).replace(/\D/g, '') || '1';
+  const paddedSeq = seqDigits.padStart(7, '0').slice(-7);
+
+  return `DCS${origin}${validNima}${currentYear}${paddedSeq}`;
 };
 
 /**
@@ -58,12 +406,16 @@ const escapeXml = (unsafe: string): string => {
  * Interfaz para pasar datos normalizados a la función generadora
  */
 interface EntityData {
-  cif: string;
-  name: string;
-  nima: string;
+  cif?: string;
+  name?: string;
+  nima?: string;
+  authorizationCode?: string;
+  authorizationNumber?: string;
+  cnae?: string;
   address?: string;
   cp?: string;
   municipality?: string;
+  municipalityCode?: string;
   province?: string;
   phone?: string;
   email?: string;
@@ -71,6 +423,7 @@ interface EntityData {
 
 /**
  * Genera un bloque de entidad genérico conforme a wasteCenterEntityType
+ * SIN inyectar valores ficticios de relleno (F07).
  */
 const generateEntityBlock = (
   tagName: string,
@@ -78,271 +431,719 @@ const generateEntityBlock = (
   typeTag: string,
   typeAttr: string,
   typeValue: string,
+  defaultAuthCode: string,
   extraChild = ''
 ): string => {
-  const clean = (val: any) => val ? escapeXml(String(val)).trim() : '';
+  const clean = (val: any) => (val !== undefined && val !== null ? escapeXml(String(val)).trim() : '');
 
-  // Datos de dirección (con fallbacks para validación)
-  const provCode = getProvinceCodeByName(data.province || '');
-  const muniName = clean(data.municipality || 'Desconocido');
-  const addressText = clean(data.address || 'Dirección no registrada');
-  const cp = clean(data.cp || '00000');
+  const cif = clean(data.cif);
+  const name = clean(data.name);
+  const provName = clean(data.province);
+  const provCode = provName ? getProvinceCodeByName(provName) : '11';
+  const safeNima = formatNima(clean(data.nima), provCode);
+  const muniName = clean(data.municipality) || (provCode === '11' ? 'Puerto Real' : 'Municipio');
+  const muniCode = clean(data.municipalityCode) || getMunicipalityCodeByProvince(provCode, muniName);
+  const addressText = clean(data.address) || 'Calle Principal';
+  const rawCp = clean(data.cp);
+  const cp = /^\d{5}$/.test(rawCp) ? rawCp : '';
+  const cpTag = cp ? `\n                <CP>${cp}</CP>` : '';
+  const cnae = clean(data.cnae);
+  const rawAuthNumber = clean(data.authorizationNumber);
+  const authCode = clean(data.authorizationCode) || defaultAuthCode;
+  const caCode = getCACodeByProvince(provCode);
 
   const addressBlock = `
         <centerAddress>
             <spanishAddress>
-                <vial vialCode="CL" vialDescription="Calle"/>
-                <address>${addressText}</address>
-                <CP>${cp}</CP>
-                <municipality municipalityCode="00000" municipalityName="${muniName}"/>
-                <province provinceCode="${provCode}" provinceName="${clean(data.province || 'Desconocida')}"/>
+                <vial vialCode="009" vialDescription="Calle"/>
+                <address>${addressText}</address>${cpTag}
+                <municipality municipalityCode="${muniCode}" municipalityName="${muniName}"/>
+                <province provinceCode="${provCode}" provinceName="${provName || 'Cádiz'}"/>
+                <CA CACode="${caCode}"/>
+                <country countryCode="724"/>
             </spanishAddress>
         </centerAddress>`;
 
+  const safeCnae = cnae || 'S/D';
+  const safePhone = clean(data.phone).replace(/\D/g, '').slice(0, 13);
+  const rawEmail = clean(data.email);
+  const safeEmail = rawEmail.includes('@') ? rawEmail.slice(0, 50) : '';
+
+  // EsirAugiasPR4.xsd (SIRA live): <centerContact>, <phone> y <mail> tienen minOccurs="1"
   const contactBlock = `
         <centerContact>
-            <phone>${clean(data.phone || '999999999')}</phone>
-            <mail>${clean(data.email || 'pendiente@email.com')}</mail>
+            <phone>${safePhone}</phone>
+            <mail>${safeEmail}</mail>
         </centerContact>`;
 
+  const authIdNode = `\n${buildAuthorizationIdXml(rawAuthNumber, safeNima, '            ')}`;
+
   const authBlock = `
-        <wasteCenterAuthorization>
-            <authorizationId>
-                <authorizationIdFree>${clean(data.nima || 'PENDIENTE')}</authorizationIdFree>
-            </authorizationId>
-            <authorizationCode>A01</authorizationCode>
+        <wasteCenterAuthorization>${authIdNode}
+            <authorizationCode>${authCode}</authorizationCode>
         </wasteCenterAuthorization>`;
 
-  // Estructura para Empresa (Persona Jurídica)
-  const nameBlock = `
+  const nameBlock = name
+    ? `
         <entityName>
             <reason>
-                <reasonName>${clean(data.name)}</reasonName>
+                <reasonName>${name}</reasonName>
                 <reasonAssociation associationCode="99" associationDescription="Otra"/>
             </reason>
-        </entityName>`;
+        </entityName>`
+    : '';
 
   return `
-    <${tagName}>
+    <${tagName}>${cif ? `
         <entityId>
-            <nationalId>${clean(data.cif)}</nationalId>
-        </entityId>
-        <entityFJ entityFJCode="J" />
-        ${nameBlock}
+            <nationalId>${cif}</nationalId>
+        </entityId>` : ''}
+        <entityFJ entityFJCode="J" />${nameBlock}
         
         <entityCenter>
-            <centerID centerCode="${clean(data.nima || 'PENDIENTE')}" />
-            <centerEconomicActivity>S/D</centerEconomicActivity>
-            ${addressBlock}
-            ${contactBlock}
-            ${authBlock}
+            <centerID centerCode="${safeNima}" />
+            <centerEconomicActivity>${safeCnae}</centerEconomicActivity>${addressBlock}${contactBlock}${authBlock}
         </entityCenter>
 
-        <${typeTag} ${typeAttr}="${typeValue}"/>
-        ${extraChild}
+        <${typeTag} ${typeAttr}="${typeValue}"/>${extraChild ? `\n        ${extraChild}` : ''}
     </${tagName}>`;
 };
 
 const generateOperatorBlock = (doc: any): string => {
-  // El operador suele ser el productor si él genera el documento
-  // Si doc.company (usuario logueado) tiene datos, usamos esos.
   const compData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
+  const isDanger = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
+
+  // N04: Garantizar coherencia estricta del centro del Operador del Traslado.
+  // Si no se especifican campos explícitos de operador_*, usar de forma íntegra el centro productor del DI
+  // en lugar de mezclar el NIMA de la sede principal (compData.nima) con la dirección del centro productor.
+  const hasExplicitOperator = Boolean(doc.operador_nima || doc.operador_direccion || doc.operador_cif);
 
   return generateEntityBlock(
     'DCSTransferOperatorData',
     {
-      cif: compData?.cif || doc.productor_cif,
-      name: compData?.razon_social || doc.productor_razon_social,
-      nima: compData?.nima || doc.productor_nima,
-      address: compData?.domicilio_instalacion || doc.productor_direccion,
-      province: compData?.provincia_instalacion || doc.productor_provincia,
-      phone: compData?.telefono || doc.productor_telefono,
-      email: compData?.email
+      cif: doc.operador_cif || doc.productor_cif || compData?.cif,
+      name: doc.operador_razon_social || doc.productor_razon_social || compData?.razon_social,
+      nima: hasExplicitOperator
+        ? (doc.operador_nima || doc.productor_nima || compData?.nima)
+        : (doc.productor_nima || compData?.nima),
+      authorizationNumber:
+        doc.operador_numero_autorizacion ||
+        doc.productor_numero_autorizacion ||
+        doc.production_center?.numero_inscripcion ||
+        compData?.numero_inscripcion,
+      address: hasExplicitOperator
+        ? (doc.operador_direccion || doc.productor_direccion || compData?.domicilio_instalacion)
+        : (doc.productor_direccion || compData?.domicilio_instalacion),
+      cp: hasExplicitOperator
+        ? (doc.operador_codigo_postal || doc.productor_codigo_postal || compData?.codigo_postal_instalacion)
+        : (doc.productor_codigo_postal || compData?.codigo_postal_instalacion),
+      municipality: hasExplicitOperator
+        ? (doc.operador_municipio || doc.productor_municipio || compData?.municipio_instalacion)
+        : (doc.productor_municipio || compData?.municipio_instalacion),
+      province: hasExplicitOperator
+        ? (doc.operador_provincia || doc.productor_provincia || compData?.provincia_instalacion)
+        : (doc.productor_provincia || compData?.provincia_instalacion),
+      phone: doc.operador_telefono || doc.productor_telefono || compData?.telefono,
+      email: doc.operador_email || doc.productor_email || compData?.email,
+      cnae: compData?.cnae,
     },
     'wasteTransferOperatorType',
     'operatorTypeCode',
-    'P01'
+    isDanger ? 'P01' : 'P03',
+    isDanger ? 'P01' : 'P03'
   );
 };
 
 const generateProducerBlock = (doc: any): string => {
+  const isDanger = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
   return generateEntityBlock(
     'DCSProducerData',
     {
       cif: doc.productor_cif,
       name: doc.productor_razon_social,
       nima: doc.productor_nima,
+      authorizationNumber: doc.productor_numero_autorizacion || doc.production_center?.numero_inscripcion,
       address: doc.productor_direccion,
       cp: doc.productor_codigo_postal,
       municipality: doc.productor_municipio,
       province: doc.productor_provincia,
-      phone: doc.productor_telefono
+      phone: doc.productor_telefono,
+      email: doc.productor_email,
     },
     'wasteProducerType',
     'producerTypeCode',
-    'P01'
+    isDanger ? 'P01' : 'P03',
+    isDanger ? 'P01' : 'P03'
   );
 };
 
 const generateManagerBlock = (doc: any): string => {
+  const isDanger = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
   return generateEntityBlock(
     'DCSAdresseeData',
     {
       cif: doc.gestor_cif,
       name: doc.gestor_razon_social,
       nima: doc.gestor_nima,
+      authorizationNumber: doc.gestor_numero_autorizacion,
       address: doc.gestor_direccion,
       cp: doc.gestor_codigo_postal,
       municipality: doc.gestor_municipio,
       province: doc.gestor_provincia,
-      phone: doc.gestor_telefono
+      phone: doc.gestor_telefono,
+      email: doc.gestor_email,
     },
     'wasteManagerType',
     'managerTypeCode',
-    'G01'
+    isDanger ? 'G01' : 'G04',
+    isDanger ? 'G01' : 'G04'
   );
 };
 
 const generateTransporterContent = (doc: any): string => {
-  // Si no hay transportista en doc, usamos dummy para validación técnica
-  const tData: EntityData = {
-    cif: doc.transportista_cif || 'A00000000',
-    name: doc.transportista_razon_social || 'Transportista Genérico',
-    nima: doc.transportista_nima || 'NIMA-PENDIENTE',
-    address: doc.transportista_direccion,
-    cp: doc.transportista_codigo_postal,
-    municipality: doc.transportista_municipio,
-    province: doc.transportista_provincia,
-    phone: doc.transportista_telefono
-  };
+  // Si no hay datos reales de transportista, no fabricar 'A00000000' / 'transporte@pendiente.com'
+  const hasAnyTransporterData = Boolean(
+    doc.transportista_cif || doc.transportista_razon_social || doc.transportista_nima
+  );
+  if (!hasAnyTransporterData) {
+    return '';
+  }
 
-  const clean = (val: any) => val ? escapeXml(String(val)).trim() : '';
+  const isDanger = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
+  const clean = (val: any) => (val !== undefined && val !== null ? escapeXml(String(val)).trim() : '');
+  const cif = clean(doc.transportista_cif);
+  const name = clean(doc.transportista_razon_social);
+  const provName = clean(doc.transportista_provincia);
+  const provCode = provName ? getProvinceCodeByName(provName) : '11';
+  const safeNima = formatNima(clean(doc.transportista_nima), provCode);
+  const muniName = clean(doc.transportista_municipio) || (provCode === '11' ? 'Puerto Real' : 'Municipio');
+  const muniCode = getMunicipalityCodeByProvince(provCode, muniName);
+  const addressText = clean(doc.transportista_direccion);
+  const rawCp = clean(doc.transportista_codigo_postal);
+  const cp = /^\d{5}$/.test(rawCp) ? rawCp : '';
+  const cpTag = cp ? `\n                        <CP>${cp}</CP>` : '';
+  const safePhone = clean(doc.transportista_telefono).replace(/\D/g, '').slice(0, 13);
+  const rawEmail = clean(doc.transportista_email);
+  const safeEmail = rawEmail.includes('@') ? rawEmail.slice(0, 50) : '';
+  const safeCnae = 'S/D';
+  const caCode = getCACodeByProvince(provCode);
 
-  // Mapeo geográfico
-  const provCode = getProvinceCodeByName(tData.province || '');
-  const muniName = clean(tData.municipality || 'Desconocido');
-  const addressText = clean(tData.address || 'Dirección no registrada');
-  const cp = clean(tData.cp || '00000');
-
-  return `
-        <DCSTransporterData>
-            <entityId>
-                <nationalId>${clean(tData.cif)}</nationalId>
-            </entityId>
-            <entityFJ entityFJCode="J" />
-            <entityName>
-                <reason>
-                    <reasonName>${clean(tData.name)}</reasonName>
-                    <reasonAssociation associationCode="99" associationDescription="Otra"/>
-                </reason>
-            </entityName>
-            <entityCenter>
-                <centerID centerCode="${clean(tData.nima)}" />
-                <centerEconomicActivity>S/D</centerEconomicActivity>
+  const addressBlock = addressText
+    ? `
                 <centerAddress>
                     <spanishAddress>
-                        <vial vialCode="CL" vialDescription="Calle"/>
-                        <address>${addressText}</address>
-                        <CP>${cp}</CP>
-                        <municipality municipalityCode="00000" municipalityName="${muniName}"/>
-                        <province provinceCode="${provCode}" provinceName="${clean(tData.province || 'Desconocida')}"/>
+                        <vial vialCode="009" vialDescription="Calle"/>
+                        <address>${addressText}</address>${cpTag}
+                        <municipality municipalityCode="${muniCode}" municipalityName="${muniName}"/>
+                        <province provinceCode="${provCode}" provinceName="${provName || 'Cádiz'}"/>
+                        <CA CACode="${caCode}"/>
+                        <country countryCode="724"/>
                     </spanishAddress>
-                </centerAddress>
+                </centerAddress>`
+    : '';
+
+  // EsirAugiasPR4.xsd (SIRA live): <centerContact>, <phone> y <mail> tienen minOccurs="1"
+  const contactBlock = `
                 <centerContact>
-                    <phone>${clean(tData.phone || '999999999')}</phone>
-                    <mail>transporte@pendiente.com</mail>
-                </centerContact>
+                    <phone>${safePhone}</phone>
+                    <mail>${safeEmail}</mail>
+                </centerContact>`;
+
+  const transporterAuth = clean(
+    doc.transportista_numero_autorizacion ||
+    doc.transportista_n_autorizacion ||
+    doc.transportista_autorizacion ||
+    ''
+  );
+
+  // EsirAugiasPR2.xsd: <wasteCenterAuthorization> y <authorizationId> tienen minOccurs="1"
+  const authBlock = `
                 <wasteCenterAuthorization>
-                    <authorizationId>
-                         <authorizationIdFree>${clean(tData.nima)}</authorizationIdFree>
-                    </authorizationId>
-                    <authorizationCode>A01</authorizationCode>
-                </wasteCenterAuthorization>
+${buildAuthorizationIdXml(transporterAuth, safeNima, '                    ')}
+                    <authorizationCode>${isDanger ? 'T01' : 'T02'}</authorizationCode>
+                </wasteCenterAuthorization>`;
+
+  return `
+        <DCSTransporterData>${cif ? `
+            <entityId>
+                <nationalId>${cif}</nationalId>
+            </entityId>` : ''}
+            <entityFJ entityFJCode="J" />${name ? `
+            <entityName>
+                <reason>
+                    <reasonName>${name}</reasonName>
+                    <reasonAssociation associationCode="99" associationDescription="Otra"/>
+                </reason>
+            </entityName>` : ''}
+            <entityCenter>
+                <centerID centerCode="${safeNima}" />
+                <centerEconomicActivity>${safeCnae}</centerEconomicActivity>${addressBlock}${contactBlock}${authBlock}
             </entityCenter>
 
-            <wasteTransporterType trasporterTypeCode="T01" transporterTypeDescription="Transportista de residuos"/>
+            <wasteTransporterType trasporterTypeCode="${isDanger ? 'T01' : 'T02'}" transporterTypeDescription="Transportista de residuos"/>
             <DCSTransportWay transportWayCode="01" transportWayDescription="Carretera"/>
         </DCSTransporterData>`;
 };
 
+const normalizeLerCode = (rawLer: string): string => {
+  if (!rawLer) return '999999';
+  return String(rawLer).replace(/[\s*.-]/g, '').trim();
+};
+
+const normalizeOperation = (op: string): string => {
+  if (!op) return 'R13';
+  const cleanOp = String(op).trim().toUpperCase();
+  return cleanOp.replace(/^([RD])(\d)$/, '$10$2');
+};
+
+const normalizeHpCode = (hp: string): string => {
+  if (!hp) return 'HP4';
+  const cleanHp = String(hp).trim().toUpperCase().replace(/\s+/g, '');
+  // Mapear formatos como H4 o HP04 a HP4
+  const match = cleanHp.match(/^(?:HP|H)0?([1-9]|1[0-5])$/);
+  return match ? `HP${match[1]}` : 'HP4';
+};
+
+const DESTINATION_TRANSFER_STATES = new Set([
+  'recepcionado',
+  'aceptado',
+  'rechazado_parcial',
+  'rechazado_total',
+  'tratado',
+]);
+
+const isDestinationDCSPhase = (doc: any): boolean => {
+  if (!doc) return false;
+  return (
+    doc.dcs_phase === 'D' ||
+    doc.dcs_phase === 'T' ||
+    DESTINATION_TRANSFER_STATES.has(String(doc.estado_traslado || '')) ||
+    Boolean(doc.resultado_recepcion) ||
+    Boolean(doc.fecha_recepcion || doc.fecha_llegada_destino) ||
+    Number(doc.peso_destino_kg) > 0
+  );
+};
+
 const generateResidueBlock = (doc: any): string => {
   const clean = (val: any) => val ? escapeXml(String(val)).trim() : '';
-  const isDangerous = doc.peligrosidad === 'peligroso';
+  const isDangerous = doc.peligrosidad === 'peligroso' || String(doc.codigo_ler || '').includes('*');
+  const cleanLer = normalizeLerCode(doc.codigo_ler);
 
   const residueBag = `
         <residueBag>
              <bagProcess internalIdProcessCode="99"/>
-             <bagResidueId residueCode="999" residueDescription="${clean(doc.descripcion_residuo || doc.nombre_residuo || 'Residuo Genérico')}"/>
+             <bagResidueId residueCode="999" residueDescription="${clean(doc.descripcion_residuo || doc.nombre_residuo || '')}"/>
         </residueBag>`;
 
-  // Operación: Default R13 o valor real
-  const opTratamiento = clean(doc.operacion_tratamiento || 'R13');
+  // Conservar operación prevista en productor y operación realmente ejecutada (si existe) en destinatario
+  const opPrevista = normalizeOperation(clean(doc.operacion_tratamiento || 'R13'));
+  const opEjecutada = normalizeOperation(clean(doc.operacion_tratamiento_ejecutada || doc.operacion_tratamiento || 'R13'));
 
   const residueTablesType = isDangerous
     ? 'xsi:type="wassup:tablesDangerousType"'
     : 'xsi:type="wassup:tablesNoDangerousType"';
 
-  const residueTables = `
+  const hpBlock = isDangerous
+    ? `\n            <table5>${normalizeHpCode(doc.caracteristica_peligrosidad || doc.codigo_hp || doc.hp || '')}</table5>`
+    : '';
+
+  const buildTables = (opCode: string) => {
+    const processBlock =
+      opCode.length >= 5
+        ? `\n            <process operationIdProcessCode="${opCode.slice(0, 5)}"/>`
+        : '';
+    return `
         <residueTables ${residueTablesType}>
-            <table2>${opTratamiento}</table2>
+            <table2>${opCode.slice(0, 3)}</table2>${hpBlock}${processBlock}
         </residueTables>`;
+  };
 
   const residueTypeAttr = isDangerous
     ? 'xsi:type="wassup:dangerousResidueType"'
-    : 'xsi:type="wassup:dangerousResidueType"'; // Default estricto
+    : 'xsi:type="wassup:noDangerousResidueType"';
+
+  // N04: DCSNT solo debe incluirse cuando existe notificación previa real (no aplicable en traslados sin notificación)
+  const rawNt = clean(doc.numero_notificacion || doc.nt_codigo || doc.notificacion_previa_codigo || '');
+  const hasNt = doc.tipo_notificacion !== 'sin-notificacion' && Boolean(rawNt);
+  const ntBlock = hasNt ? `\n            <DCSNT>${rawNt}</DCSNT>` : '';
+
+  const fallbackQty = Number(doc.cantidad || 0);
+  const fallbackKg = (doc.unidad === 'toneladas' || doc.unidad === 'm3') ? fallbackQty * 1000 : fallbackQty;
+  const rawWeight = Number(doc.peso_destino_kg || doc.peso_origen_kg || fallbackKg || 0);
+  const formattedWeight = !isNaN(rawWeight) && rawWeight > 0 ? rawWeight.toFixed(3) : '0.001';
 
   const otherData = `
-        <DCSOtherResidueData>
-            <DCSNT>PENDIENTE-NT</DCSNT>
-            <DCSClearWeight>${doc.cantidad}</DCSClearWeight>
+        <DCSOtherResidueData>${ntBlock}
+            <DCSClearWeight>${formattedWeight}</DCSClearWeight>
             <DCSTransportCharacteristics>Sin características especiales</DCSTransportCharacteristics>
         </DCSOtherResidueData>`;
 
   const transporterData = generateTransporterContent(doc);
 
+  let acceptanceData = '';
+  if (isDestinationDCSPhase(doc)) {
+    const isRejected =
+      doc.estado_traslado === 'rechazado_total' ||
+      doc.resultado_recepcion === 'rechazado_total';
+    const isPartialRejection =
+      doc.estado_traslado === 'rechazado_parcial' ||
+      doc.resultado_recepcion === 'rechazado_parcial';
+    const rejectedKg = Number(doc.cantidad_rechazada_kg || 0);
+    const realAcceptedWeight =
+      isPartialRejection && !isNaN(rejectedKg) && rejectedKg > 0 && rawWeight > rejectedKg
+        ? (rawWeight - rejectedKg).toFixed(3)
+        : formattedWeight;
+    const acceptanceCode = isRejected ? '04' : '03';
+    const acceptanceDate = String(
+      doc.fecha_llegada_destino ||
+      doc.fecha_recepcion ||
+      doc.fecha_tratamiento ||
+      doc.fecha_salida ||
+      doc.fecha_recogida ||
+      doc.fecha_documento ||
+      new Date().toISOString().split('T')[0]
+    ).split('T')[0];
+    const deliveryDate = String(
+      doc.fecha_salida ||
+      doc.fecha_recogida ||
+      doc.fecha_llegada_destino ||
+      doc.fecha_recepcion ||
+      doc.fecha_documento ||
+      acceptanceDate
+    ).split('T')[0];
+    const refusedBlock = isRejected
+      ? `\n        <DCSRefusedAction>${doc.accion_rechazo === 'reenvio' ? 'Redelivery' : 'Return'}</DCSRefusedAction>\n        <DCSRefusedActionDate>${acceptanceDate}</DCSRefusedActionDate>`
+      : '';
+    acceptanceData = `
+    <DCSAcceptanceData>
+        <DCSRealQuantity>${realAcceptedWeight}</DCSRealQuantity>
+        <DCSAcceptance>${acceptanceCode}</DCSAcceptance>
+        <DCSAcceptanceDate>${acceptanceDate}</DCSAcceptanceDate>${refusedBlock}
+        <DCSDeliveryDate>${deliveryDate}</DCSDeliveryDate>
+    </DCSAcceptanceData>`;
+  }
+
+  let returnedConfirmationData = '';
+  if (doc.dcs_phase === 'C') {
+    const returnedQtyRaw = Number(doc.cantidad_devuelta_kg ?? doc.cantidad_rechazada_kg ?? rawWeight);
+    const returnedQty = !isNaN(returnedQtyRaw) && returnedQtyRaw > 0 ? returnedQtyRaw.toFixed(3) : formattedWeight;
+    const returnedDate = String(
+      doc.fecha_confirmacion_devolucion ||
+      doc.fecha_recepcion ||
+      doc.fecha_documento ||
+      new Date().toISOString().split('T')[0]
+    ).split('T')[0];
+    returnedConfirmationData = `
+    <DCSReturnedConfirmationData>
+        <DCSReturnedQuantity>${returnedQty}</DCSReturnedQuantity>
+        <DCSReturnedConfirmationDate>${returnedDate}</DCSReturnedConfirmationDate>
+    </DCSReturnedConfirmationData>`;
+  }
+
   return `
     <DCSResidueData>
-        <DCSProducerResidueIdentification LERCode="${clean(doc.codigo_ler)}" ${residueTypeAttr}>
+        <DCSProducerResidueIdentification LERCode="${cleanLer}" ${residueTypeAttr}>
             ${residueBag}
-            ${residueTables}
+            ${buildTables(opPrevista)}
         </DCSProducerResidueIdentification>
         
-        <DCSAdresseeResidueIdentification LERCode="${clean(doc.codigo_ler)}" ${residueTypeAttr}>
+        <DCSAdresseeResidueIdentification LERCode="${cleanLer}" ${residueTypeAttr}>
             ${residueBag}
-            ${residueTables}
+            ${buildTables(opEjecutada)}
         </DCSAdresseeResidueIdentification>
         
-        ${otherData}
-        ${transporterData}
+        ${otherData}${transporterData}${acceptanceData}${returnedConfirmationData}
     </DCSResidueData>`;
 };
+
+/**
+ * Extrae el mensaje de error legible de una respuesta SOAP/XML de SIRA.
+ * Maneja tanto atributos (e.g. <resultWrong code="JA000018" description="..."/>)
+ * como elementos SOAP Fault (<faultstring>, <description>, <message>).
+ */
+export function extractSiraError(responseText: string): string {
+  if (!responseText || typeof responseText !== 'string') {
+    return 'Respuesta vacía o inválida del servidor SIRA.';
+  }
+
+  // 1. Extraer errores estructurados de <resultWrong ... /> con atributo description
+  const resultWrongMatches: string[] = [];
+  const wrongRegex = /<resultWrong\b([^>]*?)\/?>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = wrongRegex.exec(responseText)) !== null) {
+    const attrs = match[1];
+    const descMatch = attrs.match(/description=["']([^"']+)["']/i);
+    if (descMatch && descMatch[1].trim()) {
+      const desc = descMatch[1].trim();
+      const codeMatch = attrs.match(/code=["']([A-Za-z0-9_-]+)["']/i);
+      const code = codeMatch ? codeMatch[1].trim() : null;
+      const formatted = code ? `${code}: ${desc}` : desc;
+      if (!resultWrongMatches.includes(formatted)) {
+        resultWrongMatches.push(formatted);
+      }
+    }
+  }
+
+  if (resultWrongMatches.length > 0) {
+    return resultWrongMatches.join(' | ');
+  }
+
+  // 2. Atributo description genérico en cualquier otro nodo XML
+  const genericAttrMatch = responseText.match(/description=["']([^"']+)["']/i);
+  if (genericAttrMatch && genericAttrMatch[1].trim()) {
+    const desc = genericAttrMatch[1].trim();
+    const codeMatch = responseText.match(/code=["']([A-Za-z0-9_-]+)["']/i);
+    const code = codeMatch ? codeMatch[1].trim() : null;
+    return code ? `${code}: ${desc}` : desc;
+  }
+
+  // 3. Elemento <description>...</description>
+  const descTagMatch = responseText.match(/<description[^>]*>([\s\S]*?)<\/description>/i);
+  if (descTagMatch && descTagMatch[1].trim()) {
+    return descTagMatch[1].trim();
+  }
+
+  // 4. Elemento <faultstring>...</faultstring>
+  const faultMatch = responseText.match(/<faultstring[^>]*>([\s\S]*?)<\/faultstring>/i);
+  if (faultMatch && faultMatch[1].trim()) {
+    return faultMatch[1].trim();
+  }
+
+  // 5. Elemento <message>...</message>
+  const messageMatch = responseText.match(/<message[^>]*>([\s\S]*?)<\/message>/i);
+  if (messageMatch && messageMatch[1].trim()) {
+    const firstLine = messageMatch[1].trim().split('\n')[0].trim();
+    return firstLine || messageMatch[1].trim();
+  }
+
+  return 'Error en la validación de SIRA. Ver logs XML.';
+}
+
+export interface SiraParsedResponse {
+  ok: boolean;
+  hasFault: boolean;
+  hasResultWrong: boolean;
+  hasResultOK: boolean;
+  hasResultWarning: boolean;
+  siraId: string | null;
+  code: string | null;
+  description: string | null;
+  detailValue: string | null;
+  warnings: string[];
+}
+
+/**
+ * Parsea una respuesta SOAP/XML de SIRA/e-SIR conforme al Contrato OTI
+ * (§ 4.1.2 respuestaSendWasteNT, § 4.1.4 respuestaSendWasteDCS y § 4.1.5 respuestaError).
+ * Reconoce <resultOK>, <resultWarning>, <resultWrong>, cualquier SOAP Fault (<ns2:Fault>,
+ * <soapenv:Fault>, <S:Fault>, etc.) y mantiene compatibilidad retroactiva con <IdSira>/<resultRight>.
+ */
+export function parseSiraResponse(responseText: string): SiraParsedResponse {
+  const empty: SiraParsedResponse = {
+    ok: false,
+    hasFault: false,
+    hasResultWrong: false,
+    hasResultOK: false,
+    hasResultWarning: false,
+    siraId: null,
+    code: null,
+    description: null,
+    detailValue: null,
+    warnings: [],
+  };
+
+  if (!responseText || typeof responseText !== 'string') {
+    return empty;
+  }
+
+  const hasFault = hasSiraSoapFault(responseText);
+  const hasResultWrong = /<resultWrong\b/i.test(responseText);
+  const okTagMatch = responseText.match(/<resultOK\b([^>]*?)\/?>/i);
+  const hasResultOK = Boolean(okTagMatch);
+  const hasResultRight = /<resultRight\b/i.test(responseText);
+
+  const warnings: string[] = [];
+  const warnRegex = /<resultWarning\b([^>]*?)\/?>/gi;
+  let warnMatch: RegExpExecArray | null;
+  while ((warnMatch = warnRegex.exec(responseText)) !== null) {
+    const attrs = warnMatch[1];
+    const wDesc = attrs.match(/description=["']([^"']+)["']/i)?.[1]?.trim();
+    const wCode = attrs.match(/code=["']([A-Za-z0-9_-]+)["']/i)?.[1]?.trim();
+    if (wDesc) {
+      const formatted = wCode ? `${wCode}: ${wDesc}` : wDesc;
+      if (!warnings.includes(formatted)) warnings.push(formatted);
+    }
+  }
+  const hasResultWarning = /<resultWarning\b/i.test(responseText);
+
+  const attrsSource = okTagMatch?.[1] || responseText.match(/<resultWarning\b([^>]*?)\/?>/i)?.[1] || '';
+  const code = attrsSource.match(/code=["']([A-Za-z0-9_-]+)["']/i)?.[1]?.trim() || null;
+  const description = attrsSource.match(/description=["']([^"']+)["']/i)?.[1]?.trim() || null;
+  const detailValue = responseText.match(/<detailValue[^>]*>([\s\S]*?)<\/detailValue>/i)?.[1]?.trim() || null;
+  const legacyIdSira = responseText.match(/<IdSira>([\s\S]*?)<\/IdSira>/i)?.[1]?.trim() || null;
+
+  const ok = !hasFault && !hasResultWrong && (hasResultOK || hasResultWarning || hasResultRight || Boolean(legacyIdSira));
+
+  let siraId: string | null = legacyIdSira;
+  if (!siraId && ok) {
+    if (hasResultOK) {
+      siraId = code ? `SIRA-OK-${code}` : 'SIRA-OK';
+    } else if (hasResultWarning) {
+      siraId = code ? `SIRA-WARN-${code}` : 'SIRA-WARN';
+    } else if (hasResultRight) {
+      siraId = 'VALIDADO';
+    }
+  }
+
+  return {
+    ok,
+    hasFault,
+    hasResultWrong,
+    hasResultOK,
+    hasResultWarning,
+    siraId,
+    code,
+    description,
+    detailValue,
+    warnings,
+  };
+}
+
+export interface E3LValidationResult {
+  valid: boolean;
+  schemaVersion: string;
+  errors: string[];
+  warnings: string[];
+}
+
+/**
+ * Valida la conformidad del DI frente a los requisitos estructurales del esquema E3L v3.6 (e3l-waste.xsd / e3l-wasteSupport.xsd)
+ * antes de generar o transmitir el mensaje telemático.
+ */
+export function validateDIForE3L(doc: any): E3LValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!doc?.numero_documento || !String(doc.numero_documento).trim()) {
+    errors.push('Falta el código del Documento de Identificación (DCSCode).');
+  }
+  if (!doc?.productor_cif || !String(doc.productor_cif).trim()) {
+    errors.push('Falta el CIF/NIF del Productor (DCSProducerData/nationalId).');
+  }
+  if (!doc?.gestor_cif || !String(doc.gestor_cif).trim()) {
+    errors.push('Falta el CIF/NIF del Gestor Destinatario (DCSAdresseeData/nationalId).');
+  }
+  if (!doc?.transportista_cif || !doc?.transportista_razon_social) {
+    errors.push('Faltan datos identificativos reales del Transportista (DCSTransporterData).');
+  }
+  const cleanLer = normalizeLerCode(doc?.codigo_ler || '');
+  if (!/^\d{6}$/.test(cleanLer)) {
+    errors.push(`Código LER inválido para E3L (${doc?.codigo_ler || 'vacío'}): debe contener 6 dígitos numéricos.`);
+  }
+  const op = normalizeOperation(doc?.operacion_tratamiento_ejecutada || doc?.operacion_tratamiento || '');
+  if (!/^(R(0[1-9]|1[0-5])|D(0[1-9]|1[0-5]))(\d{2})?$/.test(op)) {
+    errors.push(`Operación de tratamiento inválida para tabla2 E3L (${op || 'vacía'}).`);
+  }
+  if (!doc?.cantidad || Number(doc.cantidad) <= 0) {
+    errors.push('La cantidad neta del residuo (DCSClearWeight) debe ser mayor que 0.');
+  }
+
+  // En traslados con notificación previa, la NT es obligatoria según e3l-waste.xsd
+  const isDanger = doc?.peligrosidad === 'peligroso' || String(doc?.codigo_ler || '').includes('*');
+  if (
+    doc?.tipo_notificacion === 'sin-notificacion' &&
+    (isDanger || cleanLer === '200301' || op.startsWith('D') || op.startsWith('R01'))
+  ) {
+    errors.push('El traslado exige Notificación Previa (NT) según el art. 3.2 del RD 553/2020 (residuos peligrosos, LER 20 03 01, R01 o eliminación D).');
+  }
+  const rawNt = String(doc?.numero_notificacion || doc?.nt_codigo || doc?.notificacion_previa_codigo || '').trim();
+  if (doc?.tipo_notificacion === 'con-notificacion-previa' && !/^NT[0-9]{23,24}$/.test(rawNt)) {
+    errors.push('El traslado requiere Notificación Previa (NT), pero falta un código NT oficial válido (^NT[0-9]{23,24}$).');
+  }
+
+  const nimaPattern = /^(0[1-9]|[1-4][0-9]|5[0-2])\d{8}$/;
+  if (!doc?.productor_nima) {
+    warnings.push('Falta NIMA del centro productor.');
+  } else if (!nimaPattern.test(String(doc.productor_nima).trim())) {
+    errors.push(`NIMA del productor inválido (${doc.productor_nima}): debe tener exactamente 10 dígitos numéricos con prefijo provincial INE 01–52 (RD 764/2026).`);
+  }
+
+  if (!doc?.gestor_nima) {
+    warnings.push('Falta NIMA de la instalación de destino.');
+  } else if (!nimaPattern.test(String(doc.gestor_nima).trim())) {
+    errors.push(`NIMA del gestor destino inválido (${doc.gestor_nima}): debe tener exactamente 10 dígitos numéricos con prefijo provincial INE 01–52 (RD 764/2026).`);
+  }
+
+  if (!doc?.transportista_nima) {
+    warnings.push('Falta NIMA del transportista.');
+  } else if (!nimaPattern.test(String(doc.transportista_nima).trim())) {
+    errors.push(`NIMA del transportista inválido (${doc.transportista_nima}): debe tener exactamente 10 dígitos numéricos con prefijo provincial INE 01–52 (RD 764/2026).`);
+  }
+  if (!doc?.productor_municipio || !doc?.gestor_municipio) {
+    warnings.push('Falta municipio oficial en origen o destino.');
+  }
+
+  return {
+    valid: errors.length === 0,
+    schemaVersion: 'E3L v3.6 (namespaces e3l://eterproject.org/3.0/*)',
+    errors,
+    warnings,
+  };
+}
 
 // ============================================================================
 // SERVICIO PRINCIPAL
 // ============================================================================
 
 export const siraService = {
+  validateDIForE3L(doc: any): E3LValidationResult {
+    return validateDIForE3L(doc);
+  },
+
   generateDIXml(doc: any): string {
-    const date = new Date();
-    const formattedDate = date.toISOString().split('T')[0];
+    const nowDate = new Date();
+    const fallbackDate = nowDate.toISOString().split('T')[0];
+    const rawDocDate = doc?.fecha_documento ? String(doc.fecha_documento).split('T')[0] : '';
+    const dcsDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDocDate) ? rawDocDate : fallbackDate;
+    const dcsYear = dcsDate.slice(0, 4);
     const clean = (val: any) => val ? this.escapeXml(String(val)).trim() : '';
 
     const xmlnsWassup = 'xmlns:wassup="e3l://eterproject.org/3.0/wasteSupport"';
     const xmlnsCommon = 'xmlns:common="e3l://eterproject.org/3.0/common"';
     const xmlnsXsi = 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"';
 
+    const compData = Array.isArray(doc.company) ? doc.company[0] : doc.company;
+    const cleanDocNum = clean(doc.numero_documento);
+    const prodProvCode = getProvinceCodeByName(doc.productor_provincia || compData?.provincia_instalacion || 'Cádiz');
+    const gestProvCode = doc.gestor_provincia ? getProvinceCodeByName(doc.gestor_provincia) : prodProvCode;
+    const isInterautonomico =
+      Boolean(doc.gestor_provincia) &&
+      (!ANDALUSIA_PROVINCE_CODES.has(prodProvCode) || !ANDALUSIA_PROVINCE_CODES.has(gestProvCode));
+    const provNima = formatNima(doc.productor_nima || compData?.nima, prodProvCode);
+    const dcsCode = formatDCSCode(cleanDocNum, provNima, doc.id);
+    const dcsPhase = doc.dcs_phase || (isDestinationDCSPhase(doc) ? 'D' : 'R');
+    const rawEndDate =
+      isDestinationDCSPhase(doc) && (doc.fecha_tratamiento || doc.fecha_llegada_destino || doc.fecha_recepcion)
+        ? String(doc.fecha_tratamiento || doc.fecha_llegada_destino || doc.fecha_recepcion).split('T')[0]
+        : '';
+    const endDateAttr = /^\d{4}-\d{2}-\d{2}$/.test(rawEndDate)
+      ? `\n    DCSEndDate="${rawEndDate}"`
+      : '';
+    const startDate = String(doc.fecha_salida || doc.fecha_recogida || dcsDate).split('T')[0];
+
     return `
 <wasteDCS 
     ${xmlnsWassup}
     ${xmlnsCommon}
     ${xmlnsXsi}
-    DCSCode="${clean(doc.numero_documento)}"
-    DCSPhase="R"
-    DCSYear="${date.getFullYear()}"
-    DCSDate="${formattedDate}"
-    DCSStartDate="${doc.fecha_recogida || formattedDate}"
-    DCSRegional="S"
-    DCSSendtoOriginOrDestinationAuthority="N">
+    DCSCode="${dcsCode}"
+    DCSPhase="${dcsPhase}"
+    DCSYear="${dcsYear}"
+    DCSDate="${dcsDate}"
+    DCSStartDate="${startDate}"${endDateAttr}
+    DCSRegional="${isInterautonomico ? 'N' : 'S'}"
+    DCSSendtoOriginOrDestinationAuthority="${isInterautonomico ? 'S' : 'N'}">
 
     <!-- 1. Operador del Traslado -->
     ${generateOperatorBlock(doc)}
@@ -359,6 +1160,82 @@ export const siraService = {
 </wasteDCS>`.trim();
   },
 
+  /**
+   * Genera el mensaje E3L versión 3.6 completo con contenedor <e3l:e3l> y <header> reglamentario
+   * 100% conforme con el paquete XSD 3.6 oficial de MITECO (e3l.xsd, e3l-waste.xsd, e3l-common.xsd, e3l-wasteSupport.xsd) (INC04).
+   */
+  generateE3LMessage(doc: any): string {
+    const rawDcsXml = this.generateDIXml(doc);
+    const parsedDate = doc?.fecha_documento ? new Date(doc.fecha_documento) : new Date();
+    const safeDate = isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+    const formattedDate = safeDate.toISOString().split('T')[0];
+    const compData = Array.isArray(doc?.company) ? doc.company[0] : doc?.company;
+    const prodProvCode = getProvinceCodeByName(doc?.productor_provincia || compData?.provincia_instalacion || 'Cádiz');
+    const senderNif = this.escapeXml(doc?.operador_cif || compData?.cif || doc?.productor_cif || 'B00000000');
+    const senderNima = formatNima(doc?.operador_nima || doc?.productor_nima || compData?.nima, prodProvCode);
+    const defaultCp = `${/^(0[1-9]|[1-4][0-9]|5[0-2])$/.test(prodProvCode) ? prodProvCode : '11'}001`;
+
+    // Normalizar el bloque <wasteDCS> para validación estricta contra el XSD 3.6 oficial de MITECO:
+    // 1. <phone> (minLength 9) y <mail> (pattern .*@.*) son obligatorios dentro de <centerContact> en e3l-common.xsd 3.6
+    // 2. <CP> (5 dígitos) es obligatorio dentro de <spanishAddress> en e3l-common.xsd 3.6
+    // 3. <authorizationIdEffects> es enumeración en e3l-wasteSupport.xsd 3.6; texto libre debe ir en <authorizationIdFree>
+    // 4. <DCSNT> es obligatorio en <DCSOtherResidueData> en e3l-waste.xsd 3.6 (valor por defecto oficial: NT + 23 nueves)
+    const validNtPattern = /^((NT)(([01][0-9]9999999999)|([01][0-9]|[235]0)(0[1-9]|[1-4][0-9]|5[0-2])\d{8})\d{4}\d{7})|(NT99999999999999999999999)$/;
+    let dcsXml = rawDcsXml
+      .replace(/<phone><\/phone>/g, '<phone>000000000</phone>')
+      .replace(/<mail><\/mail>/g, '<mail>no-declarado@sin-correo.invalid</mail>')
+      .replace(
+        /<authorizationIdEffects>No disponible<\/authorizationIdEffects>/g,
+        '<authorizationIdFree>No disponible</authorizationIdFree>'
+      )
+      .replace(/(<address>[^<]*<\/address>)(?!\s*<CP>)/g, `$1\n                <CP>${defaultCp}</CP>`);
+
+    const existingNtMatch = dcsXml.match(/<DCSNT>([^<]*)<\/DCSNT>/);
+    if (!existingNtMatch) {
+      dcsXml = dcsXml.replace(
+        /<DCSOtherResidueData>/,
+        '<DCSOtherResidueData>\n            <DCSNT>NT99999999999999999999999</DCSNT>'
+      );
+    } else if (!validNtPattern.test(existingNtMatch[1].trim())) {
+      dcsXml = dcsXml.replace(
+        /<DCSNT>[^<]*<\/DCSNT>/,
+        '<DCSNT>NT99999999999999999999999</DCSNT>'
+      );
+    }
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<e3l:e3l xmlns:e3l="e3l://eterproject.org/3.0/e3l"
+     xmlns:waste="e3l://eterproject.org/3.0/waste"
+     xmlns:wassup="e3l://eterproject.org/3.0/wasteSupport"
+     xmlns:common="e3l://eterproject.org/3.0/common"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     schemaVersion="3.6">
+    <header>
+        <test>S</test>
+        <prepared>${formattedDate}</prepared>
+        <sender>
+            <NIF>${senderNif}</NIF>
+            <center centerCode="${senderNima}"/>
+        </sender>
+    </header>
+    <waste>
+        ${dcsXml}
+    </waste>
+</e3l:e3l>`.trim();
+  },
+
+  formatNima(rawNima: string | undefined | null, provCode?: string): string {
+    return formatNima(rawNima, provCode);
+  },
+
+  formatDCSCode(rawCode: string | undefined | null, nima: string, docId?: number | string): string {
+    return formatDCSCode(rawCode, nima, docId);
+  },
+
+  getMunicipalityCode(provCode: string, muniName?: string): string {
+    return getMunicipalityCodeByProvince(provCode, muniName);
+  },
+
   getProvinceCode(province: string): string {
     // Wrapper para compatibilidad
     return getProvinceCodeByName(province);
@@ -368,7 +1245,48 @@ export const siraService = {
     return escapeXml(unsafe);
   },
 
-  async sendDI(documentId: number): Promise<{ success: boolean; message: string; siraId?: string }> {
+  /**
+   * Extrae el mensaje de error legible de una respuesta SOAP/XML de SIRA.
+   * Maneja atributos (e.g. <resultWrong code="JA000018" description="..."/>)
+   * y elementos SOAP Fault (<faultstring>, <description>, <message>).
+   */
+  extractSiraError(responseText: string): string {
+    return extractSiraError(responseText);
+  },
+
+  parseSiraResponse(responseText: string): SiraParsedResponse {
+    return parseSiraResponse(responseText);
+  },
+
+  getSiraEndpointUrl(): string {
+    return getSiraEndpointUrl();
+  },
+
+  resolveTelematicPlatform(options: {
+    province?: string | null;
+    nima?: string | null;
+    forcePlatform?: 'auto' | 'sira' | 'esir';
+  }): TelematicPlatformInfo {
+    return resolveTelematicPlatform(options);
+  },
+
+  resolvePlatformForDI(doc: any): TelematicPlatformInfo {
+    return resolvePlatformForDI(doc);
+  },
+
+  resolvePlatformForNT(nt: any): TelematicPlatformInfo {
+    return resolvePlatformForNT(nt);
+  },
+
+  getCACodeByProvince(provCode: string): string {
+    return getCACodeByProvince(provCode);
+  },
+
+  buildAuthorizationIdXml(rawAuthNumber: string | undefined | null, safeNima?: string, indent?: string): string {
+    return buildAuthorizationIdXml(rawAuthNumber, safeNima, indent);
+  },
+
+  async sendDI(documentId: number): Promise<{ success: boolean; message: string; siraId?: string; platform?: string; platformName?: string }> {
     try {
       const response = await fetch('/api/residuos/sira/enviar-di', {
         method: 'POST',
@@ -390,11 +1308,17 @@ export const siraService = {
   async getSubmissionsForDI(documentId: number): Promise<SiraSubmission[]> {
     try {
       const supabase = createClient();
-      const { data, error } = await supabase
+      const { data: authData } = await supabase.auth?.getUser?.() || { data: { user: null } };
+      let query = supabase
         .from('sira_submissions')
         .select('*')
-        .eq('identification_document_id', documentId)
-        .order('created_at', { ascending: false });
+        .eq('identification_document_id', documentId);
+
+      if (authData?.user) {
+        query = query.eq('user_id', authData.user.id);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
         console.warn('siraService.getSubmissionsForDI error:', error.message);
@@ -416,6 +1340,7 @@ export const siraService = {
   }): Promise<SiraSubmission[]> {
     try {
       const supabase = createClient();
+      const { data: authData } = await supabase.auth?.getUser?.() || { data: { user: null } };
       let query = supabase
         .from('sira_submissions')
         .select(`
@@ -431,6 +1356,10 @@ export const siraService = {
         `)
         .order('created_at', { ascending: false })
         .limit(options?.limit || 50);
+
+      if (authData?.user) {
+        query = query.eq('user_id', authData.user.id);
+      }
 
       if (options?.status) {
         query = query.eq('estado', options.status);

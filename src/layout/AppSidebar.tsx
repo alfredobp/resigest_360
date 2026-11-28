@@ -5,27 +5,35 @@ import LogoReduced from "@/components/common/LogoReduced";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
 import {
-  BoxCubeIcon,
-  CalenderIcon,
-  ChevronDownIcon,
-  GridIcon,
-  HorizontaLDots,
-  ListIcon,
-  PieChartIcon,
-  PlugInIcon,
-  TableIcon,
-  UserCircleIcon,
-  TaskIcon,
-  DocsIcon,
-  PaperPlaneIcon,
-  DollarLineIcon,
-  InfoIcon
-} from "../icons/index";
+  LayoutDashboard,
+  Smartphone,
+  Send,
+  FileText,
+  ClipboardCheck,
+  CircleDollarSign,
+  FileSignature,
+  ClipboardList,
+  BarChart3,
+  Building2,
+  Users,
+  Factory,
+  Truck,
+  Route,
+  Plug,
+  LifeBuoy,
+  ShieldCheck,
+  ChevronDown,
+  MoreHorizontal,
+  PieChart,
+  Box,
+  ArrowLeft,
+} from "lucide-react";
 import Logo from "@/components/common/Logo";
 import adminPlatformService from "@/services/adminPlatformService";
-import companyService from "@/services/companyService";
-import { useOnboarding } from "@/context/OnboardingContext";
-import { isTransportistaMode } from "@/lib/roleHelpers";
+import dashboardService from "@/services/dashboardService";
+import { useSandbox } from "@/context/SandboxContext";
+import { useTenant } from "@/context/TenantContext";
+import { PROFILE_DEFINITIONS } from "@/lib/profiles/moduleCatalog";
 
 type NavItem = {
   name: string;
@@ -34,102 +42,129 @@ type NavItem = {
   subItems?: Array<{ name: string; path: string; pro?: boolean; new?: boolean }>;
 };
 
+const SIDEBAR_ICON_CLASS = "w-[18px] h-[18px] shrink-0";
+
 const adminNavItems: NavItem[] = [
   {
-    icon: (
-      <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-      </svg>
-    ),
+    icon: <ShieldCheck className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
     name: "Modo Admin / Empresas",
     path: "/platform-admin",
   },
 ];
 
-const navItems: NavItem[] = [
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
+const navGroups: NavGroup[] = [
   {
-    icon: <GridIcon />,
-    name: "Dashboard",
-    path: "/app",
+    label: "Operativa",
+    items: [
+      {
+        icon: <LayoutDashboard className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Dashboard",
+        path: "/app",
+      },
+      {
+        icon: <Smartphone className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Vista Conductor (Móvil)",
+        path: "/transporte",
+      },
+      {
+        icon: <Send className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Documentos de Identificación",
+        path: "/residuos/documentos-identificacion",
+      },
+      {
+        icon: <FileText className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Notificaciones Previas (NT)",
+        path: "/residuos/notificaciones-previas",
+      },
+      {
+        icon: <ClipboardCheck className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Control DeCA",
+        path: "/residuos/deca",
+      },
+      {
+        icon: <CircleDollarSign className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Operaciones Comerciales",
+        path: "/residuos/operaciones",
+      },
+    ],
   },
   {
-    icon: <DocsIcon />,
-    name: "Mi Empresa",
-    path: "/residuos/mi-empresa"
+    label: "Cumplimiento y Registros",
+    items: [
+      {
+        icon: <FileSignature className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Contratos",
+        path: "/residuos/contratos",
+      },
+      {
+        icon: <ClipboardList className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Archivo Cronológico",
+        path: "/residuos/archivo-cronologico",
+      },
+      {
+        icon: <BarChart3 className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Memorias Anuales",
+        path: "/residuos/memorias-anuales",
+      },
+    ],
   },
   {
-    icon: <UserCircleIcon />,
-    name: "Empresas y Contactos",
-    path: "/residuos/empresas"
+    label: "Red y Maestros",
+    items: [
+      {
+        icon: <Building2 className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Mi Empresa",
+        path: "/residuos/mi-empresa",
+      },
+      {
+        icon: <Users className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Empresas y Contactos",
+        path: "/residuos/empresas",
+      },
+      {
+        icon: <Factory className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Gestores",
+        path: "/residuos/gestores",
+      },
+      {
+        icon: <Truck className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Mi Flota",
+        path: "/residuos/flota",
+      },
+      {
+        icon: <Route className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Transportistas",
+        path: "/residuos/transportistas",
+      },
+    ],
   },
   {
-    icon: <HorizontaLDots />,
-    name: "Contratos",
-    path: "/residuos/contratos"
-  },
-  {
-    icon: <TaskIcon />,
-    name: "Gestores",
-    path: "/residuos/gestores",
-  },
-  {
-    icon: <CalenderIcon />,
-    name: "Transportistas",
-    path: "/residuos/transportistas",
-  },
-  {
-    icon: (
-      <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 13l2-5h11l3 5v4h-2a2 2 0 11-4 0H9a2 2 0 11-4 0H3v-4z" />
-      </svg>
-    ),
-    name: "Mi Flota y Conductores",
-    path: "/residuos/flota",
-  },
-  {
-    icon: (
-      <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 17a2 2 0 100 4 2 2 0 000-4zm10 0a2 2 0 100 4 2 2 0 000-4zM3 4h11v11H3V4zm11 4h4l3 3v4h-7V8z" />
-      </svg>
-    ),
-    name: "Control DeCA",
-    path: "/residuos/deca",
-  },
-  {
-    icon: <PaperPlaneIcon />,
-    name: "Documentos de Identificación",
-    path: "/residuos/documentos-identificacion",
-  },
-  {
-    icon: <DollarLineIcon />,
-    name: "Operaciones Comerciales",
-    path: "/residuos/operaciones",
-  },
-  {
-    icon: <ListIcon />,
-    name: "Archivo Cronológico",
-    path: "/residuos/archivo-cronologico",
-  },
-  {
-    icon: <TableIcon />,
-    name: "Memorias Anuales",
-    path: "/residuos/memorias-anuales",
-  },
-  {
-    icon: <PlugInIcon />,
-    name: "Integraciones y Auditoría",
-    path: "/residuos/integraciones",
-  },
-  {
-    icon: <InfoIcon />,
-    name: "Soporte y Manual",
-    path: "/support",
+    label: "Sistema",
+    items: [
+      {
+        icon: <Plug className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Integraciones y Auditoría",
+        path: "/residuos/integraciones",
+      },
+      {
+        icon: <LifeBuoy className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
+        name: "Soporte y Manual",
+        path: "/support",
+      },
+    ],
   },
 ];
 
+const navItems: NavItem[] = navGroups.flatMap((g) => g.items);
+
 const othersItems: NavItem[] = [
   {
-    icon: <PieChartIcon />,
+    icon: <PieChart className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
     name: "Gráficos",
     subItems: [
       { name: "Gráfico de líneas", path: "/line-chart", pro: false },
@@ -137,7 +172,7 @@ const othersItems: NavItem[] = [
     ],
   },
   {
-    icon: <BoxCubeIcon />,
+    icon: <Box className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
     name: "Elementos UI",
     subItems: [
       { name: "Alertas", path: "/alerts", pro: false },
@@ -149,7 +184,7 @@ const othersItems: NavItem[] = [
     ],
   },
   {
-    icon: <PlugInIcon />,
+    icon: <Plug className={SIDEBAR_ICON_CLASS} strokeWidth={1.75} />,
     name: "Autenticación",
     subItems: [
       { name: "Iniciar Sesión", path: "/signin", pro: false },
@@ -160,16 +195,124 @@ const othersItems: NavItem[] = [
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
+  const { isPathVisible, profile } = useSandbox();
+  const {
+    canAccessRoute,
+    perfilOperativo,
+    activeCompany,
+    activeCompanyId,
+    isPlatformAdmin,
+    isDelegated,
+    canViewCommercial,
+    exitDelegationContext,
+    loading: tenantLoading,
+  } = useTenant();
   const pathname = usePathname();
+  const isAdminControlOnlyMode = isPlatformAdmin && !activeCompany;
+
+  const [navBadges, setNavBadges] = useState<
+    Record<string, { count: number; tone: "alert" | "neutral"; title: string }>
+  >({});
+
+  useEffect(() => {
+    if (tenantLoading || isAdminControlOnlyMode) return;
+    let cancelled = false;
+    const scopedCompanyId = isPlatformAdmin && !activeCompanyId ? null : activeCompanyId;
+
+    dashboardService
+      .getExecutiveOverview({
+        companyId: scopedCompanyId,
+        includeCommercial: canViewCommercial,
+      })
+      .then((overview) => {
+        if (cancelled) return;
+        const next: Record<string, { count: number; tone: "alert" | "neutral"; title: string }> = {};
+
+        const diCritical =
+          overview.alertas.disDiscrepanciaCount +
+          overview.alertas.disSinContratoCount +
+          overview.alertas.disTratamientoNoAutorizadoCount;
+        const diTotal = overview.alertas.disEnTransitoCount + diCritical;
+        if (diTotal > 0) {
+          next["/residuos/documentos-identificacion"] = {
+            count: diTotal,
+            tone: "alert",
+            title: `${overview.alertas.disEnTransitoCount} en tránsito, ${diCritical} incidencias críticas`,
+          };
+        }
+
+        const contractsTotal =
+          overview.alertas.contratosCaducadosCount + overview.alertas.contratosPorVencerCount;
+        if (contractsTotal > 0) {
+          next["/residuos/contratos"] = {
+            count: contractsTotal,
+            tone: overview.alertas.contratosCaducadosCount > 0 ? "alert" : "neutral",
+            title: `${overview.alertas.contratosCaducadosCount} caducados, ${overview.alertas.contratosPorVencerCount} próximos a vencer`,
+          };
+        }
+
+        if (overview.comercial.operacionesAbiertas > 0) {
+          next["/residuos/operaciones"] = {
+            count: overview.comercial.operacionesAbiertas,
+            tone: "neutral",
+            title: `${overview.comercial.operacionesAbiertas} operaciones comerciales abiertas`,
+          };
+        }
+
+        if (overview.alertas.autorizacionesPorVencerCount > 0) {
+          next["/residuos/gestores"] = {
+            count: overview.alertas.autorizacionesPorVencerCount,
+            tone: "neutral",
+            title: `${overview.alertas.autorizacionesPorVencerCount} autorizaciones próximas a vencer`,
+          };
+        }
+
+        setNavBadges(next);
+      })
+      .catch(() => {
+        // Silenciar si aún no hay sesión o datos disponibles
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantLoading, isAdminControlOnlyMode, activeCompanyId, isPlatformAdmin, canViewCommercial]);
+
+  const checkMenuPathVisible = useCallback(
+    (path?: string): boolean => {
+      if (!path) return true;
+      if (path === "/transporte") {
+        if (isPlatformAdmin && profile !== "all") {
+          return profile === "transportista";
+        }
+        if (!canAccessRoute(path)) {
+          return false;
+        }
+        return perfilOperativo === "transportista" || (isPlatformAdmin && !isDelegated);
+      }
+      if (isPlatformAdmin && profile !== "all") {
+        return isPathVisible(path);
+      }
+      if (tenantLoading && !activeCompany) {
+        return path === "/app" || path === "/support" || path === "/residuos/mi-empresa";
+      }
+      return canAccessRoute(path);
+    },
+    [isPlatformAdmin, isDelegated, profile, isPathVisible, perfilOperativo, tenantLoading, activeCompany, canAccessRoute]
+  );
 
   const renderMenuItems = (
     navItemsList: NavItem[],
     menuType: "main" | "others"
   ) => {
-    const filteredList = navItemsList;
+    const filteredList = navItemsList.filter((nav) => {
+      if (nav.path) return checkMenuPathVisible(nav.path);
+      if (nav.subItems) return nav.subItems.some((s) => checkMenuPathVisible(s.path));
+      return true;
+    });
 
     return (
-      <ul className="flex flex-col gap-4">
+      <ul className="flex flex-col gap-1">
         {filteredList.map((nav, index) => (
           <li key={nav.name}>
             {nav.subItems ? (
@@ -195,8 +338,8 @@ const AppSidebar: React.FC = () => {
                   <span className="menu-item-text">{nav.name}</span>
                 )}
                 {(isExpanded || isHovered || isMobileOpen) && (
-                  <ChevronDownIcon
-                    className={`ml-auto w-5 h-5 transition-transform duration-200  ${openSubmenu?.type === menuType &&
+                  <ChevronDown
+                    className={`ml-auto w-4 h-4 transition-transform duration-200  ${openSubmenu?.type === menuType &&
                       openSubmenu?.index === index
                       ? "rotate-180 text-brand-500"
                       : ""
@@ -205,25 +348,46 @@ const AppSidebar: React.FC = () => {
                 )}
               </button>
             ) : (
-              nav.path && (
-                <Link
-                  href={nav.path}
-                  className={`menu-item group ${isActive(nav.path) ? "menu-item-active" : "menu-item-inactive"
-                    }`}
-                >
-                  <span
-                    className={`${isActive(nav.path)
-                      ? "menu-item-icon-active"
-                      : "menu-item-icon-inactive"
+              nav.path && (() => {
+                const badge = navBadges[nav.path];
+                const isCollapsed = !isExpanded && !isHovered && !isMobileOpen;
+                return (
+                  <Link
+                    href={nav.path}
+                    title={badge ? `${nav.name} (${badge.title})` : nav.name}
+                    className={`menu-item group ${isActive(nav.path) ? "menu-item-active" : "menu-item-inactive"
                       }`}
                   >
-                    {nav.icon}
-                  </span>
-                  {(isExpanded || isHovered || isMobileOpen) && (
-                    <span className="menu-item-text">{nav.name}</span>
-                  )}
-                </Link>
-              )
+                    <span
+                      className={`relative ${isActive(nav.path)
+                        ? "menu-item-icon-active"
+                        : "menu-item-icon-inactive"
+                        }`}
+                    >
+                      {nav.icon}
+                      {isCollapsed && badge && (
+                        <span
+                          className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-white dark:ring-[#0d1321] ${badge.tone === "alert" ? "bg-red-500" : "bg-slate-400"
+                            }`}
+                        />
+                      )}
+                    </span>
+                    {!isCollapsed && (
+                      <span className="menu-item-text truncate">{nav.name}</span>
+                    )}
+                    {!isCollapsed && badge && (
+                      <span
+                        className={`ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold tabular-nums leading-none ${badge.tone === "alert"
+                          ? "bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-400"
+                          : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                          }`}
+                      >
+                        {badge.count > 99 ? "99+" : badge.count}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })()
             )}
             {nav.subItems && (isExpanded || isHovered || isMobileOpen) && (
               <div
@@ -284,50 +448,10 @@ const AppSidebar: React.FC = () => {
   };
 
   const [isAdmin, setIsAdmin] = useState(false);
-  const { activeRole } = useOnboarding();
-  const [companyType, setCompanyType] = useState<string | null>(null);
 
   useEffect(() => {
     adminPlatformService.checkIsAdmin().then(setIsAdmin).catch(() => setIsAdmin(false));
-    companyService
-      .getUserCompany()
-      .then((comp) => setCompanyType(comp?.tipo_empresa ?? null))
-      .catch(() => setCompanyType(null));
   }, []);
-
-  const transportistaMode = isTransportistaMode(activeRole, companyType);
-
-  const visibleNavItems = React.useMemo(() => {
-    if (!transportistaMode) {
-      return navItems.filter((item) => item.path !== "/residuos/flota");
-    }
-
-    const priorityOrder = [
-      "/app",
-      "/residuos/deca",
-      "/residuos/documentos-identificacion",
-      "/residuos/flota",
-      "/residuos/mi-empresa",
-      "/residuos/memorias-anuales",
-      "/residuos/integraciones",
-      "/residuos/empresas",
-      "/residuos/contratos",
-      "/support",
-    ];
-
-    return navItems
-      .filter(
-        (item) =>
-          item.path !== "/residuos/operaciones" &&
-          item.path !== "/residuos/gestores" &&
-          item.path !== "/residuos/transportistas"
-      )
-      .sort((a, b) => {
-        const idxA = priorityOrder.indexOf(a.path || "");
-        const idxB = priorityOrder.indexOf(b.path || "");
-        return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
-      });
-  }, [transportistaMode]);
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: "main" | "others";
@@ -338,8 +462,11 @@ const AppSidebar: React.FC = () => {
   );
   const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // const isActive = (path: string) => path === pathname;
-  const isActive = useCallback((path: string) => path === pathname, [pathname]);
+  const isActive = useCallback(
+    (path: string) =>
+      pathname === path || (path !== "/app" && pathname.startsWith(`${path}/`)),
+    [pathname]
+  );
 
   useEffect(() => {
     // Check if the current path matches any submenu item
@@ -395,12 +522,12 @@ const AppSidebar: React.FC = () => {
 
   return (
     <aside
-      className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 
+      className={`fixed mt-14 flex flex-col lg:mt-0 top-0 px-3 left-0 bg-white dark:bg-[#0d1321] border-r border-slate-200 dark:border-slate-800/90 text-slate-900 h-screen transition-all duration-200 ease-in-out z-50
         ${isExpanded || isMobileOpen
-          ? "w-[290px]"
+          ? "w-[252px]"
           : isHovered
-            ? "w-[290px]"
-            : "w-[90px]"
+            ? "w-[252px]"
+            : "w-[76px]"
         }
         ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
         lg:translate-x-0`}
@@ -408,51 +535,102 @@ const AppSidebar: React.FC = () => {
       onMouseLeave={() => setIsHovered(false)}
     >
       <div
-        className={`py-4 flex  ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
+        className={`h-14 flex items-center border-b border-slate-200/80 dark:border-slate-800/80 mb-3 ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start px-1"
           }`}
       >
-        <Link href="/app">
+        <Link href={isAdminControlOnlyMode ? "/platform-admin" : "/app"}>
           {isExpanded || isHovered || isMobileOpen ? (
-            <Logo width={231} height={99} />
+            <Logo width={168} height={46} />
           ) : (
-            <LogoReduced width={60} height={60} />
+            <LogoReduced width={38} height={38} />
           )}
         </Link>
       </div>
-      <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
-        <nav data-tour="sidebar-nav" className="mb-6">
-          <div className="flex flex-col gap-4">
-            <div>
-              <h2
-                className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${!isExpanded && !isHovered
-                  ? "lg:justify-center"
-                  : "justify-start"
-                  }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  "Menú"
-                ) : (
-                  <HorizontaLDots />
-                )}
-              </h2>
-              {renderMenuItems(visibleNavItems, "main")}
-            </div>
-
+      <div className="flex flex-col overflow-y-auto duration-200 ease-linear no-scrollbar">
+        <nav className="mb-6">
+          <div className="flex flex-col gap-3">
             {isAdmin && (
-              <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+              <div className={isAdminControlOnlyMode ? "" : "pb-3 border-b border-slate-100 dark:border-slate-800/80"}>
                 <h2
-                  className={`mb-4 text-xs uppercase flex leading-[20px] font-bold text-primary ${!isExpanded && !isHovered
+                  className={`mb-2 px-2.5 text-[10.5px] uppercase tracking-wider flex leading-[18px] font-semibold text-brand-600 dark:text-brand-400 ${!isExpanded && !isHovered
                     ? "lg:justify-center"
                     : "justify-start"
                     }`}
                 >
                   {isExpanded || isHovered || isMobileOpen ? (
-                    "Administración"
+                    "Control de Plataforma"
                   ) : (
-                    <HorizontaLDots />
+                    <MoreHorizontal className="w-4 h-4" />
                   )}
                 </h2>
                 {renderMenuItems(adminNavItems, "main")}
+                {isAdminControlOnlyMode && (isExpanded || isHovered || isMobileOpen) && (
+                  <p className="mt-2 px-2.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                    Modo administración global. Selecciona una empresa delegada para operar en su nombre.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!isAdminControlOnlyMode && (
+              <div className="flex flex-col gap-4">
+                {navGroups.map((group, groupIdx) => {
+                  const visibleItems = group.items.filter((nav) => {
+                    if (nav.path) return checkMenuPathVisible(nav.path);
+                    if (nav.subItems) return nav.subItems.some((s) => checkMenuPathVisible(s.path));
+                    return true;
+                  });
+                  if (visibleItems.length === 0) return null;
+                  const groupLabel =
+                    groupIdx === 0 && isDelegated ? `${group.label} · Delegada` : group.label;
+                  return (
+                    <div
+                      key={group.label}
+                      className={
+                        groupIdx > 0
+                          ? "pt-3 border-t border-slate-100 dark:border-slate-800/70"
+                          : ""
+                      }
+                    >
+                      <h2
+                        className={`mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-wider flex leading-[18px] text-slate-400 dark:text-slate-500 ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
+                          }`}
+                      >
+                        {isExpanded || isHovered || isMobileOpen ? (
+                          groupLabel
+                        ) : (
+                          <MoreHorizontal className="w-4 h-4" />
+                        )}
+                      </h2>
+                      {renderMenuItems(visibleItems, "main")}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Indicador de empresa activa / delegación */}
+            {activeCompany && (isExpanded || isHovered || isMobileOpen) && (
+              <div className="mt-2 p-2.5 bg-slate-50 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-800 rounded-lg text-xs space-y-1.5">
+                <div className="flex items-center justify-between gap-2 font-semibold text-slate-800 dark:text-slate-100">
+                  <span className="truncate">{activeCompany.nombre_comercial || activeCompany.razon_social}</span>
+                </div>
+                <p className="text-[11px] text-brand-600 dark:text-brand-400 font-medium">
+                  {isDelegated ? "Actuando en nombre de" : `Perfil: ${PROFILE_DEFINITIONS[perfilOperativo].shortLabel}`}
+                </p>
+                {isPlatformAdmin && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await exitDelegationContext();
+                      window.location.href = "/platform-admin";
+                    }}
+                    className="w-full inline-flex items-center gap-1.5 text-left text-[11px] font-semibold text-amber-700 dark:text-amber-400 hover:underline pt-1"
+                  >
+                    <ArrowLeft className="w-3 h-3 shrink-0" />
+                    <span>Salir y volver a Control Admin</span>
+                  </button>
+                )}
               </div>
             )}
           </div>

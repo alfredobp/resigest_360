@@ -1,0 +1,216 @@
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:e3l="e3l://esir2014">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <e3l:sendWasteDCS>
+         <wasteDCS 
+    xmlns:wassup="e3l://eterproject.org/3.0/wasteSupport"
+    xmlns:common="e3l://eterproject.org/3.0/common"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    DCSCode="DCS10118489349820260000136"
+    DCSPhase="D"
+    DCSYear="2026"
+    DCSDate="2026-11-15"
+    DCSStartDate="2026-11-03"
+    DCSRegional="S"
+    DCSSendtoOriginOrDestinationAuthority="N">
+
+    <!-- 1. Operador del Traslado -->
+    
+    <DCSTransferOperatorData>
+        <entityId>
+            <nationalId>B72294069</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        <entityName>
+            <reason>
+                <reasonName>Método Ambiental Consultores, S.L.</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="1184893498" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="009" vialDescription="Calle"/>
+                <address>CALLE CRUZ DE LA DEGOLLADA, 13, 1º B</address>
+                <CP>11510</CP>
+                <municipality municipalityCode="110282" municipalityName="Puerto Real"/>
+                <province provinceCode="11" provinceName="Cádiz"/>
+            </spanishAddress>
+        </centerAddress>
+        <centerContact>
+            <phone>617984325</phone>
+            <mail>contacto@resigest.com</mail>
+        </centerContact>
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>1184893498</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>P03</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteTransferOperatorType operatorTypeCode="P01"/>
+    </DCSTransferOperatorData>
+
+    <!-- 2. Productor -->
+    
+    <DCSProducerData>
+        <entityId>
+            <nationalId>B72294069</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        <entityName>
+            <reason>
+                <reasonName>Método Ambiental Consultores, S.L.</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="1184893498" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="009" vialDescription="Calle"/>
+                <address>CALLE CRUZ DE LA DEGOLLADA, 13, 1º B</address>
+                <CP>11510</CP>
+                <municipality municipalityCode="110282" municipalityName="Puerto Real"/>
+                <province provinceCode="11" provinceName="Cádiz"/>
+            </spanishAddress>
+        </centerAddress>
+        <centerContact>
+            <phone>900000000</phone>
+            <mail>contacto@resigest.com</mail>
+        </centerContact>
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>1184893498</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>P03</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteProducerType producerTypeCode="P03"/>
+    </DCSProducerData>
+
+    <!-- 3. Destinatario -->
+    
+    <DCSAdresseeData>
+        <entityId>
+            <nationalId>B00000026</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        <entityName>
+            <reason>
+                <reasonName>PRUEBA CHATARRERÍA METALES — FICTICIA</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="2800078901" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="009" vialDescription="Calle"/>
+                <address>CALLE CRUZ DE LA DEGOLLADA, 13, 1º B</address>
+                <CP>11510</CP>
+                <municipality municipalityCode="110282" municipalityName="Puerto Real"/>
+                <province provinceCode="11" provinceName="CADIZ"/>
+            </spanishAddress>
+        </centerAddress>
+        <centerContact>
+            <phone>900000000</phone>
+            <mail>contacto@resigest.com</mail>
+        </centerContact>
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>wewwewew</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>G04</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteManagerType managerTypeCode="G04"/>
+    </DCSAdresseeData>
+    
+    <!-- 4. Datos del Residuo (Incluye Transportista) -->
+    
+    <DCSResidueData>
+        <DCSProducerResidueIdentification LERCode="010101" xsi:type="wassup:noDangerousResidueType">
+            
+        <residueBag>
+             <bagProcess internalIdProcessCode="99"/>
+             <bagResidueId residueCode="999" residueDescription="Residuos de la extracción de minerales metálicos"/>
+        </residueBag>
+            
+        <residueTables xsi:type="wassup:tablesNoDangerousType">
+            <table2>R13</table2>
+        </residueTables>
+        </DCSProducerResidueIdentification>
+        
+        <DCSAdresseeResidueIdentification LERCode="010101" xsi:type="wassup:noDangerousResidueType">
+            
+        <residueBag>
+             <bagProcess internalIdProcessCode="99"/>
+             <bagResidueId residueCode="999" residueDescription="Residuos de la extracción de minerales metálicos"/>
+        </residueBag>
+            
+        <residueTables xsi:type="wassup:tablesNoDangerousType">
+            <table2>R13</table2>
+        </residueTables>
+        </DCSAdresseeResidueIdentification>
+        
+        
+        <DCSOtherResidueData>
+            <DCSNT>NT99999999999999999999999</DCSNT>
+            <DCSClearWeight>23.000</DCSClearWeight>
+            <DCSTransportCharacteristics>Sin características especiales</DCSTransportCharacteristics>
+        </DCSOtherResidueData>
+        <DCSTransporterData>
+            <entityId>
+                <nationalId>B00000034</nationalId>
+            </entityId>
+            <entityFJ entityFJCode="J" />
+            <entityName>
+                <reason>
+                    <reasonName>PRUEBA TRANSPORTISTA RUTAS — FICTICIO</reasonName>
+                    <reasonAssociation associationCode="99" associationDescription="Otra"/>
+                </reason>
+            </entityName>
+            <entityCenter>
+                <centerID centerCode="1100000015" />
+                <centerEconomicActivity>S/D</centerEconomicActivity>
+                <centerAddress>
+                    <spanishAddress>
+                        <vial vialCode="009" vialDescription="Calle"/>
+                        <address>CALLE FICTICIA 0</address>
+                        <CP>11510</CP>
+                        <municipality municipalityCode="110282" municipalityName="Puerto Real"/>
+                        <province provinceCode="11" provinceName="Cádiz"/>
+                    </spanishAddress>
+                </centerAddress>
+                <centerContact>
+                    <phone>900000000</phone>
+                    <mail>contacto@resigest.com</mail>
+                </centerContact>
+            </entityCenter>
+
+            <wasteTransporterType trasporterTypeCode="T02" transporterTypeDescription="Transportista de residuos"/>
+            <DCSTransportWay transportWayCode="01" transportWayDescription="Carretera"/>
+        </DCSTransporterData>
+    <DCSAcceptanceData>
+        <DCSRealQuantity>23.000</DCSRealQuantity>
+        <DCSAcceptance>03</DCSAcceptance>
+        <DCSAcceptanceDate>2026-11-15</DCSAcceptanceDate>
+        <DCSDeliveryDate>2026-11-03</DCSDeliveryDate>
+    </DCSAcceptanceData>
+    </DCSResidueData>
+
+</wasteDCS>
+      </e3l:sendWasteDCS>
+   </soapenv:Body>
+</soapenv:Envelope>

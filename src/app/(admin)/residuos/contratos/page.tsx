@@ -1,21 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
-import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Alert from '@/components/ui/alert/Alert';
+import { ConfirmModal } from '@/components/ui/modal';
+import { DataTable, DataTableActionButton, type ColumnDef } from '@/components/ui/table';
 import { toast } from '@/context/ToastContext';
+import { useTenant } from '@/context/TenantContext';
 import NuevoContratoModal from '@/components/residuos/NuevoContratoModal';
 import wasteContractService, { getContractEffectiveStatus } from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
 import type { WasteContract, Company } from '@/types/wasteManagement';
 import { generateContractPDF } from '@/lib/pdfUtils';
+import { FileDown, CheckCircle2, Archive, Trash2 } from 'lucide-react';
 
 const STATUS_COLORS = {
   borrador: 'info',
+  pendiente_firma: 'warning',
   vigente: 'success',
   caducado: 'warning',
   finalizado: 'light',
@@ -24,6 +28,7 @@ const STATUS_COLORS = {
 
 export default function ContratosPage() {
   const router = useRouter();
+  const { canWrite, activeCompanyId } = useTenant();
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -33,6 +38,40 @@ export default function ContratosPage() {
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [showNewContractModal, setShowNewContractModal] = useState(false);
+  const [contractToDelete, setContractToDelete] = useState<number | null>(null);
+  const [contractToFinalize, setContractToFinalize] = useState<number | null>(null);
+  const [actionMenu, setActionMenu] = useState<{
+    contract: WasteContract;
+    top: number;
+    right: number;
+  } | null>(null);
+
+  const handleFilterStatusChange = (status: string) => {
+    setFilterStatus(status);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (status === 'all') params.delete('status');
+      else params.set('status', status);
+      const qs = params.toString();
+      window.history.replaceState(null, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
+    }
+  };
+
+  useEffect(() => {
+    if (!actionMenu) return;
+    const close = () => setActionMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActionMenu(null);
+    };
+    window.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [actionMenu]);
 
   const handleDownloadPDF = async (contract: WasteContract) => {
     try {
@@ -54,8 +93,17 @@ export default function ContratosPage() {
   };
 
   useEffect(() => {
-    loadData();
+    if (typeof window !== 'undefined') {
+      const statusParam = new URLSearchParams(window.location.search).get('status');
+      if (statusParam) {
+        setFilterStatus(statusParam);
+      }
+    }
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [activeCompanyId]);
 
   const loadData = async () => {
     try {
@@ -78,17 +126,21 @@ export default function ContratosPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar este contrato?')) {
-      return;
-    }
+  const handleDelete = (id: number) => {
+    setContractToDelete(id);
+  };
+
+  const confirmDelete = async () => {
+    if (contractToDelete === null) return;
 
     try {
-      await wasteContractService.delete(id);
-      setContracts((prev) => prev.filter((c) => c.id !== id));
+      await wasteContractService.delete(contractToDelete);
+      setContracts((prev) => prev.filter((c) => c.id !== contractToDelete));
       toast.success('Contrato de tratamiento eliminado correctamente.');
     } catch (err: any) {
       toast.error(`Error al eliminar: ${err.message}`);
+    } finally {
+      setContractToDelete(null);
     }
   };
 
@@ -116,7 +168,11 @@ export default function ContratosPage() {
     }
 
     try {
-      await wasteContractService.updateStatus(id, newStatus);
+      if (newStatus === 'vigente') {
+        await wasteContractService.activate(id);
+      } else {
+        await wasteContractService.updateStatus(id, newStatus);
+      }
       toast.success(`Estado del contrato actualizado a "${newStatus}" correctamente.`);
       await loadData();
     } catch (err: any) {
@@ -132,20 +188,179 @@ export default function ContratosPage() {
     return c.estado === filterStatus;
   });
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string | null) => {
+    if (!dateString) return '-';
+    const datePart = dateString.split('T')[0];
+    const parts = datePart.split('-');
+    if (parts.length === 3) {
+      const [y, m, d] = parts.map(Number);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        return new Date(y, m - 1, d).toLocaleDateString('es-ES', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        });
+      }
+    }
     return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
-      month: 'long',
-      day: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
     });
   };
 
+  const columns = useMemo<ColumnDef<WasteContract>[]>(
+    () => [
+      {
+        id: 'numero_contrato',
+        header: 'Nº Contrato',
+        accessorFn: (row) => row.numero_contrato || `Contrato #${row.id}`,
+        sortable: true,
+        cell: ({ row }) => (
+          <div>
+            <button
+              type="button"
+              onClick={() => router.push(`/residuos/contratos/${row.id}`)}
+              className="font-mono font-semibold text-slate-900 dark:text-slate-100 hover:text-brand-600 dark:hover:text-brand-400 text-left"
+            >
+              {row.numero_contrato || `Contrato #${row.id}`}
+            </button>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">{row.tipo_contrato}</div>
+          </div>
+        ),
+      },
+      {
+        id: 'partes',
+        header: 'Productor / Gestor',
+        accessorFn: (row) =>
+          `${row.company?.razon_social || myCompany?.razon_social || ''} ${row.treatment_manager?.razon_social || row.gestor_company?.razon_social || ''}`,
+        cell: ({ row }) => {
+          const productorName = row.company?.razon_social || myCompany?.razon_social;
+          const gestorName = row.treatment_manager?.razon_social || row.gestor_company?.razon_social;
+          return (
+            <div className="min-w-[200px]">
+              <div className="font-medium text-slate-900 dark:text-slate-100 truncate max-w-[260px]">
+                {productorName || 'No disponible'}
+              </div>
+              {gestorName ? (
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[260px]">
+                  ➔ {gestorName}
+                </div>
+              ) : (
+                <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                  Sin gestor asignado
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'vigencia',
+        header: 'Vigencia',
+        accessorFn: (row) => row.fecha_fin || row.fecha_contrato || '',
+        sortable: true,
+        cell: ({ row }) => {
+          const effective = getContractEffectiveStatus(row);
+          return (
+            <div className="whitespace-nowrap">
+              {row.fecha_inicio && row.fecha_fin ? (
+                <div className={`font-mono text-xs ${effective.isExpired ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-slate-700 dark:text-slate-300'}`}>
+                  {formatDate(row.fecha_inicio)} – {formatDate(row.fecha_fin)}
+                </div>
+              ) : (
+                <div className="font-mono text-xs text-slate-700 dark:text-slate-300">
+                  {formatDate(row.fecha_contrato)}
+                </div>
+              )}
+              {row.descripcion_residuos && (
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[210px]" title={row.descripcion_residuos}>
+                  {row.descripcion_residuos}
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'estado',
+        header: 'Estado',
+        accessorFn: (row) => getContractEffectiveStatus(row).label,
+        sortable: true,
+        cell: ({ row }) => {
+          const effective = getContractEffectiveStatus(row);
+          return (
+            <Badge color={STATUS_COLORS[effective.status]} size="sm">
+              {effective.label}
+            </Badge>
+          );
+        },
+      },
+      {
+        id: 'acciones',
+        header: 'Acciones',
+        headerClassName: 'text-right',
+        className: 'text-right whitespace-nowrap',
+        cell: ({ row }) => {
+          const isDownloadingThis = downloadingId === row.id;
+          return (
+            <div className="inline-flex items-center justify-end gap-1">
+              <DataTableActionButton
+                action="view"
+                onClick={() => router.push(`/residuos/contratos/${row.id}`)}
+              />
+              <DataTableActionButton
+                action="more"
+                loading={isDownloadingThis}
+                aria-label={`Más acciones para contrato ${row.numero_contrato || row.id}`}
+                aria-haspopup="menu"
+                aria-expanded={actionMenu?.contract.id === row.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (actionMenu?.contract.id === row.id) {
+                    setActionMenu(null);
+                    return;
+                  }
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const menuHeight = 176;
+                  const top =
+                    rect.bottom + menuHeight > window.innerHeight
+                      ? Math.max(8, rect.top - menuHeight)
+                      : rect.bottom + 4;
+                  const right = Math.max(8, window.innerWidth - rect.right);
+                  setActionMenu({ contract: row, top, right });
+                }}
+              />
+            </div>
+          );
+        },
+      },
+    ],
+    [myCompany, downloadingId, canWrite, actionMenu?.contract.id]
+  );
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
-          <p className="text-muted">Cargando contratos...</p>
+      <div className="space-y-6 animate-pulse" aria-busy="true" aria-label="Cargando contratos">
+        <div className="flex justify-between items-center">
+          <div className="space-y-2">
+            <div className="h-7 w-56 rounded-lg bg-slate-200 dark:bg-slate-800" />
+            <div className="h-4 w-80 rounded bg-slate-200/80 dark:bg-slate-800/80" />
+          </div>
+          <div className="h-9 w-36 rounded-lg bg-slate-200 dark:bg-slate-800" />
+        </div>
+        <div className="rounded-[10px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] overflow-hidden">
+          <div className="h-12 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40" />
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="px-4 py-3.5 flex items-center justify-between gap-4">
+                <div className="h-4 w-32 rounded bg-slate-200 dark:bg-slate-800" />
+                <div className="h-4 w-48 rounded bg-slate-200/80 dark:bg-slate-800/80" />
+                <div className="h-4 w-28 rounded bg-slate-100 dark:bg-slate-800/60" />
+                <div className="h-6 w-20 rounded-full bg-slate-200 dark:bg-slate-800" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -169,18 +384,19 @@ export default function ContratosPage() {
 
   return (
     <>
-      <PageBreadCrumb pageTitle="Contratos de Residuos" />
-
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
-        <div data-tour="contratos-header" className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-foreground">
-            Contratos de Gestión de Residuos
-          </h2>
-          <Button variant="outline" onClick={() => setShowNewContractModal(true)}>
-            + Nuevo Contrato
-          </Button>
-        </div>
+      <div className="max-w-6xl mx-auto space-y-5">
+        <PageBreadCrumb
+          pageTitle="Contratos de Residuos"
+          title="Contratos de Gestión de Residuos"
+          className="mb-0"
+          actions={
+            canWrite ? (
+              <Button variant="primary" size="sm" onClick={() => setShowNewContractModal(true)}>
+                + Nuevo Contrato
+              </Button>
+            ) : undefined
+          }
+        />
 
         {error && (
           <Alert variant="error" title="Error" message={error} />
@@ -191,197 +407,84 @@ export default function ContratosPage() {
         )}
 
         {/* Filtros */}
-        <ComponentCard title="Filtros">
-          <div className="flex flex-wrap gap-2">
+        <div className="rounded-[10px] border border-slate-200 bg-white p-2.5 dark:border-slate-800 dark:bg-[#111827]">
+          <div className="flex flex-wrap gap-1.5">
             <Button
               variant={filterStatus === 'all' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('all')}
+              onClick={() => handleFilterStatusChange('all')}
             >
               Todos ({contracts.length})
             </Button>
             <Button
               variant={filterStatus === 'vigente' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('vigente')}
+              onClick={() => handleFilterStatusChange('vigente')}
             >
               Vigentes ({contracts.filter(c => getContractEffectiveStatus(c).status === 'vigente').length})
             </Button>
             <Button
               variant={filterStatus === 'caducado' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('caducado')}
+              onClick={() => handleFilterStatusChange('caducado')}
             >
               Caducados ({contracts.filter(c => getContractEffectiveStatus(c).status === 'caducado').length})
             </Button>
             <Button
               variant={filterStatus === 'borrador' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('borrador')}
+              onClick={() => handleFilterStatusChange('borrador')}
             >
               Borradores ({contracts.filter(c => c.estado === 'borrador').length})
             </Button>
             <Button
+              variant={filterStatus === 'pendiente_firma' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => handleFilterStatusChange('pendiente_firma')}
+            >
+              Pend. Firma ({contracts.filter(c => c.estado === 'pendiente_firma').length})
+            </Button>
+            <Button
               variant={filterStatus === 'finalizado' ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => setFilterStatus('finalizado')}
+              onClick={() => handleFilterStatusChange('finalizado')}
             >
               Finalizados ({contracts.filter(c => c.estado === 'finalizado').length})
             </Button>
           </div>
-        </ComponentCard>
+        </div>
 
-        {/* Lista de Contratos */}
-        {filteredContracts.length === 0 ? (
-          <ComponentCard title="Contratos">
-            <div className="text-center py-12">
-              <svg
-                className="mx-auto h-12 w-12 text-muted"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              <h3 className="mt-4 text-lg font-medium text-foreground">No hay contratos</h3>
-              <p className="mt-2 text-sm text-muted">
-                Comienza creando tu primer contrato de tratamiento
+        {/* Tabla de Contratos */}
+        <DataTable
+          data={filteredContracts}
+          columns={columns}
+          syncUrlParams
+          searchPlaceholder="Buscar por nº contrato, productor, gestor o residuo..."
+          emptyMessage={
+            canWrite
+              ? 'No hay contratos registrados. Comienza creando tu primer contrato de tratamiento.'
+              : 'No hay contratos registrados para esta empresa.'
+          }
+          emptyState={
+            <div className="py-8 text-center">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No hay contratos</p>
+              <p className="mt-1 text-xs text-slate-500">
+                {canWrite
+                  ? 'Comienza creando tu primer contrato de tratamiento'
+                  : 'No hay contratos registrados para esta empresa'}
               </p>
-              <Button
-                className="mt-4"
-                onClick={() => setShowNewContractModal(true)}
-              >
-                Crear Primer Contrato
-              </Button>
+              {canWrite && (
+                <Button
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => setShowNewContractModal(true)}
+                >
+                  + Crear Primer Contrato
+                </Button>
+              )}
             </div>
-          </ComponentCard>
-        ) : (
-          <div className="grid grid-cols-1 gap-6">
-            {filteredContracts.map((contract) => {
-              const effective = getContractEffectiveStatus(contract);
-              const gestorName = contract.treatment_manager?.razon_social || contract.gestor_company?.razon_social;
-              const productorName = contract.company?.razon_social || myCompany?.razon_social;
-
-              return (
-                <ComponentCard key={contract.id} title="">
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="text-lg font-semibold text-foreground">
-                              {contract.numero_contrato || `Contrato #${contract.id}`}
-                            </h3>
-                            <Badge color={STATUS_COLORS[effective.status]}>
-                              {effective.label}
-                            </Badge>
-                          </div>
-
-                          <div className="space-y-2 text-sm text-muted">
-                            <p>
-                              <span className="font-medium text-foreground">Productor:</span>{' '}
-                              {productorName || 'No disponible'}
-                            </p>
-
-                            {gestorName ? (
-                              <p>
-                                <span className="font-medium text-foreground">Gestor:</span>{' '}
-                                {gestorName}
-                              </p>
-                            ) : (
-                              <p className="text-amber-600 dark:text-amber-400 font-medium">
-                                ⚠️ Sin gestor asignado
-                              </p>
-                            )}
-
-                            <p>
-                              <span className="font-medium text-foreground">Tipo:</span>{' '}
-                              {contract.tipo_contrato}
-                            </p>
-
-                            <p>
-                              <span className="font-medium text-foreground">Fecha contrato:</span>{' '}
-                              {formatDate(contract.fecha_contrato)}
-                            </p>
-
-                            {contract.fecha_inicio && contract.fecha_fin && (
-                              <p className={effective.isExpired ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>
-                                <span className="font-medium text-foreground">Vigencia:</span>{' '}
-                                {formatDate(contract.fecha_inicio)} - {formatDate(contract.fecha_fin)}
-                                {effective.isExpired && ' (Vencido)'}
-                              </p>
-                            )}
-
-                            {contract.descripcion_residuos && (
-                              <p>
-                                <span className="font-medium text-foreground">Residuos:</span>{' '}
-                                {contract.descripcion_residuos}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Acciones */}
-                    <div className="flex flex-col gap-2 min-w-[140px]">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => router.push(`/residuos/contratos/${contract.id}`)}
-                      >
-                        Ver Detalles
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDownloadPDF(contract)}
-                        disabled={downloadingId === contract.id}
-                      >
-                        {downloadingId === contract.id ? 'Generando PDF...' : 'Descargar PDF'}
-                      </Button>
-
-                      {contract.estado === 'borrador' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleChangeStatus(contract.id, 'vigente')}
-                        >
-                          Activar
-                        </Button>
-                      )}
-
-                      {contract.estado === 'vigente' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleChangeStatus(contract.id, 'finalizado')}
-                        >
-                          Finalizar
-                        </Button>
-                      )}
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(contract.id)}
-                        className="text-red-600 hover:bg-red-50"
-                      >
-                        Eliminar
-                      </Button>
-                    </div>
-                  </div>
-                </ComponentCard>
-              );
-            })}
-          </div>
-        )}
+          }
+        />
 
         {/* Modal de Nuevo Contrato */}
         {myCompany && (
@@ -392,6 +495,105 @@ export default function ContratosPage() {
             myCompany={myCompany}
           />
         )}
+
+        {actionMenu && (() => {
+          const contract = actionMenu.contract;
+          const canActivate = canWrite && (contract.estado === 'borrador' || contract.estado === 'pendiente_firma');
+          const canFinalize = canWrite && contract.estado === 'vigente';
+          const canDelete = canWrite && !contract.firmado_productor && !contract.firmado_gestor && contract.estado !== 'finalizado';
+
+          return (
+            <div
+              role="menu"
+              style={{ top: actionMenu.top, right: actionMenu.right }}
+              onClick={(e) => e.stopPropagation()}
+              className="fixed z-50 w-48 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg py-1.5 text-xs"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setActionMenu(null);
+                  handleDownloadPDF(contract);
+                }}
+                className="w-full px-3 py-2 text-left flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                <FileDown className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+                <span>Descargar PDF</span>
+              </button>
+
+              {canActivate && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setActionMenu(null);
+                    handleChangeStatus(contract.id, 'vigente');
+                  }}
+                  className="w-full px-3 py-2 text-left flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>Activar contrato</span>
+                </button>
+              )}
+
+              {canFinalize && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setActionMenu(null);
+                    setContractToFinalize(contract.id);
+                  }}
+                  className="w-full px-3 py-2 text-left flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <Archive className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>Finalizar contrato</span>
+                </button>
+              )}
+
+              {canDelete && (
+                <>
+                  <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setActionMenu(null);
+                      handleDelete(contract.id);
+                    }}
+                    className="w-full px-3 py-2 text-left flex items-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Eliminar contrato</span>
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })()}
+
+        <ConfirmModal
+          isOpen={contractToFinalize !== null}
+          onClose={() => setContractToFinalize(null)}
+          onConfirm={async () => {
+            if (contractToFinalize !== null) {
+              await handleChangeStatus(contractToFinalize, 'finalizado');
+            }
+          }}
+          variant="warning"
+          title="Finalizar contrato"
+          confirmLabel="Sí, finalizar"
+          message="¿Estás seguro de que deseas finalizar este contrato? Una vez finalizado no podrá utilizarse para nuevos traslados de residuos."
+        />
+
+        <ConfirmModal
+          isOpen={contractToDelete !== null}
+          onClose={() => setContractToDelete(null)}
+          onConfirm={confirmDelete}
+          title="Eliminar contrato"
+          message="¿Estás seguro de que deseas eliminar este contrato? Esta acción solo es posible si el contrato no se ha utilizado para emitir Documentos de Identificación (DI) o Notificaciones Previas (NT)."
+        />
       </div>
     </>
   );

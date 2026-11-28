@@ -1,0 +1,152 @@
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:e3l="e3l://esir2014">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <e3l:sendWasteNT>
+         <wasteNT 
+    xmlns:wassup="e3l://eterproject.org/3.0/wasteSupport"
+    xmlns:common="e3l://eterproject.org/3.0/common"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    NTCode="NT01999999999920260000001"
+    NTYear="2026"
+    NTDate="2026-11-15"
+    NTStartDate="2026-11-25"
+    NTEndDate="2027-11-25"
+    NTFrequency="Periodica"
+    NTIndividual="N"
+    NTRegional="S"
+    NTSendtoDestinationAuthority="N">
+
+    <!-- 1. Operador del Traslado -->
+    <NTTransferOperatorData>
+        <entityId>
+            <nationalId>B72294069</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        <entityName>
+            <reason>
+                <reasonName>Método Ambiental Consultores, S.L.</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        <entityCenter>
+            <centerID centerCode="1189383983" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+            <centerAddress>
+                <spanishAddress>
+                    <vial vialCode="009" vialDescription="Calle"/>
+                    <address>CALLE CRUZ DE LA DEGOLLADA, 13, 1º B</address>
+                    <CP>11001</CP>
+                    <municipality municipalityCode="110282" municipalityName="Puerto Real"/>
+                    <province provinceCode="11" provinceName="Cádiz"/>
+                </spanishAddress>
+            </centerAddress>
+            <centerContact>
+                <phone>617984325</phone>
+                <mail>paquillo@ineco.com</mail>
+            </centerContact>
+            <wasteCenterAuthorization>
+                <authorizationId>
+                    <authorizationIdFree>1189383983</authorizationIdFree>
+                </authorizationId>
+                <authorizationCode>P03</authorizationCode>
+            </wasteCenterAuthorization>
+        </entityCenter>
+        <wasteTransferOperatorType operatorTypeCode="P01"/>
+    </NTTransferOperatorData>
+
+    <!-- 2. Productor -->
+    <NTProducerData>
+        <entityId>
+            <nationalId>B72294069</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        <entityName>
+            <reason>
+                <reasonName>Método Ambiental Consultores, S.L.</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        <entityCenter>
+            <centerID centerCode="1100000001" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+            <centerAddress>
+                <spanishAddress>
+                    <vial vialCode="009" vialDescription="Calle"/>
+                    <address>CALLE CRUZ DE LA DEGOLLADA, 13, 1º B</address>
+                    <CP>11001</CP>
+                    <municipality municipalityCode="110282" municipalityName="Puerto Real"/>
+                    <province provinceCode="11" provinceName="Cádiz"/>
+                </spanishAddress>
+            </centerAddress>
+            <centerContact>
+                <phone>900000000</phone>
+                <mail>contacto@resigest.com</mail>
+            </centerContact>
+            <wasteCenterAuthorization>
+                <authorizationId>
+                    <authorizationIdFree>1100000001</authorizationIdFree>
+                </authorizationId>
+                <authorizationCode>P03</authorizationCode>
+            </wasteCenterAuthorization>
+        </entityCenter>
+        <wasteProducerType producerTypeCode="P03"/>
+    </NTProducerData>
+
+    <!-- 3. Destinatario -->
+    <NTAdresseeData>
+        <entityId>
+            <nationalId>B12345678</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        <entityName>
+            <reason>
+                <reasonName>Recisur reciclajes S.L.</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        <entityCenter>
+            <centerID centerCode="4700000001" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+            <centerAddress>
+                <spanishAddress>
+                    <vial vialCode="009" vialDescription="Calle"/>
+                    <address>Calle Valladolid nº 12</address>
+                    <CP>23910</CP>
+                    <municipality municipalityCode="471868" municipalityName="Valladolid"/>
+                    <province provinceCode="47" provinceName="Valladolid"/>
+                </spanishAddress>
+            </centerAddress>
+            <centerContact>
+                <phone>900000000</phone>
+                <mail>contacto@resigest.com</mail>
+            </centerContact>
+            <wasteCenterAuthorization>
+                <authorizationId>
+                    <authorizationIdFree>KGM-12321</authorizationIdFree>
+                </authorizationId>
+                <authorizationCode>G04</authorizationCode>
+            </wasteCenterAuthorization>
+        </entityCenter>
+        <wasteManagerType managerTypeCode="G04"/>
+    </NTAdresseeData>
+
+    <!-- 4. Residuos transportados -->
+    <NTTransportedResidues>
+        <NTResidueIdentification LERCode="010101" xsi:type="wassup:noDangerousResidueType">
+            <residueBag>
+                 <bagProcess internalIdProcessCode="99"/>
+                 <bagResidueId residueCode="999" residueDescription="Residuos de la extracción de minerales metálicos"/>
+            </residueBag>
+            <residueTables xsi:type="wassup:tablesNoDangerousType">
+                <table2>R13</table2>
+            </residueTables>
+        </NTResidueIdentification>
+        <NTOtherResidueData>
+            <NTResidueQuantity>1000.000</NTResidueQuantity>
+        </NTOtherResidueData>
+    </NTTransportedResidues>
+
+</wasteNT>
+      </e3l:sendWasteNT>
+   </soapenv:Body>
+</soapenv:Envelope>

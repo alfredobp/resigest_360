@@ -1,0 +1,227 @@
+<wasteDCS 
+    xmlns:wassup="e3l://eterproject.org/3.0/wasteSupport"
+    xmlns:common="e3l://eterproject.org/3.0/common"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    DCSCode="DCS04999999999920260000001"
+    DCSPhase="R"
+    DCSYear="2026"
+    DCSDate="2026-10-25"
+    DCSStartDate="2026-02-15"
+    DCSRegional="S"
+    DCSSendtoOriginOrDestinationAuthority="N">
+
+    <!-- 1. Operador del Traslado -->
+    
+    <DCSTransferOperatorData>
+        <entityId>
+            <nationalId>B12345678</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        
+        <entityName>
+            <reason>
+                <reasonName>EcoGestión 360 SL</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="2800012345" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+            
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="009" vialDescription="Calle"/>
+                <address>Polígono Industrial Nave 1</address>
+                <CP>00000</CP>
+                <municipality municipalityCode="410917" municipalityName="Desconocido"/>
+                <province provinceCode="41" provinceName="Sevilla"/>
+            </spanishAddress>
+        </centerAddress>
+            
+        <centerContact>
+            <phone>954000111</phone>
+            <mail>info@ecogestion360.es</mail>
+        </centerContact>
+            
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>2800012345</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>A01</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteTransferOperatorType operatorTypeCode="P01"/>
+        
+    </DCSTransferOperatorData>
+
+    <!-- 2. Productor -->
+    
+    <DCSProducerData>
+        <entityId>
+            <nationalId>B12345678</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        
+        <entityName>
+            <reason>
+                <reasonName>EcoGestión 360 SL</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="2800012345" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+            
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="009" vialDescription="Calle"/>
+                <address>Polígono Industrial Nave 1</address>
+                <CP>41001</CP>
+                <municipality municipalityCode="410917" municipalityName="Sevilla"/>
+                <province provinceCode="41" provinceName="Sevilla"/>
+            </spanishAddress>
+        </centerAddress>
+            
+        <centerContact>
+            <phone>954000111</phone>
+            <mail>pendiente@email.com</mail>
+        </centerContact>
+            
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>2800012345</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>A01</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteProducerType producerTypeCode="P01"/>
+        
+    </DCSProducerData>
+
+    <!-- 3. Destinatario -->
+    
+    <DCSAdresseeData>
+        <entityId>
+            <nationalId>A87654321</nationalId>
+        </entityId>
+        <entityFJ entityFJCode="J" />
+        
+        <entityName>
+            <reason>
+                <reasonName>Tratamientos del Sur SA</reasonName>
+                <reasonAssociation associationCode="99" associationDescription="Otra"/>
+            </reason>
+        </entityName>
+        
+        <entityCenter>
+            <centerID centerCode="4100098765" />
+            <centerEconomicActivity>S/D</centerEconomicActivity>
+            
+        <centerAddress>
+            <spanishAddress>
+                <vial vialCode="009" vialDescription="Calle"/>
+                <address>Carretera Isla Menor Km 4</address>
+                <CP>41014</CP>
+                <municipality municipalityCode="410917" municipalityName="Dos Hermanas"/>
+                <province provinceCode="41" provinceName="Sevilla"/>
+            </spanishAddress>
+        </centerAddress>
+            
+        <centerContact>
+            <phone>955999888</phone>
+            <mail>pendiente@email.com</mail>
+        </centerContact>
+            
+        <wasteCenterAuthorization>
+            <authorizationId>
+                <authorizationIdFree>4100098765</authorizationIdFree>
+            </authorizationId>
+            <authorizationCode>A01</authorizationCode>
+        </wasteCenterAuthorization>
+        </entityCenter>
+
+        <wasteManagerType managerTypeCode="G01"/>
+        
+    </DCSAdresseeData>
+    
+    <!-- 4. Datos del Residuo (Incluye Transportista) -->
+    
+    <DCSResidueData>
+        <DCSProducerResidueIdentification LERCode="150110" xsi:type="wassup:dangerousResidueType">
+            
+        <residueBag>
+             <bagProcess internalIdProcessCode="99"/>
+             <bagResidueId residueCode="999" residueDescription="Envases contaminados con disolventes"/>
+        </residueBag>
+            
+        <residueTables xsi:type="wassup:tablesDangerousType">
+            <table2>R13</table2>
+            <table5>HP4</table5>
+        </residueTables>
+        </DCSProducerResidueIdentification>
+        
+        <DCSAdresseeResidueIdentification LERCode="150110" xsi:type="wassup:dangerousResidueType">
+            
+        <residueBag>
+             <bagProcess internalIdProcessCode="99"/>
+             <bagResidueId residueCode="999" residueDescription="Envases contaminados con disolventes"/>
+        </residueBag>
+            
+        <residueTables xsi:type="wassup:tablesDangerousType">
+            <table2>R13</table2>
+            <table5>HP4</table5>
+        </residueTables>
+        </DCSAdresseeResidueIdentification>
+        
+        
+        <DCSOtherResidueData>
+            <DCSNT>NT99999999999999999999999</DCSNT>
+            <DCSClearWeight>1250.500</DCSClearWeight>
+            <DCSTransportCharacteristics>Sin características especiales</DCSTransportCharacteristics>
+        </DCSOtherResidueData>
+        
+        <DCSTransporterData>
+            <entityId>
+                <nationalId>B99887766</nationalId>
+            </entityId>
+            <entityFJ entityFJCode="J" />
+            <entityName>
+                <reason>
+                    <reasonName>TransEco Andalucía SL</reasonName>
+                    <reasonAssociation associationCode="99" associationDescription="Otra"/>
+                </reason>
+            </entityName>
+            <entityCenter>
+                <centerID centerCode="4100055443" />
+                <centerEconomicActivity>S/D</centerEconomicActivity>
+                <centerAddress>
+                    <spanishAddress>
+                        <vial vialCode="009" vialDescription="Calle"/>
+                        <address>Avenida del Transporte 12</address>
+                        <CP>41020</CP>
+                        <municipality municipalityCode="410917" municipalityName="Sevilla"/>
+                        <province provinceCode="41" provinceName="Sevilla"/>
+                    </spanishAddress>
+                </centerAddress>
+                <centerContact>
+                    <phone>954332211</phone>
+                    <mail>transporte@pendiente.com</mail>
+                </centerContact>
+                <wasteCenterAuthorization>
+                    <authorizationId>
+                         <authorizationIdFree>4100055443</authorizationIdFree>
+                    </authorizationId>
+                    <authorizationCode>A01</authorizationCode>
+                </wasteCenterAuthorization>
+            </entityCenter>
+
+            <wasteTransporterType trasporterTypeCode="T01" transporterTypeDescription="Transportista de residuos"/>
+            <DCSTransportWay transportWayCode="01" transportWayDescription="Carretera"/>
+        </DCSTransporterData>
+    </DCSResidueData>
+
+</wasteDCS>

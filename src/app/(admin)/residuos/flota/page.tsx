@@ -1,720 +1,753 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import {
-  Truck,
-  Users,
-  Plus,
-  Edit2,
-  Trash2,
-  ShieldCheck,
-  Phone,
-  X,
-} from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
-import ComponentCard from '@/components/common/ComponentCard';
+import PageSkeleton from '@/components/common/PageSkeleton';
 import Button from '@/components/ui/button/Button';
-import Badge from '@/components/ui/badge/Badge';
-import { Modal } from '@/components/ui/modal';
-import Label from '@/components/form/Label';
-import Input from '@/components/form/input/InputField';
+import Alert from '@/components/ui/alert/Alert';
+import { ConfirmModal } from '@/components/ui/modal';
+import { DataTable, DataTableActionButton, type ColumnDef } from '@/components/ui/table';
 import { toast } from '@/context/ToastContext';
+import { useTenant } from '@/context/TenantContext';
 import fleetService from '@/services/fleetService';
+import carrierService from '@/services/carrierService';
+import DriverModal from '@/components/residuos/DriverModal';
+import VehicleModal from '@/components/residuos/VehicleModal';
 import {
-  validateFleetDriver,
-  validateFleetVehicle,
+  formatDriverQuickCopy,
+  formatVehicleQuickCopy,
+  getDriverComplianceAlerts,
+  getExpiryStatus,
+  getVehicleComplianceAlerts,
 } from '@/lib/validations/fleetValidation';
 import type {
-  FleetDriver,
-  FleetDriverFormData,
-  FleetVehicle,
-  FleetVehicleFormData,
-  VehicleType,
-} from '@/types/fleet';
+  CarrierDriver,
+  CarrierVehicle,
+  ExpiryStatus,
+} from '@/types/wasteManagement';
+import {
+  Truck,
+  User,
+  Plus,
+  AlertTriangle,
+  ShieldCheck,
+} from 'lucide-react';
 
-const VEHICLE_TYPE_LABELS: Record<VehicleType, string> = {
-  tractora: 'Cabeza Tractora',
-  remolque: 'Semirremolque',
-  rigido: 'Camión Rígido',
-  cisterna: 'Cisterna',
-};
+function ExpiryBadge({ label, date }: { label: string; date?: string | null }) {
+  if (!date) return null;
+  const status: ExpiryStatus = getExpiryStatus(date);
+  const tone =
+    status === 'caducado'
+      ? 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-900'
+      : status === 'proximo'
+      ? 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-900'
+      : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900';
 
-const INITIAL_VEHICLE_FORM: FleetVehicleFormData = {
-  tipo: 'tractora',
-  matricula: '',
-  marca_modelo: '',
-  tara_kg: undefined,
-  mma_kg: undefined,
-  adr_habilitado: false,
-  adr_caducidad: '',
-  itv_caducidad: '',
-  seguro_caducidad: '',
-  autorizacion_transporte: '',
-  activo: true,
-};
-
-const INITIAL_DRIVER_FORM: FleetDriverFormData = {
-  nombre_completo: '',
-  dni: '',
-  telefono: '',
-  pin_acceso: '',
-  adr_habilitado: false,
-  adr_caducidad: '',
-  activo: true,
-};
-
-function getExpiryStatus(dateStr?: string | null): 'expired' | 'soon' | 'ok' | null {
-  if (!dateStr) return null;
-  const diffDays = Math.ceil(
-    (new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-medium ${tone}`}
+      title={`${label}: ${date}`}
+    >
+      <span className="font-semibold">{label}:</span>
+      <span className="font-mono">{date}</span>
+    </span>
   );
-  if (diffDays <= 0) return 'expired';
-  if (diffDays <= 30) return 'soon';
-  return 'ok';
 }
 
-export default function FlotaPage() {
-  const [activeTab, setActiveTab] = useState<'vehicles' | 'drivers'>('vehicles');
+function FlotaHubContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const { activeCompanyId, canWrite } = useTenant();
+
+  const initialTab = searchParams.get('tab') === 'vehiculos' ? 'vehiculos' : 'conductores';
+  const initialQuery = searchParams.get('q') || '';
+
+  const [activeTab, setActiveTab] = useState<'conductores' | 'vehiculos'>(initialTab);
+  const [filterMode, setFilterMode] = useState<'todos' | 'activos' | 'adr' | 'alertas'>('todos');
   const [loading, setLoading] = useState(true);
-  const [vehicles, setVehicles] = useState<FleetVehicle[]>([]);
-  const [drivers, setDrivers] = useState<FleetDriver[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  // Modal Vehículo
-  const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
-  const [editingVehicle, setEditingVehicle] = useState<FleetVehicle | null>(null);
-  const [vehicleForm, setVehicleForm] = useState<FleetVehicleFormData>(INITIAL_VEHICLE_FORM);
-  const [vehicleErrors, setVehicleErrors] = useState<Record<string, string>>({});
+  const [drivers, setDrivers] = useState<CarrierDriver[]>([]);
+  const [vehicles, setVehicles] = useState<CarrierVehicle[]>([]);
 
-  // Modal Conductor
+  // Modales
   const [driverModalOpen, setDriverModalOpen] = useState(false);
-  const [editingDriver, setEditingDriver] = useState<FleetDriver | null>(null);
-  const [driverForm, setDriverForm] = useState<FleetDriverFormData>(INITIAL_DRIVER_FORM);
-  const [driverErrors, setDriverErrors] = useState<Record<string, string>>({});
+  const [selectedDriver, setSelectedDriver] = useState<CarrierDriver | undefined>(undefined);
+  const [driverToDelete, setDriverToDelete] = useState<CarrierDriver | null>(null);
 
-  const [saving, setSaving] = useState(false);
+  const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
+  const [selectedVehicle, setSelectedVehicle] = useState<CarrierVehicle | undefined>(undefined);
+  const [vehicleToDelete, setVehicleToDelete] = useState<CarrierVehicle | null>(null);
 
-  const loadFleet = async () => {
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'vehiculos' || tabParam === 'conductores') {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
+  const loadFleet = useCallback(async (syncLegacy = false) => {
     try {
       setLoading(true);
-      const [v, d] = await Promise.all([
-        fleetService.getVehicles(),
-        fleetService.getDrivers(),
+      setError(null);
+
+      if (syncLegacy) {
+        try {
+          const carriers = await carrierService.getAll();
+          await fleetService.syncLegacyFleetFromCarriers(carriers, activeCompanyId);
+        } catch {
+          // Si falla la sincronización legacy, continuamos con la lectura relacional
+        }
+      }
+
+      const [driverList, vehicleList] = await Promise.all([
+        fleetService.getDrivers({ includeInactive: true, companyId: activeCompanyId }),
+        fleetService.getVehicles({ includeInactive: true, companyId: activeCompanyId }),
       ]);
-      setVehicles(v);
-      setDrivers(d);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error al cargar la flota';
-      toast.error(message);
+
+      setDrivers(driverList);
+      setVehicles(vehicleList);
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo cargar la flota.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeCompanyId]);
 
   useEffect(() => {
-    loadFleet();
-  }, []);
+    loadFleet(true);
+  }, [loadFleet]);
 
-  const openNewVehicle = () => {
-    setEditingVehicle(null);
-    setVehicleForm(INITIAL_VEHICLE_FORM);
-    setVehicleErrors({});
-    setVehicleModalOpen(true);
+  const handleTabChange = (tab: 'conductores' | 'vehiculos') => {
+    setActiveTab(tab);
+    setFilterMode('todos');
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', tab);
+    router.replace(`/residuos/flota?${params.toString()}`, { scroll: false });
   };
 
-  const openEditVehicle = (vehicle: FleetVehicle) => {
-    setEditingVehicle(vehicle);
-    setVehicleForm({
-      tipo: vehicle.tipo,
-      matricula: vehicle.matricula,
-      marca_modelo: vehicle.marca_modelo || '',
-      tara_kg: vehicle.tara_kg ?? undefined,
-      mma_kg: vehicle.mma_kg ?? undefined,
-      adr_habilitado: vehicle.adr_habilitado,
-      adr_caducidad: vehicle.adr_caducidad || '',
-      itv_caducidad: vehicle.itv_caducidad || '',
-      seguro_caducidad: vehicle.seguro_caducidad || '',
-      autorizacion_transporte: vehicle.autorizacion_transporte || '',
-      activo: vehicle.activo,
-    });
-    setVehicleErrors({});
-    setVehicleModalOpen(true);
-  };
-
-  const handleSaveVehicle = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const errs = validateFleetVehicle(vehicleForm);
-    if (Object.keys(errs).length > 0) {
-      setVehicleErrors(errs);
-      return;
-    }
-
+  const handleCopyText = async (text: string, label: string) => {
     try {
-      setSaving(true);
-      const payload: FleetVehicleFormData = {
-        ...vehicleForm,
-        adr_caducidad: vehicleForm.adr_caducidad || null,
-        itv_caducidad: vehicleForm.itv_caducidad || null,
-        seguro_caducidad: vehicleForm.seguro_caducidad || null,
-      };
-      if (editingVehicle) {
-        await fleetService.updateVehicle(editingVehicle.id, payload);
-        toast.success('Vehículo actualizado correctamente.');
-      } else {
-        await fleetService.createVehicle(payload);
-        toast.success('Vehículo añadido a la flota.');
-      }
-      setVehicleModalOpen(false);
-      await loadFleet();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error al guardar vehículo';
-      toast.error(message);
-    } finally {
-      setSaving(false);
+      await navigator.clipboard.writeText(text);
+      toast.success(`${label} copiado al portapapeles.`);
+    } catch {
+      toast.error('No se pudo copiar al portapapeles.');
     }
   };
 
-  const handleDeleteVehicle = async (id: number) => {
-    if (!confirm('¿Eliminar este vehículo de tu flota?')) return;
+  const handleToggleDriver = async (driver: CarrierDriver) => {
     try {
-      await fleetService.deleteVehicle(id);
-      setVehicles((prev) => prev.filter((v) => v.id !== id));
-      toast.success('Vehículo eliminado.');
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Error al eliminar vehículo');
-    }
-  };
-
-  const openNewDriver = () => {
-    setEditingDriver(null);
-    setDriverForm(INITIAL_DRIVER_FORM);
-    setDriverErrors({});
-    setDriverModalOpen(true);
-  };
-
-  const openEditDriver = (driver: FleetDriver) => {
-    setEditingDriver(driver);
-    setDriverForm({
-      nombre_completo: driver.nombre_completo,
-      dni: driver.dni,
-      telefono: driver.telefono || '',
-      pin_acceso: driver.pin_acceso || '',
-      adr_habilitado: driver.adr_habilitado,
-      adr_caducidad: driver.adr_caducidad || '',
-      activo: driver.activo,
-    });
-    setDriverErrors({});
-    setDriverModalOpen(true);
-  };
-
-  const handleSaveDriver = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const errs = validateFleetDriver(driverForm);
-    if (Object.keys(errs).length > 0) {
-      setDriverErrors(errs);
-      return;
-    }
-
-    try {
-      setSaving(true);
-      const payload: FleetDriverFormData = {
-        ...driverForm,
-        adr_caducidad: driverForm.adr_caducidad || null,
-      };
-      if (editingDriver) {
-        await fleetService.updateDriver(editingDriver.id, payload);
-        toast.success('Conductor actualizado correctamente.');
-      } else {
-        await fleetService.createDriver(payload);
-        toast.success('Conductor dado de alta.');
-      }
-      setDriverModalOpen(false);
-      await loadFleet();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Error al guardar conductor');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteDriver = async (id: number) => {
-    if (!confirm('¿Eliminar este conductor?')) return;
-    try {
-      await fleetService.deleteDriver(id);
-      setDrivers((prev) => prev.filter((d) => d.id !== id));
-      toast.success('Conductor eliminado.');
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Error al eliminar conductor');
-    }
-  };
-
-  const renderExpiryBadge = (label: string, dateStr?: string | null) => {
-    const status = getExpiryStatus(dateStr);
-    if (!status) return null;
-    if (status === 'expired') {
-      return (
-        <Badge variant="light" color="error">
-          {label}: Caducado ({dateStr})
-        </Badge>
+      await fleetService.toggleDriverActive(driver.id, !driver.activo);
+      toast.success(
+        driver.activo ? `Conductor ${driver.nombre} desactivado.` : `Conductor ${driver.nombre} reactivado.`
       );
+      await loadFleet(false);
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al cambiar el estado del conductor.');
     }
-    if (status === 'soon') {
-      return (
-        <Badge variant="light" color="warning">
-          {label}: Vence {dateStr}
-        </Badge>
+  };
+
+  const handleToggleVehicle = async (vehicle: CarrierVehicle) => {
+    try {
+      await fleetService.toggleVehicleActive(vehicle.id, !vehicle.activo);
+      toast.success(
+        vehicle.activo ? `Vehículo ${vehicle.matricula} desactivado.` : `Vehículo ${vehicle.matricula} reactivado.`
       );
+      await loadFleet(false);
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al cambiar el estado del vehículo.');
     }
+  };
+
+  const confirmDeleteDriver = async () => {
+    if (!driverToDelete) return;
+    try {
+      await fleetService.deleteDriver(driverToDelete.id);
+      setDrivers((prev) => prev.filter((d) => d.id !== driverToDelete.id));
+      toast.success('Conductor eliminado correctamente.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al eliminar el conductor.');
+    } finally {
+      setDriverToDelete(null);
+    }
+  };
+
+  const confirmDeleteVehicle = async () => {
+    if (!vehicleToDelete) return;
+    try {
+      await fleetService.deleteVehicle(vehicleToDelete.id);
+      setVehicles((prev) => prev.filter((v) => v.id !== vehicleToDelete.id));
+      toast.success('Vehículo eliminado correctamente.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al eliminar el vehículo.');
+    } finally {
+      setVehicleToDelete(null);
+    }
+  };
+
+  // KPIs y alertas
+  const driverAlerts = useMemo(
+    () => drivers.filter((d) => d.activo).flatMap((d) => getDriverComplianceAlerts(d)),
+    [drivers]
+  );
+  const vehicleAlerts = useMemo(
+    () => vehicles.filter((v) => v.activo).flatMap((v) => getVehicleComplianceAlerts(v)),
+    [vehicles]
+  );
+
+  const filteredDrivers = useMemo(() => {
+    return drivers.filter((d) => {
+      if (filterMode === 'activos') return d.activo;
+      if (filterMode === 'adr') return d.tiene_adr;
+      if (filterMode === 'alertas') return getDriverComplianceAlerts(d).length > 0;
+      return true;
+    });
+  }, [drivers, filterMode]);
+
+  const filteredVehicles = useMemo(() => {
+    return vehicles.filter((v) => {
+      if (filterMode === 'activos') return v.activo;
+      if (filterMode === 'adr') return v.tiene_adr;
+      if (filterMode === 'alertas') return getVehicleComplianceAlerts(v).length > 0;
+      return true;
+    });
+  }, [vehicles, filterMode]);
+
+  const driverColumns = useMemo<ColumnDef<CarrierDriver>[]>(
+    () => [
+      {
+        id: 'conductor',
+        header: 'Conductor',
+        accessorFn: (row) => `${row.nombre} ${row.dni || ''} ${row.carnet_tipo || ''}`,
+        sortable: true,
+        cell: ({ row }) => (
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-900 dark:text-slate-100">{row.nombre}</span>
+              {!row.activo && (
+                <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-[10px] font-semibold text-slate-600 dark:text-slate-400">
+                  Inactivo
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-slate-500 font-mono mt-0.5 flex items-center gap-2">
+              <span>{row.dni || 'Sin DNI'}</span>
+              {row.carnet_tipo && (
+                <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-sans font-semibold text-slate-600 dark:text-slate-300">
+                  Carnet {row.carnet_tipo}
+                </span>
+              )}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: 'contacto',
+        header: 'Contacto',
+        accessorFn: (row) => `${row.telefono || ''} ${row.email || ''}`,
+        cell: ({ row }) => (
+          <div className="text-xs space-y-0.5">
+            <div className="text-slate-800 dark:text-slate-200">{row.telefono || '-'}</div>
+            {row.email && <div className="text-slate-500 truncate max-w-[180px]">{row.email}</div>}
+          </div>
+        ),
+      },
+      {
+        id: 'vehiculo',
+        header: 'Vehículo Habitual',
+        accessorFn: (row) => `${row.vehiculo_asignado || ''} ${row.remolque_asignado || ''}`,
+        cell: ({ row }) => (
+          <div className="font-mono text-xs">
+            {row.vehiculo_asignado ? (
+              <>
+                <span className="px-2 py-0.5 rounded bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 font-bold">
+                  {row.vehiculo_asignado}
+                </span>
+                {row.remolque_asignado && (
+                  <div className="text-[11px] text-slate-500 mt-1">R: {row.remolque_asignado}</div>
+                )}
+              </>
+            ) : (
+              <span className="text-slate-400 font-sans">Sin asignar</span>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'permisos',
+        header: 'Permisos (ADR / CAP)',
+        accessorFn: (row) => `${row.tiene_adr ? 'ADR' : ''} ${row.fecha_caducidad_adr || ''} ${row.fecha_caducidad_cap || ''}`,
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-1.5">
+            {row.tiene_adr ? (
+              row.fecha_caducidad_adr ? (
+                <ExpiryBadge label="ADR" date={row.fecha_caducidad_adr} />
+              ) : (
+                <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-semibold">
+                  ADR
+                </span>
+              )
+            ) : (
+              <span className="text-[11px] text-slate-400">Sin ADR</span>
+            )}
+            <ExpiryBadge label="CAP" date={row.fecha_caducidad_cap} />
+          </div>
+        ),
+      },
+      {
+        id: 'acciones',
+        header: 'Acciones',
+        headerClassName: 'text-right',
+        className: 'text-right',
+        cell: ({ row }) => (
+          <div className="inline-flex items-center justify-end gap-1">
+            <DataTableActionButton
+              action="copy"
+              iconOnly
+              title="Copiar ficha completa"
+              onClick={() => handleCopyText(formatDriverQuickCopy(row), `Ficha de ${row.nombre}`)}
+            />
+            {canWrite && (
+              <>
+                <DataTableActionButton
+                  action="edit"
+                  iconOnly
+                  title="Editar conductor"
+                  onClick={() => {
+                    setSelectedDriver(row);
+                    setDriverModalOpen(true);
+                  }}
+                />
+                <DataTableActionButton
+                  action="toggle"
+                  iconOnly
+                  title={row.activo ? 'Desactivar conductor' : 'Reactivar conductor'}
+                  onClick={() => handleToggleDriver(row)}
+                />
+                <DataTableActionButton
+                  action="delete"
+                  iconOnly
+                  title="Eliminar conductor"
+                  onClick={() => setDriverToDelete(row)}
+                />
+              </>
+            )}
+          </div>
+        ),
+      },
+    ],
+    [canWrite]
+  );
+
+  const vehicleColumns = useMemo<ColumnDef<CarrierVehicle>[]>(
+    () => [
+      {
+        id: 'vehiculo',
+        header: 'Vehículo / Matrícula',
+        accessorFn: (row) => `${row.matricula} ${row.tipo} ${row.marca_modelo || ''} ${row.remolque_habitual || ''}`,
+        sortable: true,
+        cell: ({ row }) => (
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
+                {row.matricula}
+              </span>
+              <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10.5px] font-semibold text-slate-600 dark:text-slate-300">
+                {row.tipo}
+              </span>
+              {!row.activo && (
+                <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-[10px] font-semibold text-slate-500">
+                  Inactivo
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-slate-500 mt-0.5">
+              {row.marca_modelo && <span>{row.marca_modelo}</span>}
+              {row.remolque_habitual && (
+                <span className="ml-2 font-mono text-slate-600 dark:text-slate-400">
+                  · Remolque: {row.remolque_habitual}
+                </span>
+              )}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: 'capacidad',
+        header: 'MMA / Tara',
+        accessorFn: (row) => `${row.mma_kg || ''} ${row.tara_kg || ''} ${row.tarjeta_transporte || ''}`,
+        cell: ({ row }) => (
+          <div className="text-xs text-slate-700 dark:text-slate-300 space-y-0.5">
+            {row.mma_kg || row.tara_kg ? (
+              <div className="font-mono">
+                {row.mma_kg ? `MMA ${row.mma_kg.toLocaleString('es-ES')} kg` : ''}
+                {row.mma_kg && row.tara_kg ? ' · ' : ''}
+                {row.tara_kg ? `Tara ${row.tara_kg.toLocaleString('es-ES')} kg` : ''}
+              </div>
+            ) : (
+              <span className="text-slate-400">-</span>
+            )}
+            {row.tarjeta_transporte && (
+              <div className="text-[11px] font-mono text-slate-500">
+                Tarjeta: {row.tarjeta_transporte}
+              </div>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'vencimientos',
+        header: 'ITV / Seguro / ADR',
+        accessorFn: (row) =>
+          `${row.fecha_caducidad_itv || ''} ${row.fecha_caducidad_seguro || ''} ${row.tiene_adr ? 'ADR' : ''} ${row.fecha_caducidad_adr || ''}`,
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-1.5">
+            <ExpiryBadge label="ITV" date={row.fecha_caducidad_itv} />
+            <ExpiryBadge label="Seguro" date={row.fecha_caducidad_seguro} />
+            {row.tiene_adr && <ExpiryBadge label="ADR" date={row.fecha_caducidad_adr} />}
+            {!row.fecha_caducidad_itv && !row.fecha_caducidad_seguro && !row.tiene_adr && (
+              <span className="text-xs text-slate-400">Sin fechas registradas</span>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'acciones',
+        header: 'Acciones',
+        headerClassName: 'text-right',
+        className: 'text-right',
+        cell: ({ row }) => (
+          <div className="inline-flex items-center justify-end gap-1">
+            <DataTableActionButton
+              action="copy"
+              iconOnly
+              title="Copiar ficha completa"
+              onClick={() => handleCopyText(formatVehicleQuickCopy(row), `Ficha de ${row.matricula}`)}
+            />
+            {canWrite && (
+              <>
+                <DataTableActionButton
+                  action="edit"
+                  iconOnly
+                  title="Editar vehículo"
+                  onClick={() => {
+                    setSelectedVehicle(row);
+                    setVehicleModalOpen(true);
+                  }}
+                />
+                <DataTableActionButton
+                  action="toggle"
+                  iconOnly
+                  title={row.activo ? 'Desactivar vehículo' : 'Reactivar vehículo'}
+                  onClick={() => handleToggleVehicle(row)}
+                />
+                <DataTableActionButton
+                  action="delete"
+                  iconOnly
+                  title="Eliminar vehículo"
+                  onClick={() => setVehicleToDelete(row)}
+                />
+              </>
+            )}
+          </div>
+        ),
+      },
+    ],
+    [canWrite]
+  );
+
+  if (loading) {
     return (
-      <Badge variant="light" color="success">
-        {label}: {dateStr}
-      </Badge>
+      <PageSkeleton
+        variant="table-with-stats"
+        label="Cargando conductores y vehículos"
+        className="max-w-6xl mx-auto pb-12"
+      />
     );
-  };
+  }
+
+  const activeDriversCount = drivers.filter((d) => d.activo).length;
+  const activeVehiclesCount = vehicles.filter((v) => v.activo).length;
 
   return (
     <>
-      <PageBreadCrumb pageTitle="Mi Flota y Conductores" />
+      <div className="max-w-6xl mx-auto space-y-5 pb-12">
+        <PageBreadCrumb
+          pageTitle="Mi Flota"
+          title="Mi Flota: Conductores y Vehículos"
+          subtitle="Registra tus conductores y vehículos para autorrellenar DeCA y DI al instante y vigilar caducidades de ITV, Seguro, ADR y CAP."
+          className="mb-0"
+          actions={
+            canWrite ? (
+              <>
+                <Button
+                  variant={activeTab === 'vehiculos' ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setSelectedVehicle(undefined);
+                    setVehicleModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nuevo Vehículo
+                </Button>
+                <Button
+                  variant={activeTab === 'conductores' ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setSelectedDriver(undefined);
+                    setDriverModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nuevo Conductor
+                </Button>
+              </>
+            ) : undefined
+          }
+        />
 
-      <div data-tour="flota-header" className="max-w-6xl mx-auto space-y-6 pb-12">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Gestión de Flota Propia y Conductores
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Autocompleta matrículas y conductores en tus DeCA y controla vencimientos de ITV, Seguro y ADR.
+        {error && <Alert variant="error" title="Error" message={error} />}
+
+        {/* Tarjetas KPI */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase text-slate-500">Conductores Activos</span>
+              <User className="w-4 h-4 text-emerald-500" />
+            </div>
+            <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">
+              {activeDriversCount}
+              <span className="text-xs font-normal text-slate-400 ml-1.5">de {drivers.length}</span>
             </p>
           </div>
 
-          <Button
-            onClick={activeTab === 'vehicles' ? openNewVehicle : openNewDriver}
-            className="bg-brand-500 hover:bg-brand-600 text-white"
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            {activeTab === 'vehicles' ? 'Nuevo Vehículo' : 'Nuevo Conductor'}
-          </Button>
-        </div>
-
-        {/* Selector de pestañas */}
-        <div className="flex gap-2 border-b border-gray-200 dark:border-gray-800 pb-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('vehicles')}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition ${
-              activeTab === 'vehicles'
-                ? 'bg-brand-500 text-white shadow-xs'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-            }`}
-          >
-            <Truck className="w-4 h-4" />
-            Vehículos ({vehicles.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('drivers')}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition ${
-              activeTab === 'drivers'
-                ? 'bg-brand-500 text-white shadow-xs'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            Conductores ({drivers.length})
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="py-16 text-center text-sm text-gray-500">
-            Cargando flota y conductores...
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase text-slate-500">Vehículos Activos</span>
+              <Truck className="w-4 h-4 text-sky-500" />
+            </div>
+            <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">
+              {activeVehiclesCount}
+              <span className="text-xs font-normal text-slate-400 ml-1.5">de {vehicles.length}</span>
+            </p>
           </div>
-        ) : activeTab === 'vehicles' ? (
-          vehicles.length === 0 ? (
-            <ComponentCard title="Vehículos">
-              <div className="text-center py-10 space-y-3">
-                <Truck className="w-10 h-10 text-gray-400 mx-auto" />
-                <p className="text-sm text-gray-500">
-                  No tienes vehículos registrados en tu flota.
-                </p>
-                <Button onClick={openNewVehicle}>Añadir Primer Vehículo</Button>
-              </div>
-            </ComponentCard>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {vehicles.map((v) => (
-                <ComponentCard key={v.id} title={v.matricula}>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-brand-600 dark:text-brand-400">
-                        {VEHICLE_TYPE_LABELS[v.tipo]}
-                      </span>
-                      {v.adr_habilitado && (
-                        <Badge variant="light" color="warning">
-                          ADR Habilitado
-                        </Badge>
-                      )}
-                    </div>
 
-                    {v.marca_modelo && (
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
-                        {v.marca_modelo}
-                      </p>
-                    )}
-
-                    {(v.tara_kg || v.mma_kg) && (
-                      <p className="text-xs text-gray-500">
-                        Tara: {v.tara_kg ?? '-'} kg · MMA: {v.mma_kg ?? '-'} kg
-                      </p>
-                    )}
-
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {renderExpiryBadge('ITV', v.itv_caducidad)}
-                      {renderExpiryBadge('Seguro', v.seguro_caducidad)}
-                      {v.adr_habilitado && renderExpiryBadge('ADR', v.adr_caducidad)}
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 dark:border-gray-800">
-                      <Button variant="outline" size="sm" onClick={() => openEditVehicle(v)}>
-                        <Edit2 className="w-3.5 h-3.5 mr-1" />
-                        Editar
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteVehicle(v.id)}
-                        className="text-red-600 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                </ComponentCard>
-              ))}
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase text-slate-500">Alertas Conductores</span>
+              {driverAlerts.length > 0 ? (
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+              ) : (
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+              )}
             </div>
-          )
-        ) : drivers.length === 0 ? (
-          <ComponentCard title="Conductores">
-            <div className="text-center py-10 space-y-3">
-              <Users className="w-10 h-10 text-gray-400 mx-auto" />
-              <p className="text-sm text-gray-500">
-                No tienes conductores dados de alta.
-              </p>
-              <Button onClick={openNewDriver}>Añadir Primer Conductor</Button>
+            <p
+              className={`text-2xl font-extrabold mt-2 ${
+                driverAlerts.some((a) => a.status === 'caducado')
+                  ? 'text-red-600 dark:text-red-400'
+                  : driverAlerts.length > 0
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-emerald-600 dark:text-emerald-400'
+              }`}
+            >
+              {driverAlerts.length}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">ADR / CAP vencidos o ≤30 días</p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase text-slate-500">Alertas Vehículos</span>
+              {vehicleAlerts.length > 0 ? (
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+              ) : (
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+              )}
             </div>
-          </ComponentCard>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {drivers.map((d) => (
-              <ComponentCard key={d.id} title={d.nombre_completo}>
-                <div className="space-y-3">
-                  <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-                    <p>
-                      <span className="font-semibold">DNI/NIE:</span> {d.dni}
-                    </p>
-                    {d.telefono && (
-                      <p className="flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 text-gray-400" />
-                        {d.telefono}
-                      </p>
-                    )}
-                    {d.pin_acceso && (
-                      <p className="text-xs text-gray-500">
-                        PIN móvil configurado: ••••
-                      </p>
-                    )}
-                  </div>
+            <p
+              className={`text-2xl font-extrabold mt-2 ${
+                vehicleAlerts.some((a) => a.status === 'caducado')
+                  ? 'text-red-600 dark:text-red-400'
+                  : vehicleAlerts.length > 0
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-emerald-600 dark:text-emerald-400'
+              }`}
+            >
+              {vehicleAlerts.length}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">ITV / Seguro / ADR ≤30 días</p>
+          </div>
+        </div>
 
-                  <div className="flex flex-wrap gap-1.5">
-                    {d.adr_habilitado ? (
-                      renderExpiryBadge('Carné ADR', d.adr_caducidad) || (
-                        <Badge variant="light" color="success">
-                          <ShieldCheck className="w-3 h-3 mr-1" /> ADR Activo
-                        </Badge>
-                      )
-                    ) : (
-                      <Badge variant="light" color="info">
-                        Mercancía General
-                      </Badge>
-                    )}
-                  </div>
+        {/* Pestañas y Filtros Rápidos */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="inline-flex rounded-xl bg-slate-100 dark:bg-slate-800 p-1">
+            <button
+              type="button"
+              onClick={() => handleTabChange('conductores')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+                activeTab === 'conductores'
+                  ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              }`}
+            >
+              <User className="w-4 h-4" />
+              <span>Conductores ({drivers.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange('vehiculos')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+                activeTab === 'vehiculos'
+                  ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              }`}
+            >
+              <Truck className="w-4 h-4" />
+              <span>Vehículos ({vehicles.length})</span>
+            </button>
+          </div>
 
-                  <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 dark:border-gray-800">
-                    <Button variant="outline" size="sm" onClick={() => openEditDriver(d)}>
-                      <Edit2 className="w-3.5 h-3.5 mr-1" />
-                      Editar
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteDriver(d.id)}
-                      className="text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              </ComponentCard>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(
+              [
+                { id: 'todos', label: 'Todos' },
+                { id: 'activos', label: 'Activos' },
+                { id: 'adr', label: 'Con ADR' },
+                { id: 'alertas', label: 'Con alertas' },
+              ] as const
+            ).map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setFilterMode(f.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                  filterMode === f.id
+                    ? 'bg-brand-50 border-brand-300 text-brand-700 dark:bg-brand-950/40 dark:border-brand-700 dark:text-brand-300'
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                {f.label}
+              </button>
             ))}
           </div>
+        </div>
+
+        {/* Tabla Conductores */}
+        {activeTab === 'conductores' && (
+          <DataTable
+            data={filteredDrivers}
+            columns={driverColumns}
+            initialSearch={initialQuery}
+            searchPlaceholder="Buscar conductor por nombre, DNI, teléfono o matrícula..."
+            emptyState={
+              <div className="py-8 text-center">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  No hay conductores registrados con este filtro
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Da de alta tus conductores habituales para autorrellenar DeCA y DI en un clic.
+                </p>
+                {canWrite && (
+                  <Button
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => {
+                      setSelectedDriver(undefined);
+                      setDriverModalOpen(true);
+                    }}
+                  >
+                    + Registrar Primer Conductor
+                  </Button>
+                )}
+              </div>
+            }
+          />
         )}
+
+        {/* Tabla Vehículos */}
+        {activeTab === 'vehiculos' && (
+          <DataTable
+            data={filteredVehicles}
+            columns={vehicleColumns}
+            initialSearch={initialQuery}
+            searchPlaceholder="Buscar vehículo por matrícula, remolque, marca o tarjeta..."
+            emptyState={
+              <div className="py-8 text-center">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  No hay vehículos registrados con este filtro
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Registra tus tractoras, rígidos y remolques para controlar ITV, seguro y ADR.
+                </p>
+                {canWrite && (
+                  <Button
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => {
+                      setSelectedVehicle(undefined);
+                      setVehicleModalOpen(true);
+                    }}
+                  >
+                    + Registrar Primer Vehículo
+                  </Button>
+                )}
+              </div>
+            }
+          />
+        )}
+
+        <DriverModal
+          isOpen={driverModalOpen}
+          onClose={() => setDriverModalOpen(false)}
+          driver={selectedDriver}
+          vehicles={vehicles}
+          companyId={activeCompanyId}
+          onSuccess={() => loadFleet(false)}
+        />
+
+        <VehicleModal
+          isOpen={vehicleModalOpen}
+          onClose={() => setVehicleModalOpen(false)}
+          vehicle={selectedVehicle}
+          companyId={activeCompanyId}
+          onSuccess={() => loadFleet(false)}
+        />
+
+        <ConfirmModal
+          isOpen={driverToDelete !== null}
+          onClose={() => setDriverToDelete(null)}
+          onConfirm={confirmDeleteDriver}
+          title="Eliminar conductor"
+          message={`¿Seguro que deseas eliminar a ${driverToDelete?.nombre || 'este conductor'}? Esta acción no se puede deshacer.`}
+        />
+
+        <ConfirmModal
+          isOpen={vehicleToDelete !== null}
+          onClose={() => setVehicleToDelete(null)}
+          onConfirm={confirmDeleteVehicle}
+          title="Eliminar vehículo"
+          message={`¿Seguro que deseas eliminar el vehículo ${vehicleToDelete?.matricula || ''}? Esta acción no se puede deshacer.`}
+        />
       </div>
-
-      {/* Modal Vehículo */}
-      <Modal
-        isOpen={vehicleModalOpen}
-        onClose={() => setVehicleModalOpen(false)}
-        className="max-w-xl p-6"
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-            {editingVehicle ? 'Editar Vehículo' : 'Nuevo Vehículo'}
-          </h3>
-          <button
-            type="button"
-            onClick={() => setVehicleModalOpen(false)}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSaveVehicle} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Tipo de Vehículo *</Label>
-              <select
-                value={vehicleForm.tipo}
-                onChange={(e) =>
-                  setVehicleForm({ ...vehicleForm, tipo: e.target.value as VehicleType })
-                }
-                className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
-              >
-                <option value="tractora">Cabeza Tractora</option>
-                <option value="remolque">Semirremolque</option>
-                <option value="rigido">Camión Rígido</option>
-                <option value="cisterna">Cisterna</option>
-              </select>
-            </div>
-            <div>
-              <Label>Matrícula *</Label>
-              <Input
-                value={vehicleForm.matricula}
-                onChange={(e) =>
-                  setVehicleForm({ ...vehicleForm, matricula: e.target.value })
-                }
-                placeholder="1234ABC"
-                error={!!vehicleErrors.matricula}
-                hint={vehicleErrors.matricula}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Marca y Modelo</Label>
-              <Input
-                value={vehicleForm.marca_modelo || ''}
-                onChange={(e) =>
-                  setVehicleForm({ ...vehicleForm, marca_modelo: e.target.value })
-                }
-                placeholder="Volvo FH 500"
-              />
-            </div>
-            <div>
-              <Label>Autorización de Transporte</Label>
-              <Input
-                value={vehicleForm.autorizacion_transporte || ''}
-                onChange={(e) =>
-                  setVehicleForm({
-                    ...vehicleForm,
-                    autorizacion_transporte: e.target.value,
-                  })
-                }
-                placeholder="MDPE / OT..."
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>ITV Caducidad</Label>
-              <Input
-                type="date"
-                value={vehicleForm.itv_caducidad || ''}
-                onChange={(e) =>
-                  setVehicleForm({ ...vehicleForm, itv_caducidad: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <Label>Seguro Caducidad</Label>
-              <Input
-                type="date"
-                value={vehicleForm.seguro_caducidad || ''}
-                onChange={(e) =>
-                  setVehicleForm({ ...vehicleForm, seguro_caducidad: e.target.value })
-                }
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 pt-1">
-            <input
-              id="veh-adr"
-              type="checkbox"
-              checked={vehicleForm.adr_habilitado}
-              onChange={(e) =>
-                setVehicleForm({ ...vehicleForm, adr_habilitado: e.target.checked })
-              }
-              className="rounded border-gray-300"
-            />
-            <label htmlFor="veh-adr" className="text-sm font-medium">
-              Habilitado para Mercancías Peligrosas (ADR)
-            </label>
-          </div>
-
-          {vehicleForm.adr_habilitado && (
-            <div>
-              <Label>Caducidad Certificado ADR *</Label>
-              <Input
-                type="date"
-                value={vehicleForm.adr_caducidad || ''}
-                onChange={(e) =>
-                  setVehicleForm({ ...vehicleForm, adr_caducidad: e.target.value })
-                }
-                error={!!vehicleErrors.adr_caducidad}
-                hint={vehicleErrors.adr_caducidad}
-              />
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setVehicleModalOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Guardando...' : 'Guardar Vehículo'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Modal Conductor */}
-      <Modal
-        isOpen={driverModalOpen}
-        onClose={() => setDriverModalOpen(false)}
-        className="max-w-lg p-6"
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-            {editingDriver ? 'Editar Conductor' : 'Nuevo Conductor'}
-          </h3>
-          <button
-            type="button"
-            onClick={() => setDriverModalOpen(false)}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSaveDriver} className="space-y-4">
-          <div>
-            <Label>Nombre Completo *</Label>
-            <Input
-              value={driverForm.nombre_completo}
-              onChange={(e) =>
-                setDriverForm({ ...driverForm, nombre_completo: e.target.value })
-              }
-              placeholder="Ej. Carlos Martínez Ruiz"
-              error={!!driverErrors.nombre_completo}
-              hint={driverErrors.nombre_completo}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>DNI / NIE *</Label>
-              <Input
-                value={driverForm.dni}
-                onChange={(e) => setDriverForm({ ...driverForm, dni: e.target.value })}
-                placeholder="12345678A"
-                error={!!driverErrors.dni}
-                hint={driverErrors.dni}
-              />
-            </div>
-            <div>
-              <Label>Teléfono</Label>
-              <Input
-                value={driverForm.telefono || ''}
-                onChange={(e) =>
-                  setDriverForm({ ...driverForm, telefono: e.target.value })
-                }
-                placeholder="600 123 456"
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label>PIN Acceso Vista Móvil (4-6 dígitos)</Label>
-            <Input
-              value={driverForm.pin_acceso || ''}
-              onChange={(e) =>
-                setDriverForm({ ...driverForm, pin_acceso: e.target.value })
-              }
-              placeholder="Ej. 1234 (opcional para firmar desde móvil)"
-              error={!!driverErrors.pin_acceso}
-              hint={driverErrors.pin_acceso}
-            />
-          </div>
-
-          <div className="flex items-center gap-3 pt-1">
-            <input
-              id="drv-adr"
-              type="checkbox"
-              checked={driverForm.adr_habilitado}
-              onChange={(e) =>
-                setDriverForm({ ...driverForm, adr_habilitado: e.target.checked })
-              }
-              className="rounded border-gray-300"
-            />
-            <label htmlFor="drv-adr" className="text-sm font-medium">
-              Carné ADR en vigor
-            </label>
-          </div>
-
-          {driverForm.adr_habilitado && (
-            <div>
-              <Label>Caducidad Carné ADR *</Label>
-              <Input
-                type="date"
-                value={driverForm.adr_caducidad || ''}
-                onChange={(e) =>
-                  setDriverForm({ ...driverForm, adr_caducidad: e.target.value })
-                }
-                error={!!driverErrors.adr_caducidad}
-                hint={driverErrors.adr_caducidad}
-              />
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDriverModalOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Guardando...' : 'Guardar Conductor'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
     </>
+  );
+}
+
+export default function FlotaPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+        </div>
+      }
+    >
+      <FlotaHubContent />
+    </Suspense>
   );
 }

@@ -1,0 +1,459 @@
+/**
+ * @jest-environment node
+ */
+import { POST } from '../residuos/sira/enviar-nt/route';
+import { priorNotificationService } from '@/services/priorNotificationService';
+import { siraService } from '@/services/siraService';
+
+jest.mock('fs', () => ({
+  existsSync: jest.fn(() => false),
+  mkdirSync: jest.fn(),
+  writeFileSync: jest.fn(),
+}));
+
+const mockGetUser = jest.fn();
+const mockNtSingle = jest.fn();
+const mockSubSingle = jest.fn();
+const mockSubUpdateEq = jest.fn();
+const mockNtUpdateEq = jest.fn();
+const mockAuditInsert = jest.fn();
+const mockCompanyMaybeSingle = jest.fn();
+
+jest.mock('@/lib/supabase/server', () => ({
+  createClient: async () => ({
+    auth: { getUser: mockGetUser },
+    from: (table: string) => {
+      if (table === 'prior_notifications') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                single: mockNtSingle,
+              }),
+            }),
+          }),
+          update: () => ({
+            eq: () => ({
+              eq: mockNtUpdateEq,
+            }),
+          }),
+        };
+      }
+      if (table === 'sira_submissions') {
+        return {
+          insert: () => ({
+            select: () => ({
+              single: mockSubSingle,
+            }),
+          }),
+          update: () => ({
+            eq: mockSubUpdateEq,
+          }),
+        };
+      }
+      if (table === 'audit_logs') {
+        return {
+          insert: mockAuditInsert,
+        };
+      }
+      if (table === 'companies') {
+        const chain = {
+          select: () => chain,
+          eq: () => chain,
+          not: () => chain,
+          neq: () => chain,
+          limit: () => chain,
+          maybeSingle: mockCompanyMaybeSingle,
+        };
+        return chain;
+      }
+      return {};
+    },
+  }),
+}));
+
+jest.mock('@/services/priorNotificationService', () => ({
+  priorNotificationService: {
+    validateForE3L: jest.fn(),
+    generateNTXml: jest.fn(() => '<wasteNT NTCode="NT10110000000120260000001"/>'),
+  },
+}));
+
+jest.mock('@/services/siraService', () => ({
+  siraService: {
+    extractSiraError: jest.fn(() => 'JA000026: Error de validación SIRA'),
+    resolvePlatformForNT: jest.fn(() => ({
+      platform: 'sira',
+      code: 'SIRA',
+      name: 'SIRA (Junta de Andalucía)',
+      shortLabel: 'SIRA',
+      endpointUrl: 'https://www.juntadeandalucia.es/medioambiente/sira_servicios/SIRA_Empresas_Obligaciones',
+      supported: true,
+      provinceCode: '41',
+      caCode: '01',
+      reason: 'Instalación ubicada en Andalucía (CCAA 01)',
+    })),
+  },
+}));
+
+const makeReq = (body: any) =>
+  new Request('http://localhost/api/residuos/sira/enviar-nt', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }) as any;
+
+describe('POST /api/residuos/sira/enviar-nt', () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-sira-nt-1' } }, error: null });
+    mockSubSingle.mockResolvedValue({ data: { id: 700 }, error: null });
+    mockSubUpdateEq.mockResolvedValue({ error: null });
+    mockNtUpdateEq.mockResolvedValue({ error: null });
+    mockAuditInsert.mockResolvedValue({ error: null });
+    mockCompanyMaybeSingle.mockResolvedValue({ data: null, error: null });
+
+    (priorNotificationService.validateForE3L as jest.Mock).mockReturnValue({
+      valid: true,
+      errors: [],
+      warnings: [],
+    });
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('devuelve 400 si no se proporciona notificationId', async () => {
+    const res = await POST(makeReq({}));
+    expect(res.status).toBe(400);
+  });
+
+  it('devuelve 401 si no hay usuario autenticado', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: new Error('Unauthorized') });
+    const res = await POST(makeReq({ notificationId: 10 }));
+    expect(res.status).toBe(401);
+  });
+
+  it('devuelve 404 si la Notificación Previa no existe', async () => {
+    mockNtSingle.mockResolvedValue({ data: null, error: new Error('Not found') });
+    const res = await POST(makeReq({ notificationId: 999 }));
+    expect(res.status).toBe(404);
+  });
+
+  it('devuelve 400 si la validación E3L detecta errores en la NT', async () => {
+    mockNtSingle.mockResolvedValue({
+      data: { id: 10, company_id: 1, user_id: 'user-sira-nt-1' },
+      error: null,
+    });
+    (priorNotificationService.validateForE3L as jest.Mock).mockReturnValue({
+      valid: false,
+      errors: ['Falta el CIF del operador'],
+      warnings: [],
+    });
+
+    const res = await POST(makeReq({ notificationId: 10 }));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('no cumple las reglas del esquema E3L');
+  });
+
+  it('devuelve 400 si no se encuentran credenciales de SIRA', async () => {
+    mockNtSingle.mockResolvedValue({
+      data: { id: 10, company_id: 1, company: null },
+      error: null,
+    });
+    mockCompanyMaybeSingle.mockResolvedValue({ data: null, error: null });
+
+    const res = await POST(makeReq({ notificationId: 10 }));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('Credenciales de SIRA no configuradas');
+  });
+
+  it('envía y procesa con éxito una Notificación Previa a SIRA', async () => {
+    mockNtSingle.mockResolvedValue({
+      data: {
+        id: 10,
+        company_id: 1,
+        numero_notificacion: 'NT10110000000120260000001',
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () => `
+        <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+          <SOAP-ENV:Body>
+            <sendWasteNTResponse xmlns="e3l://esir2014">
+              <return>
+                <result>
+                  <resultRight>
+                    <IdSira>SIRA-NT-2026-999</IdSira>
+                  </resultRight>
+                </result>
+              </return>
+            </sendWasteNTResponse>
+          </SOAP-ENV:Body>
+        </SOAP-ENV:Envelope>
+      `,
+    });
+
+    const res = await POST(makeReq({ notificationId: 10 }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.siraId).toBe('SIRA-NT-2026-999');
+    expect(mockNtUpdateEq).toHaveBeenCalled();
+  });
+
+  it('valida con éxito en modo validateOnly localmente cuando apunta a SIRA Empresas Externas (sin invocar validateWasteNT remoto)', async () => {
+    mockNtSingle.mockResolvedValue({
+      data: {
+        id: 10,
+        company_id: 1,
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    const fetchSpy = jest.fn();
+    global.fetch = fetchSpy as any;
+
+    const res = await POST(makeReq({ notificationId: 10, validateOnly: true }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.validationMode).toBe('local_e3l');
+    expect(body.message).toContain('validada con éxito');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('acepta respuesta oficial OTI con <resultOK code="03"> al enviar NT a SIRA', async () => {
+    mockNtSingle.mockResolvedValue({
+      data: {
+        id: 11,
+        company_id: 1,
+        numero_notificacion: 'NT10110000000120260000011',
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:esir="e3l://esir2014">' +
+        '<soapenv:Body><esir:sendWasteNTResponse><return xmlns="http://ws.apache.org/ns/synapse"><result>' +
+        '<resultOK code="03" description="El mensaje se ha enviado correctamente">' +
+        '<detailValue>El mensaje se ha enviado correctamente para ser procesado</detailValue>' +
+        '</resultOK></result></return></esir:sendWasteNTResponse></soapenv:Body></soapenv:Envelope>',
+    });
+
+    const res = await POST(makeReq({ notificationId: 11 }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.siraId).toBe('SIRA-OK-03');
+    expect(body.platform).toBe('SIRA');
+  });
+
+  it('devuelve 422 si la CCAA de origen de la NT usa plataforma autonómica no integrada', async () => {
+    mockNtSingle.mockResolvedValue({
+      data: {
+        id: 12,
+        company_id: 1,
+        productor_provincia: 'Barcelona',
+        company: { sira_usuario: 'user_cat', sira_password: 'pass_cat' },
+      },
+      error: null,
+    });
+    (siraService.resolvePlatformForNT as jest.Mock).mockReturnValueOnce({
+      platform: 'autonomica_no_integrada',
+      code: 'SDR',
+      name: 'SDR (Agència de Residus de Catalunya)',
+      shortLabel: 'SDR',
+      endpointUrl: null,
+      supported: false,
+      provinceCode: '08',
+      caCode: '09',
+      reason: 'CCAA 09',
+    });
+
+    const res = await POST(makeReq({ notificationId: 12 }));
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.platform).toBe('SDR');
+  });
+
+  it('maneja rechazo de SIRA con código de error legible', async () => {
+    mockNtSingle.mockResolvedValue({
+      data: {
+        id: 10,
+        company_id: 1,
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () => `
+        <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+          <SOAP-ENV:Body>
+            <sendWasteNTResponse xmlns="e3l://esir2014">
+              <return>
+                <result>
+                  <resultWrong code="JA000026" description="cvc-pattern-valid"/>
+                </result>
+              </return>
+            </sendWasteNTResponse>
+          </SOAP-ENV:Body>
+        </SOAP-ENV:Envelope>
+      `,
+    });
+
+    const res = await POST(makeReq({ notificationId: 10 }));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe('SIRA ha rechazado la Notificación Previa');
+  });
+
+  it('no utiliza credenciales SIRA de otra empresa secundaria si la de la NT y la principal no tienen', async () => {
+    mockNtSingle.mockResolvedValue({
+      data: { id: 10, company_id: 1, company: null },
+      error: null,
+    });
+
+    mockCompanyMaybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock;
+
+    const res = await POST(makeReq({ notificationId: 10 }));
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('captura excepciones y retorna 500', async () => {
+    mockNtSingle.mockRejectedValue(new Error('Fatal error DB'));
+    const res = await POST(makeReq({ notificationId: 10 }));
+    expect(res.status).toBe(500);
+  });
+
+  it('guarda logs locales cuando NODE_ENV es development y maneja error de fetch con submissionId', async () => {
+    const prevEnv = process.env.NODE_ENV;
+    (process.env as any).NODE_ENV = 'development';
+
+    mockNtSingle.mockResolvedValue({
+      data: {
+        id: 10,
+        company_id: 1,
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockRejectedValue(new Error('Network error on send'));
+
+    const res = await POST(makeReq({ notificationId: 10 }));
+    expect(res.status).toBe(500);
+    expect(mockSubUpdateEq).toHaveBeenCalledWith('id', 700);
+
+    (process.env as any).NODE_ENV = prevEnv;
+  });
+
+  it('escribe logs de respuesta en development en caso de respuesta exitosa', async () => {
+    const prevEnv = process.env.NODE_ENV;
+    (process.env as any).NODE_ENV = 'development';
+
+    mockNtSingle.mockResolvedValue({
+      data: {
+        id: 10,
+        company_id: 1,
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () => '<IdSira>SIRA-100</IdSira>',
+    });
+
+    const res = await POST(makeReq({ notificationId: 10 }));
+    expect(res.status).toBe(200);
+
+    (process.env as any).NODE_ENV = prevEnv;
+  });
+
+  it('acepta en Modo Prueba cuando SIRA HTTP 200 solo devuelve errores censales JA000002 (NIMA no autorizado) tras validar XML', async () => {
+    mockNtSingle.mockResolvedValue({
+      data: {
+        id: 10,
+        company_id: 1,
+        numero_notificacion: 'NT110000000120260000001',
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        '<SOAP-ENV:Envelope><SOAP-ENV:Body><ns3:sendWasteNTResponse><return><result><resultWrong><resultErrorList>' +
+        '<resultWrong code="JA000002" description="La instalación de Operador con NIMA: 1100000001 no está autorizada para el Tipo Inscripción: P01"/>' +
+        '<resultWrong code="JA000002" description="La instalación de Destino con NIMA: 1100000001 no está autorizada para el Tipo Inscripción: G04"/>' +
+        '</resultErrorList></resultWrong></result></return></ns3:sendWasteNTResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>',
+    });
+
+    const res = await POST(makeReq({ notificationId: 10 }));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.isTestMode).toBe(true);
+    expect(json.siraId).toMatch(/^SIRA-TEST-NT-10-/);
+  });
+
+  it('rechaza errores censales en producción si SIRA_ALLOW_TEST_CENSUS no es true (fail-closed)', async () => {
+    const prevNodeEnv = process.env.NODE_ENV;
+    const prevAllow = process.env.SIRA_ALLOW_TEST_CENSUS;
+    (process.env as any).NODE_ENV = 'production';
+    delete process.env.SIRA_ALLOW_TEST_CENSUS;
+
+    mockNtSingle.mockResolvedValue({
+      data: {
+        id: 10,
+        company_id: 1,
+        numero_notificacion: 'NT110000000120260000001',
+        company: { sira_usuario: 'user_sira', sira_password: 'pass_sira' },
+      },
+      error: null,
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        '<SOAP-ENV:Envelope><SOAP-ENV:Body><ns3:sendWasteNTResponse><return><result><resultWrong><resultErrorList>' +
+        '<resultWrong code="JA000002" description="La instalación de Operador con NIMA: 1100000001 no está autorizada"/>' +
+        '</resultErrorList></resultWrong></result></return></ns3:sendWasteNTResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>',
+    });
+
+    try {
+      const res = await POST(makeReq({ notificationId: 10 }));
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error).toBe('SIRA ha rechazado la Notificación Previa');
+    } finally {
+      (process.env as any).NODE_ENV = prevNodeEnv;
+      if (prevAllow !== undefined) {
+        process.env.SIRA_ALLOW_TEST_CENSUS = prevAllow;
+      } else {
+        delete process.env.SIRA_ALLOW_TEST_CENSUS;
+      }
+    }
+  });
+});

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Trash2 } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import Button from '@/components/ui/button/Button';
 import Input from '@/components/form/input/InputField';
@@ -52,6 +53,7 @@ export default function AutorizacionModal({
   const [wasteCodes, setWasteCodes] = useState<AuthorizationWasteCodeFormData[]>([
     { codigo_ler: '', descripcion_ler: '', operaciones_tratamiento: ['R13'] },
   ]);
+  const [suggestedOpsByRow, setSuggestedOpsByRow] = useState<Record<number, string[]>>({});
 
   useEffect(() => {
     if (isOpen) {
@@ -90,6 +92,7 @@ export default function AutorizacionModal({
         setNotas('');
         setWasteCodes([{ codigo_ler: '', descripcion_ler: '', operaciones_tratamiento: ['R13'] }]);
       }
+      setSuggestedOpsByRow({});
       setError(null);
       setFieldErrors({});
     }
@@ -124,8 +127,24 @@ export default function AutorizacionModal({
 
   const handleRemoveWasteCode = (index: number) => {
     setWasteCodes((prev) => prev.filter((_, i) => i !== index));
-    clearFieldError(`ler_${index}`);
-    clearFieldError(`operaciones_${index}`);
+    setFieldErrors((prev) => {
+      const next: Record<string, string> = {};
+      for (const [key, val] of Object.entries(prev)) {
+        if (!key.startsWith('ler_') && !key.startsWith('operaciones_')) {
+          next[key] = val;
+        }
+      }
+      return next;
+    });
+    setSuggestedOpsByRow((prev) => {
+      const next: Record<number, string[]> = {};
+      for (const [k, v] of Object.entries(prev)) {
+        const idx = Number(k);
+        if (idx < index) next[idx] = v;
+        else if (idx > index) next[idx - 1] = v;
+      }
+      return next;
+    });
   };
 
   const handleWasteCodeChange = (
@@ -220,7 +239,7 @@ export default function AutorizacionModal({
       {/* Header */}
       <div className="pb-4 mb-4 border-b border-gray-100 dark:border-gray-800">
         <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-          <span>📜</span>
+          
           {authorizationToEdit ? 'Editar Autorización Ambiental' : 'Nueva Autorización Ambiental'}
         </h3>
         <p className="text-xs text-muted mt-1">
@@ -262,10 +281,10 @@ export default function AutorizacionModal({
                 value={selectedCenterId || ''}
                 onChange={(e) => setSelectedCenterId(e.target.value ? Number(e.target.value) : null)}
               >
-                <option value="">🏢 Todas las instalaciones (Autorización general)</option>
+                <option value="">Todas las instalaciones (Autorización general)</option>
                 {centers.map((c) => (
                   <option key={c.id} value={c.id}>
-                    📍 {c.nombre} ({c.municipio || 'S/D'}) - NIMA: {c.nima}
+                    {c.nombre} ({c.municipio || 'S/D'}) - NIMA: {c.nima}
                   </option>
                 ))}
               </select>
@@ -346,7 +365,7 @@ export default function AutorizacionModal({
             <div className="flex justify-between items-center mb-3">
               <div>
                 <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                  <span>🎯</span> Matriz de Residuos y Operaciones Autorizadas
+                  Matriz de Residuos y Operaciones Autorizadas
                 </h4>
                 <p className="text-xs text-muted">
                   Define los códigos LER y las operaciones autorizadas (R o D) en destino para validar los traslados y contratos.
@@ -375,8 +394,17 @@ export default function AutorizacionModal({
                         if (wt?.descripcion) {
                           handleWasteCodeChange(idx, 'descripcion_ler', wt.descripcion);
                         }
-                        if (wt?.operaciones_permitidas && wt.operaciones_permitidas.length > 0 && item.operaciones_tratamiento.length <= 1) {
-                          handleWasteCodeChange(idx, 'operaciones_tratamiento', wt.operaciones_permitidas);
+                        if (wt?.operaciones_permitidas && wt.operaciones_permitidas.length > 0) {
+                          setSuggestedOpsByRow((prev) => ({
+                            ...prev,
+                            [idx]: wt.operaciones_permitidas!,
+                          }));
+                        } else {
+                          setSuggestedOpsByRow((prev) => {
+                            const next = { ...prev };
+                            delete next[idx];
+                            return next;
+                          });
                         }
                       }}
                       error={Boolean(fieldErrors[`ler_${idx}`])}
@@ -413,6 +441,30 @@ export default function AutorizacionModal({
                       hint={fieldErrors[`operaciones_${idx}`]}
                       required
                     />
+                    {suggestedOpsByRow[idx] &&
+                      suggestedOpsByRow[idx].join(', ') !== item.operaciones_tratamiento.join(', ') && (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-300">
+                          <span>Catálogo LER sugiere:</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleWasteCodeChange(
+                                idx,
+                                'operaciones_tratamiento',
+                                suggestedOpsByRow[idx]
+                              );
+                              setSuggestedOpsByRow((prev) => {
+                                const next = { ...prev };
+                                delete next[idx];
+                                return next;
+                              });
+                            }}
+                            className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200"
+                          >
+                            Aplicar ({suggestedOpsByRow[idx].join(', ')})
+                          </button>
+                        </div>
+                      )}
                   </div>
 
                   {wasteCodes.length > 1 && (
@@ -421,8 +473,9 @@ export default function AutorizacionModal({
                       onClick={() => handleRemoveWasteCode(idx)}
                       className="mt-4 md:mt-5 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition"
                       title="Eliminar este residuo"
+                      aria-label="Eliminar este residuo"
                     >
-                      🗑️
+                      <Trash2 className="w-5 h-5" />
                     </button>
                   )}
                 </div>

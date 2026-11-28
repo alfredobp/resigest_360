@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { Copy } from 'lucide-react';
 import { siraValidationSchema } from '@/lib/validations/sira'; // IMPORT AÑADIDO
 import { type z } from 'zod'; // IMPORT AÑADIDO
 import PageBreadCrumb from '@/components/common/PageBreadCrumb';
@@ -9,22 +11,39 @@ import ComponentCard from '@/components/common/ComponentCard';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import Input from '@/components/form/input/InputField';
+import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFields';
 import TextArea from '@/components/form/input/TextArea';
 import Select from '@/components/form/Select';
 import identificationDocumentService from '@/services/identificationDocumentService';
+import documentSequenceService from '@/services/documentSequenceService';
 import companyService from '@/services/companyService';
 import wasteContractService from '@/services/wasteContractService';
-import productionCenterService from '@/services/productionCenterService';
+import productionCenterService, { findPrincipalProductionCenter } from '@/services/productionCenterService';
 import wasteTypeService from '@/services/wasteTypeService';
 import treatmentManagerService from '@/services/treatmentManagerService';
 import carrierService from '@/services/carrierService';
+import fleetService from '@/services/fleetService';
+import {
+  getDriverComplianceAlerts,
+  getVehicleComplianceAlerts,
+} from '@/lib/validations/fleetValidation';
 import authorizationService, { type AuthorizedScopeResult } from '@/services/authorizationService';
-import type { IdentificationDocument, Company, WasteContract, ProductionCenter, WasteType, TreatmentManager, Carrier } from '@/types/wasteManagement';
+import { priorNotificationService } from '@/services/priorNotificationService';
+import commercialOperationService from '@/services/commercialOperationService';
+import type { IdentificationDocument, Company, WasteContract, ProductionCenter, WasteType, TreatmentManager, Carrier, PriorNotification, CarrierDriver, CarrierVehicle, CommercialOperation } from '@/types/wasteManagement';
 import DatePicker from '@/components/form/date-picker';
 import LerSelector from '@/components/residuos/LerSelector';
+import TreatmentOperationSelector from '@/components/residuos/TreatmentOperationSelector';
+import { getProvinceByPostalCode } from '@/lib/validations/spainLocations';
+import { PHYSICAL_CONTAINER_CATALOG } from '@/lib/validations/normativeCompliance';
+import { scrollToFirstError } from '@/lib/validations/formValidation';
+import { useTenant } from '@/context/TenantContext';
 
-export default function NuevoDocumentoIdentificacionPage() {
+function NuevoDocumentoIdentificacionContent() {
   const router = useRouter();
+  const { activeCompanyId } = useTenant();
+  const searchParams = useSearchParams();
+  const forcedPerspectiva = searchParams.get('perspectiva') || searchParams.get('sentido');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,16 +51,20 @@ export default function NuevoDocumentoIdentificacionPage() {
   const [myCompany, setMyCompany] = useState<Company | null>(null);
   const [productionCenters, setProductionCenters] = useState<ProductionCenter[]>([]);
   const [contracts, setContracts] = useState<WasteContract[]>([]);
-  const [gestores, setGestores] = useState<Company[]>([]);
   const [internalGestores, setInternalGestores] = useState<TreatmentManager[]>([]);
-  const [transportistas, setTransportistas] = useState<Company[]>([]);
   const [internalCarriers, setInternalCarriers] = useState<Carrier[]>([]);
+  const [fleetDrivers, setFleetDrivers] = useState<CarrierDriver[]>([]);
+  const [fleetVehicles, setFleetVehicles] = useState<CarrierVehicle[]>([]);
   const [wasteTypes, setWasteTypes] = useState<WasteType[]>([]);
   const [allContacts, setAllContacts] = useState<Company[]>([]);
+  const [priorNotifications, setPriorNotifications] = useState<PriorNotification[]>([]);
   const [destAuthScope, setDestAuthScope] = useState<AuthorizedScopeResult | null>(null);
   const [selectedOrigin, setSelectedOrigin] = useState<string>('principal');
-  const [expeditionRole, setExpeditionRole] = useState<'productor' | 'gestor'>('productor');
+  const [expeditionRole, setExpeditionRole] = useState<'productor' | 'gestor' | 'operador'>('productor');
   const [selectedClientContact, setSelectedClientContact] = useState<string>('');
+  const [duplicateSourceInfo, setDuplicateSourceInfo] = useState<{ id: number; numero_documento: string } | null>(null);
+  const [linkedCommercialOp, setLinkedCommercialOp] = useState<CommercialOperation | null>(null);
+  const [linkedCommercialLineIndex, setLinkedCommercialLineIndex] = useState<number | null>(null);
 
   const [formData, setFormData] = useState<Partial<IdentificationDocument>>({
     tipo_notificacion: 'sin-notificacion',
@@ -64,7 +87,7 @@ export default function NuevoDocumentoIdentificacionPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activeCompanyId]);
 
   const loadData = async () => {
     try {
@@ -79,14 +102,39 @@ export default function NuevoDocumentoIdentificacionPage() {
 
       setMyCompany(company);
 
-      // Determinar perspectiva inicial de expedición según el tipo de empresa
+      // Determinar perspectiva inicial de expedición según el tipo de empresa y parámetros de navegación (A7-03)
       const isCompanyGestor = company.tipo_empresa === 'gestor' || company.roles?.includes('gestor');
-      const initialRole = isCompanyGestor ? 'gestor' : 'productor';
+      const isCompanyTrader =
+        company.tipo_empresa === 'negociante' ||
+        company.tipo_empresa === 'agente' ||
+        company.perfil_operativo === 'negociante' ||
+        company.roles?.includes('negociante') ||
+        company.roles?.includes('agente');
+
+      const queryOperationId = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('operationId')
+        : searchParams.get('operationId');
+
+      const initialRole: 'productor' | 'gestor' | 'operador' =
+        forcedPerspectiva === 'operador' || Boolean(queryOperationId) || isCompanyTrader
+          ? 'operador'
+          : forcedPerspectiva === 'productor' || forcedPerspectiva === 'salida'
+            ? 'productor'
+            : isCompanyGestor
+              ? 'gestor'
+              : 'productor';
       setExpeditionRole(initialRole);
 
       // Cargar centros de producción
       const centers = await productionCenterService.getByCompanyId(company.id);
-      setProductionCenters(centers);
+      const ownCenters = centers.filter((c) => c.company_id === company.id);
+      setProductionCenters(ownCenters);
+      const principalCenter = findPrincipalProductionCenter(company, ownCenters);
+      if (principalCenter) {
+        setSelectedOrigin(principalCenter.id.toString());
+      } else {
+        setSelectedOrigin('principal');
+      }
 
       // Pre-rellenar según el rol inicial
       const defaultDir = company.domicilio_instalacion || company.domicilio_social || '';
@@ -94,6 +142,10 @@ export default function NuevoDocumentoIdentificacionPage() {
       const defaultProv = company.provincia_instalacion || company.provincia_social || '';
       const defaultCP = company.codigo_postal_instalacion || company.codigo_postal_social || '';
       const defaultNima = company.nima || '';
+
+      const previewDiNumber = await documentSequenceService
+        .previewNextCode(company.id, 'di', { nima: defaultNima })
+        .catch(() => identificationDocumentService.generateDocumentNumber(defaultNima));
 
       if (initialRole === 'gestor') {
         // En modo gestor, mi empresa es el destinatario receptor
@@ -109,13 +161,39 @@ export default function NuevoDocumentoIdentificacionPage() {
           gestor_provincia: defaultProv,
           gestor_codigo_postal: defaultCP,
           gestor_telefono: company.telefono || '',
-          numero_documento: identificationDocumentService.generateDocumentNumber(company.nima || company.cif),
+          numero_documento: previewDiNumber,
+        }));
+      } else if (initialRole === 'operador') {
+        // A7-03: En modo Operador (Negociante / Agente), mi empresa es el operador del traslado (Art. 2.h RD 553/2020)
+        // y el Productor / Origen Físico queda desbloqueado para representar la instalación real del tercero productor.
+        setFormData(prev => ({
+          ...prev,
+          company_id: company.id,
+          operador_razon_social: company.razon_social,
+          operador_cif: company.cif,
+          operador_nima: defaultNima,
+          operador_direccion: defaultDir,
+          operador_municipio: defaultMuni,
+          operador_provincia: defaultProv,
+          operador_codigo_postal: defaultCP,
+          operador_telefono: company.telefono || '',
+          operador_email: company.email || '',
+          operador_tipo: (company.tipo_empresa === 'agente' ? 'agente' : 'negociante') as any,
+          productor_razon_social: '',
+          productor_cif: '',
+          productor_nima: '',
+          productor_direccion: '',
+          productor_municipio: '',
+          productor_provincia: '',
+          productor_codigo_postal: '',
+          numero_documento: previewDiNumber,
         }));
       } else {
         // En modo productor, mi empresa es el generador del residuo
         setFormData(prev => ({
           ...prev,
           company_id: company.id,
+          production_center_id: principalCenter?.id,
           productor_razon_social: company.razon_social,
           productor_cif: company.cif,
           productor_nima: defaultNima,
@@ -123,7 +201,7 @@ export default function NuevoDocumentoIdentificacionPage() {
           productor_municipio: defaultMuni,
           productor_provincia: defaultProv,
           productor_codigo_postal: defaultCP,
-          numero_documento: identificationDocumentService.generateDocumentNumber(company.nima || company.cif),
+          numero_documento: previewDiNumber,
         }));
       }
 
@@ -139,19 +217,299 @@ export default function NuevoDocumentoIdentificacionPage() {
       });
       setContracts(validContracts);
 
-      // Cargar gestores, transportistas y contactos unificados
-      const [gestoresData, internalData, transportistasData, internalCarriersData, contactsData] = await Promise.all([
-        companyService.getByType('gestor'),
+      // Cargar gestores, transportistas, contactos unificados y notificaciones previas
+      const [internalData, internalCarriersData, contactsData, ntsData] = await Promise.all([
         treatmentManagerService.getAll(),
-        companyService.getByType('transportista'),
         carrierService.getAll(),
         companyService.getAllContacts(),
+        priorNotificationService.getAll().catch(() => []),
       ]);
-      setGestores(gestoresData);
-      setInternalGestores(internalData);
-      setTransportistas(transportistasData);
+      const myNormCif = company.cif?.toUpperCase().trim();
+      setInternalGestores(
+        internalData.filter(
+          (g) => g.company_id !== company.id && (!myNormCif || g.cif?.toUpperCase().trim() !== myNormCif)
+        )
+      );
       setInternalCarriers(internalCarriersData);
-      setAllContacts(contactsData);
+      const [driversData, vehiclesData] = await Promise.all([
+        fleetService.getDrivers().catch(() => [] as CarrierDriver[]),
+        fleetService.getVehicles().catch(() => [] as CarrierVehicle[]),
+      ]);
+      setFleetDrivers(driversData);
+      setFleetVehicles(vehiclesData);
+      setAllContacts(
+        contactsData.filter(
+          (c) => c.id !== company.id && (!myNormCif || c.cif?.toUpperCase().trim() !== myNormCif)
+        )
+      );
+      const acceptedNts = (ntsData || []).filter((n) => n.estado === 'aceptada');
+      setPriorNotifications(acceptedNts);
+
+      // Si viene un parámetro ntId en la URL, pre-cargar dicha Notificación Previa solo si está aceptada
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryNtId = urlParams.get('ntId');
+        if (queryNtId && acceptedNts.length > 0) {
+          const matchedNt = acceptedNts.find(n => String(n.id) === queryNtId);
+          if (matchedNt) {
+            setFormData(prev => ({
+              ...prev,
+              tipo_notificacion: 'con-notificacion-previa',
+              prior_notification_id: matchedNt.id,
+              numero_notificacion: matchedNt.numero_notificacion,
+              codigo_ler: matchedNt.codigo_ler || prev.codigo_ler,
+              descripcion_residuo: matchedNt.descripcion_residuo || prev.descripcion_residuo,
+              peligrosidad: matchedNt.peligrosidad || prev.peligrosidad,
+              operacion_tratamiento_ejecutada: matchedNt.operacion_tratamiento || prev.operacion_tratamiento_ejecutada,
+              operacion_tratamiento: matchedNt.operacion_tratamiento || prev.operacion_tratamiento,
+              gestor_razon_social: matchedNt.gestor_razon_social || prev.gestor_razon_social,
+              gestor_cif: matchedNt.gestor_cif || prev.gestor_cif,
+              gestor_nima: matchedNt.gestor_nima || prev.gestor_nima,
+            }));
+          }
+        }
+
+        // A7-03: Si viene operationId desde Operaciones Comerciales, precargar Operador (Negociante),
+        // Productor Físico (Origen), Gestor (Destino), Transportista y Residuo LER sin arrastrar precios ni márgenes
+        const queryOpId = urlParams.get('operationId');
+        const queryLineIdx = urlParams.get('lineIndex');
+        if (queryOpId) {
+          try {
+            const opData = await commercialOperationService.getById(parseInt(queryOpId, 10));
+            if (opData) {
+              setLinkedCommercialOp(opData);
+              setExpeditionRole('operador');
+
+              const lineIdxNum = queryLineIdx !== null ? parseInt(queryLineIdx, 10) : null;
+              const selectedLine =
+                lineIdxNum !== null &&
+                  !isNaN(lineIdxNum) &&
+                  Array.isArray(opData.lineas_materiales) &&
+                  opData.lineas_materiales[lineIdxNum]
+                  ? opData.lineas_materiales[lineIdxNum]
+                  : null;
+              if (selectedLine && lineIdxNum !== null) {
+                setLinkedCommercialLineIndex(lineIdxNum);
+              }
+
+              const prodComp = opData.origen_productor || contactsData.find(
+                (c) =>
+                  (opData.origen_productor_id && c.id === opData.origen_productor_id) ||
+                  (opData.origen_cif && c.cif?.trim().toUpperCase() === opData.origen_cif.trim().toUpperCase())
+              );
+              const gestComp = opData.destino_gestor || contactsData.find(
+                (c) =>
+                  (opData.destino_gestor_id && c.id === opData.destino_gestor_id) ||
+                  (opData.destino_cif && c.cif?.trim().toUpperCase() === opData.destino_cif.trim().toUpperCase())
+              );
+              const transComp = opData.transportista || contactsData.find(
+                (c) =>
+                  (opData.transportista_id && c.id === opData.transportista_id) ||
+                  (opData.transportista_cif && c.cif?.trim().toUpperCase() === opData.transportista_cif.trim().toUpperCase())
+              );
+
+              const targetLer = selectedLine?.codigo_ler || opData.codigo_ler || '';
+              const targetDesc = selectedLine?.descripcion_residuo || opData.descripcion_residuo || '';
+              const targetTon = selectedLine
+                ? Number(selectedLine.cantidad_t || 0)
+                : Number(opData.cantidad_real_t && opData.cantidad_real_t > 0 ? opData.cantidad_real_t : opData.cantidad_estimada_t || 0);
+              const targetKg = targetTon > 0 ? Math.round(targetTon * 1000) : undefined;
+              const isDang = targetLer.includes('*') || opData.peligrosidad === 'peligroso';
+              const mandateNote = opData.mandato_referencia
+                ? `Operador del traslado (${company.razon_social}) con mandato escrito ref. ${opData.mandato_referencia}${opData.mandato_otorgante ? ` otorgado por ${opData.mandato_otorgante}` : ''} (Art. 2.h RD 553/2020). Operación ref. ${opData.numero_operacion}.`
+                : `Operador del traslado: ${company.razon_social} (Ref. ${opData.numero_operacion}).`;
+
+              setFormData((prev) => ({
+                ...prev,
+                company_id: company.id,
+                // Operador = Negociante
+                operador_razon_social: company.razon_social,
+                operador_cif: company.cif,
+                operador_nima: defaultNima,
+                operador_direccion: defaultDir,
+                operador_municipio: defaultMuni,
+                operador_provincia: defaultProv,
+                operador_codigo_postal: defaultCP,
+                operador_telefono: company.telefono || '',
+                operador_email: company.email || '',
+                operador_tipo: (company.tipo_empresa === 'agente' ? 'agente' : 'negociante') as any,
+                // Productor Físico (Origen del tercero)
+                productor_razon_social:
+                  opData.origen_nombre_personalizado || prodComp?.razon_social || opData.proveedor_razon_social || '',
+                productor_cif:
+                  opData.origen_cif || prodComp?.cif || opData.proveedor_cif || '',
+                productor_nima:
+                  opData.origen_nima || opData.origen_center?.nima || prodComp?.nima || '',
+                productor_direccion:
+                  opData.origen_center?.direccion ||
+                  prodComp?.domicilio_instalacion ||
+                  prodComp?.domicilio_social ||
+                  '',
+                productor_municipio:
+                  opData.origen_center?.municipio ||
+                  prodComp?.municipio_instalacion ||
+                  prodComp?.municipio_social ||
+                  defaultMuni ||
+                  '',
+                productor_provincia:
+                  opData.origen_center?.provincia ||
+                  prodComp?.provincia_instalacion ||
+                  prodComp?.provincia_social ||
+                  defaultProv ||
+                  '',
+                productor_codigo_postal:
+                  opData.origen_center?.codigo_postal ||
+                  prodComp?.codigo_postal_instalacion ||
+                  prodComp?.codigo_postal_social ||
+                  '',
+                // Gestor Destino
+                gestor_company_id: gestComp?.id || opData.destino_gestor_id || undefined,
+                gestor_razon_social:
+                  opData.destino_nombre_personalizado || gestComp?.razon_social || opData.cliente_razon_social || '',
+                gestor_cif:
+                  opData.destino_cif || gestComp?.cif || opData.cliente_cif || '',
+                gestor_nima:
+                  opData.destino_nima || gestComp?.nima || '',
+                gestor_numero_autorizacion:
+                  opData.destino_autorizacion || gestComp?.numero_autorizacion || '',
+                gestor_direccion:
+                  gestComp?.domicilio_instalacion || gestComp?.domicilio_social || '',
+                gestor_municipio:
+                  gestComp?.municipio_instalacion || gestComp?.municipio_social || defaultMuni || '',
+                gestor_provincia:
+                  gestComp?.provincia_instalacion || gestComp?.provincia_social || defaultProv || '',
+                gestor_codigo_postal:
+                  gestComp?.codigo_postal_instalacion || gestComp?.codigo_postal_social || '',
+                // Transportista
+                transportista_company_id: transComp?.id || opData.transportista_id || undefined,
+                transportista_razon_social:
+                  opData.transportista_nombre_personalizado || transComp?.razon_social || '',
+                transportista_cif:
+                  opData.transportista_cif || transComp?.cif || '',
+                transportista_nima:
+                  transComp?.nima || '',
+                transportista_matricula:
+                  opData.transportista_matricula || transComp?.matricula || '',
+                transportista_direccion:
+                  transComp?.domicilio_social || transComp?.domicilio_instalacion || '',
+                transportista_municipio:
+                  transComp?.municipio_social || transComp?.municipio_instalacion || '',
+                transportista_provincia:
+                  transComp?.provincia_social || transComp?.provincia_instalacion || '',
+                transportista_codigo_postal:
+                  transComp?.codigo_postal_social || transComp?.codigo_postal_instalacion || '',
+                // Residuo
+                codigo_ler: targetLer || prev.codigo_ler,
+                descripcion_residuo: targetDesc || prev.descripcion_residuo,
+                peligrosidad: isDang ? 'peligroso' : 'no-peligroso',
+                operacion_tratamiento: opData.operacion_rd || prev.operacion_tratamiento || 'R13',
+                cantidad: targetKg ?? prev.cantidad,
+                unidad: 'kg',
+                notas: mandateNote,
+              }));
+            }
+          } catch (opErr) {
+            console.warn('No se pudo precargar la operación comercial:', opErr);
+          }
+        }
+        const queryDuplicateId = urlParams.get('duplicate_from') || urlParams.get('duplicateFrom');
+        if (queryDuplicateId) {
+          try {
+            const srcDoc = await identificationDocumentService.getById(parseInt(queryDuplicateId, 10));
+            if (srcDoc) {
+              setDuplicateSourceInfo({
+                id: srcDoc.id,
+                numero_documento: srcDoc.numero_documento,
+              });
+
+              setFormData(prev => ({
+                ...prev,
+                contract_id: srcDoc.contract_id || undefined,
+                production_center_id: srcDoc.production_center_id || undefined,
+                // Productor
+                productor_razon_social: srcDoc.productor_razon_social || prev.productor_razon_social,
+                productor_cif: srcDoc.productor_cif || prev.productor_cif,
+                productor_nima: srcDoc.productor_nima || prev.productor_nima,
+                productor_direccion: srcDoc.productor_direccion || prev.productor_direccion,
+                productor_municipio: srcDoc.productor_municipio || prev.productor_municipio,
+                productor_provincia: srcDoc.productor_provincia || prev.productor_provincia,
+                productor_codigo_postal: srcDoc.productor_codigo_postal || prev.productor_codigo_postal,
+                productor_telefono: srcDoc.productor_telefono || prev.productor_telefono,
+                // Gestor
+                gestor_razon_social: srcDoc.gestor_razon_social || prev.gestor_razon_social,
+                gestor_cif: srcDoc.gestor_cif || prev.gestor_cif,
+                gestor_nima: srcDoc.gestor_nima || prev.gestor_nima,
+                gestor_numero_autorizacion: srcDoc.gestor_numero_autorizacion || prev.gestor_numero_autorizacion,
+                gestor_direccion: srcDoc.gestor_direccion || prev.gestor_direccion,
+                gestor_municipio: srcDoc.gestor_municipio || prev.gestor_municipio,
+                gestor_provincia: srcDoc.gestor_provincia || prev.gestor_provincia,
+                gestor_codigo_postal: srcDoc.gestor_codigo_postal || prev.gestor_codigo_postal,
+                gestor_telefono: srcDoc.gestor_telefono || prev.gestor_telefono,
+                // Transportista
+                transportista_razon_social: srcDoc.transportista_razon_social || prev.transportista_razon_social,
+                transportista_cif: srcDoc.transportista_cif || prev.transportista_cif,
+                transportista_nima: srcDoc.transportista_nima || prev.transportista_nima,
+                transportista_direccion: srcDoc.transportista_direccion || prev.transportista_direccion,
+                transportista_municipio: srcDoc.transportista_municipio || prev.transportista_municipio,
+                transportista_provincia: srcDoc.transportista_provincia || prev.transportista_provincia,
+                transportista_codigo_postal: srcDoc.transportista_codigo_postal || prev.transportista_codigo_postal,
+                transportista_matricula: srcDoc.transportista_matricula || prev.transportista_matricula,
+                transportista_telefono: srcDoc.transportista_telefono || prev.transportista_telefono,
+                // Residuo
+                codigo_ler: srcDoc.codigo_ler || prev.codigo_ler,
+                descripcion_residuo: srcDoc.descripcion_residuo || prev.descripcion_residuo,
+                peligrosidad: srcDoc.peligrosidad || prev.peligrosidad,
+                waste_type_id: srcDoc.waste_type_id || prev.waste_type_id,
+                tipo_envases: srcDoc.tipo_envases || prev.tipo_envases,
+                numero_envases: srcDoc.numero_envases || prev.numero_envases,
+                operacion_tratamiento: srcDoc.operacion_tratamiento || prev.operacion_tratamiento,
+                operacion_tratamiento_ejecutada: undefined,
+                // Notificación previa
+                tipo_notificacion: srcDoc.tipo_notificacion || prev.tipo_notificacion,
+                prior_notification_id: srcDoc.prior_notification_id || prev.prior_notification_id,
+                numero_notificacion: srcDoc.numero_notificacion || prev.numero_notificacion,
+                // Cantidad previa conservada para confirmación rápida
+                cantidad: srcDoc.cantidad,
+                // Resetear estados, pesajes de destino, referencias externas puntuales y firmas (Hito C.1)
+                estado: 'borrador',
+                estado_traslado: 'borrador',
+                contrato_externo_referencia: undefined,
+                contrato_externo_evidencia_url: undefined,
+                supuesto_excepcion_contrato: undefined,
+                firmado_productor: false,
+                firmado_gestor: false,
+                firmado_transportista: false,
+                firma_productor_url: undefined,
+                firma_gestor_url: undefined,
+                firma_transportista_url: undefined,
+                fecha_firma_productor: undefined,
+                fecha_firma_gestor: undefined,
+                fecha_firma_transportista: undefined,
+                peso_destino_kg: undefined,
+                diferencia_peso_kg: undefined,
+                porcentaje_discrepancia: undefined,
+                resultado_recepcion: undefined,
+                numero_albaran_gestor: undefined,
+                justificante_recepcion_url: undefined,
+                ticket_pesada_url: undefined,
+                fecha_salida: undefined,
+                fecha_llegada_destino: undefined,
+                fecha_tratamiento: undefined,
+                fecha_documento: new Date().toISOString().split('T')[0],
+                fecha_recogida: new Date().toISOString().split('T')[0],
+                fecha_entrega: undefined,
+                numero_documento: previewDiNumber,
+              }));
+
+              if (srcDoc.production_center_id) {
+                setSelectedOrigin(String(srcDoc.production_center_id));
+              }
+            }
+          } catch (e) {
+            console.warn('No se pudo precargar la retirada anterior:', e);
+          }
+        }
+      }
 
       // Cargar tipos de residuos (LER)
       const wasteTypesData = await wasteTypeService.getAll();
@@ -190,6 +548,41 @@ export default function NuevoDocumentoIdentificacionPage() {
     }
   }, [formData.gestor_cif, formData.fecha_documento, allContacts]);
 
+  // A7-08: Sincronizar automáticamente gestor_numero_autorizacion con la autorización ambiental específica
+  // que cubre el LER y operación de tratamiento seleccionados cuando el gestor tiene múltiples autorizaciones
+  useEffect(() => {
+    if (!destAuthScope?.authorizations || destAuthScope.authorizations.length === 0) return;
+    const ler = (formData.codigo_ler || '').trim();
+    if (!ler) return;
+    const normOp = (v: string) => v.trim().toUpperCase().replace(/^([RD])(\d)$/, '$10$2');
+    const selectedOp = formData.operacion_tratamiento ? normOp(formData.operacion_tratamiento) : '';
+
+    const matchingAuth =
+      destAuthScope.authorizations.find((auth: any) =>
+        (auth.waste_codes || []).some((wc: any) => {
+          if (wc.codigo_ler?.trim() !== ler) return false;
+          if (!selectedOp) return true;
+          const ops: string[] = Array.isArray(wc.operaciones_tratamiento)
+            ? wc.operaciones_tratamiento.map(normOp)
+            : [];
+          return ops.length === 0 || ops.includes(selectedOp);
+        })
+      ) ||
+      destAuthScope.authorizations.find((auth: any) =>
+        (auth.waste_codes || []).some((wc: any) => wc.codigo_ler?.trim() === ler)
+      );
+
+    if (
+      matchingAuth?.numero_autorizacion &&
+      matchingAuth.numero_autorizacion !== formData.gestor_numero_autorizacion
+    ) {
+      setFormData((prev) => ({
+        ...prev,
+        gestor_numero_autorizacion: matchingAuth.numero_autorizacion,
+      }));
+    }
+  }, [destAuthScope, formData.codigo_ler, formData.operacion_tratamiento]);
+
   const handleOriginChange = (value: string) => {
     setSelectedOrigin(value);
     if (value === 'principal' && myCompany) {
@@ -218,333 +611,621 @@ export default function NuevoDocumentoIdentificacionPage() {
     }
   };
 
-  const handleRoleSwitch = (newRole: 'productor' | 'gestor') => {
-    setExpeditionRole(newRole);
-    if (!myCompany) return;
+    const handleRoleSwitch = (newRole: 'productor' | 'gestor' | 'operador') => {
+      const isGestorAllowed = Boolean(myCompany?.tipo_empresa === 'gestor' || myCompany?.roles?.includes('gestor'));
+      if (newRole === 'gestor' && !isGestorAllowed) return;
+      setExpeditionRole(newRole);
+      if (!myCompany) return;
 
-    const defaultDir = myCompany.domicilio_instalacion || myCompany.domicilio_social || '';
-    const defaultMuni = myCompany.municipio_instalacion || myCompany.municipio_social || '';
-    const defaultProv = myCompany.provincia_instalacion || myCompany.provincia_social || '';
-    const defaultCP = myCompany.codigo_postal_instalacion || myCompany.codigo_postal_social || '';
-    const defaultNima = myCompany.nima || '';
+      const defaultDir = myCompany.domicilio_instalacion || myCompany.domicilio_social || '';
+      const defaultMuni = myCompany.municipio_instalacion || myCompany.municipio_social || '';
+      const defaultProv = myCompany.provincia_instalacion || myCompany.provincia_social || '';
+      const defaultCP = myCompany.codigo_postal_instalacion || myCompany.codigo_postal_social || '';
+      const defaultNima = myCompany.nima || '';
 
-    if (newRole === 'gestor') {
-      // Mi empresa pasa a ser el gestor destinatario
-      setFormData(prev => ({
-        ...prev,
-        gestor_razon_social: myCompany.razon_social,
-        gestor_cif: myCompany.cif,
-        gestor_nima: defaultNima,
-        gestor_numero_autorizacion: myCompany.numero_autorizacion || myCompany.numero_inscripcion || '',
-        gestor_direccion: defaultDir,
-        gestor_municipio: defaultMuni,
-        gestor_provincia: defaultProv,
-        gestor_codigo_postal: defaultCP,
-        gestor_telefono: myCompany.telefono || '',
-        // Limpiar productor para que se introduzca el cliente
-        productor_razon_social: '',
-        productor_cif: '',
-        productor_nima: '',
-        productor_direccion: '',
-        productor_municipio: '',
-        productor_provincia: '',
-        productor_codigo_postal: '',
-      }));
-      checkDestinationAuthorization(myCompany.cif, formData.fecha_documento);
-    } else {
-      // Mi empresa pasa a ser el productor
-      setFormData(prev => ({
-        ...prev,
-        productor_razon_social: myCompany.razon_social,
-        productor_cif: myCompany.cif,
-        productor_nima: defaultNima,
-        productor_direccion: defaultDir,
-        productor_municipio: defaultMuni,
-        productor_provincia: defaultProv,
-        productor_codigo_postal: defaultCP,
-        // Limpiar gestor
-        gestor_razon_social: '',
-        gestor_cif: '',
-        gestor_nima: '',
-        gestor_numero_autorizacion: '',
-        gestor_direccion: '',
-        gestor_municipio: '',
-        gestor_provincia: '',
-        gestor_codigo_postal: '',
-      }));
-    }
-  };
+      if (newRole === 'gestor') {
+        // Mi empresa pasa a ser el gestor destinatario
+        setFormData(prev => ({
+          ...prev,
+          gestor_razon_social: myCompany.razon_social,
+          gestor_cif: myCompany.cif,
+          gestor_nima: defaultNima,
+          gestor_numero_autorizacion: myCompany.numero_autorizacion || myCompany.numero_inscripcion || '',
+          gestor_direccion: defaultDir,
+          gestor_municipio: defaultMuni,
+          gestor_provincia: defaultProv,
+          gestor_codigo_postal: defaultCP,
+          gestor_telefono: myCompany.telefono || '',
+          // Limpiar productor para que se introduzca el cliente
+          productor_razon_social: '',
+          productor_cif: '',
+          productor_nima: '',
+          productor_direccion: '',
+          productor_municipio: '',
+          productor_provincia: '',
+          productor_codigo_postal: '',
+        }));
+        checkDestinationAuthorization(myCompany.cif, formData.fecha_documento);
+      } else if (newRole === 'operador') {
+        // A7-03: Mi empresa actúa como Operador del Traslado (Negociante / Agente) y el Productor es el tercero físico
+        setFormData(prev => ({
+          ...prev,
+          operador_razon_social: myCompany.razon_social,
+          operador_cif: myCompany.cif,
+          operador_nima: defaultNima,
+          operador_direccion: defaultDir,
+          operador_municipio: defaultMuni,
+          operador_provincia: defaultProv,
+          operador_codigo_postal: defaultCP,
+          operador_telefono: myCompany.telefono || '',
+          operador_email: myCompany.email || '',
+          operador_tipo: (myCompany.tipo_empresa === 'agente' ? 'agente' : 'negociante') as any,
+          productor_razon_social:
+            prev.productor_cif === myCompany.cif ? '' : (prev.productor_razon_social || ''),
+          productor_cif:
+            prev.productor_cif === myCompany.cif ? '' : (prev.productor_cif || ''),
+          productor_nima:
+            prev.productor_cif === myCompany.cif ? '' : (prev.productor_nima || ''),
+          productor_direccion:
+            prev.productor_cif === myCompany.cif ? '' : (prev.productor_direccion || ''),
+          productor_municipio:
+            prev.productor_cif === myCompany.cif ? '' : (prev.productor_municipio || ''),
+          productor_provincia:
+            prev.productor_cif === myCompany.cif ? '' : (prev.productor_provincia || ''),
+          productor_codigo_postal:
+            prev.productor_cif === myCompany.cif ? '' : (prev.productor_codigo_postal || ''),
+        }));
+      } else {
+        // Mi empresa pasa a ser el productor
+        setFormData(prev => ({
+          ...prev,
+          productor_razon_social: myCompany.razon_social,
+          productor_cif: myCompany.cif,
+          productor_nima: defaultNima,
+          productor_direccion: defaultDir,
+          productor_municipio: defaultMuni,
+          productor_provincia: defaultProv,
+          productor_codigo_postal: defaultCP,
+          // Limpiar gestor
+          gestor_razon_social: '',
+          gestor_cif: '',
+          gestor_nima: '',
+          gestor_numero_autorizacion: '',
+          gestor_direccion: '',
+          gestor_municipio: '',
+          gestor_provincia: '',
+          gestor_codigo_postal: '',
+        }));
+      }
+    };
 
-  const handleClientProducerChange = (contactId: string) => {
-    setSelectedClientContact(contactId);
-    const contact = allContacts.find(c => c.id === parseInt(contactId));
-    if (contact) {
-      setFormData(prev => ({
-        ...prev,
-        productor_razon_social: contact.razon_social,
-        productor_cif: contact.cif,
-        productor_nima: contact.nima || '',
-        productor_direccion: contact.domicilio_instalacion || contact.domicilio_social || '',
-        productor_municipio: contact.municipio_instalacion || contact.municipio_social || '',
-        productor_provincia: contact.provincia_instalacion || contact.provincia_social || '',
-        productor_codigo_postal: contact.codigo_postal_instalacion || contact.codigo_postal_social || '',
-      }));
-    }
-  };
+    const handleClientProducerChange = (contactId: string) => {
+      setSelectedClientContact(contactId);
+      const contact = allContacts.find(c => c.id === parseInt(contactId));
+      if (contact) {
+        setFormData(prev => ({
+          ...prev,
+          productor_razon_social: contact.razon_social,
+          productor_cif: contact.cif,
+          productor_nima: contact.nima || '',
+          productor_direccion: contact.domicilio_instalacion || contact.domicilio_social || '',
+          productor_municipio: contact.municipio_instalacion || contact.municipio_social || '',
+          productor_provincia: contact.provincia_instalacion || contact.provincia_social || '',
+          productor_codigo_postal: contact.codigo_postal_instalacion || contact.codigo_postal_social || '',
+        }));
+      }
+    };
 
-  const handleContractChange = (contractId: string) => {
-    const contract = contracts.find(c => c.id === parseInt(contractId));
-    if (!contract) return;
+    const handleContractChange = (contractId: string) => {
+      if (!contractId) {
+        setFormData(prev => ({
+          ...prev,
+          contract_id: undefined,
+        }));
+        return;
+      }
 
-    if (contract.treatment_manager) {
-      setFormData(prev => ({
-        ...prev,
-        contract_id: contract.id,
-        gestor_razon_social: contract.treatment_manager!.razon_social,
-        gestor_cif: contract.treatment_manager!.cif,
-        gestor_nima: contract.treatment_manager!.nima || '',
-        gestor_numero_autorizacion: contract.treatment_manager!.numero_autorizacion || '',
-        gestor_direccion: contract.treatment_manager!.direccion || '',
-        gestor_codigo_postal: contract.treatment_manager!.codigo_postal || '',
-        gestor_municipio: contract.treatment_manager!.municipio || '',
-        gestor_provincia: contract.treatment_manager!.provincia || '',
-        gestor_telefono: contract.treatment_manager!.telefono || '',
-      }));
-    } else if (contract.gestor_company) {
-      setFormData(prev => ({
-        ...prev,
-        contract_id: contract.id,
-        gestor_razon_social: contract.gestor_company!.razon_social,
-        gestor_cif: contract.gestor_company!.cif,
-        gestor_nima: contract.gestor_company!.nima || '',
-        gestor_numero_autorizacion: '',
-        gestor_direccion: contract.gestor_company!.domicilio_social || '',
-        gestor_codigo_postal: contract.gestor_company!.codigo_postal_social || '',
-        gestor_municipio: contract.gestor_company!.municipio_social || '',
-        gestor_provincia: contract.gestor_company!.provincia_social || '',
-        gestor_telefono: contract.gestor_company!.telefono || '',
-      }));
-    }
-  };
+      const contract = contracts.find(c => c.id === parseInt(contractId));
+      if (!contract) return;
 
-  const handleGestorChange = (gestorId: string) => {
-    const gestor = gestores.find(g => g.id === parseInt(gestorId));
-    if (gestor) {
-      setFormData(prev => ({
-        ...prev,
-        gestor_razon_social: gestor.razon_social,
-        gestor_cif: gestor.cif,
-        gestor_nima: gestor.nima || '',
-        gestor_numero_autorizacion: gestor.numero_inscripcion || '',
-        gestor_direccion: gestor.domicilio_social || '',
-        gestor_codigo_postal: gestor.codigo_postal_social || '',
-        gestor_municipio: gestor.municipio_social || '',
-        gestor_provincia: gestor.provincia_social || '',
-        gestor_telefono: gestor.telefono || '',
-      }));
-    }
-  };
+      if (contract.treatment_manager) {
+        const tm = contract.treatment_manager;
+        const tmCp = tm.codigo_postal || '';
+        const tmProv = tm.provincia || (tmCp ? getProvinceByPostalCode(tmCp) : '') || '';
+        setFormData(prev => ({
+          ...prev,
+          contract_id: contract.id,
+          gestor_company_id: contract.gestor_company_id || tm.company_id || undefined,
+          gestor_razon_social: tm.razon_social,
+          gestor_cif: tm.cif,
+          gestor_nima: tm.nima || '',
+          gestor_numero_autorizacion: tm.numero_autorizacion || '',
+          gestor_direccion: tm.direccion || '',
+          gestor_codigo_postal: tmCp,
+          gestor_municipio: tm.municipio || '',
+          gestor_provincia: tmProv,
+          gestor_telefono: tm.telefono || '',
+        }));
+      } else if (contract.gestor_company) {
+        const gc = contract.gestor_company;
+        const authNum =
+          contract.environmental_authorization?.numero_autorizacion ||
+          gc.numero_autorizacion ||
+          (gc as any).numero_autorizacion_gestor ||
+          '';
 
-  const handleInternalGestorChange = (gestorId: string) => {
-    const gestor = internalGestores.find(g => g.id === parseInt(gestorId));
-    if (gestor) {
-      setFormData(prev => ({
-        ...prev,
-        gestor_razon_social: gestor.razon_social,
-        gestor_cif: gestor.cif,
-        gestor_nima: gestor.nima || '',
-        gestor_numero_autorizacion: gestor.numero_autorizacion || '',
-        gestor_direccion: gestor.direccion || '',
-        gestor_codigo_postal: gestor.codigo_postal || '',
-        gestor_municipio: gestor.municipio || '',
-        gestor_provincia: gestor.provincia || '',
-        gestor_telefono: gestor.telefono || '',
-      }));
-    }
-  };
+        const gcCp = gc.codigo_postal_instalacion || gc.codigo_postal_social || (gc as any).codigo_postal || '';
+        const gcMuni = gc.municipio_instalacion || gc.municipio_social || (gc as any).municipio || '';
+        const gcProv = gc.provincia_instalacion || gc.provincia_social || (gc as any).provincia || (gcCp ? getProvinceByPostalCode(gcCp) : '') || '';
+        const gcDir = gc.domicilio_instalacion || gc.domicilio_social || (gc as any).direccion || '';
 
-  const handleTransportistaChange = (transportistaId: string) => {
-    const transportista = transportistas.find(t => t.id === parseInt(transportistaId));
-    if (transportista) {
-      setFormData(prev => ({
-        ...prev,
-        transportista_razon_social: transportista.razon_social,
-        transportista_cif: transportista.cif,
-        transportista_telefono: transportista.telefono || '',
-      }));
-    }
-  };
+        setFormData(prev => ({
+          ...prev,
+          contract_id: contract.id,
+          gestor_company_id: contract.gestor_company_id || gc.id,
+          gestor_razon_social: gc.razon_social,
+          gestor_cif: gc.cif,
+          gestor_nima: gc.nima || '',
+          gestor_numero_autorizacion: authNum,
+          gestor_direccion: gcDir,
+          gestor_codigo_postal: gcCp,
+          gestor_municipio: gcMuni,
+          gestor_provincia: gcProv,
+          gestor_telefono: gc.telefono || '',
+        }));
 
-  const handleInternalCarrierChange = (carrierId: string) => {
-    const carrier = internalCarriers.find(c => c.id === parseInt(carrierId));
-    if (carrier) {
-      setFormData(prev => ({
-        ...prev,
-        transportista_razon_social: carrier.razon_social,
-        transportista_cif: carrier.cif,
-        transportista_nima: carrier.nima || '',
-        transportista_matricula: carrier.matricula || '',
-        transportista_direccion: carrier.direccion || '',
-        transportista_codigo_postal: carrier.codigo_postal || '',
-        transportista_municipio: carrier.municipio || '',
-        transportista_provincia: carrier.provincia || '',
-        transportista_telefono: carrier.telefono || '',
-      }));
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setValidationErrors({});
-
-    // VALIDACIÓN CON ZOD para SIRA
-    const validationResult = siraValidationSchema.safeParse(formData);
-
-    if (!validationResult.success) {
-      // Extraemos los errores
-      const formattedErrors: Record<string, string> = {};
-      let firstErrorMessage = '';
-
-      validationResult.error.issues.forEach((err: z.ZodIssue) => {
-        // Guardamos el primer mensaje para mostrarlo arriba, incluyendo qué campo es
-        if (!firstErrorMessage) {
-          const fieldName = err.path[0] || 'Desconocido';
-          // Mapeo amigable de nombres técnicos a humanos si quieres, o directo
-          firstErrorMessage = `${err.message} (Campo: ${String(fieldName)})`;
+        // Si no viene en el contrato pero hay gestor_company_id, consultar autorizaciones asociadas
+        if (!authNum && (contract.gestor_company_id || contract.gestor_company.id)) {
+          const targetCompanyId = contract.gestor_company_id || contract.gestor_company.id;
+          authorizationService.getByCompany(targetCompanyId).then((auths: any[]) => {
+            if (auths && auths.length > 0 && auths[0].numero_autorizacion) {
+              setFormData(p => ({
+                ...p,
+                gestor_numero_autorizacion: auths[0].numero_autorizacion,
+              }));
+            }
+          }).catch(() => { });
         }
-        if (err.path[0]) {
-          formattedErrors[err.path[0].toString()] = err.message;
-        }
-      });
+      }
+    };
 
-      setValidationErrors(formattedErrors);
-      setError(`Error de validación: ${firstErrorMessage}`);
-      // Hacemos scroll arriba si hay error
-      window.scrollTo(0, 0);
-      return;
-    }
+    const handleInternalGestorChange = (gestorId: string) => {
+      const gestor = internalGestores.find(g => g.id === parseInt(gestorId));
+      if (gestor) {
+        const gCp = gestor.codigo_postal || '';
+        const gProv = gestor.provincia || (gCp ? getProvinceByPostalCode(gCp) : '') || '';
+        setFormData(prev => ({
+          ...prev,
+          gestor_razon_social: gestor.razon_social,
+          gestor_cif: gestor.cif,
+          gestor_nima: gestor.nima || '',
+          gestor_numero_autorizacion: gestor.numero_autorizacion || '',
+          gestor_direccion: gestor.direccion || '',
+          gestor_codigo_postal: gCp,
+          gestor_municipio: gestor.municipio || '',
+          gestor_provincia: gProv,
+          gestor_telefono: gestor.telefono || '',
+        }));
+      }
+    };
 
-    // Validación de Autorización Ambiental en Destino (Bloque 2)
-    if (destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler) {
-      const allowedOps = destAuthScope.authorizedLers[formData.codigo_ler];
-      if (!allowedOps) {
-        setError(
-          `Destino no autorizado: El gestor seleccionado (${formData.gestor_razon_social || 'destino'}) no cuenta con autorización ambiental para el código LER ${formData.codigo_ler}.`
+    const handleInternalCarrierChange = (carrierId: string) => {
+      const carrier = internalCarriers.find(c => c.id === parseInt(carrierId));
+      if (carrier) {
+        setFormData(prev => ({
+          ...prev,
+          transportista_razon_social: carrier.razon_social,
+          transportista_cif: carrier.cif,
+          transportista_nima: carrier.nima || '',
+          transportista_matricula: carrier.matricula || '',
+          transportista_direccion: carrier.direccion || '',
+          transportista_codigo_postal: carrier.codigo_postal || '',
+          transportista_municipio: carrier.municipio || '',
+          transportista_provincia: carrier.provincia || '',
+          transportista_telefono: carrier.telefono || '',
+        }));
+      }
+    };
+
+    const handleSelectFleetDriverForDi = (driverId: string) => {
+      const drv = fleetDrivers.find((d) => String(d.id) === driverId);
+      if (!drv) return;
+      const linkedVehicle = drv.vehicle_id
+        ? fleetVehicles.find((v) => v.id === drv.vehicle_id)
+        : fleetVehicles.find(
+          (v) =>
+            drv.vehiculo_asignado &&
+            v.matricula.replace(/\s+/g, '').toUpperCase() ===
+            drv.vehiculo_asignado.replace(/\s+/g, '').toUpperCase()
         );
+      const plate = drv.vehiculo_asignado || linkedVehicle?.matricula || '';
+      const isOwnCarrier = Boolean(
+        myCompany &&
+        (myCompany.tipo_empresa === 'transportista' || myCompany.roles?.includes('transportista'))
+      );
+
+      setFormData((prev) => ({
+        ...prev,
+        transportista_matricula: plate || prev.transportista_matricula || '',
+        transportista_razon_social:
+          prev.transportista_razon_social || (isOwnCarrier ? myCompany?.razon_social || '' : ''),
+        transportista_cif: prev.transportista_cif || (isOwnCarrier ? myCompany?.cif || '' : ''),
+        transportista_nima: prev.transportista_nima || (isOwnCarrier ? myCompany?.nima || '' : ''),
+        transportista_direccion:
+          prev.transportista_direccion ||
+          (isOwnCarrier ? myCompany?.domicilio_social || myCompany?.domicilio_instalacion || '' : ''),
+        transportista_codigo_postal:
+          prev.transportista_codigo_postal ||
+          (isOwnCarrier ? myCompany?.codigo_postal_social || myCompany?.codigo_postal_instalacion || '' : ''),
+        transportista_municipio:
+          prev.transportista_municipio ||
+          (isOwnCarrier ? myCompany?.municipio_social || myCompany?.municipio_instalacion || '' : ''),
+        transportista_provincia:
+          prev.transportista_provincia ||
+          (isOwnCarrier ? myCompany?.provincia_social || myCompany?.provincia_instalacion || '' : ''),
+        transportista_telefono:
+          prev.transportista_telefono || drv.telefono || (isOwnCarrier ? myCompany?.telefono || '' : ''),
+      }));
+    };
+
+    const handleSelectFleetVehicleForDi = (vehicleId: string) => {
+      const veh = fleetVehicles.find((v) => String(v.id) === vehicleId);
+      if (!veh) return;
+      setFormData((prev) => ({
+        ...prev,
+        transportista_matricula: veh.matricula,
+      }));
+    };
+
+    const matchedDiFleetVehicle = fleetVehicles.find(
+      (v) =>
+        formData.transportista_matricula &&
+        v.matricula.replace(/\s+/g, '').toUpperCase() ===
+        formData.transportista_matricula.replace(/\s+/g, '').toUpperCase()
+    );
+    const matchedDiFleetDriver = fleetDrivers.find(
+      (d) =>
+        formData.transportista_matricula &&
+        d.vehiculo_asignado &&
+        d.vehiculo_asignado.replace(/\s+/g, '').toUpperCase() ===
+        formData.transportista_matricula.replace(/\s+/g, '').toUpperCase()
+    );
+    const diFleetAlerts = [
+      ...(matchedDiFleetVehicle ? getVehicleComplianceAlerts(matchedDiFleetVehicle) : []),
+      ...(matchedDiFleetDriver ? getDriverComplianceAlerts(matchedDiFleetDriver) : []),
+    ];
+
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError(null);
+      setValidationErrors({});
+
+      // VALIDACIÓN CON ZOD para SIRA
+      const validationResult = siraValidationSchema.safeParse(formData);
+
+      if (!validationResult.success) {
+        // Extraemos los errores
+        const formattedErrors: Record<string, string> = {};
+        let firstErrorMessage = '';
+
+        validationResult.error.issues.forEach((err: z.ZodIssue) => {
+          // Guardamos el primer mensaje para mostrarlo arriba, incluyendo qué campo es
+          if (!firstErrorMessage) {
+            const fieldName = err.path[0] || 'Desconocido';
+            // Mapeo amigable de nombres técnicos a humanos si quieres, o directo
+            firstErrorMessage = `${err.message} (Campo: ${String(fieldName)})`;
+          }
+          if (err.path[0]) {
+            formattedErrors[err.path[0].toString()] = err.message;
+          }
+        });
+
+        setValidationErrors(formattedErrors);
+        setError(`Error de validación: ${firstErrorMessage}`);
+        scrollToFirstError(formattedErrors);
+        return;
+      }
+
+      // Validación de Autorización Ambiental en Destino (Bloque 2)
+      if (destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler) {
+        if (destAuthScope.isAuthorized === false) {
+          setError(
+            `Autorización caducada: El gestor seleccionado (${formData.gestor_razon_social || 'destino'}) no dispone de una autorización ambiental vigente.`
+          );
+          window.scrollTo(0, 0);
+          return;
+        }
+        const allowedOps = destAuthScope.authorizedLers[formData.codigo_ler];
+        if (!allowedOps) {
+          setError(
+            `Destino no autorizado: El gestor seleccionado (${formData.gestor_razon_social || 'destino'}) no cuenta con autorización ambiental para el código LER ${formData.codigo_ler}.`
+          );
+          window.scrollTo(0, 0);
+          return;
+        }
+
+        if (formData.operacion_tratamiento) {
+          const normOp = (v: string) => v.trim().toUpperCase().replace(/^([RD])(\d)$/, '$10$2');
+          const cleanOp = normOp(formData.operacion_tratamiento);
+          const normalizedAllowed = allowedOps.map(normOp);
+          if (!normalizedAllowed.includes(cleanOp)) {
+            setError(
+              `Operación no autorizada: La operación "${formData.operacion_tratamiento}" no está permitida para el LER ${formData.codigo_ler} en la autorización ambiental del destino (Operaciones autorizadas: ${allowedOps.join(', ')}).`
+            );
+            window.scrollTo(0, 0);
+            return;
+          }
+        }
+      }
+
+      // Validar coherencia entre fecha de recogida y fecha de entrega
+      if (
+        formData.fecha_recogida &&
+        formData.fecha_entrega &&
+        formData.fecha_entrega.split('T')[0] < formData.fecha_recogida.split('T')[0]
+      ) {
+        setValidationErrors((prev) => ({
+          ...prev,
+          fecha_entrega: 'La fecha de entrega estimada no puede ser anterior a la fecha de recogida.',
+        }));
+        setError('La fecha de entrega estimada no puede ser anterior a la fecha de recogida.');
         window.scrollTo(0, 0);
         return;
       }
 
-      if (formData.operacion_tratamiento) {
-        const cleanOp = formData.operacion_tratamiento.toUpperCase().trim();
-        if (!allowedOps.includes(cleanOp)) {
+      // Validar coherencia entre contrato seleccionado y gestor destinatario (Art. 5 RD 553/2020)
+      if (formData.contract_id) {
+        const linkedContract = contracts.find((c) => c.id === formData.contract_id);
+        const contractGestorCif = (
+          linkedContract?.treatment_manager?.cif ||
+          linkedContract?.gestor_company?.cif ||
+          ''
+        )
+          .trim()
+          .toUpperCase();
+        const formGestorCif = (formData.gestor_cif || '').trim().toUpperCase();
+        if (contractGestorCif && formGestorCif && contractGestorCif !== formGestorCif) {
           setError(
-            `Operación no autorizada: La operación "${formData.operacion_tratamiento}" no está permitida para el LER ${formData.codigo_ler} en la autorización ambiental del destino (Operaciones autorizadas: ${allowedOps.join(', ')}).`
+            `Incoherencia contractual: El contrato ${linkedContract?.numero_contrato || `#${formData.contract_id}`} corresponde al gestor con CIF ${contractGestorCif}, no a ${formGestorCif}. Desvincula el contrato o selecciona el contrato del gestor correspondiente.`
           );
           window.scrollTo(0, 0);
           return;
         }
       }
-    }
 
-    // Datos validados y listos
-    try {
-      setSaving(true);
-      const created = await identificationDocumentService.create(formData);
-      router.push(`/residuos/documentos-identificacion/${created.id}`);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
+      // Datos validados y listos
+      try {
+        setSaving(true);
+        const created = await identificationDocumentService.create(formData);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted">Cargando...</p>
-      </div>
-    );
-  }
+        // A7-03: Si el DI fue emitido desde una Operación Comercial de Negociante/Agente, vincularlo automáticamente
+        if (linkedCommercialOp) {
+          try {
+            if (
+              linkedCommercialLineIndex !== null &&
+              Array.isArray(linkedCommercialOp.lineas_materiales) &&
+              linkedCommercialOp.lineas_materiales[linkedCommercialLineIndex]
+            ) {
+              const updatedLines = linkedCommercialOp.lineas_materiales.map((l, idx) =>
+                idx === linkedCommercialLineIndex
+                  ? { ...l, di_referencia: created.numero_documento || `DI #${created.id}` }
+                  : l
+              );
+              await commercialOperationService.update(linkedCommercialOp.id, {
+                ...(!linkedCommercialOp.identification_document_id
+                  ? { identification_document_id: created.id }
+                  : {}),
+                lineas_materiales: updatedLines,
+              });
+            } else {
+              await commercialOperationService.update(linkedCommercialOp.id, {
+                identification_document_id: created.id,
+              });
+            }
+          } catch (linkErr) {
+            console.warn('No se pudo vincular automáticamente el DI a la operación comercial:', linkErr);
+          }
+        }
 
-  return (
-    <>
-      <PageBreadCrumb pageTitle="Nuevo Documento de Identificación" />
+        router.push(`/residuos/documentos-identificacion/${created.id}`);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setSaving(false);
+      }
+    };
 
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-foreground">
-            Nuevo Documento de Identificación (DI)
-          </h2>
-          <Button variant="outline" onClick={() => router.push('/residuos/documentos-identificacion')}>
-            ← Cancelar
-          </Button>
+    const handleSelectNt = (ntIdStr: string) => {
+      if (!ntIdStr) {
+        setFormData((prev) => ({ ...prev, prior_notification_id: undefined, numero_notificacion: '' }));
+        return;
+      }
+      const nt = priorNotifications.find((n) => String(n.id) === ntIdStr);
+      if (!nt) return;
+      setFormData((prev) => ({
+        ...prev,
+        prior_notification_id: nt.id,
+        numero_notificacion: nt.numero_notificacion,
+        tipo_notificacion: 'con-notificacion-previa',
+        codigo_ler: nt.codigo_ler || prev.codigo_ler,
+        descripcion_residuo: nt.descripcion_residuo || prev.descripcion_residuo,
+        peligrosidad: nt.peligrosidad || prev.peligrosidad,
+        operacion_tratamiento_ejecutada: nt.operacion_tratamiento || prev.operacion_tratamiento_ejecutada,
+        operacion_tratamiento: nt.operacion_tratamiento || prev.operacion_tratamiento,
+        gestor_razon_social: nt.gestor_razon_social || prev.gestor_razon_social,
+        gestor_cif: nt.gestor_cif || prev.gestor_cif,
+        gestor_nima: nt.gestor_nima || prev.gestor_nima,
+      }));
+    };
+
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <p className="text-muted">Cargando...</p>
         </div>
+      );
+    }
 
-        {error && (
-          <Alert variant="error" title="Error" message={error} />
-        )}
+    return (
+      <>
+        <PageBreadCrumb pageTitle="Nuevo Documento de Identificación" />
 
-        <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-          {/* Modalidad de Expedición */}
-          <div data-tour="di-nuevo-perspectiva">
-            <ComponentCard
-              title="Perspectiva de Expedición (RD 553/2020)"
-              desc="Selecciona si emites el traslado como Productor (envío de tus residuos) o como Gestor Receptor (recepción o gestión para un cliente)."
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => handleRoleSwitch('productor')}
-                  className={`p-4 rounded-xl border text-left transition-all ${expeditionRole === 'productor'
-                      ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
-                      : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
-                    }`}
-                >
-                  <div className="flex items-center gap-3 mb-1">
-                    <span className="text-xl">🏭</span>
-                    <span className="font-semibold text-sm text-foreground">Como Productor / Poseedor</span>
-                  </div>
-                  <p className="text-xs text-muted">
-                    Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) genera el residuo y lo transfiere a un gestor de destino.
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleRoleSwitch('gestor')}
-                  className={`p-4 rounded-xl border text-left transition-all ${expeditionRole === 'gestor'
-                      ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
-                      : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
-                    }`}
-                >
-                  <div className="flex items-center gap-3 mb-1">
-                    <span className="text-xl">♻️</span>
-                    <span className="font-semibold text-sm text-foreground">Como Gestor Receptor</span>
-                  </div>
-                  <p className="text-xs text-muted">
-                    Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) es la instalación autorizada que recepcionará el residuo de un cliente.
-                  </p>
-                </button>
-              </div>
-            </ComponentCard>
+        <div className="max-w-6xl mx-auto space-y-6">
+          {/* Header */}
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-foreground">
+              Nuevo Documento de Identificación (DI)
+            </h2>
+            <Button variant="outline" onClick={() => router.push('/residuos/documentos-identificacion')}>
+              ← Cancelar
+            </Button>
           </div>
 
-          {/* Datos del Documento */}
-          <div data-tour="di-nuevo-datos">
+          {duplicateSourceInfo && (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="p-2 bg-emerald-100 dark:bg-emerald-900/50 rounded-lg text-emerald-700 dark:text-emerald-300">
+                  <Copy className="w-5 h-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+                    Repitiendo retirada basada en {duplicateSourceInfo.numero_documento}
+                  </p>
+                  <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                    Se han precargado los datos de contrato, centro, gestor, transportista y residuo LER. Revise la cantidad y confirme la fecha.
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs px-2.5 py-1 bg-emerald-200/60 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-semibold rounded-full">
+                Borrador Nuevo
+              </span>
+            </div>
+          )}
+
+          {error && (
+            <Alert variant="error" title="Error" message={error} />
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+              {/* Modalidad de Expedición (A7-03: soporte Operador Negociante/Agente con origen de tercero) */ }
+            {myCompany?.tipo_empresa === 'gestor' ||
+              myCompany?.roles?.includes('gestor') ||
+              myCompany?.tipo_empresa === 'negociante' ||
+              myCompany?.tipo_empresa === 'agente' ||
+              myCompany?.perfil_operativo === 'negociante' ||
+              myCompany?.roles?.includes('negociante') ||
+              myCompany?.roles?.includes('agente') ||
+              expeditionRole === 'operador' ? (
+              <ComponentCard
+                title="Perspectiva de Expedición (RD 553/2020)"
+                desc="Selecciona en calidad de qué figura reglamentaria organizas y emites el Documento de Identificación del traslado."
+              >
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => handleRoleSwitch('productor')}
+                      className={`p-4 rounded-xl border text-left transition-all ${expeditionRole === 'productor'
+                        ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
+                        : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
+                        }`}
+                    >
+                      <div className="mb-1">
+                        <span className="font-semibold text-sm text-foreground">Como Productor / Poseedor</span>
+                      </div>
+                      <p className="text-xs text-muted">
+                        Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) genera el residuo en su centro y lo transfiere a destino.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                    onClick={() => handleRoleSwitch('operador')}
+                      className={`p-4 rounded-xl border text-left transition-all ${expeditionRole === 'operador'
+                        ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
+                        : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
+                        }`}
+                    >
+                      <div className="mb-1">
+                        <span className="font-semibold text-sm text-foreground">Como Operador (Negociante / Agente)</span>
+                      </div>
+                      <p className="text-xs text-muted">
+                        Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) organiza el traslado con mandato desde el centro físico de un tercero productor.
+                      </p>
+                    </button>
+
+                    {(myCompany?.tipo_empresa === 'gestor' || myCompany?.roles?.includes('gestor')) && (
+                      <button
+                        type="button"
+                        onClick={() => handleRoleSwitch('gestor')}
+                        className={`p-4 rounded-xl border text-left transition-all ${expeditionRole === 'gestor'
+                          ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
+                          : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
+                          }`}
+                      >
+                        <div className="mb-1">
+                          <span className="font-semibold text-sm text-foreground">Como Gestor Receptor</span>
+                        </div>
+                        <p className="text-xs text-muted">
+                          Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) es la instalación autorizada que recepcionará el residuo.
+                        </p>
+                      </button>
+                    )}
+                  </div>
+
+                  {expeditionRole === 'operador' && (
+                    <div className="mt-4 p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 text-xs space-y-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-bold text-indigo-950 dark:text-indigo-200">
+                          Operador del Traslado (Art. 2.h RD 553/2020): {formData.operador_razon_social || myCompany?.razon_social} (CIF: {formData.operador_cif || myCompany?.cif} · NIMA: {formData.operador_nima || myCompany?.nima || 'S/D'})
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/60 font-semibold text-indigo-800 dark:text-indigo-300">
+                          Rol: Operador ({formData.operador_tipo === 'agente' ? 'Agente' : 'Negociante'})
+                        </span>
+                      </div>
+                      {linkedCommercialOp ? (
+                        <p className="text-indigo-800 dark:text-indigo-300">
+                          Vinculado a Operación Comercial <strong>{linkedCommercialOp.numero_operacion}</strong>
+                          {linkedCommercialOp.mandato_referencia
+                            ? ` · Mandato acreditado: ${linkedCommercialOp.mandato_referencia}${linkedCommercialOp.mandato_otorgante ? ` (Otorgante: ${linkedCommercialOp.mandato_otorgante})` : ''}`
+                            : ''}
+                          . Los datos económicos de compra/venta permanecen privados y no se incluyen en el DI.
+                        </p>
+                      ) : (
+                        <p className="text-indigo-800 dark:text-indigo-300">
+                          Indique abajo los datos reales del Productor / Centro de Origen Físico donde se inicia el traslado del residuo.
+                        </p>
+                      )}
+                    </div>
+                  )}
+              </ComponentCard>
+            ) : (
+              <div className="p-3.5 bg-brand-50/40 dark:bg-brand-950/20 border border-brand-200/60 dark:border-brand-900/40 rounded-xl flex items-center justify-between text-xs text-brand-900 dark:text-brand-300">
+                <span>
+                  Expedición desde centro de origen como <strong>Productor / Poseedor</strong> ({myCompany?.razon_social || 'Mi Empresa'}).
+                </span>
+                <span className="px-2 py-0.5 bg-brand-100 dark:bg-brand-900/60 rounded text-[11px] font-semibold text-brand-700 dark:text-brand-300">
+                  Rol: Productor
+                </span>
+              </div>
+            )}
+
+            {/* Datos del Documento */}
             <ComponentCard title="Datos del Documento">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="numero_documento" className="block text-sm font-medium mb-2">Número de Documento</label>
+                  <label htmlFor="numero_documento" className="block text-sm font-medium mb-2">Número de Documento (Automático E3L)</label>
                   <Input
                     id="numero_documento"
                     type="text"
                     value={formData.numero_documento || ''}
                     onChange={(e) => setFormData({ ...formData, numero_documento: e.target.value })}
                     required
+                    disabled
+                    placeholder="Se asignará automáticamente al guardar"
                   />
+                  <p className="text-[11px] text-muted mt-1">
+                    Código oficial consecutivo E3L v3.6 por empresa y año (no editable).
+                  </p>
                 </div>
 
                 <div>
@@ -554,8 +1235,79 @@ export default function NuevoDocumentoIdentificacionPage() {
                     type="date"
                     value={formData.fecha_documento}
                     onChange={(e) => setFormData({ ...formData, fecha_documento: e.target.value })}
+                    error={!!validationErrors.fecha_documento}
+                    hint={validationErrors.fecha_documento}
                     required
                   />
+                </div>
+
+                {/* Régimen de Notificación Previa y Selector NT */}
+                <div className="md:col-span-2 p-4 rounded-xl border border-border bg-muted/10 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <label className="text-sm font-semibold text-foreground">
+                      Régimen de Notificación Previa (RD 553/2020)
+                    </label>
+                    <div className="flex items-center gap-4 text-sm">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="tipo_notificacion"
+                          checked={formData.tipo_notificacion === 'sin-notificacion'}
+                          onChange={() => setFormData({ ...formData, tipo_notificacion: 'sin-notificacion', prior_notification_id: undefined })}
+                          className="text-brand-600 focus:ring-brand-500"
+                        />
+                        <span>Sin Notificación Previa</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="tipo_notificacion"
+                          checked={formData.tipo_notificacion === 'con-notificacion-previa'}
+                          onChange={() => setFormData({ ...formData, tipo_notificacion: 'con-notificacion-previa' })}
+                          className="text-brand-600 focus:ring-brand-500"
+                        />
+                        <span>Con Notificación Previa (NT)</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {formData.tipo_notificacion === 'con-notificacion-previa' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-border">
+                      <div>
+                        <label className="block text-xs font-medium text-muted uppercase mb-1">
+                          Vincular Notificación Previa (NT) Existente:
+                        </label>
+                        <select
+                          className="w-full h-10 px-3 py-1.5 border rounded-lg bg-background text-foreground border-border text-sm"
+                          value={formData.prior_notification_id || ''}
+                          onChange={(e) => handleSelectNt(e.target.value)}
+                        >
+                          <option value="">-- Seleccionar de mis Notificaciones Previas --</option>
+                          {priorNotifications.map((nt) => (
+                            <option key={nt.id} value={nt.id}>
+                              {nt.numero_notificacion || `NT-${nt.id}`} - LER: {nt.codigo_ler} ({nt.gestor_razon_social})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-muted uppercase mb-1">
+                          Código Oficial NT (DCSNT para SIRA) *
+                        </label>
+                        <Input
+                          type="text"
+                          placeholder="Ej. NT10110000000120260000001"
+                          value={formData.numero_notificacion || ''}
+                          onChange={(e) => setFormData({ ...formData, numero_notificacion: e.target.value })}
+                          required={formData.tipo_notificacion === 'con-notificacion-previa'}
+                        />
+                        <p className="text-[11px] text-muted mt-1">
+                          Este código será comunicado en la etiqueta oficial &lt;DCSNT&gt; ante la Junta de Andalucía.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {expeditionRole === 'productor' ? (
@@ -563,10 +1315,12 @@ export default function NuevoDocumentoIdentificacionPage() {
                     <label htmlFor="origin_selector" className="block text-sm font-medium mb-2">Origen del Residuo (Instalación / Centro) *</label>
                     <Select
                       options={[
-                        { value: 'principal', label: `🏢 Sede / Instalación Principal (${myCompany?.razon_social || 'Mi Empresa'})` },
+                        ...(!findPrincipalProductionCenter(myCompany, productionCenters)
+                          ? [{ value: 'principal', label: `Sede / Instalación Principal (${myCompany?.razon_social || 'Mi Empresa'})` }]
+                          : []),
                         ...productionCenters.map(pc => ({
                           value: pc.id.toString(),
-                          label: `📍 ${pc.nombre} (${pc.nima})`,
+                          label: `${pc.nombre} (${pc.nima})`,
                         })),
                       ]}
                       value={selectedOrigin}
@@ -581,17 +1335,26 @@ export default function NuevoDocumentoIdentificacionPage() {
                         : 'Origen: Centro de producción secundario seleccionado.'}
                     </p>
                   </div>
+                ) : expeditionRole === 'operador' ? (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Operador del Traslado (Art. 2.h RD 553/2020)</label>
+                    <div className="p-2.5 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30 text-xs text-foreground">
+                      Operador: <span className="font-semibold">{myCompany?.razon_social}</span> (CIF: {myCompany?.cif}) · Origen físico en sección Productor / Origen.
+                    </div>
+                  </div>
                 ) : (
                   <div>
                     <label className="block text-sm font-medium mb-2">Destino de Recepción</label>
                     <div className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/40 text-xs text-foreground">
-                      🏢 Recepciona: <span className="font-semibold">{myCompany?.razon_social}</span> (NIMA: {myCompany?.nima || 'S/D'})
+                      Recepciona: <span className="font-semibold">{myCompany?.razon_social}</span> (NIMA: {myCompany?.nima || 'S/D'})
                     </div>
                   </div>
                 )}
 
                 <div>
-                  <label htmlFor="contract_id" className="block text-sm font-medium mb-2">Contrato de Referencia (Opcional)</label>
+                  <label htmlFor="contract_id" className="block text-sm font-medium mb-2">
+                    Contrato de Referencia <span className="text-xs text-muted font-normal">(Opcional en borrador; requerido al iniciar traslado)</span>
+                  </label>
                   <Select
                     options={[
                       { value: '', label: contracts.length > 0 ? '-- Seleccionar Contrato --' : '-- Sin contratos vigentes con gestor --' },
@@ -604,130 +1367,291 @@ export default function NuevoDocumentoIdentificacionPage() {
                     onChange={(value) => handleContractChange(value)}
                     placeholder="Selecciona un contrato"
                   />
+
+                  {(() => {
+                    const selectedContract = formData.contract_id
+                      ? contracts.find((c) => c.id === formData.contract_id)
+                      : undefined;
+                    if (!selectedContract) return null;
+
+                    const coveredItems: Array<{
+                      ler: string;
+                      descripcion?: string;
+                      operacion?: string;
+                    }> =
+                      selectedContract.contract_waste_codes && selectedContract.contract_waste_codes.length > 0
+                        ? selectedContract.contract_waste_codes.map((wc) => ({
+                          ler: wc.codigo_ler.trim(),
+                          descripcion: wc.descripcion_ler || undefined,
+                          operacion: wc.operacion_tratamiento || undefined,
+                        }))
+                        : (selectedContract.codigos_ler || []).map((ler, idx) => ({
+                          ler: ler.trim(),
+                          operacion:
+                            selectedContract.operaciones_tratamiento?.[idx] ||
+                            selectedContract.operaciones_tratamiento?.[0] ||
+                            undefined,
+                        }));
+
+                    const currentLer = (formData.codigo_ler || '').trim();
+                    const isCurrentLerUncovered =
+                      Boolean(currentLer) &&
+                      coveredItems.length > 0 &&
+                      !coveredItems.some((item) => item.ler === currentLer);
+
+                    return (
+                      <div className="mt-3 p-3 rounded-xl bg-brand-50/50 dark:bg-brand-950/20 border border-brand-200 dark:border-brand-900/50 space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <span className="font-semibold text-brand-900 dark:text-brand-200">
+                            Residuos contemplados en el contrato {selectedContract.numero_contrato || `#${selectedContract.id}`}
+                          </span>
+                          {selectedContract.fecha_fin && (
+                            <span className="text-[11px] text-brand-700 dark:text-brand-400">
+                              Vigente hasta: <span className="font-mono font-semibold">{selectedContract.fecha_fin.split('T')[0]}</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {coveredItems.length > 0 ? (
+                          <>
+                            <p className="text-[11px] text-brand-700 dark:text-brand-400">
+                              Pulsa sobre un código LER para autorrellenar el residuo y su operación en el DI:
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {coveredItems.map((item, idx) => {
+                                const isSelected = currentLer === item.ler;
+                                const isPeligroso = item.ler.includes('*');
+                                return (
+                                  <button
+                                    key={`${item.ler}-${idx}`}
+                                    type="button"
+                                    title={item.descripcion || `Aplicar LER ${item.ler}`}
+                                    onClick={() => {
+                                      const matchedWt = wasteTypes.find((w) => w.codigo_ler.trim() === item.ler);
+                                      setFormData((prev) => ({
+                                        ...prev,
+                                        codigo_ler: item.ler,
+                                        descripcion_residuo:
+                                          item.descripcion || matchedWt?.descripcion || prev.descripcion_residuo || '',
+                                        peligrosidad:
+                                          isPeligroso || matchedWt?.categoria === 'peligroso'
+                                            ? 'peligroso'
+                                            : 'no-peligroso',
+                                        waste_type_id: matchedWt?.id ?? prev.waste_type_id,
+                                        operacion_tratamiento: item.operacion || prev.operacion_tratamiento,
+                                      }));
+                                    }}
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-mono transition ${isSelected
+                                        ? 'bg-brand-600 text-white border-brand-600 font-semibold shadow-xs'
+                                        : isPeligroso
+                                          ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800 hover:border-amber-400'
+                                          : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-brand-400'
+                                      }`}
+                                  >
+                                    <span>{item.ler}</span>
+                                    {item.operacion && (
+                                      <span
+                                        className={`text-[10px] px-1 rounded ${isSelected
+                                            ? 'bg-white/20 text-white'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                                          }`}
+                                      >
+                                        {item.operacion}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                            Este contrato no tiene códigos LER específicos registrados en su matriz; podrás indicar el LER manualmente.
+                          </p>
+                        )}
+
+                        {isCurrentLerUncovered && (
+                          <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200 font-medium">
+                            Atención: el código LER <span className="font-mono font-bold">{currentLer}</span> no figura entre los residuos contemplados por este contrato y bloqueará el inicio del traslado.
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {contracts.length === 0 && (
+                    <div className="mt-3 p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 space-y-1.5">
+                      <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-semibold text-xs">
+                        <span>Cobertura Contractual Requerida (Art. 5 RD 553/2020)</span>
+                      </div>
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                        No dispone de contratos vigentes registrados con gestores de destino. Puede preparar este borrador de traslado, pero no podrá iniciar la expedición oficial hasta formalizar un contrato de tratamiento.
+                      </p>
+                      <div>
+                        <Link href="/residuos/contratos" className="text-xs font-bold text-amber-800 dark:text-amber-300 underline hover:no-underline">
+                          + Dar de alta un Contrato de Tratamiento →
+                        </Link>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </ComponentCard>
-          </div>
 
-          {/* Productor / Origen */}
-          <ComponentCard title="Productor / Origen">
-            <div className="space-y-4">
-              {expeditionRole === 'gestor' && allContacts.length > 0 && (
-                <div className="p-3 bg-brand-50/30 dark:bg-brand-950/20 rounded-xl border border-brand-200 dark:border-brand-900/40">
-                  <label htmlFor="client_contact_select" className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
-                    Cargar datos desde Contactos / Clientes
-                  </label>
-                  <Select
-                    options={[
-                      { value: '', label: '-- Seleccionar contacto para autorrellenar --' },
-                      ...allContacts.map(c => ({
-                        value: c.id.toString(),
-                        label: `${c.razon_social} (${c.cif})`,
-                      })),
-                    ]}
-                    value={selectedClientContact}
-                    onChange={(val) => handleClientProducerChange(val)}
-                    placeholder="Seleccionar contacto guardado"
-                  />
-                </div>
-              )}
+            {/* Productor / Origen */}
+            <ComponentCard title="Productor / Origen">
+              <div className="space-y-4">
+                  {(expeditionRole === 'gestor' || expeditionRole === 'operador') && allContacts.length > 0 && (
+                    <div className="p-3 bg-brand-50/30 dark:bg-brand-950/20 rounded-xl border border-brand-200 dark:border-brand-900/40">
+                      <label htmlFor="client_contact_select" className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
+                        Cargar Productor / Origen Físico desde Contactos y Empresas
+                      </label>
+                      <Select
+                        options={[
+                          { value: '', label: '-- Seleccionar productor físico para autorrellenar --' },
+                          ...allContacts.map(c => ({
+                            value: c.id.toString(),
+                            label: `${c.razon_social} (${c.cif})${c.nima ? ` · NIMA ${c.nima}` : ''}`,
+                          })),
+                        ]}
+                        value={selectedClientContact}
+                        onChange={(val) => handleClientProducerChange(val)}
+                        placeholder="Seleccionar productor guardado"
+                      />
+                    </div>
+                  )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="productor_razon_social" className="block text-sm font-medium mb-2">Razón Social *</label>
-                  <Input
-                    id="productor_razon_social"
-                    value={formData.productor_razon_social || ''}
-                    onChange={(e) => setFormData({ ...formData, productor_razon_social: e.target.value })}
-                    disabled={expeditionRole === 'productor'}
-                    className={expeditionRole === 'productor' ? 'bg-muted' : ''}
-                    error={!!validationErrors.productor_razon_social}
-                    hint={validationErrors.productor_razon_social}
-                    required
-                  />
-                </div>
-                <div>
-                  <label htmlFor="productor_cif" className="block text-sm font-medium mb-2">CIF *</label>
-                  <Input
-                    id="productor_cif"
-                    value={formData.productor_cif || ''}
-                    onChange={(e) => setFormData({ ...formData, productor_cif: e.target.value })}
-                    disabled={expeditionRole === 'productor'}
-                    className={expeditionRole === 'productor' ? 'bg-muted' : ''}
-                    error={!!validationErrors.productor_cif}
-                    hint={validationErrors.productor_cif}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="productor_nima" className="block text-sm font-medium mb-2">NIMA *</label>
-                  <Input
-                    id="productor_nima"
-                    value={formData.productor_nima || ''}
-                    onChange={(e) => setFormData({ ...formData, productor_nima: e.target.value })}
-                    error={!!validationErrors.productor_nima}
-                    hint={validationErrors.productor_nima}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="productor_direccion" className="block text-sm font-medium mb-2">Dirección *</label>
-                  <Input
-                    id="productor_direccion"
-                    value={formData.productor_direccion || ''}
-                    onChange={(e) => setFormData({ ...formData, productor_direccion: e.target.value })}
-                    placeholder="Calle, número..."
-                    error={!!validationErrors.productor_direccion}
-                    hint={validationErrors.productor_direccion}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="productor_municipio" className="block text-sm font-medium mb-2">Municipio *</label>
-                  <Input
-                    id="productor_municipio"
-                    value={formData.productor_municipio || ''}
-                    onChange={(e) => setFormData({ ...formData, productor_municipio: e.target.value })}
-                    error={!!validationErrors.productor_municipio}
-                    hint={validationErrors.productor_municipio}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="productor_provincia" className="block text-sm font-medium mb-2">Provincia *</label>
-                  <Input
-                    id="productor_provincia"
-                    value={formData.productor_provincia || ''}
-                    onChange={(e) => setFormData({ ...formData, productor_provincia: e.target.value })}
-                    error={!!validationErrors.productor_provincia}
-                    hint={validationErrors.productor_provincia}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="productor_codigo_postal" className="block text-sm font-medium mb-2">Código Postal</label>
-                  <Input
-                    id="productor_codigo_postal"
-                    value={formData.productor_codigo_postal || ''}
-                    onChange={(e) => setFormData({ ...formData, productor_codigo_postal: e.target.value })}
-                  />
-                </div>
-              </div>
-            </div>
-          </ComponentCard>
-
-          {/* Gestor/Destinatario */}
-          <ComponentCard title="Gestor / Destinatario">
-            <div className="space-y-4">
-              {expeditionRole === 'gestor' ? (
-                <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200 dark:border-emerald-900/40 text-xs text-emerald-800 dark:text-emerald-300">
-                  ✓ El gestor destinatario receptor es <span className="font-semibold">{myCompany?.razon_social}</span>. Los datos se han completado con la ficha de tu empresa.
-                </div>
-              ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="internal_gestor_select" className="block text-sm font-medium mb-2">Mis Gestores Internos</label>
+                    <label htmlFor="productor_razon_social" className="block text-sm font-medium mb-2">Razón Social *</label>
+                    <Input
+                      id="productor_razon_social"
+                      value={formData.productor_razon_social || ''}
+                      onChange={(e) => setFormData({ ...formData, productor_razon_social: e.target.value })}
+                      disabled={expeditionRole === 'productor'}
+                      error={!!validationErrors.productor_razon_social}
+                      hint={validationErrors.productor_razon_social}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="productor_cif" className="block text-sm font-medium mb-2">CIF *</label>
+                    <Input
+                      id="productor_cif"
+                      value={formData.productor_cif || ''}
+                      onChange={(e) => setFormData({ ...formData, productor_cif: e.target.value })}
+                      disabled={expeditionRole === 'productor'}
+                      error={!!validationErrors.productor_cif}
+                      hint={validationErrors.productor_cif}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="productor_nima" className="block text-sm font-medium mb-2">NIMA *</label>
+                    <Input
+                      id="productor_nima"
+                      value={formData.productor_nima || ''}
+                      onChange={(e) => setFormData({ ...formData, productor_nima: e.target.value })}
+                      disabled={expeditionRole === 'productor'}
+                      error={!!validationErrors.productor_nima}
+                      hint={validationErrors.productor_nima}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="productor_direccion" className="block text-sm font-medium mb-2">Dirección *</label>
+                    <Input
+                      id="productor_direccion"
+                      value={formData.productor_direccion || ''}
+                      onChange={(e) => setFormData({ ...formData, productor_direccion: e.target.value })}
+                      disabled={expeditionRole === 'productor'}
+                      placeholder="Calle, número..."
+                      error={!!validationErrors.productor_direccion}
+                      hint={validationErrors.productor_direccion}
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                      <div className="md:col-span-3">
+                        <label htmlFor="productor_codigo_postal" className="block text-sm font-medium mb-2">Código Postal</label>
+                        <Input
+                          id="productor_codigo_postal"
+                          value={formData.productor_codigo_postal || ''}
+                          onChange={(e) => {
+                            const cp = e.target.value;
+                            const detectedProv = getProvinceByPostalCode(cp);
+                            setFormData((prev) => ({
+                              ...prev,
+                              productor_codigo_postal: cp,
+                              productor_provincia: detectedProv || prev.productor_provincia,
+                            }));
+                          }}
+                          disabled={expeditionRole === 'productor'}
+                          placeholder="Ej. 11510"
+                        />
+                      </div>
+
+                      <ProvinceMunicipalityFields
+                        unstyledWrapper
+                        provinciaWrapperClassName="md:col-span-4"
+                        municipioWrapperClassName="md:col-span-5"
+                        order="provincia-first"
+                        provinciaRequired
+                        municipioRequired
+                        provincia={formData.productor_provincia || ''}
+                        municipio={formData.productor_municipio || ''}
+                        provinciaId="productor_provincia"
+                        municipioId="productor_municipio"
+                        provinciaName="productor_provincia"
+                        municipioName="productor_municipio"
+                        provinciaError={!!validationErrors.productor_provincia}
+                        municipioError={!!validationErrors.productor_municipio}
+                        provinciaHint={validationErrors.productor_provincia}
+                        municipioHint={validationErrors.productor_municipio}
+                        disabled={expeditionRole === 'productor'}
+                        onChange={({ provincia, municipio }) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            productor_provincia: provincia,
+                            productor_municipio: municipio,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </ComponentCard>
+
+            {/* Gestor/Destinatario */}
+            <ComponentCard title="Gestor / Destinatario">
+              <div className="space-y-4">
+                {expeditionRole === 'gestor' ? (
+                  <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200 dark:border-emerald-900/40 text-xs text-emerald-800 dark:text-emerald-300">
+                    ✓ El gestor destinatario receptor es <span className="font-semibold">{myCompany?.razon_social}</span>. Los datos se han completado con la ficha de tu empresa.
+                  </div>
+                ) : formData.contract_id ? (
+                  <div className="p-3 bg-brand-50/60 dark:bg-brand-950/20 rounded-xl border border-brand-200 dark:border-brand-900/40 text-xs text-brand-900 dark:text-brand-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <span>
+                      ✓ Gestor vinculado al contrato{' '}
+                      <span className="font-mono font-semibold">
+                        {contracts.find((c) => c.id === formData.contract_id)?.numero_contrato || `#${formData.contract_id}`}
+                      </span>
+                      . Para elegir un gestor distinto, desvincula primero el contrato de referencia.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleContractChange('')}
+                      className="text-xs font-semibold text-brand-700 dark:text-brand-300 underline hover:no-underline shrink-0 self-start sm:self-center"
+                    >
+                      Desvincular contrato
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <label htmlFor="internal_gestor_select" className="block text-sm font-medium mb-2">Mis Gestores</label>
                     <Select
                       options={[
                         { value: '', label: '-- Seleccionar --' },
@@ -741,154 +1665,163 @@ export default function NuevoDocumentoIdentificacionPage() {
                       placeholder="Selecciona uno de tus gestores"
                     />
                   </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="gestor_select" className="block text-sm font-medium mb-2">Gestores Públicos</label>
-                    <Select
-                      options={[
-                        { value: '', label: '-- Seleccionar --' },
-                        ...gestores.map(g => ({
-                          value: g.id.toString(),
-                          label: `${g.razon_social} - ${g.cif}`,
-                        })),
-                      ]}
-                      defaultValue=""
-                      onChange={(value) => handleGestorChange(value)}
-                      placeholder="Selecciona un gestor público"
+                    <label htmlFor="gestor_razon_social" className="block text-sm font-medium mb-2">Razón Social *</label>
+                    <Input
+                      id="gestor_razon_social"
+                      type="text"
+                      value={formData.gestor_razon_social || ''}
+                      onChange={(e) => setFormData({ ...formData, gestor_razon_social: e.target.value })}
+                      disabled={expeditionRole === 'gestor' || Boolean(formData.contract_id)}
+                      error={!!validationErrors.gestor_razon_social}
+                      hint={validationErrors.gestor_razon_social}
+                      required
                     />
                   </div>
-                </div>
-              )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="gestor_razon_social" className="block text-sm font-medium mb-2">Razón Social *</label>
-                  <Input
-                    id="gestor_razon_social"
-                    type="text"
-                    value={formData.gestor_razon_social || ''}
-                    onChange={(e) => setFormData({ ...formData, gestor_razon_social: e.target.value })}
-                    disabled={expeditionRole === 'gestor'}
-                    className={expeditionRole === 'gestor' ? 'bg-muted' : ''}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="gestor_cif" className="block text-sm font-medium mb-2">CIF *</label>
-                  <Input
-                    id="gestor_cif"
-                    type="text"
-                    value={formData.gestor_cif || ''}
-                    onChange={(e) => setFormData({ ...formData, gestor_cif: e.target.value })}
-                    disabled={expeditionRole === 'gestor'}
-                    className={expeditionRole === 'gestor' ? 'bg-muted' : ''}
-                    required
-                    error={!!validationErrors.gestor_cif}
-                    hint={validationErrors.gestor_cif}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="gestor_nima" className="block text-sm font-medium mb-2">NIMA</label>
-                  <Input
-                    id="gestor_nima"
-                    type="text"
-                    value={formData.gestor_nima || ''}
-                    onChange={(e) => setFormData({ ...formData, gestor_nima: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="gestor_numero_autorizacion" className="block text-sm font-medium mb-2">Nº Autorización</label>
-                  <Input
-                    id="gestor_numero_autorizacion"
-                    type="text"
-                    value={formData.gestor_numero_autorizacion || ''}
-                    onChange={(e) => setFormData({ ...formData, gestor_numero_autorizacion: e.target.value })}
-                  />
-                </div>
-
-                {/* Campos de Dirección del Gestor (Requeridos SIRA) */}
-                <div>
-                  <label htmlFor="gestor_direccion" className="block text-sm font-medium mb-2">Dirección *</label>
-                  <Input
-                    id="gestor_direccion"
-                    value={formData.gestor_direccion || ''}
-                    onChange={(e) => setFormData({ ...formData, gestor_direccion: e.target.value })}
-                    error={!!validationErrors.gestor_direccion}
-                    hint={validationErrors.gestor_direccion}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="gestor_municipio" className="block text-sm font-medium mb-2">Municipio *</label>
-                  <Input
-                    id="gestor_municipio"
-                    value={formData.gestor_municipio || ''}
-                    onChange={(e) => setFormData({ ...formData, gestor_municipio: e.target.value })}
-                    error={!!validationErrors.gestor_municipio}
-                    hint={validationErrors.gestor_municipio}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="gestor_provincia" className="block text-sm font-medium mb-2">Provincia *</label>
-                  <Input
-                    id="gestor_provincia"
-                    value={formData.gestor_provincia || ''}
-                    onChange={(e) => setFormData({ ...formData, gestor_provincia: e.target.value })}
-                    error={!!validationErrors.gestor_provincia}
-                    hint={validationErrors.gestor_provincia}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="gestor_codigo_postal" className="block text-sm font-medium mb-2">CP</label>
-                  <Input
-                    id="gestor_codigo_postal"
-                    value={formData.gestor_codigo_postal || ''}
-                    onChange={(e) => setFormData({ ...formData, gestor_codigo_postal: e.target.value })}
-                  />
-                </div>
-
-                {/* Banner de Autorización Ambiental Consultable (Bloque 2) */}
-                {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && (
-                  <div className="md:col-span-2 p-3.5 bg-brand-50/80 dark:bg-brand-950/30 border border-brand-200 dark:border-brand-800 rounded-xl space-y-2 mt-2">
-                    {destAuthScope.authorizations.map((auth) => (
-                      <div key={auth.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                        <div>
-                          <p className="text-xs font-bold text-brand-950 dark:text-brand-200 flex items-center gap-1.5">
-                            <span>📜</span> Autorización Ambiental: {auth.numero_autorizacion} — {auth.titulo}
-                          </p>
-                          <p className="text-xs text-brand-700 dark:text-brand-400 mt-0.5">
-                            Emisor: {auth.organismo_emisor || 'Comunidad Autónoma'} | Vigencia:{' '}
-                            <strong>{auth.es_indefinida ? 'Vigencia Indefinida' : (auth.fecha_vencimiento ? `Hasta ${auth.fecha_vencimiento}` : 'Vigente')}</strong>
-                          </p>
-                        </div>
-                        {auth.archivo_url && (
-                          <a
-                            href={auth.archivo_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-md bg-brand-500 text-white hover:bg-brand-600 transition shrink-0"
-                          >
-                            Ver Documento ↗
-                          </a>
-                        )}
-                      </div>
-                    ))}
+                  <div>
+                    <label htmlFor="gestor_cif" className="block text-sm font-medium mb-2">CIF *</label>
+                    <Input
+                      id="gestor_cif"
+                      type="text"
+                      value={formData.gestor_cif || ''}
+                      onChange={(e) => setFormData({ ...formData, gestor_cif: e.target.value })}
+                      disabled={expeditionRole === 'gestor' || Boolean(formData.contract_id)}
+                      required
+                      error={!!validationErrors.gestor_cif}
+                      hint={validationErrors.gestor_cif}
+                    />
                   </div>
-                )}
-              </div>
-            </div>
-          </ComponentCard>
 
-          {/* Transportista (Opcional) */}
-          <ComponentCard title="Transportista (Opcional)">
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="gestor_nima" className="block text-sm font-medium mb-2">NIMA</label>
+                    <Input
+                      id="gestor_nima"
+                      type="text"
+                      value={formData.gestor_nima || ''}
+                      onChange={(e) => setFormData({ ...formData, gestor_nima: e.target.value })}
+                      disabled={expeditionRole === 'gestor'}
+                      error={!!validationErrors.gestor_nima}
+                      hint={validationErrors.gestor_nima}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="gestor_numero_autorizacion" className="block text-sm font-medium mb-2">Nº Autorización</label>
+                    <Input
+                      id="gestor_numero_autorizacion"
+                      type="text"
+                      value={formData.gestor_numero_autorizacion || ''}
+                      onChange={(e) => setFormData({ ...formData, gestor_numero_autorizacion: e.target.value })}
+                      disabled={expeditionRole === 'gestor'}
+                      error={!!validationErrors.gestor_numero_autorizacion}
+                      hint={validationErrors.gestor_numero_autorizacion}
+                    />
+                  </div>
+
+                  {/* Campos de Dirección del Gestor (Requeridos SIRA) */}
+                  <div>
+                    <label htmlFor="gestor_direccion" className="block text-sm font-medium mb-2">Dirección *</label>
+                    <Input
+                      id="gestor_direccion"
+                      value={formData.gestor_direccion || ''}
+                      onChange={(e) => setFormData({ ...formData, gestor_direccion: e.target.value })}
+                      disabled={expeditionRole === 'gestor'}
+                      error={!!validationErrors.gestor_direccion}
+                      hint={validationErrors.gestor_direccion}
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                      <div className="md:col-span-3">
+                        <label htmlFor="gestor_codigo_postal" className="block text-sm font-medium mb-2">CP</label>
+                        <Input
+                          id="gestor_codigo_postal"
+                          value={formData.gestor_codigo_postal || ''}
+                          onChange={(e) => {
+                            const cp = e.target.value;
+                            const detectedProv = getProvinceByPostalCode(cp);
+                            setFormData((prev) => ({
+                              ...prev,
+                              gestor_codigo_postal: cp,
+                              gestor_provincia: detectedProv || prev.gestor_provincia,
+                            }));
+                          }}
+                          disabled={expeditionRole === 'gestor'}
+                          placeholder="28001"
+                        />
+                      </div>
+
+                      <ProvinceMunicipalityFields
+                        unstyledWrapper
+                        provinciaWrapperClassName="md:col-span-4"
+                        municipioWrapperClassName="md:col-span-5"
+                        order="provincia-first"
+                        provinciaRequired
+                        municipioRequired
+                        provincia={formData.gestor_provincia || ''}
+                        municipio={formData.gestor_municipio || ''}
+                        provinciaId="gestor_provincia"
+                        municipioId="gestor_municipio"
+                        provinciaName="gestor_provincia"
+                        municipioName="gestor_municipio"
+                        provinciaError={!!validationErrors.gestor_provincia}
+                        municipioError={!!validationErrors.gestor_municipio}
+                        provinciaHint={validationErrors.gestor_provincia}
+                        municipioHint={validationErrors.gestor_municipio}
+                        disabled={expeditionRole === 'gestor'}
+                        onChange={({ provincia, municipio }) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            gestor_provincia: provincia,
+                            gestor_municipio: municipio,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  {/* Banner de Autorización Ambiental Consultable (Bloque 2) */}
+                  {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && (
+                    <div className="md:col-span-2 p-3.5 bg-brand-50/80 dark:bg-brand-950/30 border border-brand-200 dark:border-brand-800 rounded-xl space-y-2 mt-2">
+                      {destAuthScope.authorizations.map((auth) => (
+                        <div key={auth.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                          <div>
+                            <p className="text-xs font-bold text-brand-950 dark:text-brand-200 flex items-center gap-1.5">
+                              Autorización Ambiental: {auth.numero_autorizacion} — {auth.titulo}
+                            </p>
+                            <p className="text-xs text-brand-700 dark:text-brand-400 mt-0.5">
+                              Emisor: {auth.organismo_emisor || 'Comunidad Autónoma'} | Vigencia:{' '}
+                              <strong>{auth.es_indefinida ? 'Vigencia Indefinida' : (auth.fecha_vencimiento ? `Hasta ${auth.fecha_vencimiento}` : 'Vigente')}</strong>
+                            </p>
+                          </div>
+                          {auth.archivo_url && (
+                            <a
+                              href={auth.archivo_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-md bg-brand-500 text-white hover:bg-brand-600 transition shrink-0"
+                            >
+                              Ver Documento ↗
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </ComponentCard>
+
+            {/* Transportista (Opcional) */}
+            <ComponentCard title="Transportista (Opcional)">
+              <div className="space-y-4">
                 <div>
-                  <label htmlFor="internal_carrier_select" className="block text-sm font-medium mb-2">Mis Transportistas Internos</label>
+                  <label htmlFor="internal_carrier_select" className="block text-sm font-medium mb-2">Mis Transportistas</label>
                   <Select
                     options={[
                       { value: '', label: '-- Seleccionar --' },
@@ -902,57 +1835,94 @@ export default function NuevoDocumentoIdentificacionPage() {
                     placeholder="Selecciona uno de tus transportistas"
                   />
                 </div>
-                <div>
-                  <label htmlFor="transportista_select" className="block text-sm font-medium mb-2">Transportistas Públicos</label>
-                  <Select
-                    options={[
-                      { value: '', label: '-- Seleccionar --' },
-                      ...transportistas.map(t => ({
-                        value: t.id.toString(),
-                        label: `${t.razon_social} - ${t.cif}`,
-                      })),
-                    ]}
-                    defaultValue=""
-                    onChange={(value) => handleTransportistaChange(value)}
-                    placeholder="Selecciona un transportista público"
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label htmlFor="transportista_razon_social" className="block text-sm font-medium mb-2">Razón Social</label>
-                  <Input
-                    id="transportista_razon_social"
-                    type="text"
-                    value={formData.transportista_razon_social || ''}
-                    onChange={(e) => setFormData({ ...formData, transportista_razon_social: e.target.value })}
+                {(fleetDrivers.length > 0 || fleetVehicles.length > 0) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 rounded-lg bg-sky-50/70 dark:bg-sky-950/25 border border-sky-200/80 dark:border-sky-900/60">
+                    {fleetDrivers.length > 0 && (
+                      <div>
+                        <label htmlFor="di_fleet_driver_select" className="block text-xs font-semibold text-sky-900 dark:text-sky-200 mb-1.5">
+                          Conductor de Mi Flota (autorrellena matrícula)
+                        </label>
+                        <select
+                          id="di_fleet_driver_select"
+                          defaultValue=""
+                          onChange={(e) => handleSelectFleetDriverForDi(e.target.value)}
+                          className="w-full h-10 text-xs rounded-lg border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900 px-3 text-slate-800 dark:text-slate-200"
+                        >
+                          <option value="">-- Seleccionar conductor --</option>
+                          {fleetDrivers.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.nombre}{d.vehiculo_asignado ? ` · ${d.vehiculo_asignado}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {fleetVehicles.length > 0 && (
+                      <div>
+                        <label htmlFor="di_fleet_vehicle_select" className="block text-xs font-semibold text-sky-900 dark:text-sky-200 mb-1.5">
+                          Vehículo de Mi Flota
+                        </label>
+                        <select
+                          id="di_fleet_vehicle_select"
+                          value={matchedDiFleetVehicle ? String(matchedDiFleetVehicle.id) : ''}
+                          onChange={(e) => handleSelectFleetVehicleForDi(e.target.value)}
+                          className="w-full h-10 text-xs rounded-lg border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900 px-3 text-slate-800 dark:text-slate-200"
+                        >
+                          <option value="">-- Seleccionar vehículo --</option>
+                          {fleetVehicles.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.matricula} ({v.tipo})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {diFleetAlerts.length > 0 && (
+                  <Alert
+                    variant="warning"
+                    title="Aviso de documentación de flota"
+                    message={diFleetAlerts.map((a) => a.message).join(' · ')}
                   />
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label htmlFor="transportista_razon_social" className="block text-sm font-medium mb-2">Razón Social</label>
+                    <Input
+                      id="transportista_razon_social"
+                      type="text"
+                      value={formData.transportista_razon_social || ''}
+                      onChange={(e) => setFormData({ ...formData, transportista_razon_social: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="transportista_cif" className="block text-sm font-medium mb-2">CIF</label>
+                    <Input
+                      id="transportista_cif"
+                      type="text"
+                      value={formData.transportista_cif || ''}
+                      onChange={(e) => setFormData({ ...formData, transportista_cif: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="transportista_matricula" className="block text-sm font-medium mb-2">Matrícula</label>
+                    <Input
+                      id="transportista_matricula"
+                      type="text"
+                      value={formData.transportista_matricula || ''}
+                      onChange={(e) => setFormData({ ...formData, transportista_matricula: e.target.value })}
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label htmlFor="transportista_cif" className="block text-sm font-medium mb-2">CIF</label>
-                  <Input
-                    id="transportista_cif"
-                    type="text"
-                    value={formData.transportista_cif || ''}
-                    onChange={(e) => setFormData({ ...formData, transportista_cif: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="transportista_matricula" className="block text-sm font-medium mb-2">Matrícula</label>
-                  <Input
-                    id="transportista_matricula"
-                    type="text"
-                    value={formData.transportista_matricula || ''}
-                    onChange={(e) => setFormData({ ...formData, transportista_matricula: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              {/* Datos adicionales de dirección requeridos por SIRA */}
-                <div data-tour="di-nuevo-sira-transportista" className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 bg-muted/10 p-4 border rounded-md">
+                {/* Datos adicionales de dirección requeridos por SIRA */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 bg-muted/10 p-4 border rounded-md">
                   <div className="md:col-span-2 flex items-center gap-2 mb-2">
                     <span className="text-xs font-bold uppercase text-primary/80 tracking-wider">Datos para SIRA (Requeridos)</span>
                     <div className="h-px flex-1 bg-border" />
@@ -984,262 +1954,390 @@ export default function NuevoDocumentoIdentificacionPage() {
                     />
                   </div>
 
-                  <div>
-                    <label htmlFor="transportista_municipio" className="block text-sm font-medium mb-2">Municipio</label>
-                    <Input
-                      id="transportista_municipio"
-                      type="text"
-                      value={formData.transportista_municipio || ''}
-                      onChange={(e) => setFormData({ ...formData, transportista_municipio: e.target.value })}
-                    />
-                  </div>
+                  <div className="md:col-span-2">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                      <div className="md:col-span-3">
+                        <label htmlFor="transportista_codigo_postal" className="block text-sm font-medium mb-2">CP</label>
+                        <Input
+                          id="transportista_codigo_postal"
+                          type="text"
+                          value={formData.transportista_codigo_postal || ''}
+                          onChange={(e) => {
+                            const cp = e.target.value;
+                            const detectedProv = getProvinceByPostalCode(cp);
+                            setFormData((prev) => ({
+                              ...prev,
+                              transportista_codigo_postal: cp,
+                              transportista_provincia: detectedProv || prev.transportista_provincia,
+                            }));
+                          }}
+                          placeholder="28001"
+                        />
+                      </div>
 
-                  <div>
-                    <label htmlFor="transportista_provincia" className="block text-sm font-medium mb-2">Provincia</label>
-                    <Input
-                      id="transportista_provincia"
-                      type="text"
-                      value={formData.transportista_provincia || ''}
-                      onChange={(e) => setFormData({ ...formData, transportista_provincia: e.target.value })}
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="transportista_codigo_postal" className="block text-sm font-medium mb-2">CP</label>
-                    <Input
-                      id="transportista_codigo_postal"
-                      type="text"
-                      value={formData.transportista_codigo_postal || ''}
-                      onChange={(e) => setFormData({ ...formData, transportista_codigo_postal: e.target.value })}
-                    />
+                      <ProvinceMunicipalityFields
+                        unstyledWrapper
+                        provinciaWrapperClassName="md:col-span-4"
+                        municipioWrapperClassName="md:col-span-5"
+                        order="provincia-first"
+                        provincia={formData.transportista_provincia || ''}
+                        municipio={formData.transportista_municipio || ''}
+                        provinciaId="transportista_provincia"
+                        municipioId="transportista_municipio"
+                        provinciaName="transportista_provincia"
+                        municipioName="transportista_municipio"
+                        onChange={({ provincia, municipio }) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            transportista_provincia: provincia,
+                            transportista_municipio: municipio,
+                          }))
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
-          </ComponentCard>
+            </ComponentCard>
 
-          {/* Datos del Residuo */}
-          <ComponentCard title="Datos del Residuo">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="codigo_ler" className="block text-sm font-medium mb-2">Código LER *</label>
-                <LerSelector
-                  value={formData.codigo_ler}
-                  onChange={(value, wt) => {
-                    if (wt) {
-                      const isDangerous = wt.codigo_ler.includes('*') || wt.categoria === 'peligroso';
-                      setFormData({
-                        ...formData,
-                        waste_type_id: wt.id,
-                        codigo_ler: wt.codigo_ler,
-                        descripcion_residuo: wt.descripcion,
-                        peligrosidad: isDangerous ? 'peligroso' : (wt.categoria || 'no-peligroso'),
-                        estado_fisico: wt.estado,
-                        operacion_tratamiento: wt.operaciones_permitidas?.[0] || formData.operacion_tratamiento || '',
-                      });
-                    } else {
-                      setFormData({
-                        ...formData,
-                        codigo_ler: value,
-                      });
+            {/* Datos del Residuo */}
+            <ComponentCard title="Datos del Residuo">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="codigo_ler" className="block text-sm font-medium mb-2">Código LER *</label>
+                  <LerSelector
+                    value={formData.codigo_ler}
+                    onChange={(value, wt) => {
+                      if (wt) {
+                        const isDangerous = wt.codigo_ler.includes('*') || wt.categoria === 'peligroso';
+                        setFormData({
+                          ...formData,
+                          waste_type_id: wt.id,
+                          codigo_ler: wt.codigo_ler,
+                          descripcion_residuo: wt.descripcion,
+                          peligrosidad: isDangerous ? 'peligroso' : (wt.categoria || 'no-peligroso'),
+                          estado_fisico: wt.estado,
+                          operacion_tratamiento: wt.operaciones_permitidas?.[0] || formData.operacion_tratamiento || '',
+                        });
+                      } else {
+                        setFormData({
+                          ...formData,
+                          codigo_ler: value,
+                        });
+                      }
+                    }}
+                    error={!!validationErrors.codigo_ler}
+                    hint={validationErrors.codigo_ler}
+                    required
+                  />
+                  {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler && (
+                    destAuthScope.authorizedLers[formData.codigo_ler] ? (
+                      <p className="mt-1.5 text-xs text-green-700 dark:text-green-400 font-medium">
+                        LER Autorizado en destino (Operaciones:{' '}
+                        <strong>{destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}</strong>)
+                      </p>
+                    ) : (
+                      <p className="mt-1.5 text-xs text-red-600 dark:text-red-400 font-semibold">
+                        <strong>No Autorizado en Destino:</strong> Este residuo no figura en las autorizaciones ambientales del gestor seleccionado.
+                      </p>
+                    )
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="peligrosidad" className="block text-sm font-medium mb-2">Peligrosidad *</label>
+                  <Select
+                    options={[
+                      { value: 'no-peligroso', label: 'No Peligroso' },
+                      { value: 'peligroso', label: 'Peligroso' },
+                    ]}
+                    value={formData.peligrosidad || 'no-peligroso'}
+                    disabled={isHazardousLocked}
+                    onChange={(value) => setFormData({ ...formData, peligrosidad: value as any })}
+                    placeholder="Selecciona una opción"
+                    error={!!validationErrors.peligrosidad}
+                    hint={validationErrors.peligrosidad}
+                  />
+                  {isHazardousLocked && (
+                    <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium">
+                      Clasificado obligatoriamente como <strong>Peligroso</strong> según LER con asterisco (*) (RD 553/2020).
+                    </p>
+                  )}
+                </div>
+
+                <div className="md:col-span-2">
+                  <label htmlFor="descripcion_residuo" className="block text-sm font-medium mb-2">Descripción del Residuo *</label>
+                  <TextArea
+                    id="descripcion_residuo"
+                    value={formData.descripcion_residuo || ''}
+                    onChange={(value) => setFormData({ ...formData, descripcion_residuo: value })}
+                    rows={2}
+                    placeholder="Describe el tipo de residuo..."
+                    error={!!validationErrors.descripcion_residuo}
+                    hint={validationErrors.descripcion_residuo}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="estado_fisico" className="block text-sm font-medium mb-2">Estado Físico *</label>
+                  <Select
+                    options={[
+                      { value: 'solido', label: 'Sólido' },
+                      { value: 'liquido', label: 'Líquido' },
+                      { value: 'pastoso', label: 'Pastoso' },
+                      { value: 'gaseoso', label: 'Gaseoso' },
+                    ]}
+                    value={formData.estado_fisico || 'solido'}
+                    onChange={(value) => setFormData({ ...formData, estado_fisico: value as any })}
+                    placeholder="Selecciona una opción"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="operacion_tratamiento" className="block text-sm font-medium mb-2">Operación de Tratamiento</label>
+                  <TreatmentOperationSelector
+                    id="operacion_tratamiento"
+                    value={formData.operacion_tratamiento || ''}
+                    onChange={(val) => setFormData({ ...formData, operacion_tratamiento: val })}
+                    codigoLer={formData.codigo_ler}
+                    error={!!validationErrors.operacion_tratamiento}
+                    hint={validationErrors.operacion_tratamiento}
+                    contractOps={(() => {
+                      const sc = formData.contract_id
+                        ? contracts.find((c) => c.id === formData.contract_id)
+                        : undefined;
+                      if (!sc) return undefined;
+                      const ler = (formData.codigo_ler || '').trim();
+                      if (sc.contract_waste_codes && sc.contract_waste_codes.length > 0) {
+                        const matching = ler
+                          ? sc.contract_waste_codes.filter((wc) => wc.codigo_ler.trim() === ler)
+                          : sc.contract_waste_codes;
+                        return (matching.length > 0 ? matching : sc.contract_waste_codes)
+                          .map((wc) => wc.operacion_tratamiento)
+                          .filter(Boolean);
+                      }
+                      return sc.operaciones_tratamiento;
+                    })()}
+                    authorizedOps={
+                      destAuthScope && formData.codigo_ler
+                        ? destAuthScope.authorizedLers[formData.codigo_ler]
+                        : undefined
                     }
-                  }}
-                  error={!!validationErrors.codigo_ler}
-                  hint={validationErrors.codigo_ler}
-                  required
-                />
-                {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler && (
-                  destAuthScope.authorizedLers[formData.codigo_ler] ? (
-                    <p className="mt-1.5 text-xs text-green-700 dark:text-green-400 font-medium flex items-center gap-1">
-                      <span>✅</span> LER Autorizado en destino (Operaciones:{' '}
-                      <strong>{destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}</strong>)
-                    </p>
-                  ) : (
-                    <p className="mt-1.5 text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
-                      <span>🚫</span> <strong>No Autorizado en Destino:</strong> Este residuo no figura en las autorizaciones ambientales del gestor seleccionado.
-                    </p>
-                  )
-                )}
+                  />
+                      { destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler && destAuthScope.authorizedLers[formData.codigo_ler] && (() => {
+                        const normOp = (v: string) => v.trim().toUpperCase().replace(/^([RD])(\d)$/, '$10$2');
+                        const isOpAuthorized =
+                          !formData.operacion_tratamiento ||
+                          destAuthScope.authorizedLers[formData.codigo_ler]
+                            .map(normOp)
+                            .includes(normOp(formData.operacion_tratamiento));
+                        return formData.operacion_tratamiento && !isOpAuthorized ? (
+                          <p className="mt-1.5 text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
+                            Operación no autorizada (Permitidas: {destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}).
+                          </p>
+                        ) : (
+                          <p className="mt-1 text-xs text-muted">
+                            Operaciones autorizadas en destino: <strong>{destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}</strong>
+                          </p>
+                  );
+                  })()}
+                </div>
               </div>
+            </ComponentCard>
 
+            {/* Cantidad y Envases */}
+            <ComponentCard title="Cantidad y Envases">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="cantidad" className="block text-sm font-medium mb-2">Cantidad *</label>
+                  <Input
+                    id="cantidad"
+                    type="number"
+                    step={0.001}
+                    value={formData.cantidad || ''}
+                    onChange={(e) => setFormData({ ...formData, cantidad: parseFloat(e.target.value) })}
+                    required
+                    error={!!validationErrors.cantidad}
+                    hint={validationErrors.cantidad}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="unidad" className="block text-sm font-medium mb-2">Unidad *</label>
+                  <Select
+                    options={[
+                      { value: 'kg', label: 'Kilogramos (kg)' },
+                      { value: 'toneladas', label: 'Toneladas' },
+                      { value: 'litros', label: 'Litros' },
+                      { value: 'm3', label: 'Metros cúbicos (m³)' },
+                      { value: 'unidades', label: 'Unidades' },
+                    ]}
+                    value={formData.unidad || 'kg'}
+                    onChange={(value) => setFormData({ ...formData, unidad: value as any })}
+                    placeholder="Selecciona una opción"
+                    error={!!validationErrors.unidad}
+                    hint={validationErrors.unidad}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="numero_envases" className="block text-sm font-medium mb-2">Número de Envases</label>
+                  <Input
+                    id="numero_envases"
+                    type="number"
+                    value={formData.numero_envases || ''}
+                    onChange={(e) => setFormData({ ...formData, numero_envases: parseInt(e.target.value) })}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="tipo_envases" className="block text-sm font-medium mb-2">Tipo de Envase / Contenedor</label>
+                  <Select
+                    options={PHYSICAL_CONTAINER_CATALOG.map((item) => ({
+                      value: item.label,
+                      label: item.label,
+                    }))}
+                    value={
+                      PHYSICAL_CONTAINER_CATALOG.some((c) => c.label === formData.tipo_envases)
+                        ? (formData.tipo_envases || '')
+                        : formData.tipo_envases
+                          ? 'Otro (especificar)'
+                          : ''
+                    }
+                    onChange={(value) => {
+                      if (value === 'Otro (especificar)') {
+                        setFormData({ ...formData, tipo_envases: 'Otro: ' });
+                      } else {
+                        setFormData({ ...formData, tipo_envases: value });
+                      }
+                    }}
+                    placeholder="Selecciona tipo físico de contenedor..."
+                  />
+                  {formData.tipo_envases?.startsWith('Otro') && (
+                    <div className="mt-2">
+                      <Input
+                        id="tipo_envases_otro"
+                        type="text"
+                        value={formData.tipo_envases.replace(/^Otro:\s*/i, '')}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            tipo_envases: `Otro: ${e.target.value}`,
+                          })
+                        }
+                        placeholder="Especifique el tipo de contenedor o envase (obligatorio) *"
+                        required
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </ComponentCard>
+
+            {/* Fechas y Otros Datos */}
+            <ComponentCard title="Fechas y Logística">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="fecha_recogida" className="block text-sm font-medium mb-2">Fecha de Recogida Estimada</label>
+                  <DatePicker
+                    id="fecha_recogida"
+                    defaultDate={formData.fecha_recogida || ''}
+                    onChange={(_dates, dateStr) => {
+                      const nextRecogida = dateStr || '';
+                      setFormData((prev) => ({
+                        ...prev,
+                        fecha_recogida: nextRecogida,
+                        fecha_entrega:
+                          nextRecogida && prev.fecha_entrega && prev.fecha_entrega.split('T')[0] < nextRecogida
+                            ? ''
+                            : prev.fecha_entrega,
+                      }));
+                      setValidationErrors((prev) => {
+                        if (!prev.fecha_entrega) return prev;
+                        const { fecha_entrega: _, ...rest } = prev;
+                        void _;
+                        return rest;
+                      });
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="fecha_entrega" className="block text-sm font-medium mb-2">Fecha de Entrega Estimada</label>
+                  <DatePicker
+                    id="fecha_entrega"
+                    defaultDate={formData.fecha_entrega || ''}
+                    minDate={formData.fecha_recogida || undefined}
+                    error={!!validationErrors.fecha_entrega}
+                    hint={validationErrors.fecha_entrega}
+                    onChange={(_dates, dateStr) => {
+                      const nextEntrega = dateStr || '';
+                      if (
+                        nextEntrega &&
+                        formData.fecha_recogida &&
+                        nextEntrega < formData.fecha_recogida.split('T')[0]
+                      ) {
+                        setValidationErrors((prev) => ({
+                          ...prev,
+                          fecha_entrega: 'La fecha de entrega no puede ser anterior a la fecha de recogida.',
+                        }));
+                        return;
+                      }
+                      setFormData((prev) => ({ ...prev, fecha_entrega: nextEntrega }));
+                      setValidationErrors((prev) => {
+                        if (!prev.fecha_entrega) return prev;
+                        const { fecha_entrega: _, ...rest } = prev;
+                        void _;
+                        return rest;
+                      });
+                    }}
+                  />
+                </div>
+              </div>
+            </ComponentCard>
+
+            {/* Notas */}
+            <ComponentCard title="Notas y Observaciones">
               <div>
-                <label htmlFor="peligrosidad" className="block text-sm font-medium mb-2">Peligrosidad *</label>
-                <Select
-                  options={[
-                    { value: 'no-peligroso', label: 'No Peligroso' },
-                    { value: 'peligroso', label: 'Peligroso' },
-                  ]}
-                  value={formData.peligrosidad || 'no-peligroso'}
-                  disabled={isHazardousLocked}
-                  onChange={(value) => setFormData({ ...formData, peligrosidad: value as any })}
-                  placeholder="Selecciona una opción"
-                  error={!!validationErrors.peligrosidad}
-                  hint={validationErrors.peligrosidad}
-                />
-                {isHazardousLocked && (
-                  <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
-                    <span>⚠️</span> Clasificado obligatoriamente como <strong>Peligroso</strong> según LER con asterisco (*) (RD 553/2020).
-                  </p>
-                )}
-              </div>
-
-              <div className="md:col-span-2">
-                <label htmlFor="descripcion_residuo" className="block text-sm font-medium mb-2">Descripción del Residuo *</label>
+                <label htmlFor="notas" className="block text-sm font-medium mb-2">Notas</label>
                 <TextArea
-                  value={formData.descripcion_residuo || ''}
-                  onChange={(value) => setFormData({ ...formData, descripcion_residuo: value })}
-                  rows={2}
-                  placeholder="Describe el tipo de residuo..."
+                  value={formData.notas || ''}
+                  onChange={(value) => setFormData({ ...formData, notas: value })}
+                  rows={3}
+                  placeholder="Observaciones adicionales..."
                 />
               </div>
+            </ComponentCard>
 
-              <div>
-                <label htmlFor="estado_fisico" className="block text-sm font-medium mb-2">Estado Físico *</label>
-                <Select
-                  options={[
-                    { value: 'solido', label: 'Sólido' },
-                    { value: 'liquido', label: 'Líquido' },
-                    { value: 'pastoso', label: 'Pastoso' },
-                    { value: 'gaseoso', label: 'Gaseoso' },
-                  ]}
-                  value={formData.estado_fisico || 'solido'}
-                  onChange={(value) => setFormData({ ...formData, estado_fisico: value as any })}
-                  placeholder="Selecciona una opción"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="operacion_tratamiento" className="block text-sm font-medium mb-2">Operación de Tratamiento</label>
-                <Input
-                  id="operacion_tratamiento"
-                  type="text"
-                  value={formData.operacion_tratamiento || ''}
-                  onChange={(e) => setFormData({ ...formData, operacion_tratamiento: e.target.value })}
-                  placeholder="Ej: R05, D01"
-                />
-                {destAuthScope && destAuthScope.authorizations && destAuthScope.authorizations.length > 0 && formData.codigo_ler && destAuthScope.authorizedLers[formData.codigo_ler] && (
-                  formData.operacion_tratamiento && !destAuthScope.authorizedLers[formData.codigo_ler].includes(formData.operacion_tratamiento.toUpperCase().trim()) ? (
-                    <p className="mt-1.5 text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
-                      <span>⚠️</span> Operación no autorizada (Permitidas: {destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}).
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-xs text-muted">
-                      Operaciones autorizadas en destino: <strong>{destAuthScope.authorizedLers[formData.codigo_ler].join(', ')}</strong>
-                    </p>
-                  )
-                )}
-              </div>
+            {/* Botones de Acción */}
+            <div className="flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push('/residuos/documentos-identificacion')}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? 'Guardando...' : 'Crear Documento'}
+              </Button>
             </div>
-          </ComponentCard>
+          </form>
+        </div>
+      </>
+    );
+  }
 
-          {/* Cantidad y Envases */}
-          <ComponentCard title="Cantidad y Envases">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="cantidad" className="block text-sm font-medium mb-2">Cantidad *</label>
-                <Input
-                  id="cantidad"
-                  type="number"
-                  step={0.001}
-                  value={formData.cantidad || ''}
-                  onChange={(e) => setFormData({ ...formData, cantidad: parseFloat(e.target.value) })}
-                  required
-                  error={!!validationErrors.cantidad}
-                  hint={validationErrors.cantidad}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="unidad" className="block text-sm font-medium mb-2">Unidad *</label>
-                <Select
-                  options={[
-                    { value: 'kg', label: 'Kilogramos (kg)' },
-                    { value: 'toneladas', label: 'Toneladas' },
-                    { value: 'litros', label: 'Litros' },
-                    { value: 'm3', label: 'Metros cúbicos (m³)' },
-                    { value: 'unidades', label: 'Unidades' },
-                  ]}
-                  value={formData.unidad || 'kg'}
-                  onChange={(value) => setFormData({ ...formData, unidad: value as any })}
-                  placeholder="Selecciona una opción"
-                  error={!!validationErrors.unidad}
-                  hint={validationErrors.unidad}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="numero_envases" className="block text-sm font-medium mb-2">Número de Envases</label>
-                <Input
-                  id="numero_envases"
-                  type="number"
-                  value={formData.numero_envases || ''}
-                  onChange={(e) => setFormData({ ...formData, numero_envases: parseInt(e.target.value) })}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="tipo_envases" className="block text-sm font-medium mb-2">Tipo de Envases</label>
-                <Input
-                  id="tipo_envases"
-                  type="text"
-                  value={formData.tipo_envases || ''}
-                  onChange={(e) => setFormData({ ...formData, tipo_envases: e.target.value })}
-                  placeholder="Ej: Contenedor 1000L, Big Bag, Bidón"
-                />
-              </div>
-            </div>
-          </ComponentCard>
-
-          {/* Fechas y Otros Datos */}
-          <ComponentCard title="Fechas y Logística">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="fecha_recogida" className="block text-sm font-medium mb-2">Fecha de RecogidaEstimada</label>
-                <DatePicker
-                  id="fecha_recogida"
-                  defaultDate={formData.fecha_recogida || ''}
-                  onChange={([date]) => setFormData({ ...formData, fecha_recogida: date ? date.toISOString().split('T')[0] : '' })}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="fecha_entrega" className="block text-sm font-medium mb-2">Fecha de Entrega Estimada</label>
-                <DatePicker
-                  id="fecha_entrega"
-                  defaultDate={formData.fecha_entrega || ''}
-                  onChange={([date]) => setFormData({ ...formData, fecha_entrega: date ? date.toISOString().split('T')[0] : '' })}
-                />
-              </div>
-            </div>
-          </ComponentCard>
-
-          {/* Notas */}
-          <ComponentCard title="Notas y Observaciones">
-            <div>
-              <label htmlFor="notas" className="block text-sm font-medium mb-2">Notas</label>
-              <TextArea
-                value={formData.notas || ''}
-                onChange={(value) => setFormData({ ...formData, notas: value })}
-                rows={3}
-                placeholder="Observaciones adicionales..."
-              />
-            </div>
-          </ComponentCard>
-
-          {/* Botones de Acción */}
-          <div className="flex justify-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push('/residuos/documentos-identificacion')}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Guardando...' : 'Crear Documento'}
-            </Button>
+  export default function NuevoDocumentoIdentificacionPage() {
+    return (
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center min-h-screen">
+            <p className="text-muted">Cargando...</p>
           </div>
-        </form>
-      </div>
-    </>
-  );
-}
+        }
+      >
+        <NuevoDocumentoIdentificacionContent />
+      </Suspense>
+    );
+  }

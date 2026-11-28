@@ -1,0 +1,4 @@
+<?xml version='1.0' encoding='UTF-8'?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"><soapenv:Body><soapenv:Fault><faultcode xmlns:soap11Env="http://schemas.xmlsoap.org/soap/envelope/">soap11Env:Client</faultcode><faultstring>Petición errónea</faultstring><detail><ns2:result xmlns:ns2="e3l://esir2014"><message xmlns="http://ws.apache.org/ns/synapse">cvc-complex-type.4: El atributo 'NTFrequency' debe aparecer en el elemento 'wasteNT'.
+cvc-complex-type.4: El atributo 'NTRegional' debe aparecer en el elemento 'wasteNT'.
+cvc-complex-type.4: El atributo 'NTSendtoDestinationAuthority' debe aparecer en el elemento 'wasteNT'.
+</message><resultWrong xmlns="http://ws.apache.org/ns/synapse"><resultErrorList><resultWrong code="JA000026" description="El mensaje de la peticiÃ³n es incorrecto"/></resultErrorList></resultWrong></ns2:result></detail></soapenv:Fault></soapenv:Body></soapenv:Envelope>

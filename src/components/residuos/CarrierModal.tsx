@@ -5,9 +5,11 @@ import { Modal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
 import Label from '@/components/form/Label';
+import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFields';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import carrierService from '@/services/carrierService';
+import { getProvinceByPostalCode } from '@/lib/validations/spainLocations';
 import {
     validateRequired,
     validateCIF,
@@ -159,7 +161,10 @@ export default function CarrierModal({
         try {
             setSaving(true);
             if (carrier) {
-                await carrierService.update(carrier.id, formData);
+                await carrierService.update(carrier.id, formData, {
+                    source: carrier.source,
+                    companyId: carrier.company_id,
+                });
             } else {
                 await carrierService.create(formData);
             }
@@ -222,13 +227,14 @@ export default function CarrierModal({
                         </div>
 
                         <div>
-                            <Label htmlFor="carrier_matricula">Matrícula</Label>
+                            <Label htmlFor="carrier_matricula">Matrícula Principal</Label>
                             <Input
                                 id="carrier_matricula"
                                 name="matricula"
                                 value={formData.matricula}
                                 onChange={handleChange}
                                 placeholder="1234BBB"
+                                hint="Vehículo principal. Para añadir múltiples camiones bajo este CIF, usa el botón Gestionar Flota."
                             />
                         </div>
 
@@ -262,8 +268,8 @@ export default function CarrierModal({
                 {/* Ubicación */}
                 <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-foreground">Ubicación</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="md:col-span-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                        <div className="sm:col-span-12">
                             <label className="block text-sm font-medium mb-2">Dirección</label>
                             <Input
                                 name="direccion"
@@ -273,35 +279,43 @@ export default function CarrierModal({
                             />
                         </div>
 
-                        <div>
+                        <div className="sm:col-span-3">
                             <label className="block text-sm font-medium mb-2">Código Postal</label>
                             <Input
                                 name="codigo_postal"
                                 value={formData.codigo_postal}
-                                onChange={handleChange}
+                                onChange={(e) => {
+                                    const cp = e.target.value;
+                                    const detectedProv = getProvinceByPostalCode(cp);
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        codigo_postal: cp,
+                                        provincia: detectedProv || prev.provincia,
+                                    }));
+                                }}
                                 placeholder="28001"
                             />
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium mb-2">Municipio</label>
-                            <Input
-                                name="municipio"
-                                value={formData.municipio}
-                                onChange={handleChange}
-                                placeholder="Madrid"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium mb-2">Provincia</label>
-                            <Input
-                                name="provincia"
-                                value={formData.provincia}
-                                onChange={handleChange}
-                                placeholder="Madrid"
-                            />
-                        </div>
+                        <ProvinceMunicipalityFields
+                            unstyledWrapper
+                            provinciaWrapperClassName="sm:col-span-4"
+                            municipioWrapperClassName="sm:col-span-5"
+                            order="provincia-first"
+                            provincia={formData.provincia || ''}
+                            municipio={formData.municipio || ''}
+                            provinciaId="carrier_provincia"
+                            municipioId="carrier_municipio"
+                            provinciaName="provincia"
+                            municipioName="municipio"
+                            onChange={({ provincia, municipio }) =>
+                                setFormData((prev) => ({
+                                    ...prev,
+                                    provincia,
+                                    municipio,
+                                }))
+                            }
+                        />
                     </div>
                 </div>
 

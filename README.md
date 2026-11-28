@@ -1,191 +1,213 @@
-# Resigest360 Next.js - Free Next.js Tailwind Admin Dashboard Template
+# ResiGest 360 - Plataforma Integral de Gestión y Trazabilidad de Residuos
 
-Resigest360 is a free and open-source admin dashboard template built on **Next.js and Tailwind CSS** providing developers with everything they need to create a feature-rich and data-driven: back-end, dashboard, or admin panel solution for any sort of web project.
+<div align="center">
+  <img src="./public/images/logo/logo.svg" alt="ResiGest 360 Logo" width="280"/>
+  <p><strong>Software SaaS de Gestión Integral, Cumplimiento Normativo y Trazabilidad Medioambiental de Residuos</strong></p>
 
-![Resigest360 - Next.js Dashboard Preview](./banner.png)
+  [![Next.js](https://img.shields.io/badge/Next.js-16.x-black?style=flat&logo=next.js)](https://nextjs.org/)
+  [![React](https://img.shields.io/badge/React-19.x-61dafb?style=flat&logo=react)](https://react.dev/)
+  [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?style=flat&logo=typescript)](https://www.typescriptlang.org/)
+  [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38bdf8?style=flat&logo=tailwindcss)](https://tailwindcss.com/)
+  [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL_%26_Auth-3ecf8e?style=flat&logo=supabase)](https://supabase.com/)
+  [![Coverage](https://img.shields.io/badge/Coverage-≥80%25-brightgreen?style=flat&logo=jest)](https://jestjs.io/)
+</div>
 
-With Resigest360 Next.js, you get access to all the necessary dashboard UI components, elements, and pages required to build a high-quality and complete dashboard or admin panel. Whether you're building a dashboard or admin panel for a complex web application or a simple website.
+---
 
-Resigest360 utilizes the powerful features of **Next.js 16** and common features of Next.js such as server-side rendering (SSR), static site generation (SSG), and seamless API route integration. Combined with the advancements of **React 19** and the robustness of **TypeScript**, Resigest360 is the perfect solution to help get your project up and running quickly.
+## 📋 Descripción General
 
-## Overview
+**ResiGest 360** es una solución integral en la nube (SaaS) diseñada para digitalizar, agilizar y asegurar el cumplimiento normativo en toda la cadena de custodia de residuos en España (productores, transportistas, gestores de valorización/eliminación, negociantes y agentes).
 
-Resigest360 provides essential UI components and layouts for building feature-rich, data-driven admin dashboards and control panels. It's built on:
+La plataforma automatiza la creación documental oficial, el control de traslados con báscula, la sincronización telemática con administraciones públicas mediante el estándar **e3l** (**SIRA** de la Junta de Andalucía y **e-SIR** del Ministerio para la Transición Ecológica MITECO), la firma digital de contratos y la auditoría continua bajo el marco legal medioambiental vigente.
 
-* Next.js 16.x
-* React 19
-* TypeScript
-* Tailwind CSS V4
+---
 
-### Quick Links
+## ⚖️ Marco Legal y Cumplimiento Normativo
 
-* [✨ Visit Website](https://Resigest360.com)
-* [📄 Documentation](https://Resigest360.com/docs)
-* [⬇️ Download](https://Resigest360.com/download)
-* [🖌️ Figma Design File (Community Edition)](https://www.figma.com/community/file/1463141366275764364)
-* [⚡ Get PRO Version](https://Resigest360.com/pricing)
+ResiGest 360 implementa de forma nativa los requerimientos estipulados en:
 
-### Demos
+* **Ley 7/2022**, de 8 de abril, de residuos y suelos contaminados para una economía circular.
+* **Real Decreto 553/2020**, de 2 de junio, por el que se regula el traslado de residuos en el territorio del Estado.
+* **Catálogo Europeo de Residuos (LER)** y asignación de características de peligrosidad (códigos HP1 a HP15).
+* **Estándar e3l (v3.x)** para el intercambio electrónico de datos medioambientales.
+* **Trazabilidad telemática**: Integración con **SIRA** (Andalucía) y compatibilidad con plataformas ministeriales (**e-SIR**).
 
-* [Free Version](https://nextjs-free-demo.Resigest360.com)
-* [Pro Version](https://nextjs-demo.Resigest360.com)
+Para consultar la guía detallada de módulos y legislación, revise [`MANUAL_MODULOS_Y_LEGISLACION.md`](./MANUAL_MODULOS_Y_LEGISLACION.md).
 
-### Other Versions
+---
 
-- [Next.js Version](https://github.com/Resigest360/free-nextjs-admin-dashboard)
-- [React.js Version](https://github.com/Resigest360/free-react-tailwind-admin-dashboard)
-- [Vue.js Version](https://github.com/Resigest360/vue-tailwind-admin-dashboard)
-- [Angular Version](https://github.com/Resigest360/free-angular-tailwind-dashboard)
-- [Laravel Version](https://github.com/Resigest360/Resigest360-laravel)
+## 🚀 Módulos y Funcionalidades Principales
 
-## Installation
+### 1. Consola Global / Modo Admin (`/platform-admin`)
+* Gestión multicliente / multi-empresa con aislamiento estricto de datos (Supabase RLS).
+* Conmutación e impersonación segura de empresas para asistencia técnica y auditorías sin requerir contraseñas.
+* Monitoreo y métricas globales de utilización.
 
-### Prerequisites
+### 2. Dashboard Analítico en Tiempo Real (`/app`)
+* Indicadores clave (KPIs): Toneladas totales gestionadas (peligrosos vs. no peligrosos).
+* Monitoreo en vivo de traslados (En Tránsito, En Báscula, Aceptados, Incidencias y Tratados).
+* Detección y alertas automáticas de discrepancias de peso en báscula (>5% o >200 kg).
+* Alertas de contratos próximos a vencer y avisos de auditoría telemática.
 
-To get started with Resigest360, ensure you have the following prerequisites installed and set up:
+### 3. Mi Empresa y Centros de Producción (`/residuos/mi-empresa`)
+* Configuración de razón social, CIF y **NIMA (Número de Identificación de Medio Ambiente)** oficial.
+* Gestión de múltiples centros de producción o plantas secundarias con NIMA independiente.
+* Credenciales de acceso a pasarelas telemáticas (SIRA/e-SIR) e integración con Holded ERP.
 
-* Node.js 18.x or later (recommended to use Node.js 20.x or later)
+### 4. Directorio de Empresas y Contactos (`/residuos/empresas`)
+* Directorio centralizado de clientes, productores, gestores destinatarios y transportistas autorizados.
+* Validación de autorizaciones administrativas y NIMAs.
 
-### Cloning the Repository
+### 5. Catálogo Oficial LER (`/residuos/ler`)
+* Buscador ágil de códigos LER (6 dígitos).
+* Identificación de residuos peligrosos (asterisco `*`), descripción oficial y etiquetado legal.
+* Catálogo de operaciones de tratamiento (Valorización R1-R13 y Eliminación D1-D15).
 
-Clone the repository using the following command:
+### 6. Contratos de Tratamiento con Firma Digital (`/residuos/contratos`)
+* Creación y gestión de contratos entre productores y gestores.
+* Generación de PDF oficial con código QR de verificación de autenticidad.
+* Enlace público de firma electrónica remota con token seguro (`/public/sign-contract/[token]`).
+
+### 7. Documentos de Identificación y Traslado (DI / DCS / NT) (`/residuos/documentos-identificacion`)
+* Emisión y ciclo de vida de **Documentos de Identificación (DI)** y **Documentos de Control y Seguimiento (DCS)**.
+* Tramitación de **Notificaciones Previas de Traslado (NT)**.
+* Validación estricta de datos obligatorios y trazabilidad de estados.
+
+### 8. Registro de Báscula y Operaciones (`/residuos/operaciones`)
+* Control de pesaje de entrada (bruto), salida (tara) y neto.
+* Verificación de tolerancias legales y registro de incidencias por discrepancia.
+
+### 9. Integración e3l / SIRA & Archivo Cronológico
+* Generación de esquemas XML conformes con e3l v3.x.
+* Trazabilidad de envíos telemáticos y logs de sincronización.
+* Generación del Archivo Cronológico y soporte para la Memoria Anual de Gestores.
+
+### 10. Entorno de Pruebas / Modo Sandbox
+* Selector interactivo de perfiles (Productor, Gestor, Transportista) para pruebas operativas inmediatas.
+
+---
+
+## 🛠️ Stack Tecnológico
+
+* **Framework Fullstack:** [Next.js 16](https://nextjs.org/) (App Router, Server Actions, React Server Components).
+* **Librería UI:** [React 19](https://react.dev/).
+* **Lenguaje:** [TypeScript 5](https://www.typescriptlang.org/) con tipado estricto.
+* **Estilos:** [Tailwind CSS v4](https://tailwindcss.com/) y soporte completo para Modo Oscuro.
+* **Base de Datos y Autenticación:** [Supabase](https://supabase.com/) (PostgreSQL, Row Level Security, Auth y Storage).
+* **Generación Documental & QR:** `jspdf` y `qrcode`.
+* **Visualización de Datos:** `apexcharts` / `react-apexcharts`.
+* **Notificaciones y Correo:** `resend`.
+* **Pruebas y Calidad:** [Jest](https://jestjs.io/) con cobertura mínima obligatoria ≥ 80%, [ESLint 9](https://eslint.org/) y [Husky](https://typicode.github.io/husky/).
+
+---
+
+## 📦 Instalación y Puesta en Marcha
+
+### Prerrequisitos
+
+* **Node.js** 20.x o superior (compatible con Node 24).
+* Cuenta y proyecto configurado en **Supabase** (consultar [`SUPABASE_SETUP.md`](./SUPABASE_SETUP.md) y [`STORAGE-SETUP.md`](./STORAGE-SETUP.md)).
+
+### 1. Clonar el Repositorio
 
 ```bash
-git clone https://github.com/Resigest360/free-nextjs-admin-dashboard.git
+git clone https://github.com/alfredobp/resigest_360.git
+cd resigest_360
 ```
 
-> Windows Users: place the repository near the root of your drive if you face issues while cloning.
+### 2. Instalar Dependencias
 
-1. Install dependencies:
+```bash
+npm install
+```
 
-   ```bash
-   npm install
-   # or
-   yarn install
-   ```
+### 3. Configurar Variables de Entorno
 
-   > Use `--legacy-peer-deps` flag if you face peer-dependency error during installation.
+Copie el archivo de ejemplo y defina sus credenciales:
 
-2. Start the development server:
+```bash
+cp .env.example .env.local
+```
 
-   ```bash
-   npm run dev
-   # or
-   yarn dev
-   ```
+Parámetros requeridos en `.env.local`:
 
-## Components
+```env
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=tu-anon-key
+SUPABASE_SERVICE_ROLE_KEY=tu-service-role-key
 
-Resigest360 is a pre-designed starting point for building a web-based dashboard using Next.js and Tailwind CSS. The template includes:
+# Correo (Resend)
+RESEND_API_KEY=re_tu_api_key
+RESEND_FROM_EMAIL=notificaciones@tudominio.com
 
-* Sophisticated and accessible sidebar
-* Data visualization components
-* Profile management and custom 404 page
-* Tables and Charts(Line and Bar)
-* Authentication forms and input elements
-* Alerts, Dropdowns, Modals, Buttons and more
-* Can't forget Dark Mode 🕶️
+# URL Base
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
 
-All components are built with React and styled using Tailwind CSS for easy customization.
+### 4. Iniciar el Servidor de Desarrollo
 
-## Feature Comparison
+```bash
+npm run dev
+```
 
-### Free Version
+La aplicación estará accesible en [http://localhost:3000](http://localhost:3000).
 
-* 1 Unique Dashboard
-* 30+ dashboard components
-* 50+ UI elements
-* Basic Figma design files
-* Community support
+---
 
-### Pro Version
+## 🧪 Pruebas y Aseguramiento de Calidad
 
-* 7 Unique Dashboards: Analytics, Ecommerce, Marketing, CRM, SaaS, Stocks, Logistics (more coming soon)
-* 500+ dashboard components and UI elements
-* Complete Figma design file
-* Email support
+El proyecto aplica políticas de calidad estrictas establecidas en [`AGENTS.md`](./AGENTS.md):
 
-To learn more about pro version features and pricing, visit our [pricing page](https://Resigest360.com/pricing).
+* **Cobertura Mínima**: Cada nuevo servicio o validador debe superar el **80% de cobertura** en Statements, Branches, Functions y Lines.
+* **Aislamiento Multi-Tenancy**: Verificación de consultas con filtro de tenant.
 
-## Changelog
+### Comandos de Verificación
 
-### Version 2.1.0 - [November 15, 2025]
+```bash
+# Comprobación de tipos TypeScript
+npm run typecheck
 
-* Updated to Next.js 16.x
-* Fixed all reported minor bugs
+# Análisis estático de código
+npm run lint
 
-### Version 2.0.2 - [March 25, 2025]
+# Ejecución de suite de pruebas con cobertura
+npm run test:coverage
 
-* Upgraded to Next.js 16.x for [CVE-2025-29927](https://nextjs.org/blog/cve-2025-29927) concerns
-* Included overrides vectormap for packages to prevent peer dependency errors during installation.
-* Migrated from react-flatpickr to flatpickr package for React 19 support
+# Pipeline de CI (requerido antes de commit/push)
+npm run test:ci
+```
 
-### Version 2.0.1 - [February 27, 2025]
+---
 
-#### Update Overview
+## 📁 Estructura del Proyecto
 
-* Upgraded to Tailwind CSS v4 for better performance and efficiency.
-* Updated class usage to match the latest syntax and features.
-* Replaced deprecated class and optimized styles.
+```text
+resigest_360/
+├── public/                 # Recursos estáticos (imágenes, favicons, logos)
+│   ├── favicon.ico         # Favicon multi-resolución
+│   └── images/logo/        # Identidad visual corporativa de ResiGest 360
+├── scripts/                # Scripts de utilidad y mantenimiento
+├── src/
+│   ├── app/                # Rutas y páginas de Next.js (App Router)
+│   │   ├── (admin)/        # Vistas de gestión, residuos y configuración
+│   │   ├── (auth)/         # Inicio de sesión y registro
+│   │   ├── api/            # Endpoints API (generación e3l, firmas, webhooks)
+│   │   ├── public/         # Vistas públicas (firma de contratos por token)
+│   │   ├── favicon.ico     # Favicon raíz App Router
+│   │   └── icon.svg        # Icono vectorial SVG
+│   ├── components/         # Componentes reutilizables (UI, tablas, formularios)
+│   ├── context/            # Contextos de React (Sidebar, Theme, Toast, Sandbox)
+│   ├── lib/                # Utilidades, cliente Supabase y esquemas Zod
+│   ├── services/           # Lógica de negocio y acceso a datos
+│   │   └── __tests__/      # Suites de pruebas unitarias Jest
+│   └── types/              # Tipos TypeScript (LER, DI, Contratos, etc.)
+├── MANUAL_MODULOS_Y_LEGISLACION.md  # Manual exhaustivo de módulos y marco legal
+└── README.md               # Esta documentación
+```
 
-#### Next Steps
+---
 
-* Run npm install or yarn install to update dependencies.
-* Check for any style changes or compatibility issues.
-* Refer to the Tailwind CSS v4 [Migration Guide](https://tailwindcss.com/docs/upgrade-guide) on this release. if needed.
-* This update keeps the project up to date with the latest Tailwind improvements. 🚀
+## 📄 Licencia
 
-### v2.0.0 (February 2025)
-
-A major update focused on Next.js 16 implementation and comprehensive redesign.
-
-#### Major Improvements
-
-* Complete redesign using Next.js 16 App Router and React Server Components
-* Enhanced user interface with Next.js-optimized components
-* Improved responsiveness and accessibility
-* New features including collapsible sidebar, chat screens, and calendar
-* Redesigned authentication using Next.js App Router and server actions
-* Updated data visualization using ApexCharts for React
-
-#### Breaking Changes
-
-* Migrated from Next.js 14 to Next.js 16
-* Chart components now use ApexCharts for React
-* Authentication flow updated to use Server Actions and middleware
-
-[Read more](https://Resigest360.com/docs/update-logs/nextjs) on this release.
-
-### v1.3.4 (July 01, 2024)
-
-* Fixed JSvectormap rendering issues
-
-### v1.3.3 (June 20, 2024)
-
-* Fixed build error related to Loader component
-
-### v1.3.2 (June 19, 2024)
-
-* Added ClickOutside component for dropdown menus
-* Refactored sidebar components
-* Updated Jsvectormap package
-
-### v1.3.1 (Feb 12, 2024)
-
-* Fixed layout naming consistency
-* Updated styles
-
-### v1.3.0 (Feb 05, 2024)
-
-* Upgraded to Next.js 14
-* Added Flatpickr integration
-* Improved form elements
-* Enhanced multiselect functionality
-* Added default layout component
-
-## License
-
-Resigest360 Next.js Free Version is released under the MIT License.
-
-## Support
-If you find this project helpful, please consider giving it a star on GitHub. Your support helps us continue developing and maintaining this template.
+Este proyecto está bajo la Licencia [MIT](./LICENSE).

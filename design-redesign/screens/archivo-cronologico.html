@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es" data-variant="industrial" data-mode="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Archivo Cronológico — ResiGest 360</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body data-nav="cronologico">
+  <div class="app-shell">
+    <aside id="app-sidebar"></aside>
+    <div class="app-main">
+      <header id="app-topbar"></header>
+      <main class="content">
+        <div class="page-header">
+          <div>
+            <div class="page-title-row">
+              <h1 class="page-title">Archivo Cronológico Oficial</h1>
+              <span class="badge badge-success">Art. 64 Ley 7/2022</span>
+            </div>
+            <p class="page-subtitle">Libro inmutable de entradas, salidas y tratamientos sincronizado automáticamente con tus Documentos de Identificación.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline">🔄 Sincronizar DIs Cerrados</button>
+            <button class="btn btn-soft">📊 Exportar Excel Oficial</button>
+            <button class="btn btn-primary">+ Nuevo Asiento Manual</button>
+          </div>
+        </div>
+
+        <section class="grid grid-4">
+          <div class="card kpi-card">
+            <span class="kpi-label">Asientos 2026</span>
+            <div class="kpi-value">412</div>
+            <span class="kpi-sub">398 automáticos · 14 manuales</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label">Total Entradas (Recepción)</span>
+            <div class="kpi-value" style="color:var(--brand)">1.124,6 t</div>
+            <span class="kpi-sub">Planta Valdemoro + Getafe</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label">Total Salidas (Traslados)</span>
+            <div class="kpi-value" style="color:var(--info)">717,9 t</div>
+            <span class="kpi-sub">94% a valorización (R)</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label">Stock Almacenado</span>
+            <div class="kpi-value">406,7 t</div>
+            <span class="kpi-sub">Plazo legal &lt; 6m (RP) / &lt; 2a (RNP)</span>
+          </div>
+        </section>
+
+        <section class="toolbar">
+          <div class="toolbar-group">
+            <div class="tabs" data-tab-group="chrono">
+              <button class="tab-btn active" data-tab-target="consolidado">Libro Consolidado (412)</button>
+              <button class="tab-btn" data-tab-target="pendientes">Pendientes de Consolidar (3)</button>
+            </div>
+            <input type="text" class="input" style="width:230px" placeholder="Filtrar por LER, origen o DI..." data-table-search="chronoTable" />
+            <select class="select">
+              <option>Tipo: Todos</option>
+              <option>Entrada Recepción</option>
+              <option>Salida Traslado</option>
+              <option>Producción Interna</option>
+              <option>Tratamiento R/D</option>
+            </select>
+            <select class="select">
+              <option>Peligrosidad: Todas</option>
+              <option>Solo Peligrosos (*)</option>
+              <option>No Peligrosos</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <button class="btn btn-outline btn-sm">CSV</button>
+          </div>
+        </section>
+
+        <div data-tab-panels="chrono">
+          <section class="table-wrap" data-tab-panel="consolidado">
+            <table class="data-table" id="chronoTable">
+              <thead>
+                <tr>
+                  <th>Fecha / Hora</th>
+                  <th>Tipo Asiento</th>
+                  <th>Código LER</th>
+                  <th>Cantidad</th>
+                  <th>Origen ➔ Destino</th>
+                  <th>Op. R/D</th>
+                  <th>Referencia DI</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="mono">21/11/2026, 09:42</td>
+                  <td><span class="badge badge-success">Entrada Recepción</span></td>
+                  <td><span class="mono cell-main">17 04 05</span><span class="cell-sub">Hierro y acero</span></td>
+                  <td><strong>14.200 kg</strong></td>
+                  <td>Metalúrgicas del Norte ➔ Planta Valdemoro</td>
+                  <td><span class="mono badge badge-neutral badge-plain">R12</span></td>
+                  <td><span class="mono" style="color:var(--brand); font-weight:700">DI-2026-0842</span></td>
+                </tr>
+                <tr>
+                  <td class="mono">20/11/2026, 16:15</td>
+                  <td><span class="badge badge-info">Salida Traslado</span></td>
+                  <td><span class="mono cell-main" style="color:var(--warning)">13 02 05*</span><span class="cell-sub">Aceites minerales (RP)</span></td>
+                  <td><strong>2.450 kg</strong></td>
+                  <td>Planta Valdemoro ➔ Gestor Aceites Sur</td>
+                  <td><span class="mono badge badge-warning badge-plain">R09</span></td>
+                  <td><span class="mono" style="color:var(--brand); font-weight:700">DI-2026-0841</span></td>
+                </tr>
+                <tr>
+                  <td class="mono">19/11/2026, 11:08</td>
+                  <td><span class="badge badge-success">Entrada Recepción</span></td>
+                  <td><span class="mono cell-main">15 01 02</span><span class="cell-sub">Envases plástico</span></td>
+                  <td><strong>8.900 kg</strong></td>
+                  <td>Logística Levante ➔ Planta Valdemoro</td>
+                  <td><span class="mono badge badge-neutral badge-plain">R03</span></td>
+                  <td><span class="mono" style="color:var(--brand); font-weight:700">DI-2026-0840</span></td>
+                </tr>
+                <tr>
+                  <td class="mono">18/11/2026, 08:30</td>
+                  <td><span class="badge badge-warning">Tratamiento R/D</span></td>
+                  <td><span class="mono cell-main">17 04 02</span><span class="cell-sub">Clasificación aluminio</span></td>
+                  <td><strong>6.850 kg</strong></td>
+                  <td>Línea Cizalla #2 (Tratamiento interno)</td>
+                  <td><span class="mono badge badge-neutral badge-plain">R04</span></td>
+                  <td><span class="mono">INT-2026-099</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section class="card" data-tab-panel="pendientes" style="display:none;">
+            <div class="card-header">
+              <h3 class="card-title">Traslados en Tránsito Pendientes de Asiento Definitivo (3)</h3>
+              <button class="btn btn-primary btn-sm">Consolidar Seleccionados</button>
+            </div>
+            <p class="cell-sub">Estos DIs aún están pendientes de pesada final en destino. Al confirmarse, se generará su asiento inmutable automáticamente.</p>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="../assets/app.js"></script>
+  <script src="../assets/shell.js"></script>
+</body>
+</html>
+

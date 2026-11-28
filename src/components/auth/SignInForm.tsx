@@ -9,15 +9,44 @@ import React, { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { getAuthErrorMessage } from "@/lib/authErrors";
+
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const handleForgotPassword = async () => {
+    setError(null);
+    setInfoMessage(null);
+    if (!email.trim()) {
+      setError("Introduce tu correo electrónico arriba y pulsa de nuevo para recibir el enlace de recuperación.");
+      return;
+    }
+    try {
+      setResetting(true);
+      const supabase = createClient();
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/auth/callback?next=/profile`,
+      });
+      if (resetError) {
+        setError(getAuthErrorMessage(resetError.message));
+        return;
+      }
+      setInfoMessage("Si existe una cuenta con ese correo, te hemos enviado un enlace para restablecer tu contraseña.");
+    } catch {
+      setError("No se pudo enviar el correo de recuperación. Inténtalo de nuevo.");
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,21 +61,27 @@ export default function SignInForm() {
       });
 
       if (signInError) {
-        setError(signInError.message);
+        setError(getAuthErrorMessage(signInError.message));
         setLoading(false);
         return;
       }
 
-      // Redirect to target path or dashboard on successful login
+      // Redirect to target path or dashboard on successful login (prevent Open Redirect)
       const redirectedFrom = searchParams.get('redirectedFrom');
-      const destination = (redirectedFrom && redirectedFrom !== '/' && redirectedFrom !== '/signin') 
-        ? redirectedFrom 
-        : '/app';
+      const isSafeInternalPath = Boolean(
+        redirectedFrom &&
+        redirectedFrom.startsWith('/') &&
+        !redirectedFrom.startsWith('//') &&
+        !redirectedFrom.includes('\\') &&
+        redirectedFrom !== '/' &&
+        redirectedFrom !== '/signin'
+      );
+      const destination = isSafeInternalPath ? redirectedFrom! : '/app';
 
       router.push(destination);
       router.refresh();
     } catch {
-      setError("An unexpected error occurred");
+      setError(getAuthErrorMessage(null));
       setLoading(false);
     }
   };
@@ -55,11 +90,11 @@ export default function SignInForm() {
     <div className="flex flex-col flex-1 lg:w-1/2 w-full">
       <div className="w-full max-w-md sm:pt-10 mx-auto mb-5">
         <Link
-          href="/app"
+          href="/"
           className="inline-flex items-center text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
         >
           <ChevronLeftIcon />
-          Volver al panel
+          Volver al inicio
         </Link>
       </div>
       <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
@@ -76,6 +111,11 @@ export default function SignInForm() {
             {error && (
               <div className="p-3 mb-4 text-sm text-red-800 bg-red-100 rounded-lg dark:bg-red-900/20 dark:text-red-400">
                 {error}
+              </div>
+            )}
+            {infoMessage && (
+              <div className="p-3 mb-4 text-sm text-emerald-800 bg-emerald-100 rounded-lg dark:bg-emerald-900/20 dark:text-emerald-400">
+                {infoMessage}
               </div>
             )}
             <form onSubmit={handleSignIn}>
@@ -123,12 +163,14 @@ export default function SignInForm() {
                       Recordar sesión
                     </span>
                   </div>
-                  <Link
-                    href="/reset-password"
-                    className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400"
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={resetting}
+                    className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400 disabled:opacity-50"
                   >
-                    ¿Has olvidado tu contraseña?
-                  </Link>
+                    {resetting ? "Enviando..." : "¿Has olvidado tu contraseña?"}
+                  </button>
                 </div>
                 <div>
                   <Button 
@@ -140,6 +182,16 @@ export default function SignInForm() {
                     {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
                   </Button>
                 </div>
+                {process.env.NEXT_PUBLIC_ENABLE_DEMO_ACCESS === 'true' && (
+                  <div className="pt-3 border-t border-gray-200 dark:border-gray-800 text-center">
+                    <Link
+                      href="/accesos-prueba"
+                      className="inline-flex items-center justify-center gap-2 text-xs font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400"
+                    >
+                      Entrar con cuentas de prueba por perfil (Productor, Gestor, Transportista) →
+                    </Link>
+                  </div>
+                )}
               </div>
             </form>
           </div>

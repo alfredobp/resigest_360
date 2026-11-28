@@ -19,6 +19,8 @@ jest.mock('../holdedService', () => ({
 
 const mockCompanyService = {
   getUserCompany: jest.fn(),
+  update: jest.fn(),
+  delete: jest.fn(),
 };
 jest.mock('../companyService', () => ({
   companyService: mockCompanyService,
@@ -118,7 +120,7 @@ describe('treatmentManagerService - Gestores de Tratamiento Autorizados', () => 
 
       const result = await treatmentManagerService.getAll();
 
-      expect(result).toEqual(managersList);
+      expect(result).toEqual(managersList.map((m) => ({ ...m, source: 'treatment_managers' })));
       expect(consoleWarnSpy).toHaveBeenCalled();
       consoleWarnSpy.mockRestore();
     });
@@ -126,25 +128,34 @@ describe('treatmentManagerService - Gestores de Tratamiento Autorizados', () => 
 
   describe('getById', () => {
     it('debe retornar un gestor por su ID', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-tm-1' } },
+      });
       const mockManager = { id: 3, nombre: 'Planta Tratamiento Norte' };
 
       const singleMock = jest.fn().mockResolvedValue({ data: mockManager, error: null });
-      const eqMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqUserMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
       const result = await treatmentManagerService.getById(3);
 
       expect(eqMock).toHaveBeenCalledWith('id', 3);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-tm-1');
       expect(result).toEqual(mockManager);
     });
 
     it('debe lanzar error si no se encuentra el gestor o falla la consulta', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-tm-1' } },
+      });
       const singleMock = jest.fn().mockResolvedValue({
         data: null,
         error: { message: 'Manager not found' },
       });
-      const eqMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqUserMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
@@ -196,7 +207,9 @@ describe('treatmentManagerService - Gestores de Tratamiento Autorizados', () => 
       const insertMock = jest.fn().mockReturnValue({ select: selectInsertMock });
 
       const updateHoldedMock = jest.fn().mockReturnValue({
-        eq: jest.fn().mockResolvedValue({ error: null }),
+        eq: jest.fn().mockReturnValue({
+          eq: jest.fn().mockResolvedValue({ error: null }),
+        }),
       });
 
       mockSupabase.from.mockImplementation((table: string) => {
@@ -266,6 +279,9 @@ describe('treatmentManagerService - Gestores de Tratamiento Autorizados', () => 
 
   describe('update, softDelete y delete', () => {
     it('update debe actualizar los datos del gestor y sincronizar con Holded', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-tm-1' } },
+      });
       jest.spyOn(treatmentManagerService, 'getById').mockResolvedValue({
         id: 4,
         nombre: 'Antiguo',
@@ -280,7 +296,8 @@ describe('treatmentManagerService - Gestores de Tratamiento Autorizados', () => 
 
       const singleUpdateMock = jest.fn().mockResolvedValue({ data: updatedManager, error: null });
       const selectUpdateMock = jest.fn().mockReturnValue({ single: singleUpdateMock });
-      const eqUpdateMock = jest.fn().mockReturnValue({ select: selectUpdateMock });
+      const eqUserMock = jest.fn().mockReturnValue({ select: selectUpdateMock });
+      const eqUpdateMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqUpdateMock });
       mockSupabase.from.mockReturnValue({ update: updateMock });
 
@@ -296,8 +313,45 @@ describe('treatmentManagerService - Gestores de Tratamiento Autorizados', () => 
       expect(result).toEqual(updatedManager);
     });
 
+    it('update y delete deben redirigir a companyService cuando source es companies', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-tm-1' } },
+      });
+      mockCompanyService.update.mockResolvedValue({
+        id: 77,
+        user_id: 'user-tm-1',
+        razon_social: 'Gestor Unificado S.L.',
+        nombre_comercial: 'Gestor Uni',
+        cif: 'B77777777',
+        domicilio_social: 'Calle Uno',
+        activo: true,
+        created_at: '2026-01-01',
+        updated_at: '2026-01-02',
+      });
+      mockCompanyService.delete.mockResolvedValue(undefined);
+
+      const updated = await treatmentManagerService.update(
+        100,
+        { nombre: 'Gestor Uni', razon_social: 'Gestor Unificado S.L.', direccion: 'Calle Uno' },
+        { source: 'companies', companyId: 77 }
+      );
+
+      expect(mockCompanyService.update).toHaveBeenCalledWith(
+        77,
+        expect.objectContaining({ nombre_comercial: 'Gestor Uni', domicilio_social: 'Calle Uno' })
+      );
+      expect(updated.source).toBe('companies');
+      expect(updated.company_id).toBe(77);
+
+      await treatmentManagerService.delete(100, { source: 'companies', companyId: 77 });
+      expect(mockCompanyService.delete).toHaveBeenCalledWith(77);
+    });
+
     it('update debe tolerar fallos en Holded y lanzar error si falla Supabase', async () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-tm-1' } },
+      });
 
       jest.spyOn(treatmentManagerService, 'getById').mockResolvedValue({
         id: 4,
@@ -309,7 +363,13 @@ describe('treatmentManagerService - Gestores de Tratamiento Autorizados', () => 
 
       const singleUpdateMock = jest.fn().mockResolvedValue({ data: { id: 4 }, error: null });
       mockSupabase.from.mockReturnValue({
-        update: jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ select: jest.fn().mockReturnValue({ single: singleUpdateMock }) }) }),
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnValue({
+              select: jest.fn().mockReturnValue({ single: singleUpdateMock }),
+            }),
+          }),
+        }),
       });
 
       const result = await treatmentManagerService.update(4, {});
@@ -320,14 +380,24 @@ describe('treatmentManagerService - Gestores de Tratamiento Autorizados', () => 
       // Error en Supabase
       const singleFail = jest.fn().mockResolvedValue({ data: null, error: { message: 'Update DB error' } });
       mockSupabase.from.mockReturnValue({
-        update: jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ select: jest.fn().mockReturnValue({ single: singleFail }) }) }),
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnValue({
+              select: jest.fn().mockReturnValue({ single: singleFail }),
+            }),
+          }),
+        }),
       });
 
       await expect(treatmentManagerService.update(4, {})).rejects.toThrow('Error al actualizar gestor: Update DB error');
     });
 
     it('softDelete y delete deben gestionar el borrado lógico y físico', async () => {
-      const eqMock = jest.fn().mockResolvedValue({ error: null });
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-tm-1' } },
+      });
+      const eqUserMock = jest.fn().mockResolvedValue({ error: null });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
       const deleteMock = jest.fn().mockReturnValue({ eq: eqMock });
 
@@ -344,13 +414,31 @@ describe('treatmentManagerService - Gestores de Tratamiento Autorizados', () => 
     });
 
     it('softDelete y delete deben lanzar error si Supabase falla', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-tm-1' } },
+      });
       mockSupabase.from.mockImplementation(() => ({
-        update: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: { message: 'Soft error' } }) }),
-        delete: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: { message: 'Delete error' } }) }),
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            eq: jest.fn().mockResolvedValue({ error: { message: 'Soft error' } }),
+          }),
+        }),
+        delete: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            eq: jest.fn().mockResolvedValue({ error: { message: 'Delete error' } }),
+          }),
+        }),
       }));
 
       await expect(treatmentManagerService.softDelete(1)).rejects.toThrow('Error al desactivar gestor: Soft error');
       await expect(treatmentManagerService.delete(1)).rejects.toThrow('Error al eliminar gestor: Delete error');
+
+      jest.restoreAllMocks();
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
+      await expect(treatmentManagerService.getById(1)).rejects.toThrow('Usuario no autenticado');
+      await expect(treatmentManagerService.update(1, {})).rejects.toThrow('Usuario no autenticado');
+      await expect(treatmentManagerService.softDelete(1)).rejects.toThrow('Usuario no autenticado');
+      await expect(treatmentManagerService.delete(1)).rejects.toThrow('Usuario no autenticado');
     });
   });
 });

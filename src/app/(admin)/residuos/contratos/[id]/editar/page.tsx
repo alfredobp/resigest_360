@@ -11,11 +11,14 @@ import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
 import Select from '@/components/form/Select';
 import LerSelector from '@/components/residuos/LerSelector';
-import wasteContractService, { validateContractActivation } from '@/services/wasteContractService';
+import wasteContractService, {
+  validateContractActivation,
+  getContractEffectiveStatus,
+} from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
 import wasteTypeService from '@/services/wasteTypeService';
 import treatmentManagerService from '@/services/treatmentManagerService';
-import productionCenterService from '@/services/productionCenterService';
+import productionCenterService, { findPrincipalProductionCenter } from '@/services/productionCenterService';
 import authorizationService, { type AuthorizedScopeResult } from '@/services/authorizationService';
 import type {
   WasteContract,
@@ -51,6 +54,11 @@ const OPERACIONES_FRECUENTES = [
   { code: 'D15', desc: 'Almacenamiento en espera de eliminación' },
 ];
 
+const normalizeDateInput = (dateVal?: string | null): string => {
+  if (!dateVal) return '';
+  return dateVal.split('T')[0];
+};
+
 export default function EditarContratoPage() {
   const router = useRouter();
   const params = useParams();
@@ -60,7 +68,7 @@ export default function EditarContratoPage() {
   const [saving, setSaving] = useState(false);
   const [contract, setContract] = useState<WasteContract | null>(null);
   const [gestores, setGestores] = useState<Company[]>([]);
-  const [, setInternalGestores] = useState<TreatmentManager[]>([]);
+  const [internalGestores, setInternalGestores] = useState<TreatmentManager[]>([]);
   const [wasteTypes, setWasteTypes] = useState<WasteType[]>([]);
   const [producerCenters, setProducerCenters] = useState<ProductionCenter[]>([]);
   const [gestorCenters, setGestorCenters] = useState<ProductionCenter[]>([]);
@@ -113,8 +121,9 @@ export default function EditarContratoPage() {
   // Cargar centros del productor cuando cambie formData.company_id
   useEffect(() => {
     if (formData.company_id) {
-      productionCenterService.getByCompanyId(formData.company_id)
-        .then(setProducerCenters)
+      const targetCompanyId = formData.company_id;
+      productionCenterService.getByCompanyId(targetCompanyId)
+        .then((centers) => setProducerCenters(centers.filter((c) => c.company_id === targetCompanyId)))
         .catch((err) => console.error('Error al cargar centros del productor:', err));
     }
   }, [formData.company_id]);
@@ -124,18 +133,12 @@ export default function EditarContratoPage() {
     const gestorId = formData.gestor_company_id;
     if (gestorId) {
       productionCenterService.getByCompanyId(gestorId)
-        .then(setGestorCenters)
+        .then((centers) => setGestorCenters(centers.filter((c) => c.company_id === gestorId)))
         .catch((err) => console.error('Error al cargar centros del gestor:', err));
 
       authorizationService.getAuthorizedScope(gestorId)
         .then((res) => {
           setDestAuthScope(res);
-          if (res.authorizations.length > 0 && !formData.environmental_authorization_id) {
-            setFormData(prev => ({
-              ...prev,
-              environmental_authorization_id: res.authorizations[0].id,
-            }));
-          }
         })
         .catch((err) => console.error('Error al comprobar autorizaciones del gestor:', err));
     } else {
@@ -147,7 +150,7 @@ export default function EditarContratoPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      
+
       const contractData = await wasteContractService.getById(parseInt(id));
       setContract(contractData);
 
@@ -157,14 +160,29 @@ export default function EditarContratoPage() {
         wasteTypeService.getAll().catch(() => []),
       ]);
 
+      const producerCompanyId = contractData?.company_id;
+      const producerNormCif = contractData?.company?.cif?.toUpperCase().trim();
       const gestorCompanies = allCompanies.filter(
-        c => c.tipo_empresa === 'gestor' || (c.roles && c.roles.includes('gestor'))
+        c =>
+          (c.tipo_empresa === 'gestor' || (c.roles && c.roles.includes('gestor'))) &&
+          c.id !== producerCompanyId &&
+          (!producerNormCif || c.cif?.toUpperCase().trim() !== producerNormCif)
       );
       setGestores(gestorCompanies);
-      setInternalGestores(legacyGestores);
+      setInternalGestores(
+        legacyGestores.filter(
+          (ig) =>
+            ig.company_id !== producerCompanyId &&
+            (!producerNormCif || ig.cif?.toUpperCase().trim() !== producerNormCif)
+        )
+      );
       setWasteTypes(wastes);
 
       if (contractData) {
+        const normalizedFechaContrato = normalizeDateInput(contractData.fecha_contrato) || new Date().toISOString().split('T')[0];
+        const normalizedFechaInicio = normalizeDateInput(contractData.fecha_inicio) || normalizedFechaContrato;
+        const normalizedFechaFin = normalizeDateInput(contractData.fecha_fin);
+
         setFormData({
           company_id: contractData.company_id,
           gestor_company_id: contractData.gestor_company_id || undefined,
@@ -173,9 +191,9 @@ export default function EditarContratoPage() {
           gestor_center_id: contractData.gestor_center_id || undefined,
           environmental_authorization_id: contractData.environmental_authorization_id || undefined,
           numero_contrato: contractData.numero_contrato || '',
-          fecha_contrato: contractData.fecha_contrato,
-          fecha_inicio: contractData.fecha_inicio || '',
-          fecha_fin: contractData.fecha_fin || '',
+          fecha_contrato: normalizedFechaContrato,
+          fecha_inicio: normalizedFechaInicio,
+          fecha_fin: normalizedFechaFin,
           tipo_contrato: contractData.tipo_contrato,
           descripcion_residuos: contractData.descripcion_residuos || '',
           operaciones_tratamiento: contractData.operaciones_tratamiento || [],
@@ -258,11 +276,11 @@ export default function EditarContratoPage() {
       };
 
       const created = await companyService.create(gestorData);
-      setFormData((prev) => ({ ...prev, gestor_company_id: created.id }));
+      setFormData((prev) => ({ ...prev, gestor_company_id: created.id, treatment_manager_id: undefined }));
       setShowGestorForm(false);
       setNewGestor({ razon_social: '', cif: '', nima: '', email: '', telefono: '' });
       toast.success('Gestor creado y asignado con éxito.');
-      
+
       const allCompanies = await companyService.getAll();
       const gestorCompanies = allCompanies.filter(
         c => c.tipo_empresa === 'gestor' || (c.roles && c.roles.includes('gestor'))
@@ -283,8 +301,22 @@ export default function EditarContratoPage() {
       return;
     }
 
+    if (formData.fecha_inicio && formData.fecha_fin) {
+      if (new Date(formData.fecha_fin) < new Date(formData.fecha_inicio)) {
+        const msg = 'La fecha de fin de vigencia no puede ser anterior a la fecha de inicio.';
+        setError(msg);
+        toast.warning(msg);
+        return;
+      }
+    }
+
     const validWasteCodes = contractWasteCodes.filter(c => !!c.codigo_ler.trim());
-    if (formData.estado === 'vigente' && validWasteCodes.length === 0) {
+    const hasFallbackWasteInfo = Boolean(
+      formData.descripcion_residuos?.trim() ||
+      (contract?.codigos_ler && contract.codigos_ler.length > 0)
+    );
+
+    if (formData.estado === 'vigente' && validWasteCodes.length === 0 && !hasFallbackWasteInfo) {
       const msg = 'Para guardar como vigente, debe especificar al menos un residuo LER y su operación de tratamiento.';
       setError(msg);
       toast.warning(msg);
@@ -295,9 +327,14 @@ export default function EditarContratoPage() {
       setSaving(true);
       setError(null);
 
-      const cleanedData = {
+      const effectiveFechaInicio =
+        formData.fecha_inicio ||
+        (formData.estado === 'vigente' ? formData.fecha_contrato : undefined) ||
+        undefined;
+
+      const cleanedData: Partial<WasteContractFormData> = {
         ...formData,
-        fecha_inicio: formData.fecha_inicio || undefined,
+        fecha_inicio: effectiveFechaInicio,
         fecha_fin: formData.fecha_fin || undefined,
         cantidad_maxima_anual: formData.cantidad_maxima_anual || undefined,
         precio_unitario: formData.precio_unitario || undefined,
@@ -306,18 +343,30 @@ export default function EditarContratoPage() {
         producer_center_id: formData.producer_center_id || undefined,
         gestor_center_id: formData.gestor_center_id || undefined,
         environmental_authorization_id: formData.environmental_authorization_id || undefined,
-        codigos_ler: validWasteCodes.map(c => c.codigo_ler.trim()),
-        operaciones_tratamiento: Array.from(new Set(validWasteCodes.map(c => c.operacion_tratamiento.trim()).filter(Boolean))),
-        contractWasteCodes: validWasteCodes,
+        codigos_ler: validWasteCodes.length > 0
+          ? validWasteCodes.map(c => c.codigo_ler.trim())
+          : (contract?.codigos_ler || []),
+        operaciones_tratamiento: validWasteCodes.length > 0
+          ? Array.from(new Set(validWasteCodes.map(c => c.operacion_tratamiento.trim()).filter(Boolean)))
+          : (formData.operaciones_tratamiento?.length ? formData.operaciones_tratamiento : ['R13']),
+        ...(validWasteCodes.length > 0 ? { contract_waste_codes: validWasteCodes } : {}),
       };
 
       if (formData.estado === 'vigente') {
-        const val = validateContractActivation({
-          ...cleanedData,
-          company: contract?.company,
-          treatment_manager: contract?.treatment_manager,
-          gestor_company: contract?.gestor_company,
-        });
+        const val = validateContractActivation(
+          {
+            ...cleanedData,
+            company: contract?.company,
+            treatment_manager: contract?.treatment_manager,
+            gestor_company: contract?.gestor_company,
+            firmado_productor: contract?.firmado_productor,
+            firmado_gestor: contract?.firmado_gestor,
+            firma_productor_url: contract?.firma_productor_url,
+            firma_gestor_url: contract?.firma_gestor_url,
+            documento_url: contract?.documento_url,
+          },
+          { requireSignatures: true }
+        );
         if (!val.valid) {
           const msg = `No se puede guardar como vigente: ${val.errors.join('; ')}`;
           setError(msg);
@@ -367,6 +416,14 @@ export default function EditarContratoPage() {
     );
   }
 
+  const hasAnySignature = Boolean(
+    contract &&
+    (contract.firmado_productor ||
+      contract.firmado_gestor ||
+      contract.firma_productor_url ||
+      contract.firma_gestor_url)
+  );
+
   return (
     <>
       <PageBreadCrumb pageTitle={`Editar Contrato ${contract?.numero_contrato || `#${id}`}`} />
@@ -386,19 +443,38 @@ export default function EditarContratoPage() {
           <Alert variant="error" title="Error" message={error} />
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        {hasAnySignature && contract && (
+          <Alert
+            variant="info"
+            title={`Creación de Nueva Revisión Contractual (v${(contract.version || 1) + 1})`}
+            message={`La revisión actual (v${contract.version || 1}) dispone de firmas registradas. Al guardar cambios materiales (como la cantidad máxima anual, códigos LER, operaciones o vigencia), la versión v${contract.version || 1} se archivará íntegra en el historial de revisiones custodiadas y la nueva revisión v${(contract.version || 1) + 1} pasará a 'Pendiente de firma' para su nueva formalización (Art. 5 RD 553/2020).`}
+          />
+        )}
+
+        {contract && getContractEffectiveStatus(contract).isExpired && (
+          <Alert
+            variant="warning"
+            title="Contrato Caducado / Vencido"
+            message="La fecha de fin de vigencia de este contrato ha expirado. Actualiza las fechas de inicio y fin de vigencia y guarda los cambios para renovarlo."
+          />
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6" noValidate>
           {/* Información General */}
           <ComponentCard title="Información General">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label htmlFor="numero_contrato" className="block text-sm font-medium mb-2">Número de Contrato</label>
+                <label htmlFor="numero_contrato" className="block text-sm font-medium mb-2">Número de Contrato (Inmutable)</label>
                 <Input
                   id="numero_contrato"
                   type="text"
                   value={formData.numero_contrato}
-                  onChange={(e) => setFormData({ ...formData, numero_contrato: e.target.value })}
-                  placeholder="Ej: CONT-2024-001"
+                  disabled
+                  placeholder="Código asignado automáticamente"
                 />
+                <p className="text-[11px] text-muted mt-1">
+                  El código consecutivo del contrato es inmutable y no puede editarse una vez emitido.
+                </p>
               </div>
 
               <div>
@@ -407,6 +483,7 @@ export default function EditarContratoPage() {
                 </label>
                 <Select
                   options={TIPOS_CONTRATO}
+                  value={formData.tipo_contrato}
                   defaultValue={formData.tipo_contrato}
                   onChange={(value) => setFormData({ ...formData, tipo_contrato: value as any })}
                   placeholder="Selecciona una opción"
@@ -435,6 +512,7 @@ export default function EditarContratoPage() {
                     { value: 'finalizado', label: 'Finalizado' },
                     { value: 'cancelado', label: 'Cancelado' },
                   ]}
+                  value={formData.estado}
                   defaultValue={formData.estado}
                   onChange={(value) => setFormData({ ...formData, estado: value as any })}
                   placeholder="Selecciona una opción"
@@ -485,12 +563,15 @@ export default function EditarContratoPage() {
                   </label>
                   <Select
                     options={[
-                      { value: '', label: '-- Centro general / Sede principal --' },
+                      ...(!findPrincipalProductionCenter(contract?.company, producerCenters) || !formData.producer_center_id
+                        ? [{ value: '', label: '-- Centro general / Sede principal --' }]
+                        : []),
                       ...producerCenters.map(c => ({
                         value: c.id.toString(),
-                        label: `${c.nombre} (${c.municipio || ''}${c.nima ? ` - NIMA: ${  c.nima}` : ''})`,
+                        label: `${c.nombre} (${c.municipio || ''}${c.nima ? ` - NIMA: ${c.nima}` : ''})`,
                       })),
                     ]}
+                    value={formData.producer_center_id?.toString() || ''}
                     defaultValue={formData.producer_center_id?.toString() || ''}
                     onChange={(val) => setFormData({ ...formData, producer_center_id: val ? parseInt(val) : undefined })}
                   />
@@ -529,12 +610,66 @@ export default function EditarContratoPage() {
                         options={[
                           { value: '', label: '-- Seleccionar Gestor --' },
                           ...filteredGestores.map((g) => ({
-                            value: g.id.toString(),
-                            label: `${g.razon_social} (${g.cif})${g.nima ? ` - NIMA: ${  g.nima}` : ''}`,
+                            value: `company:${g.id}`,
+                            label: `${g.razon_social} (${g.cif})${g.nima ? ` - NIMA: ${g.nima}` : ''}`,
                           })),
+                          ...internalGestores
+                            .filter((ig) => {
+                              if (ig.source === 'companies') return false;
+                              const normCif = ig.cif?.toUpperCase().trim();
+                              const matchesQuery =
+                                !searchQuery ||
+                                (ig.razon_social || ig.nombre || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                (ig.cif || '').toLowerCase().includes(searchQuery.toLowerCase());
+                              return matchesQuery && !gestores.some((g) => g.cif?.toUpperCase().trim() === normCif);
+                            })
+                            .map((ig) => ({
+                              value: `tm:${ig.id}`,
+                              label: `${ig.razon_social || ig.nombre} (${ig.cif}) - Gestor Interno`,
+                            })),
                         ]}
-                        defaultValue={formData.gestor_company_id?.toString() || ''}
-                        onChange={(value) => setFormData({ ...formData, gestor_company_id: parseInt(value) || undefined })}
+                        value={
+                          formData.gestor_company_id
+                            ? `company:${formData.gestor_company_id}`
+                            : formData.treatment_manager_id
+                              ? `tm:${formData.treatment_manager_id}`
+                              : ''
+                        }
+                        defaultValue={
+                          formData.gestor_company_id
+                            ? `company:${formData.gestor_company_id}`
+                            : formData.treatment_manager_id
+                              ? `tm:${formData.treatment_manager_id}`
+                              : ''
+                        }
+                        onChange={(value) => {
+                          if (!value) {
+                            setFormData({
+                              ...formData,
+                              gestor_company_id: undefined,
+                              treatment_manager_id: undefined,
+                              gestor_center_id: undefined,
+                            });
+                            return;
+                          }
+                          if (value.startsWith('tm:')) {
+                            const tmId = parseInt(value.replace('tm:', ''), 10);
+                            setFormData({
+                              ...formData,
+                              treatment_manager_id: tmId || undefined,
+                              gestor_company_id: undefined,
+                              gestor_center_id: undefined,
+                            });
+                          } else {
+                            const compId = parseInt(value.replace('company:', ''), 10);
+                            setFormData({
+                              ...formData,
+                              gestor_company_id: compId || undefined,
+                              treatment_manager_id: undefined,
+                              gestor_center_id: undefined,
+                            });
+                          }
+                        }}
                       />
                     </div>
 
@@ -545,12 +680,18 @@ export default function EditarContratoPage() {
                       </label>
                       <Select
                         options={[
-                          { value: '', label: '-- Instalación general / Sede principal --' },
+                          ...(!findPrincipalProductionCenter(
+                            gestores.find((g) => g.id === formData.gestor_company_id),
+                            gestorCenters
+                          ) || !formData.gestor_center_id
+                            ? [{ value: '', label: '-- Instalación general / Sede principal --' }]
+                            : []),
                           ...gestorCenters.map(c => ({
                             value: c.id.toString(),
-                            label: `${c.nombre} (${c.municipio || ''}${c.nima ? ` - NIMA: ${  c.nima}` : ''})`,
+                            label: `${c.nombre} (${c.municipio || ''}${c.nima ? ` - NIMA: ${c.nima}` : ''})`,
                           })),
                         ]}
+                        value={formData.gestor_center_id?.toString() || ''}
                         defaultValue={formData.gestor_center_id?.toString() || ''}
                         onChange={(val) => setFormData({ ...formData, gestor_center_id: val ? parseInt(val) : undefined })}
                       />
@@ -645,9 +786,6 @@ export default function EditarContratoPage() {
                               handleWasteRowChange(idx, 'codigo_ler', code);
                               if (wt?.descripcion) {
                                 handleWasteRowChange(idx, 'descripcion_ler', wt.descripcion);
-                              }
-                              if (wt?.operaciones_permitidas?.[0]) {
-                                handleWasteRowChange(idx, 'operacion_tratamiento', wt.operaciones_permitidas[0]);
                               }
                             }}
                           />

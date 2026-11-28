@@ -4,6 +4,8 @@
 // =====================================================
 
 import { createClient } from '@/lib/supabase/client';
+import { auditService } from './auditService';
+import { getActiveCompanyCookie } from './tenantContextService';
 import type {
   EnvironmentalAuthorization,
   EnvironmentalAuthorizationFormData,
@@ -30,6 +32,8 @@ export const authorizationService = {
       throw new Error('Usuario no autenticado');
     }
 
+    // INC06: Filtrar por user_id (propietario del tenant) sin restringir a activeCompanyId,
+    // ya que un productor gestiona autorizaciones de sus gestores externos (company_id != activeCompanyId).
     const { data, error } = await supabase
       .from('environmental_authorizations')
       .select('*, company:companies(*), production_center:production_centers(*), waste_codes:authorization_waste_codes(*)')
@@ -54,6 +58,8 @@ export const authorizationService = {
       throw new Error('Usuario no autenticado');
     }
 
+    // INC06: Unificar consulta con getAuthorizedScope para que directorio, modal, contrato y DI
+    // recuperen exactamente las mismas autorizaciones del gestor.
     const { data, error } = await supabase
       .from('environmental_authorizations')
       .select('*, production_center:production_centers(*), waste_codes:authorization_waste_codes(*)')
@@ -180,10 +186,12 @@ export const authorizationService = {
 
     const { waste_codes, ...authData } = formData;
 
+    const resolvedCompanyId = authData.company_id ?? getActiveCompanyCookie() ?? undefined;
     const { data, error } = await supabase
       .from('environmental_authorizations')
       .insert({
         ...authData,
+        ...(resolvedCompanyId ? { company_id: resolvedCompanyId } : {}),
         user_id: user.id,
         activo: formData.activo ?? true,
         es_indefinida: formData.es_indefinida ?? false,
@@ -215,6 +223,18 @@ export const authorizationService = {
         console.error('Error al registrar códigos de residuo de la autorización:', wasteErr);
       }
     }
+
+    await auditService.logAction({
+      company_id: createdAuth.company_id ?? null,
+      entidad: 'autorizacion',
+      entidad_id: createdAuth.id,
+      accion: 'crear',
+      detalles: {
+        numero_autorizacion: createdAuth.numero_autorizacion,
+        titulo: createdAuth.titulo,
+        codigos_ler: (waste_codes || []).map((wc) => wc.codigo_ler),
+      },
+    });
 
     return createdAuth;
   },
@@ -271,7 +291,21 @@ export const authorizationService = {
       }
     }
 
-    return data as EnvironmentalAuthorization;
+    const updatedAuth = data as EnvironmentalAuthorization;
+
+    await auditService.logAction({
+      company_id: updatedAuth.company_id ?? null,
+      entidad: 'autorizacion',
+      entidad_id: updatedAuth.id,
+      accion: 'actualizar',
+      detalles: {
+        numero_autorizacion: updatedAuth.numero_autorizacion,
+        titulo: updatedAuth.titulo,
+        codigos_ler: waste_codes ? waste_codes.map((wc) => wc.codigo_ler) : undefined,
+      },
+    });
+
+    return updatedAuth;
   },
 
   /**
@@ -293,6 +327,13 @@ export const authorizationService = {
     if (error) {
       throw new Error(`Error al eliminar autorización: ${error.message}`);
     }
+
+    await auditService.logAction({
+      entidad: 'autorizacion',
+      entidad_id: id,
+      accion: 'eliminar',
+      detalles: { soft_delete: true },
+    });
   },
 };
 

@@ -5,50 +5,260 @@
 import { createClient } from '@/lib/supabase/client';
 import {
   type CommercialOperation,
+  type CommercialOperationDocument,
   type CommercialOperationFormData,
   type CommercialOperationStats,
-  type EstadoOperacionComercial
+  type CommercialInterventionMeta,
+  type EstadoOperacionComercial,
+  type ModalidadPosesionComercial,
+  type TipoPrecioOperacion
 } from '@/types/wasteManagement';
 import { holdedService } from './holdedService';
 import { auditService } from './auditService';
+import { tenantContextService, applyTenantScope, getActiveCompanyCookie } from './tenantContextService';
+import { syncEntryFromCommercialOperation } from './chronologicalRegistryService';
+
+const OP_META_MARKER = '__RESIGEST_OP_META__:';
+
+/**
+ * Formatea la modalidad de precio en texto legible para interfaz y PDF (UXDEV-14 / UX-23).
+ */
+export function formatPriceUnitLabel(tipo?: TipoPrecioOperacion | string | null): string {
+  if (tipo === 'por_kg') return '€/kg';
+  if (tipo === 'lote_fijo') return 'Lote fijo';
+  return '€/t';
+}
+
+/**
+ * Genera una huella digital determinista de 64 caracteres hexadecimales para trazabilidad
+ * documental en navegador y servidor (UXDEV-11 / UX-23).
+ */
+export function computeDocumentFingerprint(seed: string): string {
+  let h1 = 0xdeadbeef ^ seed.length;
+  let h2 = 0x41c6ce57 ^ seed.length;
+  let h3 = 0x9e3779b9 ^ seed.length;
+  let h4 = 0x85ebca6b ^ seed.length;
+
+  for (let i = 0; i < seed.length; i++) {
+    const ch = seed.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+    h3 = Math.imul(h3 ^ (ch + i), 2246822519);
+    h4 = Math.imul(h4 ^ (ch * 31), 3266489917);
+  }
+
+  const parts = [h1, h2, h3, h4, h1 ^ h3, h2 ^ h4, h1 ^ h2, h3 ^ h4];
+  return parts.map((n) => (n >>> 0).toString(16).padStart(8, '0')).join('');
+}
+
+/**
+ * Extrae metadatos estructurados de intervención ambiental y carpeta documental
+ * desde el campo observaciones sin requerir columnas adicionales en base de datos (UXDEV-11).
+ */
+export function parseCommercialMetaFromNotes(
+  observaciones?: string | null,
+  fallbackModalidad?: ModalidadPosesionComercial
+): { cleanNotes: string; meta: CommercialInterventionMeta } {
+  const defaultMeta: CommercialInterventionMeta = {
+    modalidad_posesion: fallbackModalidad || 'intermediacion_sin_posesion',
+    actua_como_operador: false,
+    documentos: [],
+  };
+
+  if (!observaciones) {
+    return { cleanNotes: '', meta: defaultMeta };
+  }
+
+  const markerIdx = observaciones.indexOf(OP_META_MARKER);
+  if (markerIdx === -1) {
+    return { cleanNotes: observaciones, meta: defaultMeta };
+  }
+
+  const cleanNotes = observaciones.slice(0, markerIdx).trim();
+  const rawJson = observaciones.slice(markerIdx + OP_META_MARKER.length).trim();
+
+  try {
+    const parsed = JSON.parse(rawJson);
+    return {
+      cleanNotes,
+      meta: {
+        modalidad_posesion:
+          parsed.modalidad_posesion === 'almacenamiento_planta_propia'
+            ? 'almacenamiento_planta_propia'
+            : fallbackModalidad || 'intermediacion_sin_posesion',
+        actua_como_operador: Boolean(parsed.actua_como_operador),
+        mandato_referencia: parsed.mandato_referencia || undefined,
+        mandato_fecha: parsed.mandato_fecha || undefined,
+        mandato_otorgante: parsed.mandato_otorgante || undefined,
+        documentos: Array.isArray(parsed.documentos) ? parsed.documentos : [],
+        lineas_materiales: Array.isArray(parsed.lineas_materiales) ? parsed.lineas_materiales : undefined,
+      },
+    };
+  } catch {
+    return { cleanNotes, meta: defaultMeta };
+  }
+}
+
+/**
+ * Serializa observaciones del usuario junto con metadatos estructurados de intervención ambiental
+ * y carpeta documental (UXDEV-11).
+ */
+export function serializeCommercialMetaToNotes(
+  userNotes: string | undefined | null,
+  meta: CommercialInterventionMeta
+): string {
+  const base = (userNotes || '').split(OP_META_MARKER)[0].trim();
+  const serialized = `${OP_META_MARKER}${JSON.stringify({
+    modalidad_posesion: meta.modalidad_posesion,
+    actua_como_operador: Boolean(meta.actua_como_operador),
+    ...(meta.mandato_referencia ? { mandato_referencia: meta.mandato_referencia } : {}),
+    ...(meta.mandato_fecha ? { mandato_fecha: meta.mandato_fecha } : {}),
+    ...(meta.mandato_otorgante ? { mandato_otorgante: meta.mandato_otorgante } : {}),
+    documentos: Array.isArray(meta.documentos) ? meta.documentos : [],
+    ...(Array.isArray(meta.lineas_materiales) && meta.lineas_materiales.length > 0
+      ? { lineas_materiales: meta.lineas_materiales }
+      : {}),
+  })}`;
+  return base ? `${base}\n\n${serialized}` : serialized;
+}
+
+/**
+ * Valida la exigencia de representación/mandato escrito cuando el negociante o agente
+ * declara actuar como operador del traslado (Art. 2.h RD 553/2020 — UXDEV-11 / UX-22).
+ */
+export function validateOperatorMandate(
+  data: Partial<CommercialOperationFormData>
+): { valid: boolean; error?: string } {
+  if (!data.actua_como_operador) {
+    return { valid: true };
+  }
+  const ref = (data.mandato_referencia || '').trim();
+  if (!ref) {
+    return {
+      valid: false,
+      error:
+        'Para actuar como operador del traslado (Art. 2.h RD 553/2020) es obligatorio acreditar la referencia del mandato o representación escrita del productor/poseedor.',
+    };
+  }
+  return { valid: true };
+}
+
+function hydrateCommercialOperation(op: CommercialOperation): CommercialOperation {
+  const hasMarker = Boolean(op.observaciones && op.observaciones.includes(OP_META_MARKER));
+  if (!hasMarker) {
+    return op;
+  }
+  const { cleanNotes, meta } = parseCommercialMetaFromNotes(
+    op.observaciones,
+    op.modalidad_posesion
+  );
+  return {
+    ...op,
+    observaciones: cleanNotes || null,
+    modalidad_posesion: op.modalidad_posesion ?? meta.modalidad_posesion,
+    actua_como_operador: meta.actua_como_operador,
+    mandato_referencia: meta.mandato_referencia || null,
+    mandato_fecha: meta.mandato_fecha || null,
+    mandato_otorgante: meta.mandato_otorgante || null,
+    documentos_adjuntos: meta.documentos,
+    lineas_materiales: meta.lineas_materiales,
+  };
+}
+
+async function syncClosedOperationToChronologicalRegistry(op: CommercialOperation): Promise<void> {
+  // QA5-I02: Si es intermediación pura sin posesión física en planta propia, no generar salida de stock físico
+  if (op.modalidad_posesion === 'intermediacion_sin_posesion') {
+    return;
+  }
+  if (
+    (op.estado === 'completada' || op.estado === 'liquidada') &&
+    op.numero_operacion &&
+    op.codigo_ler
+  ) {
+    try {
+      await syncEntryFromCommercialOperation(op);
+    } catch {
+      /* best-effort: no bloquear flujo comercial si falla el registro cronológico */
+    }
+  }
+}
 
 export interface CommercialOperationFilter {
   año?: number;
   estado?: EstadoOperacionComercial | 'todas';
   codigo_ler?: string;
   search?: string;
+  company_id?: number | null;
 }
 
 /**
  * Calcula con precisión los costes, ingresos y márgenes de una operación comercial
+ * (incluyendo soporte multimaterial Hito C.4 / N04 con varias líneas LER).
  */
 export function calculateProfitability(data: Partial<CommercialOperationFormData>) {
-  const toneladas = (data.cantidad_real_t && data.cantidad_real_t > 0)
+  const hasMultiLines = Array.isArray(data.lineas_materiales) && data.lineas_materiales.length > 0;
+
+  let toneladas = (data.cantidad_real_t && data.cantidad_real_t > 0)
     ? Number(data.cantidad_real_t)
     : Number(data.cantidad_estimada_t || 0);
 
-  // Cálculo de coste de compra
-  const precioCompra = Number(data.precio_unitario_compra || 0);
   let costeCompra = 0;
-  if (data.tipo_precio_compra === 'por_tonelada') {
-    costeCompra = precioCompra * toneladas;
-  } else if (data.tipo_precio_compra === 'por_kg') {
-    costeCompra = precioCompra * (toneladas * 1000);
-  } else {
-    // lote_fijo
-    costeCompra = precioCompra;
-  }
-
-  // Cálculo de ingreso de venta
-  const precioVenta = Number(data.precio_unitario_venta || 0);
   let ingresoVenta = 0;
-  if (data.tipo_precio_venta === 'por_tonelada') {
-    ingresoVenta = precioVenta * toneladas;
-  } else if (data.tipo_precio_venta === 'por_kg') {
-    ingresoVenta = precioVenta * (toneladas * 1000);
+
+  if (hasMultiLines) {
+    let sumT = 0;
+    for (const line of data.lineas_materiales!) {
+      const lineT = Number(line.cantidad_t || 0);
+      sumT += lineT;
+    }
+
+    // A7-02: Si se registra una pesada global (cantidad_real_t) sin haber desglosado cada línea a la misma suma,
+    // aplicar reparto proporcional respecto a las cantidades de las líneas para conservar precios y márgenes,
+    // sin caer jamás en multiplicar por los precios 0 de la cabecera.
+    const explicitRealT =
+      data.cantidad_real_t !== undefined && data.cantidad_real_t !== null && Number(data.cantidad_real_t) > 0
+        ? Number(data.cantidad_real_t)
+        : null;
+    const scaleFactor =
+      explicitRealT !== null && sumT > 0 && Math.abs(explicitRealT - sumT) > 0.0001
+        ? explicitRealT / sumT
+        : 1;
+
+    for (const line of data.lineas_materiales!) {
+      const effectiveLineT = Number(line.cantidad_t || 0) * scaleFactor;
+      const factor =
+        line.tipo_precio === 'por_kg'
+          ? effectiveLineT * 1000
+          : line.tipo_precio === 'lote_fijo'
+            ? 1
+            : effectiveLineT;
+      costeCompra += Number(line.precio_unitario_compra || 0) * factor;
+      ingresoVenta += Number(line.precio_unitario_venta || 0) * factor;
+    }
+
+    toneladas = explicitRealT !== null ? explicitRealT : sumT;
   } else {
-    // lote_fijo
-    ingresoVenta = precioVenta;
+    // Cálculo de coste de compra
+    const precioCompra = Number(data.precio_unitario_compra || 0);
+    if (data.tipo_precio_compra === 'por_tonelada') {
+      costeCompra = precioCompra * toneladas;
+    } else if (data.tipo_precio_compra === 'por_kg') {
+      costeCompra = precioCompra * (toneladas * 1000);
+    } else {
+      // lote_fijo
+      costeCompra = precioCompra;
+    }
+
+    // Cálculo de ingreso de venta
+    const precioVenta = Number(data.precio_unitario_venta || 0);
+    if (data.tipo_precio_venta === 'por_tonelada') {
+      ingresoVenta = precioVenta * toneladas;
+    } else if (data.tipo_precio_venta === 'por_kg') {
+      ingresoVenta = precioVenta * (toneladas * 1000);
+    } else {
+      // lote_fijo
+      ingresoVenta = precioVenta;
+    }
   }
 
   const costeTransporte = Number(data.coste_transporte || 0);
@@ -73,12 +283,22 @@ export function calculateProfitability(data: Partial<CommercialOperationFormData
 
 export const commercialOperationService = {
   /**
+   * Verifica que el usuario y la empresa activa tienen permiso al módulo de Operaciones Comerciales.
+   */
+  async verifyAccess(): Promise<void> {
+    await tenantContextService.assertModuleAccess('operaciones_comerciales');
+  },
+
+  /**
    * Obtener todas las operaciones con filtros
    */
   async getAll(filters: CommercialOperationFilter = {}): Promise<CommercialOperation[]> {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No hay usuario autenticado');
+
+    const filterColumn = filters.company_id ? 'company_id' : 'user_id';
+    const filterValue = filters.company_id ?? user.id;
 
     let query = supabase
       .from('commercial_operations')
@@ -92,7 +312,7 @@ export const commercialOperationService = {
         cliente_comercial:companies!commercial_operations_cliente_comercial_id_fkey(*),
         identification_document:identification_documents(*)
       `)
-      .eq('user_id', user.id)
+      .eq(filterColumn, filterValue)
       .order('fecha', { ascending: false })
       .order('id', { ascending: false });
 
@@ -114,7 +334,9 @@ export const commercialOperationService = {
       throw error;
     }
 
-    let results: CommercialOperation[] = data || [];
+    let results: CommercialOperation[] = (data || []).map((item: CommercialOperation) =>
+      hydrateCommercialOperation(item)
+    );
 
     if (filters.search && filters.search.trim()) {
       const q = filters.search.toLowerCase().trim();
@@ -138,7 +360,10 @@ export const commercialOperationService = {
    */
   async getById(id: number): Promise<CommercialOperation | null> {
     const supabase = createClient();
-    const { data, error } = await supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const baseQuery = supabase
       .from('commercial_operations')
       .select(`
         *,
@@ -150,7 +375,9 @@ export const commercialOperationService = {
         cliente_comercial:companies!commercial_operations_cliente_comercial_id_fkey(*),
         identification_document:identification_documents(*)
       `)
-      .eq('id', id)
+      .eq('id', id);
+
+    const { data, error } = await applyTenantScope(baseQuery, user.id)
       .single();
 
     if (error) {
@@ -158,7 +385,7 @@ export const commercialOperationService = {
       return null;
     }
 
-    return data as CommercialOperation;
+    return hydrateCommercialOperation(data as CommercialOperation);
   },
 
   /**
@@ -169,24 +396,95 @@ export const commercialOperationService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No hay usuario autenticado');
 
+    // UXDEV-11 / UX-22: Exigir mandato escrito antes de consultar o insertar si declara actuar como operador del traslado
+    const mandateValidation = validateOperatorMandate(data);
+    if (!mandateValidation.valid) {
+      throw new Error(mandateValidation.error);
+    }
+
+    // Idempotencia: si viene idempotency_key y ya se registró antes para este usuario, devolverla
+    if (data.idempotency_key) {
+      const { data: existingByKey } = await supabase
+        .from('commercial_operations')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('idempotency_key', data.idempotency_key)
+        .maybeSingle();
+      if (existingByKey) {
+        return existingByKey as CommercialOperation;
+      }
+    }
+
     const year = new Date(data.fecha || new Date()).getFullYear();
 
-    // Generar correlativo OP-YYYY-000001
-    const { count } = await supabase
+    // Generar correlativo OP-YYYY-000001 evitando colisiones tras borrados y entre empresas/tenants
+    const { data: existingOps, count } = await supabase
       .from('commercial_operations')
-      .select('id', { count: 'exact', head: true })
+      .select('id, numero_operacion', { count: 'exact' })
       .eq('user_id', user.id);
 
-    const nextSeq = (count || 0) + 1;
-    const numero_operacion = `OP-${year}-${String(nextSeq).padStart(6, '0')}`;
+    let maxSeq = count || 0;
+    if (Array.isArray(existingOps)) {
+      for (const item of existingOps) {
+        const match = item.numero_operacion?.match(/-(\d+)$/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (!isNaN(num) && num > maxSeq) {
+            maxSeq = num;
+          }
+        }
+      }
+    }
 
     // Calcular márgenes
     const profitability = calculateProfitability(data);
 
-    const payload = {
-      ...data,
+    const buildNumero = (seq: number, scoped: boolean): string => {
+      const padded = String(seq).padStart(6, '0');
+      if (!scoped) {
+        return `OP-${year}-${padded}`;
+      }
+      const companyTag = data.company_id ? `E${data.company_id}` : `U${user.id.slice(0, 4).toUpperCase()}`;
+      return `OP-${companyTag}-${year}-${padded}`;
+    };
+
+    // Separar campos virtuales de intervención ambiental, carpeta documental y líneas multimaterial
+    const {
+      actua_como_operador,
+      mandato_referencia,
+      mandato_fecha,
+      mandato_otorgante,
+      documentos_adjuntos,
+      lineas_materiales,
+      ...dbData
+    } = data;
+
+    const hasStructuredMeta =
+      actua_como_operador !== undefined ||
+      mandato_referencia !== undefined ||
+      mandato_fecha !== undefined ||
+      mandato_otorgante !== undefined ||
+      (Array.isArray(documentos_adjuntos) && documentos_adjuntos.length > 0) ||
+      (Array.isArray(lineas_materiales) && lineas_materiales.length > 0);
+
+    const finalObservaciones = hasStructuredMeta
+      ? serializeCommercialMetaToNotes(data.observaciones, {
+        modalidad_posesion: data.modalidad_posesion || 'intermediacion_sin_posesion',
+        actua_como_operador: Boolean(actua_como_operador),
+        mandato_referencia: mandato_referencia?.trim() || undefined,
+        mandato_fecha: mandato_fecha || undefined,
+        mandato_otorgante: mandato_otorgante?.trim() || undefined,
+        documentos: Array.isArray(documentos_adjuntos) ? documentos_adjuntos : [],
+        lineas_materiales: Array.isArray(lineas_materiales) ? lineas_materiales : undefined,
+      })
+      : data.observaciones;
+
+    const resolvedCompanyId = dbData.company_id ?? getActiveCompanyCookie() ?? undefined;
+    const basePayload = {
+      ...dbData,
+      ...(resolvedCompanyId ? { company_id: resolvedCompanyId } : {}),
+      observaciones: finalObservaciones,
       user_id: user.id,
-      numero_operacion,
       estado: data.estado || 'abierta',
       peligrosidad: data.codigo_ler.includes('*') ? 'peligroso' : data.peligrosidad,
       coste_compra_total: profitability.coste_compra_total,
@@ -198,18 +496,61 @@ export const commercialOperationService = {
       porcentaje_margen: profitability.porcentaje_margen
     };
 
-    const { data: created, error } = await supabase
-      .from('commercial_operations')
-      .insert([payload])
-      .select()
-      .single();
+    let created: any = null;
+    let lastError: any = null;
 
-    if (error) {
-      console.error('Error al crear operación comercial:', error);
-      throw error;
+    // Reintento automático ante colisión de índice único (multi-empresa / concurrencia / restricción global previa)
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const useScopedPrefix = attempt > 0;
+      const numero_operacion = buildNumero(maxSeq + 1 + (attempt > 1 ? attempt - 1 : 0), useScopedPrefix);
+
+      const result = await supabase
+        .from('commercial_operations')
+        .insert([{ ...basePayload, numero_operacion }])
+        .select()
+        .single();
+
+      if (!result.error) {
+        created = result.data;
+        lastError = null;
+        break;
+      }
+
+      lastError = result.error;
+      const msg = String(result.error?.message || '');
+      const isUniqueCollision =
+        result.error?.code === '23505' ||
+        msg.includes('duplicate key') ||
+        msg.includes('commercial_operations_numero_operacion_key') ||
+        msg.includes('idx_commercial_ops_tenant_numero_unique');
+
+      if (!isUniqueCollision) {
+        break;
+      }
     }
 
-    return created as CommercialOperation;
+    if (lastError || !created) {
+      console.error('Error al crear operación comercial:', lastError);
+      throw lastError;
+    }
+
+    await auditService.logAction({
+      company_id: created.company_id || data.company_id || null,
+      entidad: 'operacion_comercial',
+      entidad_id: created.id,
+      accion: 'crear',
+      detalles: {
+        numero_operacion: created.numero_operacion,
+        codigo_ler: created.codigo_ler,
+        margen_bruto_total: created.margen_bruto_total,
+        identification_document_id: created.identification_document_id || null,
+      },
+    });
+
+    const hydratedCreated = hydrateCommercialOperation(created as CommercialOperation);
+    await syncClosedOperationToChronologicalRegistry(hydratedCreated);
+
+    return hydratedCreated;
   },
 
   /**
@@ -217,30 +558,147 @@ export const commercialOperationService = {
    */
   async update(id: number, data: Partial<CommercialOperationFormData>): Promise<CommercialOperation> {
     const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No hay usuario autenticado');
 
-    // Recalcular rentabilidad si cambian precios o cantidades
-    const profitability = calculateProfitability(data);
+    const mandateValidation = validateOperatorMandate(data);
+    if (!mandateValidation.valid) {
+      throw new Error(mandateValidation.error);
+    }
+
+    const {
+      actua_como_operador,
+      mandato_referencia,
+      mandato_fecha,
+      mandato_otorgante,
+      documentos_adjuntos,
+      lineas_materiales,
+      ...dbData
+    } = data;
+
+    const hasMetaFields =
+      actua_como_operador !== undefined ||
+      mandato_referencia !== undefined ||
+      mandato_fecha !== undefined ||
+      mandato_otorgante !== undefined ||
+      documentos_adjuntos !== undefined ||
+      lineas_materiales !== undefined;
+
+    const hasFinancialFields =
+      data.cantidad_estimada_t !== undefined ||
+      data.cantidad_real_t !== undefined ||
+      data.tipo_precio_compra !== undefined ||
+      data.precio_unitario_compra !== undefined ||
+      data.tipo_precio_venta !== undefined ||
+      data.precio_unitario_venta !== undefined ||
+      data.coste_transporte !== undefined ||
+    data.otros_costes !== undefined ||
+      lineas_materiales !== undefined;
 
     const payload: any = {
-      ...data,
-      coste_compra_total: profitability.coste_compra_total,
-      ingreso_venta_total: profitability.ingreso_venta_total,
-      coste_transporte: profitability.coste_transporte,
-      otros_costes: profitability.otros_costes,
-      margen_bruto_total: profitability.margen_bruto_total,
-      margen_unitario_tonelada: profitability.margen_unitario_tonelada,
-      porcentaje_margen: profitability.porcentaje_margen,
+      ...dbData,
       updated_at: new Date().toISOString()
     };
+
+    const existing = (hasFinancialFields || hasMetaFields || data.observaciones !== undefined) ? await this.getById(id) : null;
+
+    // Si es multimaterial y se actualiza cantidad_real_t global sin enviar nuevas lineas_materiales,
+    // ajustar proporcionalmente las cantidades de las líneas guardadas para que la tabla multimaterial,
+    // el PDF y el CSV coincidan exactamente con el peso verificado en báscula (A7-02).
+    let resolvedLinesForUpdate =
+      lineas_materiales !== undefined ? lineas_materiales : existing?.lineas_materiales;
+    if (
+      lineas_materiales === undefined &&
+      Array.isArray(resolvedLinesForUpdate) &&
+      resolvedLinesForUpdate.length > 0 &&
+      data.cantidad_real_t &&
+      Number(data.cantidad_real_t) > 0
+    ) {
+      const sumPrevT = resolvedLinesForUpdate.reduce((acc, l) => acc + Number(l.cantidad_t || 0), 0);
+      const targetRealT = Number(data.cantidad_real_t);
+      if (sumPrevT > 0 && Math.abs(targetRealT - sumPrevT) > 0.0001) {
+        const ratio = targetRealT / sumPrevT;
+        let runningT = 0;
+        resolvedLinesForUpdate = resolvedLinesForUpdate.map((l, idx, arr) => {
+          if (idx === arr.length - 1) {
+            return { ...l, cantidad_t: Math.max(0, Number((targetRealT - runningT).toFixed(3))) };
+          }
+          const scaledT = Number((Number(l.cantidad_t || 0) * ratio).toFixed(3));
+          runningT += scaledT;
+          return { ...l, cantidad_t: scaledT };
+        });
+      }
+    }
+
+    if (hasMetaFields || resolvedLinesForUpdate !== existing?.lineas_materiales || (data.observaciones !== undefined && existing)) {
+      payload.observaciones = serializeCommercialMetaToNotes(
+        data.observaciones !== undefined ? data.observaciones : existing?.observaciones,
+        {
+          modalidad_posesion:
+            data.modalidad_posesion ||
+            existing?.modalidad_posesion ||
+            'intermediacion_sin_posesion',
+          actua_como_operador:
+            actua_como_operador !== undefined
+              ? Boolean(actua_como_operador)
+              : Boolean(existing?.actua_como_operador),
+          mandato_referencia:
+            mandato_referencia !== undefined
+              ? mandato_referencia.trim() || undefined
+              : existing?.mandato_referencia || undefined,
+          mandato_fecha:
+            mandato_fecha !== undefined
+              ? mandato_fecha || undefined
+              : existing?.mandato_fecha || undefined,
+          mandato_otorgante:
+            mandato_otorgante !== undefined
+              ? mandato_otorgante.trim() || undefined
+              : existing?.mandato_otorgante || undefined,
+          documentos:
+            documentos_adjuntos !== undefined
+              ? documentos_adjuntos
+              : existing?.documentos_adjuntos || [],
+          lineas_materiales: resolvedLinesForUpdate,
+        }
+      );
+    }
+
+    // Recalcular rentabilidad solo si se proporcionan campos económicos, de cantidad o líneas multimaterial,
+    // fusionando previamente con los valores persistidos (incluyendo lineas_materiales) para no sobrescribir precios con 0 (A7-02).
+    if (hasFinancialFields) {
+      const mergedFinancialData: Partial<CommercialOperationFormData> = {
+        cantidad_estimada_t: existing?.cantidad_estimada_t,
+        cantidad_real_t: existing?.cantidad_real_t ?? undefined,
+        tipo_precio_compra: existing?.tipo_precio_compra,
+        precio_unitario_compra: existing?.precio_unitario_compra,
+        tipo_precio_venta: existing?.tipo_precio_venta,
+        precio_unitario_venta: existing?.precio_unitario_venta,
+        coste_transporte: existing?.coste_transporte,
+        otros_costes: existing?.otros_costes,
+        ...data,
+        lineas_materiales: resolvedLinesForUpdate,
+      };
+
+      const profitability = calculateProfitability(mergedFinancialData);
+      payload.coste_compra_total = profitability.coste_compra_total;
+      payload.ingreso_venta_total = profitability.ingreso_venta_total;
+      payload.coste_transporte = profitability.coste_transporte;
+      payload.otros_costes = profitability.otros_costes;
+      payload.margen_bruto_total = profitability.margen_bruto_total;
+      payload.margen_unitario_tonelada = profitability.margen_unitario_tonelada;
+      payload.porcentaje_margen = profitability.porcentaje_margen;
+    }
 
     if (data.codigo_ler && data.codigo_ler.includes('*')) {
       payload.peligrosidad = 'peligroso';
     }
 
-    const { data: updated, error } = await supabase
+    const updateQuery = supabase
       .from('commercial_operations')
       .update(payload)
-      .eq('id', id)
+      .eq('id', id);
+
+    const { data: updated, error } = await applyTenantScope(updateQuery, user.id)
       .select()
       .single();
 
@@ -249,7 +707,87 @@ export const commercialOperationService = {
       throw error;
     }
 
-    return updated as CommercialOperation;
+    const hydratedUpdated = hydrateCommercialOperation(updated as CommercialOperation);
+
+    await auditService.logAction({
+      company_id: hydratedUpdated.company_id || null,
+      entidad: 'operacion_comercial',
+      entidad_id: id,
+      accion: 'actualizar',
+      detalles: { estado: hydratedUpdated.estado },
+    });
+
+    await syncClosedOperationToChronologicalRegistry(hydratedUpdated);
+
+    return hydratedUpdated;
+  },
+
+  /**
+   * Carpeta Documental (UXDEV-11 / UX-23): Adjuntar documento externo o interno con procedencia y hash SHA-256.
+   */
+  async addDocumentAttachment(
+    operationId: number,
+    docInput: Omit<CommercialOperationDocument, 'id' | 'hash_sha256'> & { hash_sha256?: string }
+  ): Promise<CommercialOperation> {
+    const existing = await this.getById(operationId);
+    if (!existing) {
+      throw new Error('Operación comercial no encontrada');
+    }
+    if (!docInput.nombre?.trim() || !docInput.emisor?.trim()) {
+      throw new Error('Debe indicar el nombre del documento y el emisor.');
+    }
+
+    const hashSeed = `${operationId}|${docInput.tipo}|${docInput.nombre.trim()}|${docInput.emisor.trim()}|${docInput.fecha}|${docInput.procedencia}|${docInput.url || ''}`;
+    const newDoc: CommercialOperationDocument = {
+      id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      tipo: docInput.tipo,
+      nombre: docInput.nombre.trim(),
+      emisor: docInput.emisor.trim(),
+      fecha: docInput.fecha,
+      procedencia: docInput.procedencia,
+      url: docInput.url?.trim() || undefined,
+      hash_sha256: docInput.hash_sha256 || computeDocumentFingerprint(hashSeed),
+      notas: docInput.notas?.trim() || undefined,
+    };
+
+    const currentDocs = existing.documentos_adjuntos || [];
+    const updated = await this.update(operationId, {
+      documentos_adjuntos: [...currentDocs, newDoc],
+    });
+
+    await auditService.logAction({
+      company_id: updated.company_id || null,
+      entidad: 'operacion_comercial',
+      entidad_id: operationId,
+      accion: 'actualizar',
+      detalles: {
+        evento: 'adjuntar_documento',
+        documento_id: newDoc.id,
+        tipo: newDoc.tipo,
+        procedencia: newDoc.procedencia,
+        emisor: newDoc.emisor,
+        hash_sha256: newDoc.hash_sha256,
+      },
+    });
+
+    return updated;
+  },
+
+  /**
+   * Carpeta Documental (UXDEV-11 / UX-23): Eliminar documento adjunto de la carpeta de la operación.
+   */
+  async removeDocumentAttachment(
+    operationId: number,
+    docId: string
+  ): Promise<CommercialOperation> {
+    const existing = await this.getById(operationId);
+    if (!existing) {
+      throw new Error('Operación comercial no encontrada');
+    }
+    const filtered = (existing.documentos_adjuntos || []).filter((d) => d.id !== docId);
+    return this.update(operationId, {
+      documentos_adjuntos: filtered,
+    });
   },
 
   /**
@@ -257,15 +795,27 @@ export const commercialOperationService = {
    */
   async delete(id: number): Promise<boolean> {
     const supabase = createClient();
-    const { error } = await supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No hay usuario autenticado');
+
+    const deleteQuery = supabase
       .from('commercial_operations')
       .delete()
       .eq('id', id);
+
+    const { error } = await applyTenantScope(deleteQuery, user.id);
 
     if (error) {
       console.error('Error al eliminar operación comercial:', error);
       throw error;
     }
+
+    await auditService.logAction({
+      entidad: 'operacion_comercial',
+      entidad_id: id,
+      accion: 'eliminar',
+      detalles: { commercial_operation_id: id },
+    });
 
     return true;
   },
@@ -273,8 +823,8 @@ export const commercialOperationService = {
   /**
    * Obtener métricas y KPIs agregados
    */
-  async getStats(año?: number): Promise<CommercialOperationStats> {
-    const ops = await this.getAll({ año });
+  async getStats(año?: number, companyId?: number | null): Promise<CommercialOperationStats> {
+    const ops = await this.getAll({ año, company_id: companyId });
 
     const stats: CommercialOperationStats = {
       total_operaciones: ops.length,
@@ -294,15 +844,19 @@ export const commercialOperationService = {
     };
 
     ops.forEach(op => {
+      if (stats.por_estado[op.estado] !== undefined) {
+        stats.por_estado[op.estado]++;
+      }
+
+      if (op.estado === 'cancelada' || op.estado === 'borrador') {
+        return;
+      }
+
       const ton = Number(op.cantidad_real_t && op.cantidad_real_t > 0 ? op.cantidad_real_t : op.cantidad_estimada_t) || 0;
       stats.toneladas_totales += ton;
       stats.facturacion_total += Number(op.ingreso_venta_total) || 0;
       stats.costes_totales += (Number(op.coste_compra_total) || 0) + (Number(op.coste_transporte) || 0) + (Number(op.otros_costes) || 0);
       stats.margen_bruto_total += Number(op.margen_bruto_total) || 0;
-
-      if (stats.por_estado[op.estado] !== undefined) {
-        stats.por_estado[op.estado]++;
-      }
     });
 
     stats.margen_medio_tonelada = stats.toneladas_totales > 0
@@ -332,12 +886,18 @@ export const commercialOperationService = {
       'Gestor Destino',
       'Transportista',
       'Proveedor Compra',
+      'Modalidad Compra',
+      'Precio Unitario Compra',
       'Precio Compra (€/t)',
       'Coste Compra (€)',
       'Cliente Venta',
+      'Modalidad Venta',
+      'Precio Unitario Venta',
       'Precio Venta (€/t)',
       'Ingreso Venta (€)',
       'Porte Transporte (€)',
+      'Otros Costes (€)',
+      'Descripción Otros Costes',
       'Margen Bruto (€)',
       'Margen (€/t)',
       'Ref DI'
@@ -345,6 +905,22 @@ export const commercialOperationService = {
 
     const rows = ops.map(op => {
       const ton = (op.cantidad_real_t && op.cantidad_real_t > 0 ? op.cantidad_real_t : op.cantidad_estimada_t) || 0;
+      const isMulti = Boolean(op.lineas_materiales?.length);
+      const modCompra = isMulti ? 'Multimaterial (€/t pond.)' : op.tipo_precio_compra === 'por_kg' ? '€/kg' : (op.tipo_precio_compra === 'lote_fijo' ? 'Lote Fijo' : '€/t');
+      const modVenta = isMulti ? 'Multimaterial (€/t pond.)' : op.tipo_precio_venta === 'por_kg' ? '€/kg' : (op.tipo_precio_venta === 'lote_fijo' ? 'Lote Fijo' : '€/t');
+      const normCompra = isMulti || op.tipo_precio_compra === 'lote_fijo'
+        ? (ton > 0 ? (op.coste_compra_total || 0) / ton : 0)
+        : op.tipo_precio_compra === 'por_kg'
+          ? (op.precio_unitario_compra || 0) * 1000
+          : (op.precio_unitario_compra || 0);
+      const normVenta = isMulti || op.tipo_precio_venta === 'lote_fijo'
+        ? (ton > 0 ? (op.ingreso_venta_total || 0) / ton : 0)
+        : op.tipo_precio_venta === 'por_kg'
+          ? (op.precio_unitario_venta || 0) * 1000
+          : (op.precio_unitario_venta || 0);
+      const unitCompra = isMulti ? normCompra : (op.precio_unitario_compra || 0);
+      const unitVenta = isMulti ? normVenta : (op.precio_unitario_venta || 0);
+
       return [
         op.numero_operacion,
         op.fecha,
@@ -356,19 +932,25 @@ export const commercialOperationService = {
         `"${(op.destino_nombre_personalizado || op.destino_gestor?.razon_social || '').replace(/"/g, '""')}"`,
         `"${(op.transportista_nombre_personalizado || op.transportista?.razon_social || '').replace(/"/g, '""')}"`,
         `"${(op.proveedor_razon_social || op.proveedor_comercial?.razon_social || '').replace(/"/g, '""')}"`,
-        (op.precio_unitario_compra || 0).toFixed(2).replace('.', ','),
+        modCompra,
+        unitCompra.toFixed(4).replace('.', ','),
+        normCompra.toFixed(2).replace('.', ','),
         (op.coste_compra_total || 0).toFixed(2).replace('.', ','),
         `"${(op.cliente_razon_social || op.cliente_comercial?.razon_social || '').replace(/"/g, '""')}"`,
-        (op.precio_unitario_venta || 0).toFixed(2).replace('.', ','),
+        modVenta,
+        unitVenta.toFixed(4).replace('.', ','),
+        normVenta.toFixed(2).replace('.', ','),
         (op.ingreso_venta_total || 0).toFixed(2).replace('.', ','),
         (op.coste_transporte || 0).toFixed(2).replace('.', ','),
+        (op.otros_costes || 0).toFixed(2).replace('.', ','),
+        `"${(op.descripcion_otros_costes || '').replace(/"/g, '""')}"`,
         (op.margen_bruto_total || 0).toFixed(2).replace('.', ','),
         (op.margen_unitario_tonelada || 0).toFixed(2).replace('.', ','),
         op.identification_document_id ? `DI #${op.identification_document_id}` : ''
       ];
     });
 
-    const csvContent = `\uFEFF${  [headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n')}`;
+    const csvContent = `\uFEFF${[headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n')}`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -388,6 +970,8 @@ export const commercialOperationService = {
   exportToExcelXML(ops: CommercialOperation[]): void {
     const xmlRows = ops.map(op => {
       const ton = (op.cantidad_real_t && op.cantidad_real_t > 0 ? op.cantidad_real_t : op.cantidad_estimada_t) || 0;
+      const modCompra = op.tipo_precio_compra === 'por_kg' ? '€/kg' : (op.tipo_precio_compra === 'lote_fijo' ? 'Lote Fijo' : '€/t');
+      const modVenta = op.tipo_precio_venta === 'por_kg' ? '€/kg' : (op.tipo_precio_venta === 'lote_fijo' ? 'Lote Fijo' : '€/t');
       return `
         <Row>
           <Cell><Data ss:Type="String">${op.numero_operacion}</Data></Cell>
@@ -397,10 +981,15 @@ export const commercialOperationService = {
           <Cell><Data ss:Type="String">${(op.descripcion_residuo || '').replace(/[<>&]/g, '')}</Data></Cell>
           <Cell><Data ss:Type="Number">${ton}</Data></Cell>
           <Cell><Data ss:Type="String">${(op.proveedor_razon_social || op.proveedor_comercial?.razon_social || '').replace(/[<>&]/g, '')}</Data></Cell>
+          <Cell><Data ss:Type="String">${modCompra}</Data></Cell>
+          <Cell><Data ss:Type="Number">${op.precio_unitario_compra || 0}</Data></Cell>
           <Cell><Data ss:Type="Number">${op.coste_compra_total}</Data></Cell>
           <Cell><Data ss:Type="String">${(op.cliente_razon_social || op.cliente_comercial?.razon_social || '').replace(/[<>&]/g, '')}</Data></Cell>
+          <Cell><Data ss:Type="String">${modVenta}</Data></Cell>
+          <Cell><Data ss:Type="Number">${op.precio_unitario_venta || 0}</Data></Cell>
           <Cell><Data ss:Type="Number">${op.ingreso_venta_total}</Data></Cell>
           <Cell><Data ss:Type="Number">${op.coste_transporte}</Data></Cell>
+          <Cell><Data ss:Type="Number">${op.otros_costes || 0}</Data></Cell>
           <Cell><Data ss:Type="Number">${op.margen_bruto_total}</Data></Cell>
           <Cell><Data ss:Type="Number">${op.margen_unitario_tonelada}</Data></Cell>
         </Row>
@@ -430,10 +1019,15 @@ export const commercialOperationService = {
     <Cell><Data ss:Type="String">Descripción Residuo</Data></Cell>
     <Cell><Data ss:Type="String">Toneladas</Data></Cell>
     <Cell><Data ss:Type="String">Proveedor Compra</Data></Cell>
+    <Cell><Data ss:Type="String">Modalidad Compra</Data></Cell>
+    <Cell><Data ss:Type="String">Precio Unitario Compra</Data></Cell>
     <Cell><Data ss:Type="String">Coste Compra (€)</Data></Cell>
     <Cell><Data ss:Type="String">Cliente Venta</Data></Cell>
+    <Cell><Data ss:Type="String">Modalidad Venta</Data></Cell>
+    <Cell><Data ss:Type="String">Precio Unitario Venta</Data></Cell>
     <Cell><Data ss:Type="String">Ingreso Venta (€)</Data></Cell>
     <Cell><Data ss:Type="String">Porte Transporte (€)</Data></Cell>
+    <Cell><Data ss:Type="String">Otros Costes (€)</Data></Cell>
     <Cell><Data ss:Type="String">Margen Bruto (€)</Data></Cell>
     <Cell><Data ss:Type="String">Margen (€/t)</Data></Cell>
    </Row>
@@ -458,7 +1052,10 @@ export const commercialOperationService = {
   /**
    * Sincroniza la operación comercial con Holded ERP creando la factura de venta correspondiente
    */
-  async syncOperationToHolded(operationId: number): Promise<{ success: boolean; invoiceId?: string; docNumber?: string; message: string }> {
+  async syncOperationToHolded(
+    operationId: number,
+    options?: { taxRate?: 0 | 10 | 21 }
+  ): Promise<{ success: boolean; invoiceId?: string; docNumber?: string; message: string }> {
     try {
       const op = await this.getById(operationId);
       if (!op) {
@@ -489,28 +1086,40 @@ export const commercialOperationService = {
           .single();
 
         if (clientCompany) {
-          // Si no tiene holded_contact_id, lo creamos
-          const contactName = clientCompany.razon_social || op.cliente_razon_social || 'Cliente Operación Comercial';
-          const vat = clientCompany.cif || op.cliente_cif || '';
+          if (clientCompany.holded_contact_id) {
+            contactId = clientCompany.holded_contact_id;
+          } else {
+            // Si no tiene holded_contact_id, lo creamos y lo guardamos para evitar duplicados
+            const contactName = clientCompany.razon_social || op.cliente_razon_social || 'Cliente Operación Comercial';
+            const vat = clientCompany.cif || op.cliente_cif || '';
 
-          try {
-            const createdContact = await holdedService.createContact({
-              name: contactName,
-              vatnumber: vat,
-              type: 'client',
-              email: clientCompany.email || undefined,
-              phone: clientCompany.telefono || undefined,
-              city: clientCompany.municipio || undefined,
-              postalCode: clientCompany.codigo_postal || undefined,
-              province: clientCompany.provincia || undefined,
-              address: clientCompany.direccion || undefined,
-            }, apiKey);
+            try {
+              const createdContact = await holdedService.createContact({
+                name: contactName,
+                vatnumber: vat,
+                type: 'client',
+                email: clientCompany.email || undefined,
+                phone: clientCompany.telefono || undefined,
+                city: clientCompany.municipio_social || clientCompany.municipio_instalacion || clientCompany.municipio || undefined,
+                postalCode: clientCompany.codigo_postal_social || clientCompany.codigo_postal_instalacion || clientCompany.codigo_postal || undefined,
+                province: clientCompany.provincia_social || clientCompany.provincia_instalacion || clientCompany.provincia || undefined,
+                address: clientCompany.domicilio_social || clientCompany.domicilio_instalacion || clientCompany.direccion || undefined,
+              }, apiKey);
 
-            if (createdContact?.id) {
-              contactId = createdContact.id;
+              if (createdContact?.id) {
+                contactId = createdContact.id;
+                try {
+                  await supabase
+                    .from('companies')
+                    .update({ holded_contact_id: createdContact.id })
+                    .eq('id', clientCompany.id);
+                } catch {
+                  // Best-effort persistencia de holded_contact_id
+                }
+              }
+            } catch (cErr) {
+              console.warn('Holded contact creation warning:', cErr);
             }
-          } catch (cErr) {
-            console.warn('Holded contact creation warning:', cErr);
           }
         }
       }
@@ -520,18 +1129,37 @@ export const commercialOperationService = {
         ? op.cantidad_real_t
         : (op.cantidad_estimada_t || 1);
 
+      const taxRate: 0 | 10 | 21 = options?.taxRate !== undefined ? options.taxRate : 21;
+      const isLoteFijo = op.tipo_precio_venta === 'lote_fijo';
+      const units = isLoteFijo
+        ? 1
+        : op.tipo_precio_venta === 'por_kg'
+          ? Number((toneladas * 1000).toFixed(3))
+          : toneladas;
+      const unitSubtotal = isLoteFijo
+        ? Number(op.ingreso_venta_total || op.precio_unitario_venta || 0)
+        : (op.precio_unitario_venta && op.precio_unitario_venta > 0)
+          ? Number(op.precio_unitario_venta)
+          : (units > 0
+            ? Number(((op.ingreso_venta_total || 0) / units).toFixed(2))
+            : Number(op.ingreso_venta_total || 0));
+
+      const ispMention = taxRate === 0
+        ? ' — Inversión del Sujeto Pasivo (Art. 84.Uno.2º.c Ley 37/1992 del IVA)'
+        : '';
+
       const invoicePayload = {
         contactId: contactId || undefined,
         contactName: op.cliente_razon_social || 'Cliente Venta',
-        desc: `Factura Venta Residuo - Operación ${op.numero_operacion} (LER ${op.codigo_ler})`,
+        desc: `Factura Venta Residuo - Operación ${op.numero_operacion} (LER ${op.codigo_ler})${ispMention}`,
         date: Math.floor(new Date(op.fecha || Date.now()).getTime() / 1000),
         items: [
           {
             name: `Gestión / Venta Residuo LER ${op.codigo_ler}`,
-            desc: `${op.descripcion_residuo || 'Residuo'} - Operación ${op.numero_operacion}`,
-            units: toneladas,
-            subtotal: op.ingreso_venta_total,
-            tax: 21,
+            desc: `${op.descripcion_residuo || 'Residuo'} - Operación ${op.numero_operacion}${ispMention}`,
+            units,
+            subtotal: unitSubtotal,
+            tax: taxRate,
           }
         ]
       };
@@ -539,14 +1167,22 @@ export const commercialOperationService = {
       const result = await holdedService.createInvoice(invoicePayload, apiKey);
       const invoiceRef = result?.docNumber || result?.id || `HOLDED-${Date.now()}`;
 
-      // 4. Actualizar referencia en commercial_operations
-      await supabase
+      // 4. Actualizar referencia en commercial_operations con aislamiento multi-tenant
+      let updateOpQuery: any = supabase
         .from('commercial_operations')
         .update({
           factura_venta_ref: invoiceRef,
           estado_cobro_venta: 'pendiente'
         })
         .eq('id', operationId);
+
+      if (op.user_id && typeof updateOpQuery.eq === 'function') {
+        updateOpQuery = updateOpQuery.eq('user_id', op.user_id);
+      }
+      const { error: updateOpError } = await updateOpQuery;
+      if (updateOpError) {
+        console.warn('Error al guardar referencia de factura Holded en la operación:', updateOpError);
+      }
 
       // 5. Registrar en audit_logs
       await auditService.logAction({

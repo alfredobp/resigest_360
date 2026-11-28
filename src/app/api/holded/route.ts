@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveCompanyCookie } from '@/services/tenantContextService';
 
 const HOLDED_API_URL = 'https://api.holded.com/api/invoicing/v1';
 const SAFE_ID = /^[\w-]{1,64}$/;
@@ -8,12 +9,52 @@ const SAFE_ID = /^[\w-]{1,64}$/;
  * Resuelve la API Key de Holded en el servidor a partir de las empresas del usuario autenticado
  * (aislamiento multi-tenant). La clave nunca se acepta desde el cliente ni desde variables de entorno.
  */
-async function resolveHoldedKey(): Promise<{ apiKey: string } | { response: NextResponse }> {
+async function resolveHoldedKey(req?: NextRequest): Promise<{ apiKey: string } | { response: NextResponse }> {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
         return { response: NextResponse.json({ error: 'No autorizado. Se requiere inicio de sesión.' }, { status: 401 }) };
+    }
+
+    const activeCompanyId = getActiveCompanyCookie(req?.headers?.get?.('cookie') || '');
+
+    if (activeCompanyId) {
+        const { data: activeRows, error: activeError } = await supabase
+            .from('companies')
+            .select('id, user_id, holded_api_key')
+            .eq('id', activeCompanyId)
+            .limit(1);
+
+        if (activeError) {
+            return { response: NextResponse.json({ error: 'Holded API Key no configurada' }, { status: 400 }) };
+        }
+
+        const activeCompany = activeRows?.[0];
+        if (!activeCompany) {
+            return { response: NextResponse.json({ error: 'No autorizado para la empresa activa seleccionada.' }, { status: 403 }) };
+        }
+
+        let isAuthorized = activeCompany.user_id === user.id;
+        if (!isAuthorized) {
+            const { data: membership } = await supabase
+                .from('company_memberships')
+                .select('id')
+                .eq('company_id', activeCompanyId)
+                .eq('user_id', user.id)
+                .limit(1);
+            isAuthorized = Boolean(membership && membership.length > 0);
+        }
+
+        if (!isAuthorized) {
+            return { response: NextResponse.json({ error: 'No autorizado para la empresa activa seleccionada.' }, { status: 403 }) };
+        }
+
+        if (!activeCompany.holded_api_key) {
+            return { response: NextResponse.json({ error: 'Holded API Key no configurada para la empresa activa' }, { status: 400 }) };
+        }
+
+        return { apiKey: activeCompany.holded_api_key };
     }
 
     const { data: companies, error } = await supabase
@@ -37,7 +78,7 @@ function upstreamError(label: string, error: unknown) {
 }
 
 export async function GET(req: NextRequest) {
-    const resolved = await resolveHoldedKey();
+    const resolved = await resolveHoldedKey(req);
     if ('response' in resolved) return resolved.response;
 
     const { searchParams } = new URL(req.url);
@@ -75,7 +116,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-    const resolved = await resolveHoldedKey();
+    const resolved = await resolveHoldedKey(req);
     if ('response' in resolved) return resolved.response;
 
     const { searchParams } = new URL(req.url);

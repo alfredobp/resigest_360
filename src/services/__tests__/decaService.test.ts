@@ -3,6 +3,7 @@ const mockSupabase = {
     getUser: jest.fn(),
   },
   from: jest.fn(),
+  rpc: jest.fn(),
 };
 
 jest.mock('@/lib/supabase/client', () => ({
@@ -48,7 +49,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
     });
 
     it('debe retornar array vacío y registrar error si falla la consulta', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
       mockSupabase.auth.getUser.mockResolvedValue({
         data: { user: { id: 'user-deca-1' } },
       });
@@ -72,27 +73,36 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
 
   describe('getById', () => {
     it('debe obtener un DeCA por su ID', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-deca-1' } },
+      });
       const mockDoc = { id: 5, numero_deca: 'DECA-2026-00005' };
 
       const maybeSingleMock = jest.fn().mockResolvedValue({ data: mockDoc, error: null });
-      const eqMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const eqUserMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
       const result = await decaService.getById(5);
 
       expect(eqMock).toHaveBeenCalledWith('id', 5);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-deca-1');
       expect(result).toEqual(mockDoc);
     });
 
     it('debe retornar null y loguear error si falla la consulta', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-deca-1' } },
+      });
 
       const maybeSingleMock = jest.fn().mockResolvedValue({
         data: null,
         error: { message: 'DB query error' },
       });
-      const eqMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const eqUserMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
@@ -125,7 +135,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
     });
 
     it('debe retornar null y registrar advertencia si no se encuentra la fila', async () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
 
       const maybeSingleMock = jest.fn().mockResolvedValue({ data: null, error: null });
       const eqMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
@@ -143,7 +153,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
     });
 
     it('debe retornar null y registrar error si Supabase falla', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
 
       const maybeSingleMock = jest.fn().mockResolvedValue({
         data: null,
@@ -159,15 +169,46 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       expect(consoleErrorSpy).toHaveBeenCalled();
       consoleErrorSpy.mockRestore();
     });
+
+    it('debe usar RPC get_deca_by_token cuando está disponible y manejar null o error con fallback', async () => {
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
+      const mockDoc = { id: 9, token: 'dca_rpc_1' };
+
+      try {
+        (mockSupabase as any).rpc = jest.fn()
+          .mockResolvedValueOnce({ data: mockDoc, error: null })
+          .mockResolvedValueOnce({ data: [mockDoc], error: null })
+          .mockResolvedValueOnce({ data: null, error: null })
+          .mockResolvedValueOnce({ data: null, error: { message: 'rpc missing' } });
+
+        expect(await decaService.getByToken('dca_rpc_1')).toEqual(mockDoc);
+        expect(await decaService.getByToken('dca_rpc_arr')).toEqual(mockDoc);
+        expect(await decaService.getByToken('dca_rpc_none')).toBeNull();
+        expect(consoleWarnSpy).toHaveBeenCalled();
+
+        // Cuarta llamada devuelve error en RPC y hace fallback a from('deca_documents')
+        const maybeSingleMock = jest.fn().mockResolvedValue({ data: mockDoc, error: null });
+        const eqMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+        const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
+        mockSupabase.from.mockReturnValue({ select: selectMock });
+
+        expect(await decaService.getByToken('dca_rpc_fallback')).toEqual(mockDoc);
+      } finally {
+        delete (mockSupabase as any).rpc;
+        consoleWarnSpy.mockRestore();
+      }
+    });
   });
 
   describe('getNextNumero', () => {
     it('debe generar DECA-AÑO-00001 si no hay documentos previos en el año', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-deca-1' } } });
       const currentYear = new Date().getFullYear();
 
       const limitMock = jest.fn().mockResolvedValue({ data: [], error: null });
       const orderMock = jest.fn().mockReturnValue({ limit: limitMock });
-      const ilikeMock = jest.fn().mockReturnValue({ order: orderMock });
+      const eqMock = jest.fn().mockReturnValue({ order: orderMock });
+      const ilikeMock = jest.fn().mockReturnValue({ eq: eqMock, order: orderMock });
       const selectMock = jest.fn().mockReturnValue({ ilike: ilikeMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
@@ -177,6 +218,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
     });
 
     it('debe calcular el siguiente número correlativo si ya existen documentos previos', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-deca-1' } } });
       const currentYear = new Date().getFullYear();
 
       const limitMock = jest.fn().mockResolvedValue({
@@ -184,7 +226,8 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
         error: null,
       });
       const orderMock = jest.fn().mockReturnValue({ limit: limitMock });
-      const ilikeMock = jest.fn().mockReturnValue({ order: orderMock });
+      const eqMock = jest.fn().mockReturnValue({ order: orderMock });
+      const ilikeMock = jest.fn().mockReturnValue({ eq: eqMock, order: orderMock });
       const selectMock = jest.fn().mockReturnValue({ ilike: ilikeMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
 
@@ -296,6 +339,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       const mockDI: Partial<IdentificationDocument> = {
         id: 77,
         company_id: 2,
+        transportista_company_id: 105,
         numero_documento: 'DI-2026-00077',
         productor_razon_social: 'Productor Origen',
         productor_cif: 'B99999999',
@@ -333,6 +377,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       expect(spyCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           identification_document_id: 77,
+          company_id: 105,
           peso_kg: 5000,
           cargador_razon_social: 'Empresa Cargadora S.L.',
           es_residuo_peligroso: true,
@@ -379,6 +424,57 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
 
       spyCreate.mockRestore();
     });
+
+    it('debe devolver el DeCA activo existente (idempotencia A7-05), permitir emitir revisión v2 con forceRevisionReason y bloquear si ya está finalizado', async () => {
+      const mockDI = { id: 501, numero_documento: 'DI-501', cantidad: 1000, unidad: 'kg' } as IdentificationDocument;
+      const existingActive = {
+        id: 70,
+        numero_deca: 'DECA-2026-00070',
+        version: 1,
+        is_vigente: true,
+        estado: 'vigente',
+        matricula_tractora: '1111-AAA',
+      } as DecaDocument;
+
+      const spyGetByDi = jest
+        .spyOn(decaService, 'getByIdentificationDocument')
+        .mockResolvedValueOnce([existingActive])
+        .mockResolvedValueOnce([existingActive])
+        .mockResolvedValueOnce([{ ...existingActive, estado: 'finalizado' }]);
+      const spyNewVer = jest
+        .spyOn(decaService, 'createNewVersion')
+        .mockResolvedValue({ ...existingActive, id: 71, version: 2 } as DecaDocument);
+
+      // 1. Idempotencia: devuelve el existente sin duplicar
+      const idempotentRes = await decaService.createFromIdentificationDocument(mockDI, {
+        cargador_razon_social: 'Cargador',
+        cargador_nif: 'B11111111',
+        cargador_domicilio: 'Dir',
+      });
+      expect(idempotentRes).toEqual(existingActive);
+
+      // 2. Con forceRevisionReason: versiona sobre el existente
+      const verRes = await decaService.createFromIdentificationDocument(mockDI, {
+        cargador_razon_social: 'Cargador',
+        cargador_nif: 'B11111111',
+        cargador_domicilio: 'Dir',
+        forceRevisionReason: 'Cambio de tractora en ruta',
+      });
+      expect(verRes.version).toBe(2);
+      expect(spyNewVer).toHaveBeenCalled();
+
+      // 3. Si el DeCA existente ya está finalizado: lanza error
+      await expect(
+        decaService.createFromIdentificationDocument(mockDI, {
+          cargador_razon_social: 'Cargador',
+          cargador_nif: 'B11111111',
+          cargador_domicilio: 'Dir',
+        })
+      ).rejects.toThrow('ya fue finalizado');
+
+      spyGetByDi.mockRestore();
+      spyNewVer.mockRestore();
+    });
   });
 
   describe('createNewVersion (Versionado inmutable)', () => {
@@ -423,7 +519,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       });
 
       const updatedPreviousMock = jest.fn().mockResolvedValue({ error: null });
-      const eqUpdateMock = jest.fn().mockReturnValue(updatedPreviousMock);
+      const eqUpdateMock = jest.fn().mockReturnValue({ eq: updatedPreviousMock });
 
       const singleInsertMock = jest.fn().mockResolvedValue({
         data: { ...currentDeca, id: 2, version: 2, previous_version_id: 1, peso_kg: 600 },
@@ -481,7 +577,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === 'deca_documents') {
           return {
-            update: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }),
+            update: jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }) }),
             insert: jest.fn().mockReturnValue({ select: selectInsertMock }),
           };
         }
@@ -496,7 +592,7 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       expect(result.numero_deca).toBe('DECA-2026-00001-v2');
     });
 
-    it('debe lanzar error si la inserción de la nueva versión falla definitivamente', async () => {
+    it('debe lanzar error si la inserción de la nueva versión falla definitivamente y revertir is_vigente', async () => {
       mockSupabase.auth.getUser.mockResolvedValue({
         data: { user: { id: 'user-deca-1' } },
       });
@@ -506,11 +602,14 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
         error: { message: 'Fatal database error on insert version' },
       });
       const selectMock = jest.fn().mockReturnValue({ single: insertFailMock });
+      const updateMock = jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }),
+      });
 
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === 'deca_documents') {
           return {
-            update: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }),
+            update: updateMock,
             insert: jest.fn().mockReturnValue({ select: selectMock }),
           };
         }
@@ -520,12 +619,22 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       await expect(
         decaService.createNewVersion(currentDeca, {}, 'Error forzado')
       ).rejects.toThrow('Error al versionar DeCA: Fatal database error on insert version');
+
+      expect(updateMock).toHaveBeenCalledTimes(2);
+      expect(updateMock).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ is_vigente: false })
+      );
+      expect(updateMock).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ is_vigente: true })
+      );
     });
   });
 
   describe('finalizeService y logAudit', () => {
     it('logAudit debe capturar excepciones sin romper el flujo', async () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
 
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === 'deca_audit_logs') {
@@ -548,11 +657,15 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
     });
 
     it('finalizeService debe marcar estado como finalizado y registrar fecha_finalizacion', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-deca-1' } },
+      });
       const finalizedDoc = { id: 1, estado: 'finalizado', version: 1 };
 
       const singleMock = jest.fn().mockResolvedValue({ data: finalizedDoc, error: null });
       const selectMock = jest.fn().mockReturnValue({ single: singleMock });
-      const eqMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqUserMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
 
       mockSupabase.from.mockImplementation((table: string) => {
@@ -577,18 +690,144 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
     });
 
     it('finalizeService debe lanzar error si falla la actualización en Supabase', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-deca-1' } },
+      });
       const singleMock = jest.fn().mockResolvedValue({
         data: null,
         error: { message: 'Update failed' },
       });
       const selectMock = jest.fn().mockReturnValue({ single: singleMock });
-      const eqMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqUserMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock });
       const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
       mockSupabase.from.mockReturnValue({ update: updateMock });
 
       await expect(decaService.finalizeService(1)).rejects.toThrow(
         'Error al finalizar servicio DeCA: Update failed'
       );
+    });
+  });
+
+  describe('getByIdentificationDocument', () => {
+    it('debe retornar lista vacía si diId es 0 o falsy', async () => {
+      const result = await decaService.getByIdentificationDocument(0);
+      expect(result).toEqual([]);
+    });
+
+    it('debe consultar documentos DeCA por identification_document_id de forma compartida entre participantes del DI', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-deca-1' } },
+      });
+      const mockDocs = [
+        { id: 10, numero_deca: 'DECA-2026-00010', identification_document_id: 120, version: 1, is_vigente: true },
+      ];
+      const orderMock = jest.fn().mockResolvedValue({ data: mockDocs, error: null });
+      const eqMock = jest.fn().mockReturnValue({ order: orderMock });
+      const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
+      mockSupabase.from.mockReturnValue({ select: selectMock });
+
+      const result = await decaService.getByIdentificationDocument(120);
+
+      expect(mockSupabase.from).toHaveBeenCalledWith('deca_documents');
+      expect(eqMock).toHaveBeenCalledWith('identification_document_id', 120);
+      expect(orderMock).toHaveBeenCalledWith('version', { ascending: false });
+      expect(result).toEqual(mockDocs);
+    });
+
+    it('debe retornar array vacío y registrar error si falla la consulta', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: null },
+      });
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+      const orderMock = jest.fn().mockResolvedValue({ data: null, error: { message: 'DB error' } });
+      const eqMock = jest.fn().mockReturnValue({ order: orderMock });
+      const selectMock = jest.fn().mockReturnValue({ eq: eqMock });
+      mockSupabase.from.mockReturnValue({ select: selectMock });
+
+      const result = await decaService.getByIdentificationDocument(120);
+
+      expect(result).toEqual([]);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('getLatestActiveVersion', () => {
+    it('debe retornar null si currentDoc es falsy', async () => {
+      const result = await decaService.getLatestActiveVersion(null as any);
+      expect(result).toBeNull();
+    });
+
+    it('debe retornar el mismo documento si ya es vigente', async () => {
+      const currentDoc = { id: 1, numero_deca: 'DECA-2026-00001', is_vigente: true } as any;
+      const result = await decaService.getLatestActiveVersion(currentDoc);
+      expect(result).toBe(currentDoc);
+    });
+
+    it('debe buscar y retornar la versión vigente si el documento está sustituido', async () => {
+      const historicalDoc = { id: 1, user_id: 'user-deca-1', numero_deca: 'DECA-2026-00001', is_vigente: false, version: 1 } as any;
+      const activeDoc = { id: 2, numero_deca: 'DECA-2026-00001-v2', is_vigente: true, version: 2 };
+
+      const maybeSingleMock = jest.fn().mockResolvedValue({ data: activeDoc, error: null });
+      const limitMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const orderMock = jest.fn().mockReturnValue({ limit: limitMock });
+      const eqUserMock = jest.fn().mockReturnValue({ order: orderMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock, order: orderMock });
+      const ilikeMock = jest.fn().mockReturnValue({ eq: eqMock });
+      const selectMock = jest.fn().mockReturnValue({ ilike: ilikeMock });
+      mockSupabase.from.mockReturnValue({ select: selectMock });
+
+      const result = await decaService.getLatestActiveVersion(historicalDoc);
+
+      expect(mockSupabase.from).toHaveBeenCalledWith('deca_documents');
+      expect(ilikeMock).toHaveBeenCalledWith('numero_deca', 'DECA-2026-00001%');
+      expect(eqMock).toHaveBeenCalledWith('is_vigente', true);
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-deca-1');
+      expect(result).toEqual(activeDoc);
+    });
+
+    it('debe utilizar la RPC get_active_deca_by_token si el documento dispone de token', async () => {
+      const activeDoc = { id: 2, numero_deca: 'DECA-2026-00001-v2', is_vigente: true, version: 2 };
+      (mockSupabase as any).rpc = jest.fn()
+        .mockResolvedValueOnce({ data: activeDoc, error: null })
+        .mockResolvedValueOnce({ data: [activeDoc], error: null });
+
+      try {
+        const historicalDoc = { id: 1, token: 'tok-hist-1', numero_deca: 'DECA-2026-00001', is_vigente: false, version: 1 } as any;
+        const res1 = await decaService.getLatestActiveVersion(historicalDoc);
+        expect(res1).toEqual(activeDoc);
+
+        const res2 = await decaService.getLatestActiveVersion(historicalDoc);
+        expect(res2).toEqual(activeDoc);
+      } finally {
+        delete (mockSupabase as any).rpc;
+      }
+    });
+
+    it('debe hacer fallback a consulta directa si la RPC get_active_deca_by_token falla', async () => {
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
+      const historicalDoc = { id: 1, user_id: 'user-deca-1', token: 'tok-hist-err', numero_deca: 'DECA-2026-00001', is_vigente: false, version: 1 } as any;
+      const activeDoc = { id: 2, numero_deca: 'DECA-2026-00001-v2', is_vigente: true, version: 2 };
+
+      (mockSupabase as any).rpc = jest.fn().mockRejectedValue(new Error('RPC missing'));
+
+      const maybeSingleMock = jest.fn().mockResolvedValue({ data: activeDoc, error: null });
+      const limitMock = jest.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const orderMock = jest.fn().mockReturnValue({ limit: limitMock });
+      const eqUserMock = jest.fn().mockReturnValue({ order: orderMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock, order: orderMock });
+      const ilikeMock = jest.fn().mockReturnValue({ eq: eqMock });
+      const selectMock = jest.fn().mockReturnValue({ ilike: ilikeMock });
+      mockSupabase.from.mockReturnValue({ select: selectMock });
+
+      try {
+        const res = await decaService.getLatestActiveVersion(historicalDoc);
+        expect(res).toEqual(activeDoc);
+      } finally {
+        delete (mockSupabase as any).rpc;
+        consoleWarnSpy.mockRestore();
+      }
     });
   });
 
@@ -610,6 +849,183 @@ describe('decaService - Módulo DeCA (Documento Electrónico de Control Administ
       const doc = { fecha_finalizacion: tenDaysAgo } as any;
 
       expect(decaService.isTokenExpired(doc)).toBe(true);
+    });
+  });
+
+  describe('filterVigenteServices (UXDEV-04 / UX-12)', () => {
+    it('debe garantizar que si v2 está finalizada, v1 nunca aparece como activa en ruta', () => {
+      const decas: DecaDocument[] = [
+        // v1 histórica de 10 kg
+        {
+          id: 1,
+          numero_deca: 'DECA-2026-00001',
+          version: 1,
+          is_vigente: false,
+          estado: 'vigente', // Estado desfasado en BD
+          peso_kg: 10,
+        } as any,
+        // v2 finalizada de 8 kg
+        {
+          id: 2,
+          numero_deca: 'DECA-2026-00001-v2',
+          version: 2,
+          is_vigente: true,
+          estado: 'finalizado',
+          peso_kg: 8,
+          fecha_finalizacion: '2026-11-20T10:00:00Z',
+        } as any,
+      ];
+
+      const { activeDecas, finishedDecas, allLatest } = decaService.filterVigenteServices(decas);
+
+      expect(allLatest).toHaveLength(1);
+      expect(allLatest[0].version).toBe(2);
+      expect(allLatest[0].peso_kg).toBe(8);
+
+      // v1 no debe aparecer en activeDecas bajo ninguna circunstancia
+      expect(activeDecas).toHaveLength(0);
+
+      // v2 debe constar en finishedDecas
+      expect(finishedDecas).toHaveLength(1);
+      expect(finishedDecas[0].id).toBe(2);
+      expect(finishedDecas[0].version).toBe(2);
+    });
+
+    it('debe seleccionar exclusivamente la versión más alta activa cuando hay rectificación vigente', () => {
+      const decas: DecaDocument[] = [
+        {
+          id: 10,
+          numero_deca: 'DECA-2026-00050',
+          version: 1,
+          is_vigente: false,
+          estado: 'sustituido',
+        } as any,
+        {
+          id: 11,
+          numero_deca: 'DECA-2026-00050-v2',
+          version: 2,
+          is_vigente: true,
+          estado: 'en_transito',
+        } as any,
+      ];
+
+      const { activeDecas, finishedDecas } = decaService.filterVigenteServices(decas);
+
+      expect(activeDecas).toHaveLength(1);
+      expect(activeDecas[0].version).toBe(2);
+      expect(activeDecas[0].estado).toBe('en_transito');
+      expect(finishedDecas).toHaveLength(0);
+    });
+
+    it('debe manejar array vacío de forma segura', () => {
+      const result = decaService.filterVigenteServices([]);
+      expect(result.activeDecas).toEqual([]);
+      expect(result.finishedDecas).toEqual([]);
+      expect(result.allLatest).toEqual([]);
+    });
+  });
+
+  describe('modo delegado (company_id desde cookie activa)', () => {
+    it('debe asignar automáticamente company_id desde la cookie activa al crear un DeCA en modo delegado', async () => {
+      const tenantCtx = await import('../tenantContextService');
+      const cookieSpy = jest.spyOn(tenantCtx, 'getActiveCompanyCookie').mockReturnValue(77);
+
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'consultant-user-1' } },
+      });
+
+      const insertSpy = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          single: jest.fn().mockResolvedValue({
+            data: { id: 500, numero_deca: 'DECA-2026-00099', company_id: 77, version: 1 },
+            error: null,
+          }),
+        }),
+      });
+
+      const auditInsertSpy = jest.fn().mockResolvedValue({ error: null });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'deca_documents') {
+          return { insert: insertSpy };
+        }
+        return { insert: auditInsertSpy };
+      });
+
+      const created = await decaService.create({
+        numero_deca: 'DECA-2026-00099',
+        cargador_razon_social: 'Cargador SA',
+        cargador_nif: 'A12345678',
+        cargador_domicilio: 'Calle 1',
+        cargador_municipio: 'Sevilla',
+        cargador_provincia: 'Sevilla',
+        transportista_razon_social: 'Trans Delegado SL',
+        transportista_nif: 'B87654321',
+        origen_direccion: 'Polígono 1',
+        origen_municipio: 'Sevilla',
+        origen_provincia: 'Sevilla',
+        destino_direccion: 'Planta 2',
+        destino_municipio: 'Málaga',
+        destino_provincia: 'Málaga',
+        naturaleza_mercancia: 'Chatarra',
+        peso_kg: 1200,
+        matricula_tractora: '1234-BBB',
+        fecha_transporte: '2026-11-22',
+        estado: 'vigente',
+      });
+
+      expect(insertSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          company_id: 77,
+          user_id: 'consultant-user-1',
+        })
+      );
+      expect(created.company_id).toBe(77);
+      cookieSpy.mockRestore();
+    });
+
+    it('confirmDriverReceipt y getDriverReceiptConfirmation registran y verifican la confirmación de recepción por el conductor (Hito C.2)', async () => {
+      const baseDeca: any = {
+        id: 601,
+        numero_deca: 'DECA-2026-00601',
+        version: 2,
+        is_vigente: true,
+        conductor_nombre: 'Juan Conductor',
+        observaciones_reservas: 'Observación inicial',
+      };
+
+      expect(decaService.getDriverReceiptConfirmation(baseDeca).confirmed).toBe(false);
+
+      const maybeSingleMock = jest.fn().mockImplementation(() => {
+        return Promise.resolve({
+          data: {
+            ...baseDeca,
+            observaciones_reservas: 'Observación inicial\n[CONDUCTOR_CONFIRMA_V2:Juan Conductor|2026-11-23T19:00:00.000Z]',
+          },
+          error: null,
+        });
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'deca_documents') {
+          return {
+            update: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnValue({
+                select: jest.fn().mockReturnValue({
+                  maybeSingle: maybeSingleMock,
+                }),
+              }),
+            }),
+          };
+        }
+        return { insert: jest.fn().mockResolvedValue({ error: null }) };
+      });
+
+      const confirmedDeca = await decaService.confirmDriverReceipt(baseDeca);
+      const parsed = decaService.getDriverReceiptConfirmation(confirmedDeca);
+      expect(parsed.confirmed).toBe(true);
+      expect(parsed.conductorNombre).toBe('Juan Conductor');
+      expect(parsed.version).toBe(2);
     });
   });
 });

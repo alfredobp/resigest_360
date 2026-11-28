@@ -11,6 +11,7 @@ import Alert from '@/components/ui/alert/Alert';
 import { toast } from '@/context/ToastContext';
 import wasteContractService from '@/services/wasteContractService';
 import companyService from '@/services/companyService';
+import documentSequenceService from '@/services/documentSequenceService';
 import type { Company, WasteContractFormData } from '@/types/wasteManagement';
 
 const TIPOS_CONTRATO = [
@@ -65,25 +66,32 @@ export default function NuevoContratoPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      
+
       // Cargar mi empresa
       const company = await companyService.getUserCompany();
       if (!company) {
         setError('Debes registrar tu empresa antes de crear un contrato');
-        router.push('/admin/residuos/mi-empresa');
+        router.push('/residuos/mi-empresa');
         return;
       }
-      
+
       setMyCompany(company);
       setFormData((prev) => ({ ...prev, company_id: company.id }));
 
-      // Generar número de contrato automático
-      const numeroContrato = wasteContractService.generateContractNumber(company.id);
+      // Previsualizar próximo número de contrato consecutivo (asignación definitiva atómica en BD)
+      const numeroContrato = await documentSequenceService
+        .previewNextCode(company.id, 'contract', { cif: company.cif })
+        .catch(() => wasteContractService.generateContractNumber(company.id, company.cif));
       setFormData((prev) => ({ ...prev, numero_contrato: numeroContrato }));
 
-      // Cargar lista de gestores disponibles
+      // Cargar lista de gestores disponibles (excluyendo la propia empresa)
       const gestoresData = await companyService.getByType('gestor');
-      setGestores(gestoresData);
+      const myNormCif = company.cif?.toUpperCase().trim();
+      setGestores(
+        gestoresData.filter(
+          (g) => g.id !== company.id && (!myNormCif || g.cif?.toUpperCase().trim() !== myNormCif)
+        )
+      );
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -103,7 +111,7 @@ export default function NuevoContratoPage() {
 
   const handleSearchGestor = async () => {
     if (searchQuery.trim().length < 2) return;
-    
+
     try {
       const results = await companyService.search(searchQuery);
       setGestores(results);
@@ -145,6 +153,13 @@ export default function NuevoContratoPage() {
     // Validaciones
     if (!formData.fecha_contrato) {
       const msg = 'La fecha del contrato es obligatoria';
+      setError(msg);
+      toast.warning(msg);
+      return;
+    }
+
+    if (!formData.cantidad_maxima_anual || Number(formData.cantidad_maxima_anual) <= 0) {
+      const msg = 'Debe indicar la cantidad estimada o máxima anual de residuos del contrato (Art. 5.c RD 553/2020).';
       setError(msg);
       toast.warning(msg);
       return;
@@ -196,18 +211,21 @@ export default function NuevoContratoPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           {/* Datos del Contrato */}
           <ComponentCard title="Datos del Contrato">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium mb-2">Número de Contrato</label>
+                <label className="block text-sm font-medium mb-2">Número de Contrato (Automático)</label>
                 <Input
                   name="numero_contrato"
                   value={formData.numero_contrato}
-                  onChange={handleChange}
-                  placeholder="Se genera automáticamente"
+                  disabled
+                  placeholder="Se asignará automáticamente al guardar"
                 />
+                <p className="text-[11px] text-muted mt-1">
+                  Código consecutivo asignado automáticamente por empresa y año al guardar (no editable).
+                </p>
               </div>
 
               <div>
@@ -259,17 +277,14 @@ export default function NuevoContratoPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Estado</label>
+                <label className="block text-sm font-medium mb-2">Estado inicial</label>
                 <select
                   name="estado"
                   value={formData.estado}
                   onChange={handleChange}
                   className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
                 >
-                  <option value="borrador">Borrador</option>
-                  <option value="vigente">Vigente</option>
-                  <option value="finalizado">Finalizado</option>
-                  <option value="cancelado">Cancelado</option>
+                  <option value="borrador">Borrador (requiere firma y activación posterior)</option>
                 </select>
               </div>
             </div>
@@ -287,7 +302,7 @@ export default function NuevoContratoPage() {
             )}
             <p className="text-sm text-muted mt-3">
               Estos datos se rellenarán automáticamente en el contrato.{' '}
-              <a href="/admin/residuos/mi-empresa" className="text-primary hover:underline">
+              <a href="/residuos/mi-empresa" className="text-primary hover:underline">
                 Editar mi empresa
               </a>
             </p>
@@ -409,26 +424,27 @@ export default function NuevoContratoPage() {
           {/* Residuos y Condiciones */}
           <ComponentCard title="Residuos y Condiciones" className="mt-6">
             <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">Descripción de Residuos</label>
-              <TextArea
-                value={formData.descripcion_residuos}
-                onChange={(value) => setFormData(prev => ({ ...prev, descripcion_residuos: value }))}
-                rows={3}
-                placeholder="Describe los tipos de residuos cubiertos por el contrato..."
-              />
-            </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Descripción de Residuos</label>
+                <TextArea
+                  value={formData.descripcion_residuos}
+                  onChange={(value) => setFormData(prev => ({ ...prev, descripcion_residuos: value }))}
+                  rows={3}
+                  placeholder="Describe los tipos de residuos cubiertos por el contrato..."
+                />
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Cantidad Máxima Anual</label>
+                  <label className="block text-sm font-medium mb-2">Cantidad Estimada / Máxima Anual (Art. 5 RD 553/2020) *</label>
                   <Input
                     name="cantidad_maxima_anual"
                     type="number"
                     step={0.01}
                     value={formData.cantidad_maxima_anual || ''}
                     onChange={handleChange}
-                    placeholder="Ej: 1000"
+                    placeholder="Ej: 50"
+                    required
                   />
                 </div>
 
@@ -490,7 +506,7 @@ export default function NuevoContratoPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => router.push('/admin/residuos/contratos')}
+              onClick={() => router.push('/residuos/contratos')}
               disabled={saving}
             >
               Cancelar

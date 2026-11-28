@@ -3,7 +3,7 @@
 // Normativa: Ley 9/2025 (DT 8ª), Orden FOM/2861/2012, Resolución 5 junio 2026
 // ==============================================================================
 
-export type DecaEstado = 'borrador' | 'vigente' | 'en_transito' | 'finalizado' | 'anulado';
+export type DecaEstado = 'borrador' | 'vigente' | 'en_transito' | 'finalizado' | 'anulado' | 'sustituido';
 
 export interface DecaDocument {
   id: number;

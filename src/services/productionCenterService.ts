@@ -4,19 +4,51 @@
 // =====================================================
 
 import { createClient } from '@/lib/supabase/client';
-import type { ProductionCenter, ProductionCenterFormData } from '@/types/wasteManagement';
+import { auditService } from './auditService';
+import { applyTenantScope } from './tenantContextService';
+import type { Company, ProductionCenter, ProductionCenterFormData } from '@/types/wasteManagement';
 
 const supabase = createClient();
+
+/**
+ * Detecta si la lista de centros ya incluye la sede / instalación principal de la empresa
+ * (por nombre "Centro Principal" / "Sede Principal", coincidencia de NIMA o dirección)
+ * para evitar duplicar la opción sintética "Sede / Instalación Principal" en los selectores.
+ */
+export function findPrincipalProductionCenter(
+    company: Pick<Company, 'nima' | 'domicilio_social' | 'domicilio_instalacion'> | null | undefined,
+    centers: ProductionCenter[]
+): ProductionCenter | undefined {
+    if (!centers || centers.length === 0) return undefined;
+    const companyNima = company?.nima?.trim().toUpperCase();
+    const companyAddr = (company?.domicilio_instalacion || company?.domicilio_social || '').trim().toLowerCase();
+    return centers.find((c) => {
+        const centerName = (c.nombre || '').toLowerCase();
+        if (centerName.includes('centro principal') || centerName.includes('sede principal')) return true;
+        const centerNima = c.nima?.trim().toUpperCase();
+        if (companyNima && centerNima && centerNima === companyNima) return true;
+        const centerAddr = (c.direccion || '').trim().toLowerCase();
+        if (companyAddr && centerAddr && centerAddr === companyAddr) return true;
+        return false;
+    });
+}
 
 export const productionCenterService = {
     /**
      * Obtener todos los centros de producción de una empresa
      */
     async getByCompanyId(companyId: number): Promise<ProductionCenter[]> {
-        const { data, error } = await supabase
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            throw new Error('Usuario no autenticado');
+        }
+
+        const baseQuery = supabase
             .from('production_centers')
             .select('*')
-            .eq('company_id', companyId)
+            .eq('company_id', companyId);
+
+        const { data, error } = await applyTenantScope(baseQuery, user.id)
             .eq('activo', true)
             .order('created_at', { ascending: true });
 
@@ -31,10 +63,17 @@ export const productionCenterService = {
      * Obtener centro de producción por ID
      */
     async getById(id: number): Promise<ProductionCenter | null> {
-        const { data, error } = await supabase
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            throw new Error('Usuario no autenticado');
+        }
+
+        const baseQuery = supabase
             .from('production_centers')
             .select('*')
-            .eq('id', id)
+            .eq('id', id);
+
+        const { data, error } = await applyTenantScope(baseQuery, user.id)
             .single();
 
         if (error) {
@@ -71,17 +110,37 @@ export const productionCenterService = {
             throw new Error(`Error al crear centro de producción: ${error.message}`);
         }
 
-        return data as ProductionCenter;
+        const created = data as ProductionCenter;
+
+        await auditService.logAction({
+            company_id: created.company_id ?? null,
+            entidad: 'centro_produccion',
+            entidad_id: created.id,
+            accion: 'crear',
+            detalles: {
+                nombre: created.nombre,
+                nima: created.nima,
+            },
+        });
+
+        return created;
     },
 
     /**
      * Actualizar centro de producción existente
      */
     async update(id: number, formData: Partial<ProductionCenterFormData>): Promise<ProductionCenter> {
-        const { data, error } = await supabase
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            throw new Error('Usuario no autenticado');
+        }
+
+        const updateQuery = supabase
             .from('production_centers')
             .update(formData)
-            .eq('id', id)
+            .eq('id', id);
+
+        const { data, error } = await applyTenantScope(updateQuery, user.id)
             .select()
             .single();
 
@@ -89,35 +148,76 @@ export const productionCenterService = {
             throw new Error(`Error al actualizar centro de producción: ${error.message}`);
         }
 
-        return data as ProductionCenter;
+        const updated = data as ProductionCenter;
+
+        await auditService.logAction({
+            company_id: updated.company_id ?? null,
+            entidad: 'centro_produccion',
+            entidad_id: updated.id,
+            accion: 'actualizar',
+            detalles: {
+                nombre: updated.nombre,
+                nima: updated.nima,
+            },
+        });
+
+        return updated;
     },
 
     /**
      * Eliminar centro de producción (soft delete)
      */
     async softDelete(id: number): Promise<void> {
-        const { error } = await supabase
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            throw new Error('Usuario no autenticado');
+        }
+
+        const softDeleteQuery = supabase
             .from('production_centers')
             .update({ activo: false })
             .eq('id', id);
 
+        const { error } = await applyTenantScope(softDeleteQuery, user.id);
+
         if (error) {
             throw new Error(`Error al desactivar centro de producción: ${error.message}`);
         }
+
+        await auditService.logAction({
+            entidad: 'centro_produccion',
+            entidad_id: id,
+            accion: 'eliminar',
+            detalles: { soft_delete: true },
+        });
     },
 
     /**
      * Eliminar centro de producción permanentemente
      */
     async delete(id: number): Promise<void> {
-        const { error } = await supabase
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            throw new Error('Usuario no autenticado');
+        }
+
+        const deleteQuery = supabase
             .from('production_centers')
             .delete()
             .eq('id', id);
 
+        const { error } = await applyTenantScope(deleteQuery, user.id);
+
         if (error) {
             throw new Error(`Error al eliminar centro de producción: ${error.message}`);
         }
+
+        await auditService.logAction({
+            entidad: 'centro_produccion',
+            entidad_id: id,
+            accion: 'eliminar',
+            detalles: { soft_delete: false },
+        });
     },
 };
 

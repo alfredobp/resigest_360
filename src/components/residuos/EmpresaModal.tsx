@@ -5,9 +5,12 @@ import { Modal } from '@/components/ui/modal';
 import Input from '@/components/form/input/InputField';
 import TextArea from '@/components/form/input/TextArea';
 import Label from '@/components/form/Label';
+import ProvinceMunicipalityFields from '@/components/form/ProvinceMunicipalityFields';
 import Button from '@/components/ui/button/Button';
 import Alert from '@/components/ui/alert/Alert';
 import companyService from '@/services/companyService';
+import { parseFleetFromNotes, serializeFleetToNotes } from '@/services/carrierService';
+import { getProvinceByPostalCode } from '@/lib/validations/spainLocations';
 import {
   validateRequired,
   validateCIF,
@@ -15,6 +18,16 @@ import {
   validateEmail,
   scrollToFirstError,
 } from '@/lib/validations/formValidation';
+import {
+  Recycle,
+  Truck,
+  Factory,
+  Briefcase,
+  Handshake,
+  User,
+  Package,
+  type LucideIcon,
+} from 'lucide-react';
 import type { Company, CompanyFormData, CompanyRole } from '@/types/wasteManagement';
 
 interface EmpresaModalProps {
@@ -25,14 +38,14 @@ interface EmpresaModalProps {
   defaultRole?: CompanyRole;
 }
 
-const AVAILABLE_ROLES: Array<{ id: CompanyRole; label: string; icon: string; description: string }> = [
-  { id: 'gestor', label: 'Gestor Autorizado', icon: '♻️', description: 'Instalación o entidad que recibe y valoriza/elimina residuos' },
-  { id: 'transportista', label: 'Transportista', icon: '🚚', description: 'Empresa o transportista autorizado con vehículos de recogida' },
-  { id: 'productor', label: 'Productor', icon: '🏭', description: 'Centro o entidad que genera residuos en su actividad' },
-  { id: 'negociante', label: 'Negociante', icon: '💼', description: 'Compra y venta de residuos por cuenta propia' },
-  { id: 'agente', label: 'Agente', icon: '🤝', description: 'Organiza traslados o valorización por cuenta de terceros' },
-  { id: 'cliente', label: 'Cliente', icon: '👤', description: 'Cliente comercial para facturación o venta' },
-  { id: 'proveedor', label: 'Proveedor', icon: '📦', description: 'Proveedor comercial de compras o servicios' },
+const AVAILABLE_ROLES: Array<{ id: CompanyRole; label: string; icon: LucideIcon; description: string }> = [
+  { id: 'gestor', label: 'Gestor Autorizado', icon: Recycle, description: 'Instalación o entidad que recibe y valoriza/elimina residuos' },
+  { id: 'transportista', label: 'Transportista', icon: Truck, description: 'Empresa o transportista autorizado con vehículos de recogida' },
+  { id: 'productor', label: 'Productor', icon: Factory, description: 'Centro o entidad que genera residuos en su actividad' },
+  { id: 'negociante', label: 'Negociante', icon: Briefcase, description: 'Compra y venta de residuos por cuenta propia' },
+  { id: 'agente', label: 'Agente', icon: Handshake, description: 'Organiza traslados o valorización por cuenta de terceros' },
+  { id: 'cliente', label: 'Cliente', icon: User, description: 'Cliente comercial para facturación o venta' },
+  { id: 'proveedor', label: 'Proveedor', icon: Package, description: 'Proveedor comercial de compras o servicios' },
 ];
 
 export default function EmpresaModal({
@@ -121,7 +134,7 @@ export default function EmpresaModal({
           email: company.email || '',
           persona_contacto: company.persona_contacto || '',
           roles: existingRoles,
-          notas: company.notas || '',
+          notas: parseFleetFromNotes(company.notas).userNotes,
           activo: company.activo ?? true,
         });
       } else {
@@ -205,7 +218,12 @@ export default function EmpresaModal({
     try {
       setSaving(true);
       if (company) {
-        await companyService.update(company.id, formData);
+        const parsedFleet = parseFleetFromNotes(company.notas);
+        const preservedNotes =
+          parsedFleet.vehicles.length > 0 || parsedFleet.drivers.length > 0
+            ? serializeFleetToNotes(formData.notas || '', parsedFleet.vehicles, parsedFleet.drivers)
+            : formData.notas;
+        await companyService.update(company.id, { ...formData, notas: preservedNotes });
       } else {
         await companyService.create(formData);
       }
@@ -222,7 +240,7 @@ export default function EmpresaModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      className="max-w-3xl p-6 sm:p-8"
+      className="max-w-3xl max-h-[90vh] overflow-y-auto p-6 sm:p-8"
     >
       <div className="space-y-6">
         <div>
@@ -250,18 +268,23 @@ export default function EmpresaModal({
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {AVAILABLE_ROLES.map((r) => {
                 const active = isRoleActive(r.id);
+                const Icon = r.icon;
                 return (
                   <button
                     key={r.id}
                     type="button"
                     onClick={() => toggleRole(r.id)}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-left transition-all ${
-                      active
-                        ? 'border-brand-500 bg-brand-50/70 text-brand-900 font-medium dark:bg-brand-900/30 dark:border-brand-400 dark:text-brand-200 ring-2 ring-brand-500/20'
-                        : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700 dark:bg-gray-900 dark:border-gray-800 dark:text-gray-300'
-                    }`}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-all ${active
+                      ? 'border-brand-500 bg-brand-50/70 text-brand-900 font-medium dark:bg-brand-900/30 dark:border-brand-400 dark:text-brand-200 ring-2 ring-brand-500/20'
+                      : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700 dark:bg-gray-900 dark:border-gray-800 dark:text-gray-300'
+                      }`}
                   >
-                    <span className="text-base">{r.icon}</span>
+                    <Icon
+                      className={`w-4 h-4 shrink-0 transition-colors ${active
+                        ? 'text-brand-600 dark:text-brand-400'
+                        : 'text-gray-500 dark:text-gray-400'
+                        }`}
+                    />
                     <span className="text-xs sm:text-sm">{r.label}</span>
                   </button>
                 );
@@ -346,16 +369,17 @@ export default function EmpresaModal({
           </div>
 
           {/* Campos Operativos Específicos según Roles */}
-          {(isRoleActive('gestor') || isRoleActive('transportista') || isRoleActive('negociante')) && (
-            <div className="space-y-4 pt-2 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50 p-4 rounded-lg">
+          {(isRoleActive('gestor') || isRoleActive('transportista') || isRoleActive('negociante') || isRoleActive('agente')) && (
+            <div className="space-y-4 pt-2 border-t border-gray-100 dark:border-gray-800">
               <h4 className="text-xs font-bold uppercase tracking-wider text-muted">
                 Autorizaciones y Operativa
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {(isRoleActive('gestor') || isRoleActive('negociante') || isRoleActive('agente')) && (
                   <div>
-                    <label className="block text-sm font-medium mb-1">Nº Autorización Ambiental</label>
+                    <Label htmlFor="empresa_numero_autorizacion">Nº Autorización Ambiental</Label>
                     <Input
+                      id="empresa_numero_autorizacion"
                       value={formData.numero_autorizacion || ''}
                       onChange={(e) => setFormData({ ...formData, numero_autorizacion: e.target.value })}
                       placeholder="Ej: G-12345/CM"
@@ -365,8 +389,9 @@ export default function EmpresaModal({
 
                 {isRoleActive('transportista') && (
                   <div>
-                    <label className="block text-sm font-medium mb-1">Matrícula Habitual / Cabeza Tractora</label>
+                    <Label htmlFor="empresa_matricula">Matrícula Habitual / Cabeza Tractora</Label>
                     <Input
+                      id="empresa_matricula"
                       value={formData.matricula || ''}
                       onChange={(e) => setFormData({ ...formData, matricula: e.target.value.toUpperCase() })}
                       placeholder="Ej: 1234-XYZ"
@@ -382,42 +407,52 @@ export default function EmpresaModal({
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted">
               Domicilio Social / Sede
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium mb-1">Dirección</label>
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+              <div className="sm:col-span-12">
+                <Label htmlFor="empresa_domicilio_social">Dirección</Label>
                 <Input
+                  id="empresa_domicilio_social"
                   value={formData.domicilio_social || ''}
                   onChange={(e) => setFormData({ ...formData, domicilio_social: e.target.value })}
                   placeholder="Calle, número, polígono..."
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">Código Postal</label>
+              <div className="sm:col-span-3">
+                <Label htmlFor="empresa_codigo_postal">Código Postal</Label>
                 <Input
+                  id="empresa_codigo_postal"
                   value={formData.codigo_postal_social || ''}
-                  onChange={(e) => setFormData({ ...formData, codigo_postal_social: e.target.value })}
+                  onChange={(e) => {
+                    const cp = e.target.value;
+                    const detectedProv = getProvinceByPostalCode(cp);
+                    setFormData((prev) => ({
+                      ...prev,
+                      codigo_postal_social: cp,
+                      provincia_social: detectedProv || prev.provincia_social,
+                    }));
+                  }}
                   placeholder="28001"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">Municipio</label>
-                <Input
-                  value={formData.municipio_social || ''}
-                  onChange={(e) => setFormData({ ...formData, municipio_social: e.target.value })}
-                  placeholder="Madrid"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Provincia</label>
-                <Input
-                  value={formData.provincia_social || ''}
-                  onChange={(e) => setFormData({ ...formData, provincia_social: e.target.value })}
-                  placeholder="Madrid"
-                />
-              </div>
+              <ProvinceMunicipalityFields
+                unstyledWrapper
+                provinciaWrapperClassName="sm:col-span-4"
+                municipioWrapperClassName="sm:col-span-5"
+                order="provincia-first"
+                provincia={formData.provincia_social || ''}
+                municipio={formData.municipio_social || ''}
+                provinciaId="empresa_provincia"
+                municipioId="empresa_municipio"
+                onChange={({ provincia, municipio }) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    provincia_social: provincia,
+                    municipio_social: municipio,
+                  }))
+                }
+              />
             </div>
           </div>
 
@@ -428,8 +463,9 @@ export default function EmpresaModal({
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Persona de Contacto</label>
+                <Label htmlFor="empresa_persona_contacto">Persona de Contacto</Label>
                 <Input
+                  id="empresa_persona_contacto"
                   value={formData.persona_contacto || ''}
                   onChange={(e) => setFormData({ ...formData, persona_contacto: e.target.value })}
                   placeholder="Nombre y apellidos"
@@ -437,8 +473,9 @@ export default function EmpresaModal({
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Teléfono</label>
+                <Label htmlFor="empresa_telefono">Teléfono</Label>
                 <Input
+                  id="empresa_telefono"
                   value={formData.telefono || ''}
                   onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
                   placeholder="+34 600 000 000"
@@ -466,8 +503,9 @@ export default function EmpresaModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Notas Internas</label>
+              <Label htmlFor="empresa_notas">Notas Internas</Label>
               <TextArea
+                id="empresa_notas"
                 value={formData.notas || ''}
                 onChange={(value) => setFormData({ ...formData, notas: value })}
                 rows={2}

@@ -15,6 +15,7 @@ import type { AuditLogEntry } from '@/types/wasteManagement';
 describe('auditService - Trazabilidad y Registro de Auditoría', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
   });
 
   describe('logAction', () => {
@@ -162,9 +163,10 @@ describe('auditService - Trazabilidad y Registro de Auditoría', () => {
     });
 
     it('debe aplicar filtros opcionales por entidad, acción, company_id y límite personalizado', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
       const mockLogs = [{ id: 5, accion: 'firmar' }];
 
-      let queryObj: any = {};
+      const queryObj: any = {};
       const limitMock = jest.fn().mockImplementation(() => queryObj);
       const orderMock = jest.fn().mockReturnValue({ limit: limitMock });
       const selectMock = jest.fn().mockReturnValue({ order: orderMock });
@@ -182,6 +184,7 @@ describe('auditService - Trazabilidad y Registro de Auditoría', () => {
       });
 
       expect(limitMock).toHaveBeenCalledWith(10);
+      expect(queryObj.eq).toHaveBeenCalledWith('user_id', 'user-1');
       expect(queryObj.eq).toHaveBeenCalledWith('entidad', 'di');
       expect(queryObj.eq).toHaveBeenCalledWith('accion', 'crear');
       expect(queryObj.eq).toHaveBeenCalledWith('company_id', 3);
@@ -221,10 +224,12 @@ describe('auditService - Trazabilidad y Registro de Auditoría', () => {
 
   describe('getLogsForEntity', () => {
     it('debe obtener los logs filtrados por entidad e ID', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
       const mockLogs = [{ id: 10, entidad: 'di', entidad_id: '5' }];
 
       const orderMock = jest.fn().mockResolvedValue({ data: mockLogs, error: null });
-      const eqIdMock = jest.fn().mockReturnValue({ order: orderMock });
+      const eqUserMock = jest.fn().mockReturnValue({ order: orderMock });
+      const eqIdMock = jest.fn().mockReturnValue({ eq: eqUserMock, order: orderMock });
       const eqEntidadMock = jest.fn().mockReturnValue({ eq: eqIdMock });
       const selectMock = jest.fn().mockReturnValue({ eq: eqEntidadMock });
       mockSupabase.from.mockReturnValue({ select: selectMock });
@@ -233,6 +238,7 @@ describe('auditService - Trazabilidad y Registro de Auditoría', () => {
 
       expect(eqEntidadMock).toHaveBeenCalledWith('entidad', 'di');
       expect(eqIdMock).toHaveBeenCalledWith('entidad_id', '5');
+      expect(eqUserMock).toHaveBeenCalledWith('user_id', 'user-1');
       expect(orderMock).toHaveBeenCalledWith('created_at', { ascending: false });
       expect(result).toEqual(mockLogs);
     });

@@ -6,14 +6,17 @@ import {
   getMemoriaById,
   updateEstado,
   deleteMemoria,
+  recalculateDraftMemoria,
   generateExcelData,
   exportMemoriaToExcelXML,
   exportMemoriaToCSV
 } from '@/services/memoriaAnualService';
 import { generateMemoriaAnualPDF } from '@/lib/pdfUtils';
 import { type MemoriaAnual, type EstadoMemoria, type ResumenLER } from '@/types/wasteManagement';
+import PageBreadCrumb from '@/components/common/PageBreadCrumb';
 import ComponentCard from '@/components/common/ComponentCard';
 import Alert from '@/components/ui/alert/Alert';
+import { ConfirmModal } from '@/components/ui/modal';
 import { toast } from '@/context/ToastContext';
 import Badge from '@/components/ui/badge/Badge';
 import Button from '@/components/ui/button/Button';
@@ -28,6 +31,28 @@ export default function DetalleMemoriaPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [processingExcel, setProcessingExcel] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+  const handleRecalculateDraft = async () => {
+    if (!memoria || memoria.estado !== 'borrador') return;
+    try {
+      setRecalculating(true);
+      setError(null);
+      const updated = await recalculateDraftMemoria(memoria.id);
+      setMemoria(updated);
+      const msg = `Memoria recalculada con éxito: ${updated.total_movimientos} movimientos (${updated.total_toneladas.toFixed(3)} t).`;
+      setSuccess(msg);
+      toast.success(msg);
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (err: any) {
+      const msg = err?.message || 'Error al recalcular la memoria anual';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setRecalculating(false);
+    }
+  };
 
   useEffect(() => {
     if (memoriaId) {
@@ -66,12 +91,13 @@ export default function DetalleMemoriaPage() {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!memoria) return;
+    setIsDeleteModalOpen(true);
+  };
 
-    if (!confirm('¿Estás seguro de que quieres eliminar esta memoria anual? Esta acción no se puede deshacer.')) {
-      return;
-    }
+  const confirmDelete = async () => {
+    if (!memoria) return;
 
     try {
       await deleteMemoria(memoria.id);
@@ -131,9 +157,13 @@ export default function DetalleMemoriaPage() {
   const handleDownloadPDF = async () => {
     if (!memoria) return;
     try {
-      const pdfDoc = await generateMemoriaAnualPDF(memoria);
+      const excelData = await generateExcelData(memoria.id).catch(() => null);
+      const pdfDoc = await generateMemoriaAnualPDF(memoria, excelData);
       pdfDoc.save(`${memoria.numero_memoria}.pdf`);
-      const msg = 'PDF oficial generado y descargado correctamente.';
+      const msg =
+        memoria.estado === 'borrador'
+          ? 'Resumen PDF en borrador generado y descargado correctamente.'
+          : 'Documento PDF de memoria anual generado y descargado correctamente.';
       setSuccess(msg);
       toast.success(msg);
       setTimeout(() => setSuccess(null), 4000);
@@ -210,6 +240,7 @@ export default function DetalleMemoriaPage() {
 
   return (
     <div className="space-y-6">
+      <PageBreadCrumb pageTitle={memoria.numero_memoria || 'Detalle de Memoria Anual'} />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -250,31 +281,25 @@ export default function DetalleMemoriaPage() {
       {/* Resumen */}
       <div className="grid gap-4 md:grid-cols-4">
         <ComponentCard title="Movimientos">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Movimientos</p>
-            <p className="text-2xl font-bold">{memoria.total_movimientos}</p>
-          </div>
+          <p className="text-2xl font-bold">{memoria.total_movimientos}</p>
         </ComponentCard>
 
         <ComponentCard title="Toneladas">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Toneladas</p>
-            <p className="text-2xl font-bold">{memoria.total_toneladas.toFixed(2)}</p>
-          </div>
+          <p className="text-2xl font-bold">
+            {(memoria.resumen_ler && memoria.resumen_ler.length > 0
+              ? memoria.resumen_ler.reduce((sum, item) => sum + (Number(item.cantidad_total) || 0), 0)
+              : Number(memoria.total_toneladas) || 0
+            ).toFixed(3)}{' '}
+            t
+          </p>
         </ComponentCard>
 
         <ComponentCard title="Códigos LER">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Códigos LER</p>
-            <p className="text-2xl font-bold">{memoria.resumen_ler?.length || 0}</p>
-          </div>
+          <p className="text-2xl font-bold">{memoria.resumen_ler?.length || 0}</p>
         </ComponentCard>
 
         <ComponentCard title="Año">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Año</p>
-            <p className="text-2xl font-bold">{memoria.año}</p>
-          </div>
+          <p className="text-2xl font-bold">{memoria.año}</p>
         </ComponentCard>
       </div>
 
@@ -342,7 +367,7 @@ export default function DetalleMemoriaPage() {
                         <td className="px-4 py-3 text-sm font-medium">{item.codigo_ler}</td>
                         <td className="px-4 py-3 text-sm">{item.descripcion}</td>
                         <td className="px-4 py-3 text-sm text-right">{item.numero_movimientos}</td>
-                        <td className="px-4 py-3 text-sm text-right">{item.cantidad_total.toFixed(2)} t</td>
+                        <td className="px-4 py-3 text-sm text-right">{(Number(item.cantidad_total) || 0).toFixed(3)} t</td>
                       </tr>
                     ))}
                   </tbody>
@@ -395,24 +420,38 @@ export default function DetalleMemoriaPage() {
                 Exportar CSV (.csv)
               </Button>
 
-              {/* Descargar PDF */}
+              {/* Descargar PDF (INC16: no anunciar borrador como PDF Oficial) */}
               <Button
                 className="w-full justify-start text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400"
                 variant="outline"
                 onClick={handleDownloadPDF}
               >
-                Descargar PDF Oficial
+                {memoria.estado === 'borrador'
+                  ? 'Descargar Resumen PDF (Borrador)'
+                  : memoria.estado === 'presentada' || memoria.estado === 'archivada'
+                    ? 'Descargar Memoria PDF (Presentada)'
+                    : 'Descargar Memoria PDF (Revisión)'}
               </Button>
 
-              {/* Cambiar Estado */}
+              {/* Recalcular y Cambiar Estado */}
               {memoria.estado === 'borrador' && (
-                <Button
-                  className="w-full justify-start"
-                  variant="outline"
-                  onClick={() => handleChangeEstado('revision')}
-                >
-                  Enviar a Revisión
-                </Button>
+                <>
+                  <Button
+                    className="w-full justify-start text-brand-700 hover:text-brand-800 hover:bg-brand-50 dark:text-brand-400"
+                    variant="outline"
+                    onClick={handleRecalculateDraft}
+                    disabled={recalculating}
+                  >
+                    {recalculating ? 'Recalculando movimientos...' : 'Recalcular / Sincronizar Movimientos'}
+                  </Button>
+                  <Button
+                    className="w-full justify-start"
+                    variant="outline"
+                    onClick={() => handleChangeEstado('revision')}
+                  >
+                    Enviar a Revisión
+                  </Button>
+                </>
               )}
 
               {memoria.estado === 'revision' && (
@@ -510,6 +549,14 @@ export default function DetalleMemoriaPage() {
           </ComponentCard>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        title="Eliminar memoria anual"
+        message="¿Estás seguro de que quieres eliminar esta memoria anual? Esta acción no se puede deshacer."
+      />
     </div>
   );
 }

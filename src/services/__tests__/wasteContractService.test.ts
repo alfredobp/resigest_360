@@ -26,13 +26,14 @@ import {
   wasteContractService,
   validateContractActivation,
   getContractEffectiveStatus,
+  detectContractMaterialChanges,
 } from '../wasteContractService';
 import type { WasteContract, WasteContractFormData } from '@/types/wasteManagement';
 
 describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => { });
   });
 
   afterEach(() => {
@@ -102,13 +103,17 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       expect(result).toEqual({ id: 7, firma_productor_url: 'http://sig' });
     });
 
-    it('signContractByToken falla si el token no es válido, la subida falla o la RPC falla', async () => {
+    it('signContractByToken falla si el token no es válido, hace fallback a Data URI si la subida a Storage falla y lanza si la RPC falla', async () => {
       mockSupabase.rpc.mockResolvedValueOnce({ data: null, error: null });
       await expect(wasteContractService.signContractByToken('x', pngBase64, 'gestor')).rejects.toThrow('Contrato no encontrado o token inválido');
 
-      mockSupabase.rpc.mockResolvedValueOnce({ data: { id: 7 }, error: null });
+      // A7-01: Cuando Storage upload falla en cliente anónimo, usa el Data URI directamente en la RPC
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: { id: 7 }, error: null })
+        .mockResolvedValueOnce({ data: { id: 7, firma_gestor_url: pngBase64 }, error: null });
       mockStorageFrom.upload.mockResolvedValueOnce({ error: { message: 'storage' } });
-      await expect(wasteContractService.signContractByToken('x', pngBase64, 'gestor')).rejects.toThrow('Error al subir firma: storage');
+      const fallbackRes = await wasteContractService.signContractByToken('x', pngBase64, 'gestor');
+      expect(fallbackRes.firma_gestor_url).toBe(pngBase64);
 
       mockSupabase.rpc
         .mockResolvedValueOnce({ data: { id: 7 }, error: null })
@@ -116,6 +121,23 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       mockStorageFrom.upload.mockResolvedValueOnce({ error: null });
       mockStorageFrom.getPublicUrl.mockReturnValue({ data: { publicUrl: 'u' } });
       await expect(wasteContractService.signContractByToken('x', pngBase64, 'gestor')).rejects.toThrow('Error al actualizar firma: ya firmado');
+
+      // A7-01: Fallback a /api/public/sign-contract ante error PGRST203 de sobrecarga ambigua en PostgREST
+      const origFetch = (global as any).fetch;
+      (global as any).fetch = jest.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { id: 7, estado: 'vigente', firma_gestor_url: 'u' } }),
+      });
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: { id: 7 }, error: null })
+        .mockResolvedValueOnce({
+          data: null,
+          error: { code: 'PGRST203', message: 'Could not choose the best candidate function' },
+        });
+      mockStorageFrom.upload.mockResolvedValueOnce({ error: null });
+      const apiFallback = await wasteContractService.signContractByToken('x', pngBase64, 'gestor');
+      expect(apiFallback.estado).toBe('vigente');
+      (global as any).fetch = origFetch;
     });
   });
 
@@ -473,6 +495,37 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
 
       await expect(wasteContractService.search('algo')).rejects.toThrow('Error al buscar contratos: Search error');
     });
+
+    it('debe devolver lista vacía y sanitizar operadores PostgREST en search', async () => {
+      setupTenantContext('u-solo', []);
+      expect(await wasteContractService.search('(),_% ')).toEqual([]);
+
+      const mockResults = [{ id: 2, numero_contrato: 'CT123' }];
+      const queryChain = {
+        select: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        order: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockResolvedValue({ data: mockResults, error: null }),
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'waste_contracts') return queryChain;
+        return null;
+      });
+
+      const res = await wasteContractService.search('CT(1,2)%_3');
+      expect(queryChain.or).toHaveBeenCalledWith(
+        'numero_contrato.ilike.%CT123%,descripcion_residuos.ilike.%CT123%'
+      );
+      expect(res).toEqual(mockResults);
+    });
   });
 
   describe('create', () => {
@@ -502,6 +555,12 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       const contractWasteCodesInsert = jest.fn().mockResolvedValue({ error: null });
 
       mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
         if (table === 'waste_contracts') {
           return {
             insert: jest.fn().mockReturnThis(),
@@ -561,6 +620,12 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       });
 
       mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
         if (table === 'waste_contracts') {
           return {
             insert: jest.fn().mockReturnThis(),
@@ -606,16 +671,24 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
 
   describe('update', () => {
     it('debe actualizar contrato y reemplazar contract_waste_codes si se envían', async () => {
+      setupTenantContext('user-1', [{ id: 5 }]);
       const updatedMock = { id: 10, estado: 'vigente' };
       const wasteDeleteMock = jest.fn().mockReturnThis();
       const wasteEqMock = jest.fn().mockResolvedValue({ error: null });
       const wasteInsertMock = jest.fn().mockResolvedValue({ error: null });
 
       mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [{ id: 5 }], error: null }),
+          };
+        }
         if (table === 'waste_contracts') {
           return {
             update: jest.fn().mockReturnThis(),
             eq: jest.fn().mockReturnThis(),
+            or: jest.fn().mockReturnThis(),
             select: jest.fn().mockReturnThis(),
             single: jest.fn().mockResolvedValue({ data: updatedMock, error: null }),
           };
@@ -645,12 +718,164 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       expect(wasteInsertMock).toHaveBeenCalled();
     });
 
-    it('debe lanzar error cuando el update falla', async () => {
+    it('debe resolver y actualizar treatment_manager_id y gestor_company_id en update', async () => {
+      setupTenantContext('user-1', []);
+      const updatedMock = { id: 10, treatment_manager_id: 5, gestor_company_id: 10 };
+      const singleMock = jest.fn().mockResolvedValue({ data: updatedMock, error: null });
+      const selectMock = jest.fn().mockReturnValue({ single: singleMock });
+      const eqUserMock = jest.fn().mockReturnValue({ select: selectMock });
+      const eqMock = jest.fn().mockReturnValue({ eq: eqUserMock, select: selectMock });
+      const updateMock = jest.fn().mockReturnValue({ eq: eqMock });
+
       mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'waste_contracts') {
+          return { update: updateMock };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockReturnThis(),
+          maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+        };
+      });
+
+      const result = await wasteContractService.update(10, {
+        treatment_manager_id: 5,
+        gestor_company_id: 10,
+      });
+
+      expect(result).toEqual(updatedMock);
+    });
+
+    it('debe soportar contractWasteCodes en camelCase sin enviarlo como columna a waste_contracts', async () => {
+      setupTenantContext('user-1', []);
+      const updatedMock = { id: 10, estado: 'vigente' };
+      const contractUpdateMock = jest.fn().mockReturnThis();
+      const wasteDeleteMock = jest.fn().mockReturnThis();
+      const wasteEqMock = jest.fn().mockResolvedValue({ error: null });
+      const wasteInsertMock = jest.fn().mockResolvedValue({ error: null });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'waste_contracts') {
+          return {
+            update: contractUpdateMock,
+            eq: jest.fn().mockReturnThis(),
+            or: jest.fn().mockReturnThis(),
+            select: jest.fn().mockReturnThis(),
+            single: jest.fn().mockResolvedValue({ data: updatedMock, error: null }),
+          };
+        }
+        if (table === 'contract_waste_codes') {
+          return {
+            delete: wasteDeleteMock,
+            eq: wasteEqMock,
+            insert: wasteInsertMock,
+          };
+        }
+        return null;
+      });
+
+      await wasteContractService.update(10, {
+        estado: 'vigente',
+        contractWasteCodes: [
+          {
+            codigo_ler: ' 15 01 02 ',
+            operacion_tratamiento: ' r03 ',
+          },
+        ],
+      } as any);
+
+      const sentPayload = contractUpdateMock.mock.calls[0][0];
+      expect(sentPayload.contractWasteCodes).toBeUndefined();
+      expect(sentPayload.codigos_ler).toEqual(['15 01 02']);
+      expect(sentPayload.operaciones_tratamiento).toEqual(['R03']);
+      expect(wasteInsertMock).toHaveBeenCalled();
+    });
+
+    it('debe invalidar firmas y pasar a pendiente_firma cuando se modifican términos materiales (A04-02)', async () => {
+      setupTenantContext('user-1', []);
+      const contractUpdateMock = jest.fn().mockReturnThis();
+
+      const existingSignedContract = {
+        id: 53,
+        firmado_productor: true,
+        firmado_gestor: true,
+        firma_productor_url: 'https://sig/prod.png',
+        firma_gestor_url: 'https://sig/gest.png',
+        estado: 'vigente',
+        version: 1,
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'waste_contracts') {
+          return {
+            select: jest.fn().mockImplementation((cols: string) => {
+              if (cols.includes('firmado_productor')) {
+                return {
+                  eq: jest.fn().mockReturnValue({
+                    maybeSingle: jest.fn().mockResolvedValue({ data: existingSignedContract, error: null }),
+                  }),
+                };
+              }
+              return {
+                single: jest.fn().mockResolvedValue({ data: { id: 53, estado: 'pendiente_firma' }, error: null }),
+              };
+            }),
+            update: contractUpdateMock,
+            eq: jest.fn().mockReturnThis(),
+            or: jest.fn().mockReturnThis(),
+          };
+        }
+        return null;
+      });
+
+      await wasteContractService.update(53, {
+        cantidad_maxima_anual: 2,
+        condiciones_entrega: 'Nuevas condiciones',
+      });
+
+      expect(contractUpdateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cantidad_maxima_anual: 2,
+          condiciones_entrega: 'Nuevas condiciones',
+          firmado_productor: false,
+          firmado_gestor: false,
+          firma_productor_url: null,
+          firma_gestor_url: null,
+          fecha_firma_productor: null,
+          fecha_firma_gestor: null,
+          documento_url: null,
+          estado: 'pendiente_firma',
+          version: 2,
+        })
+      );
+    });
+
+    it('debe lanzar error cuando el update falla', async () => {
+      setupTenantContext('user-1', []);
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
         if (table === 'waste_contracts') {
           return {
             update: jest.fn().mockReturnThis(),
             eq: jest.fn().mockReturnThis(),
+            or: jest.fn().mockReturnThis(),
             select: jest.fn().mockReturnThis(),
             single: jest.fn().mockResolvedValue({ data: null, error: { message: 'Update failed' } }),
           };
@@ -706,9 +931,241 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
     });
   });
 
-  describe('delete', () => {
-    it('debe eliminar contrato filtrando por usuario y empresas asociadas', async () => {
+  describe('canDelete & delete - Protección de trazabilidad legal (RD 553/2020)', () => {
+    it('canDelete debe retornar false si el contrato está en estado finalizado', async () => {
       setupTenantContext('user-1', [{ id: 5 }]);
+
+      const contractChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnValue({
+          maybeSingle: jest.fn().mockResolvedValue({ data: { id: 10, estado: 'finalizado' }, error: null }),
+        }),
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [{ id: 5 }], error: null }),
+          };
+        }
+        if (table === 'waste_contracts') return contractChain;
+        return null;
+      });
+
+      const result = await wasteContractService.canDelete(10);
+      expect(result.canDelete).toBe(false);
+      expect(result.reason).toContain('ya está finalizado');
+    });
+
+    it('canDelete debe retornar false si el contrato tiene DIs asociados', async () => {
+      setupTenantContext('user-1', [{ id: 5 }]);
+
+      const contractChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnValue({
+          maybeSingle: jest.fn().mockResolvedValue({ data: { id: 10, estado: 'vigente' }, error: null }),
+        }),
+      };
+
+      const diChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockResolvedValue({
+          count: 2,
+          data: [
+            { id: 1, numero_documento: 'DI-001', prior_notification_id: null },
+            { id: 2, numero_documento: 'DI-002', prior_notification_id: null },
+          ],
+          error: null,
+        }),
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [{ id: 5 }], error: null }),
+          };
+        }
+        if (table === 'waste_contracts') return contractChain;
+        if (table === 'identification_documents') return diChain;
+        return null;
+      });
+
+      const result = await wasteContractService.canDelete(10);
+      expect(result.canDelete).toBe(false);
+      expect(result.diCount).toBe(2);
+      expect(result.reason).toContain('ya se ha utilizado para emitir 2 Documento(s) de Identificación (DI)');
+    });
+
+    it('canDelete debe indicar en el motivo si los DIs tienen Notificación Previa (NT) vinculada', async () => {
+      setupTenantContext('user-1', []);
+
+      const contractChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnValue({
+          maybeSingle: jest.fn().mockResolvedValue({ data: { id: 10, estado: 'vigente' }, error: null }),
+        }),
+      };
+
+      const diChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+      };
+      (diChain.eq as any).mockReturnValueOnce(diChain).mockResolvedValueOnce({
+        count: 1,
+        data: [{ id: 1, numero_documento: 'DI-001', prior_notification_id: 55, numero_notificacion: 'NT-123' }],
+        error: null,
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'waste_contracts') return contractChain;
+        if (table === 'identification_documents') return diChain;
+        return null;
+      });
+
+      const result = await wasteContractService.canDelete(10);
+      expect(result.canDelete).toBe(false);
+      expect(result.reason).toContain('Notificación Previa (NT)');
+    });
+
+    it('canDelete debe lanzar error si la verificación en identification_documents falla con error de BD', async () => {
+      setupTenantContext('user-1', []);
+
+      const contractChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnValue({
+          maybeSingle: jest.fn().mockResolvedValue({ data: { id: 10, estado: 'borrador' }, error: null }),
+        }),
+      };
+
+      const diChain: any = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+      };
+      diChain.then = (resolve: any) => resolve({ count: null, data: null, error: { message: 'db error' } });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'waste_contracts') return contractChain;
+        if (table === 'identification_documents') return diChain;
+        return null;
+      });
+
+      await expect(wasteContractService.canDelete(10)).rejects.toThrow('Error al verificar documentos asociados al contrato: db error');
+    });
+
+    it('canDelete debe retornar false si existen NTs que apunten al contrato', async () => {
+      setupTenantContext('user-1', [{ id: 5 }]);
+
+      const contractChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnValue({
+          maybeSingle: jest.fn().mockResolvedValue({ data: { id: 10, estado: 'borrador' }, error: null }),
+        }),
+      };
+
+      const diChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockResolvedValue({ count: 0, data: [], error: null }),
+      };
+
+      const ntChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockResolvedValue({ count: 3, error: null }),
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [{ id: 5 }], error: null }),
+          };
+        }
+        if (table === 'waste_contracts') return contractChain;
+        if (table === 'identification_documents') return diChain;
+        if (table === 'prior_notifications') return ntChain;
+        return null;
+      });
+
+      const result = await wasteContractService.canDelete(10);
+      expect(result.canDelete).toBe(false);
+      expect(result.ntCount).toBe(3);
+      expect(result.reason).toContain('tiene 3 Notificación(es) Previa(s) (NT) asociada(s)');
+    });
+
+    it('canDelete debe retornar true si el contrato no tiene DIs ni NTs asociados', async () => {
+      setupTenantContext('user-1', [{ id: 5 }]);
+
+      const contractChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnValue({
+          maybeSingle: jest.fn().mockResolvedValue({ data: { id: 10, estado: 'borrador' }, error: null }),
+        }),
+      };
+
+      const diChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockResolvedValue({ count: 0, data: [], error: null }),
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [{ id: 5 }], error: null }),
+          };
+        }
+        if (table === 'waste_contracts') return contractChain;
+        if (table === 'identification_documents') return diChain;
+        return null;
+      });
+
+      const result = await wasteContractService.canDelete(10);
+      expect(result.canDelete).toBe(true);
+      expect(result.diCount).toBe(0);
+    });
+
+    it('delete debe bloquear la eliminación lanzando excepción si ya se emitieron DIs', async () => {
+      setupTenantContext('user-1', [{ id: 5 }]);
+
+      const contractDeleteMock = jest.fn();
+      jest.spyOn(wasteContractService, 'canDelete').mockResolvedValue({
+        canDelete: false,
+        reason: 'Bloqueado por traslados existentes',
+        diCount: 1,
+      });
+
+      await expect(wasteContractService.delete(123)).rejects.toThrow('Bloqueado por traslados existentes');
+      expect(contractDeleteMock).not.toHaveBeenCalled();
+    });
+
+    it('delete debe eliminar contrato filtrando por usuario y empresas asociadas si canDelete es true', async () => {
+      setupTenantContext('user-1', [{ id: 5 }]);
+
+      jest.spyOn(wasteContractService, 'canDelete').mockResolvedValue({
+        canDelete: true,
+        diCount: 0,
+      });
 
       const queryChain = {
         delete: jest.fn().mockReturnThis(),
@@ -732,15 +1189,19 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       expect(queryChain.eq).toHaveBeenCalledWith('id', 123);
     });
 
-    it('debe lanzar error si la eliminación falla', async () => {
+    it('delete debe lanzar error si la consulta delete falla en base de datos', async () => {
       setupTenantContext('user-1', []);
+
+      jest.spyOn(wasteContractService, 'canDelete').mockResolvedValue({
+        canDelete: true,
+        diCount: 0,
+      });
 
       const queryChain = {
         delete: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         or: jest.fn().mockResolvedValue({ error: { message: 'Foreign key error' } }),
       };
-      // when empty companyIds: queryChain.eq('user_id', userId)
       queryChain.eq.mockReturnValue({
         ...queryChain,
         then: (resolve: any) => resolve({ error: { message: 'Foreign key error' } }),
@@ -820,9 +1281,12 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
   });
 
   describe('Helper utilities: generateContractNumber, validateDates, isCurrentlyActive', () => {
-    it('debe generar el número de contrato con formato correcto', () => {
-      const number = wasteContractService.generateContractNumber(42);
-      expect(number).toMatch(/^CT-42-\d{4}-\d+$/);
+    it('debe generar el número de contrato coherente con la empresa', () => {
+      const numberWithId = wasteContractService.generateContractNumber(42);
+      expect(numberWithId).toMatch(/^CT-EMP42-\d{4}-\d{6}$/);
+
+      const numberWithCif = wasteContractService.generateContractNumber(42, 'B-12345678');
+      expect(numberWithCif).toMatch(/^CT-B12345678-\d{4}-\d{6}$/);
     });
 
     it('debe validar fechas correctamente', () => {
@@ -856,36 +1320,55 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
   });
 
   describe('getExpiringSoon', () => {
-    it('debe consultar contratos vigentes entre hoy y 30 días', async () => {
+    it('debe consultar contratos vigentes entre hoy y 30 días filtrando por tenant', async () => {
+      setupTenantContext('user-1', [{ id: 10 }]);
       const mockExpiring = [{ id: 1, fecha_fin: '2026-11-01' }];
       const queryChain = {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnThis(),
         lte: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
         order: jest.fn().mockResolvedValue({ data: mockExpiring, error: null }),
       };
 
       mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [{ id: 10 }], error: null }),
+          };
+        }
         if (table === 'waste_contracts') return queryChain;
         return null;
       });
 
       const res = await wasteContractService.getExpiringSoon();
       expect(queryChain.eq).toHaveBeenCalledWith('estado', 'vigente');
+      expect(queryChain.or).toHaveBeenCalledWith(
+        'user_id.eq.user-1,company_id.in.(10),gestor_company_id.in.(10)'
+      );
       expect(res).toEqual(mockExpiring);
     });
 
     it('debe lanzar error cuando falla getExpiringSoon', async () => {
+      setupTenantContext('user-1', []);
       const queryChain = {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnThis(),
         lte: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
         order: jest.fn().mockResolvedValue({ data: null, error: { message: 'Query timeout' } }),
       };
 
       mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
         if (table === 'waste_contracts') return queryChain;
         return null;
       });
@@ -927,6 +1410,7 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       expect(mockStorageFrom.upload).toHaveBeenCalled();
       expect(updateSpy).toHaveBeenCalledWith(1, expect.objectContaining({
         firma_productor_url: 'https://storage/signature-prod.png',
+        firmado_productor: true,
       }));
       expect(res.firma_productor_url).toBe('https://storage/signature-prod.png');
 
@@ -952,8 +1436,71 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
 
       expect(updateSpy).toHaveBeenCalledWith(2, expect.objectContaining({
         firma_gestor_url: 'https://storage/signature-gestor.png',
+        firmado_gestor: true,
       }));
 
+      updateSpy.mockRestore();
+    });
+
+    it('debe congelar y persistir metadata_snapshot completo al firmar el contrato (RES6-I02)', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'u-signer' } },
+      });
+
+      mockStorageFrom.upload.mockResolvedValue({ error: null });
+      mockStorageFrom.getPublicUrl.mockReturnValue({
+        data: { publicUrl: 'https://storage/signature-prod.png' },
+      });
+
+      const mockContractWithAllRelations: any = {
+        id: 1,
+        version: 2,
+        company: {
+          razon_social: 'Productor Test S.L.',
+          cif: 'B12345678',
+          nima: '1234567890',
+          domicilio_social: 'Calle Test 1',
+          municipio_social: 'Madrid',
+          numero_autorizacion: 'AUT-01',
+        },
+        gestor_company: {
+          razon_social: 'Gestor Test S.A.',
+          cif: 'A87654321',
+          nima: '0987654321',
+          domicilio_social: 'Polígono Gestor',
+          municipio_social: 'Sevilla',
+          numero_autorizacion: 'AUT-02',
+        },
+        producer_center: {
+          nombre: 'Centro Madrid',
+          nima: '1234567890',
+        },
+        gestor_center: {
+          nombre: 'Planta Sevilla',
+          nima: '0987654321',
+        },
+      };
+
+      const getByIdSpy = jest.spyOn(wasteContractService, 'getById').mockResolvedValue(mockContractWithAllRelations);
+      const updateSpy = jest.spyOn(wasteContractService, 'update').mockResolvedValue({
+        id: 1,
+        firmado_productor: true,
+      } as any);
+
+      await wasteContractService.signContract(1, dummySignature, 'productor');
+
+      expect(updateSpy).toHaveBeenCalledWith(1, expect.objectContaining({
+        firmado_productor: true,
+        metadata_snapshot: expect.objectContaining({
+          version: 2,
+          company: expect.objectContaining({ razon_social: 'Productor Test S.L.' }),
+          gestor_company: expect.objectContaining({ razon_social: 'Gestor Test S.A.' }),
+          producer_center: expect.objectContaining({ nombre: 'Centro Madrid' }),
+          gestor_center: expect.objectContaining({ nombre: 'Planta Sevilla' }),
+        }),
+      }));
+
+      getByIdSpy.mockRestore();
       updateSpy.mockRestore();
     });
 
@@ -998,13 +1545,16 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       ).rejects.toThrow('Contrato no encontrado o token inválido');
     });
 
-    it('debe lanzar error si la subida o la actualización fallan en signContractByToken', async () => {
+    it('debe hacer fallback a Data URI si la subida falla y lanzar error si la actualización falla en signContractByToken', async () => {
       jest.spyOn(wasteContractService, 'getBySigningToken').mockResolvedValue({ id: 10 } as any);
-      mockStorageFrom.upload.mockResolvedValue({ error: { message: 'Upload fail' } });
+      mockStorageFrom.upload.mockResolvedValueOnce({ error: { message: 'Upload fail' } });
+      mockSupabase.rpc.mockResolvedValueOnce({
+        data: { id: 10, firma_productor_url: dummySignature },
+        error: null,
+      });
 
-      await expect(
-        wasteContractService.signContractByToken('tok', dummySignature, 'productor')
-      ).rejects.toThrow('Error al subir firma: Upload fail');
+      const fallbackSigned = await wasteContractService.signContractByToken('tok', dummySignature, 'productor');
+      expect(fallbackSigned.firma_productor_url).toBe(dummySignature);
 
       mockStorageFrom.upload.mockResolvedValue({ error: null });
       mockStorageFrom.getPublicUrl.mockReturnValue({ data: { publicUrl: 'url' } });
@@ -1070,11 +1620,64 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
       expect(res.canActivate).toBe(true);
       expect(res.valid).toBe(true);
       expect(res.errors).toHaveLength(0);
+      expect(res.checklist.hasSignatures).toBe(false);
+      expect(res.warnings).toEqual(
+        expect.arrayContaining([expect.stringContaining('firmado por el productor y el gestor')])
+      );
+    });
+
+    it('debe bloquear la activación cuando faltan firmas explícitas o requireSignatures es true, y permitirla con firmas o documento adjunto', () => {
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 60);
+
+      const baseContract: any = {
+        company: { id: 1, razon_social: 'Productor' },
+        gestor_company: { id: 2, razon_social: 'Gestor' },
+        fecha_inicio: '2026-01-01',
+        fecha_fin: futureDate.toISOString().split('T')[0],
+        cantidad_maxima_anual: 25,
+        contract_waste_codes: [
+          { codigo_ler: '15 01 02', operacion_tratamiento: 'R03' },
+        ],
+      };
+
+      const rejectedByFlag = validateContractActivation({
+        ...baseContract,
+        firmado_productor: false,
+        firmado_gestor: true,
+      });
+      expect(rejectedByFlag.canActivate).toBe(false);
+      expect(rejectedByFlag.checklist.hasSignatures).toBe(false);
+      expect(rejectedByFlag.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('Art. 5 del RD 553/2020')])
+      );
+
+      const rejectedStrict = validateContractActivation(baseContract, { requireSignatures: true });
+      expect(rejectedStrict.canActivate).toBe(false);
+
+      const signedBoth = validateContractActivation(
+        {
+          ...baseContract,
+          firma_productor_url: 'https://storage/p.png',
+          firma_gestor_url: 'https://storage/g.png',
+        },
+        { requireSignatures: true }
+      );
+      expect(signedBoth.canActivate).toBe(true);
+      expect(signedBoth.checklist.hasSignatures).toBe(true);
+      expect(signedBoth.warnings).toHaveLength(0);
+
+      const withDoc = validateContractActivation(
+        { ...baseContract, documento_url: 'https://storage/contrato.pdf' },
+        { requireSignatures: true }
+      );
+      expect(withDoc.canActivate).toBe(true);
+      expect(withDoc.checklist.hasSignatures).toBe(true);
     });
   });
 
   describe('getContractEffectiveStatus helper', () => {
-    it('debe manejar estados cancelado y finalizado directamente', () => {
+    it('debe manejar estados cancelado, finalizado y pendiente_firma directamente', () => {
       expect(getContractEffectiveStatus({ estado: 'cancelado' } as any)).toEqual({
         status: 'cancelado',
         isExpired: false,
@@ -1085,6 +1688,12 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
         status: 'finalizado',
         isExpired: false,
         label: 'Finalizado',
+      });
+
+      expect(getContractEffectiveStatus({ estado: 'pendiente_firma' } as any)).toEqual({
+        status: 'pendiente_firma',
+        isExpired: false,
+        label: 'Pendiente de firma',
       });
     });
 
@@ -1120,6 +1729,139 @@ describe('wasteContractService - Gestión de Contratos de Tratamiento', () => {
         isExpired: true,
         label: 'Caducado',
       });
+    });
+  });
+
+  describe('detectContractMaterialChanges y resolveGestorReferences', () => {
+    it('detectContractMaterialChanges debe detectar cambios en todos los campos materiales', () => {
+      expect(detectContractMaterialChanges(null, { cantidad_maxima_anual: 10 })).toEqual({
+        hasMaterialChange: false,
+        changedFields: [],
+      });
+
+      const existing: any = {
+        cantidad_maxima_anual: 10,
+        unidad_cantidad: 'toneladas',
+        precio_unitario: 50,
+        frecuencia_recogida: 'semanal',
+        tipo_contrato: 'tratamiento',
+        fecha_inicio: '2026-01-01',
+        fecha_fin: '2026-12-31',
+        descripcion_residuos: 'Residuo A',
+        notas: 'Nota 1',
+        company_id: 1,
+        gestor_company_id: 2,
+        treatment_manager_id: 3,
+        producer_center_id: 4,
+        gestor_center_id: 5,
+        codigos_ler: ['15 01 01'],
+        operaciones_tratamiento: ['R03'],
+        contract_waste_codes: [
+          { codigo_ler: '15 01 01', operacion_tratamiento: 'R03', cantidad_estimada_anual: 10, tarifa_gestion: 50 },
+        ],
+      };
+
+      const res = detectContractMaterialChanges(existing, {
+        cantidad_maxima_anual: 20,
+        unidad_cantidad: 'kg',
+        precio_unitario: 60,
+        frecuencia_recogida: 'mensual',
+        tipo_contrato: 'recogida' as any,
+        fecha_inicio: '2026-02-01',
+        fecha_fin: '2027-01-31',
+        descripcion_residuos: 'Residuo B',
+        notas: 'Nota 2',
+        company_id: 10,
+        gestor_company_id: 20,
+        treatment_manager_id: 30,
+        producer_center_id: 40,
+        gestor_center_id: 50,
+        codigos_ler: ['15 01 02'],
+        operaciones_tratamiento: ['R12'],
+        contract_waste_codes: [
+          { codigo_ler: '15 01 02', operacion_tratamiento: 'R12', cantidad_estimada_anual: 20, tarifa_gestion: 60 },
+        ],
+      });
+
+      expect(res.hasMaterialChange).toBe(true);
+      expect(res.changedFields).toEqual(
+        expect.arrayContaining([
+          'cantidad_maxima_anual',
+          'unidad_cantidad',
+          'precio_unitario',
+          'frecuencia_recogida',
+          'tipo_contrato',
+          'fecha_inicio',
+          'fecha_fin',
+          'descripcion_residuos',
+          'notas',
+          'company_id',
+          'gestor_company_id',
+          'treatment_manager_id',
+          'producer_center_id',
+          'gestor_center_id',
+          'codigos_ler',
+          'operaciones_tratamiento',
+          'contract_waste_codes',
+        ])
+      );
+    });
+
+    it('create y update deben resolver treatment_manager_id contra companies cuando no existe en treatment_managers', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'u1' } } });
+      const insertMock = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          single: jest.fn().mockResolvedValue({ data: { id: 1, gestor_company_id: 88 }, error: null }),
+        }),
+      });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'treatment_managers') {
+          return {
+            select: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnValue({
+                eq: jest.fn().mockReturnValue({
+                  maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === 'companies') {
+          return {
+            select: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnValue({
+                eq: jest.fn().mockReturnValue({
+                  maybeSingle: jest.fn().mockResolvedValue({ data: { id: 88 }, error: null }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === 'waste_contracts') {
+          return { insert: insertMock };
+        }
+        return null;
+      });
+
+      await wasteContractService.create({
+        company_id: 1,
+        treatment_manager_id: 88,
+        tipo_contrato: 'tratamiento',
+        numero_contrato: 'CT-88',
+        fecha_contrato: '2026-01-01',
+        fecha_inicio: '2026-01-01',
+        fecha_fin: '2026-12-31',
+        estado: 'borrador',
+        descripcion_residuos: 'Test',
+      });
+
+      expect(insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          treatment_manager_id: null,
+          gestor_company_id: 88,
+        })
+      );
     });
   });
 });
