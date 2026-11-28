@@ -8,6 +8,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { decaService } from '@/services/decaService';
+import identificationDocumentService from '@/services/identificationDocumentService';
 import { useTenant } from '@/context/TenantContext';
 import { companyService } from '@/services/companyService';
 import { carrierService } from '@/services/carrierService';
@@ -22,7 +23,7 @@ import {
   buildDecaWhatsAppUrl,
 } from '@/lib/decaShare';
 import type { DecaDocument, DecaFormData } from '@/types/deca';
-import type { Company, Carrier, CarrierDriver, CarrierVehicle } from '@/types/wasteManagement';
+import type { Company, Carrier, CarrierDriver, CarrierVehicle, IdentificationDocument } from '@/types/wasteManagement';
 import { toast } from '@/context/ToastContext';
 import PageHeader from '@/components/common/PageHeader';
 import PageSkeleton from '@/components/common/PageSkeleton';
@@ -62,8 +63,10 @@ import {
 } from 'lucide-react';
 
 export default function DecaManagementPage() {
-  const { activeCompany, activeCompanyId } = useTenant();
+  const { activeCompany, activeCompanyId, perfilOperativo } = useTenant();
+  const isTransportista = perfilOperativo === 'transportista';
   const [documents, setDocuments] = useState<DecaDocument[]>([]);
+  const [availableDIs, setAvailableDIs] = useState<IdentificationDocument[]>([]);
   const [availableCompanies, setAvailableCompanies] = useState<Company[]>([]);
   const [availableCarriers, setAvailableCarriers] = useState<Carrier[]>([]);
   const [fleetDrivers, setFleetDrivers] = useState<CarrierDriver[]>([]);
@@ -134,18 +137,22 @@ export default function DecaManagementPage() {
   const loadDocuments = async () => {
     try {
       setLoading(true);
-      const [data, comps, carriers, drivers, vehicles] = await Promise.all([
+      const [data, comps, carriers, drivers, vehicles, dis] = await Promise.all([
         decaService.getAll().catch(() => [] as DecaDocument[]),
         companyService.getAll().catch(() => [] as Company[]),
         carrierService.getAll().catch(() => [] as Carrier[]),
         fleetService.getDrivers().catch(() => [] as CarrierDriver[]),
         fleetService.getVehicles().catch(() => [] as CarrierVehicle[]),
+        isTransportista
+          ? identificationDocumentService.getAll().catch(() => [] as IdentificationDocument[])
+          : Promise.resolve([] as IdentificationDocument[]),
       ]);
       setDocuments(data);
       setAvailableCompanies(comps);
       setAvailableCarriers(carriers);
       setFleetDrivers(drivers);
       setFleetVehicles(vehicles);
+      setAvailableDIs(dis);
     } catch (err: any) {
       console.error('Error al cargar documentos DeCA:', err);
       toast.error(`Error al cargar documentos: ${err.message}`);
@@ -959,6 +966,54 @@ export default function DecaManagementPage() {
                 <strong>Requisito legal:</strong> El documento debe emitirse y ponerse a disposición del transportista
                 antes de iniciar el servicio en carretera.
               </div>
+
+              {isTransportista && availableDIs.length > 0 && (
+                <div className="border border-brand-200 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-950/20 p-3 rounded-xl">
+                  <Label htmlFor="deca_import_di">Importar datos desde un DI existente (Opcional)</Label>
+                  <select
+                    id="deca_import_di"
+                    defaultValue=""
+                    onChange={(e) => {
+                      const di = availableDIs.find((item) => String(item.id) === e.target.value);
+                      if (!di) return;
+                      const pesoKg = di.unidad === 'toneladas' ? di.cantidad * 1000 : di.cantidad;
+                      setFormData((prev) => ({
+                        ...prev,
+                        identification_document_id: di.id,
+                        numero_di: di.numero_documento,
+                        cargador_razon_social: di.productor_razon_social || prev.cargador_razon_social,
+                        cargador_nif: di.productor_cif || prev.cargador_nif,
+                        cargador_domicilio: di.productor_direccion || prev.cargador_domicilio,
+                        cargador_municipio: di.productor_municipio || prev.cargador_municipio,
+                        cargador_provincia: di.productor_provincia || prev.cargador_provincia,
+                        transportista_razon_social: di.transportista_razon_social || prev.transportista_razon_social,
+                        transportista_nif: di.transportista_cif || prev.transportista_nif,
+                        matricula_tractora: di.transportista_matricula || prev.matricula_tractora,
+                        origen_direccion: di.productor_direccion || prev.origen_direccion,
+                        origen_municipio: di.productor_municipio || prev.origen_municipio,
+                        origen_provincia: di.productor_provincia || prev.origen_provincia,
+                        destino_direccion: di.gestor_direccion || prev.destino_direccion,
+                        destino_municipio: di.gestor_municipio || prev.destino_municipio,
+                        destino_provincia: di.gestor_provincia || prev.destino_provincia,
+                        naturaleza_mercancia: `${di.descripcion_residuo || 'Residuo'} (LER ${di.codigo_ler})`,
+                        codigo_ler: di.codigo_ler,
+                        peso_kg: pesoKg,
+                        es_residuo_peligroso: di.peligrosidad === 'peligroso' || di.codigo_ler?.includes('*'),
+                        fecha_transporte: di.fecha_recogida || di.fecha_documento || prev.fecha_transporte,
+                      }));
+                      toast.success(`Datos importados desde el DI ${di.numero_documento}`);
+                    }}
+                    className="mt-1 w-full rounded-lg border border-brand-300 dark:border-brand-700 bg-white dark:bg-gray-900 px-3 py-2 text-xs"
+                  >
+                    <option value="">-- Seleccionar DI para autorrellenar --</option>
+                    {availableDIs.slice(0, 30).map((di) => (
+                      <option key={di.id} value={String(di.id)}>
+                        {di.numero_documento} · {di.productor_razon_social} → {di.gestor_razon_social} ({di.codigo_ler})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Cargador Contractual (UXDEV-11 / UX-11: Selector de cliente y autocompletado rápido) */}
               <div className="border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl space-y-3">

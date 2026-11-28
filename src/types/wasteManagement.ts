@@ -392,8 +392,22 @@ export interface Company {
   // Preferencias de interfaz (false = modo simplificado por defecto)
   mostrar_ayudas_ui?: boolean;
 
+  // Configuraciones modulares de la app por perfil/empresa
+  app_config?: CompanyAppConfig;
+
   // Relaciones
   production_centers?: ProductionCenter[];
+}
+
+export interface DecaMobileConfig {
+  permitir_firma_movil: boolean;
+  permitir_subida_ticket: boolean;
+  permitir_finalizar_movil: boolean;
+  requerir_dni_conductor: boolean;
+}
+
+export interface CompanyAppConfig {
+  deca?: DecaMobileConfig;
 }
 
 export interface ProductionCenter {
@@ -490,6 +504,9 @@ export interface CompanyFormData {
 
   // Preferencias de interfaz (false = modo simplificado por defecto)
   mostrar_ayudas_ui?: boolean;
+
+  // Configuraciones modulares de la app por perfil/empresa
+  app_config?: CompanyAppConfig;
 }
 
 // =====================================================

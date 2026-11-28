@@ -3,7 +3,6 @@ import Logo from "@/components/common/Logo";
 import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
 import UserDropdown from "@/components/header/UserDropdown";
 import CompanyContextSwitcher from "@/components/header/CompanyContextSwitcher";
-import SandboxProfileSwitcher from "@/components/common/SandboxProfileSwitcher";
 import { useSidebar } from "@/context/SidebarContext";
 import Link from "next/link";
 import React, { useState, useEffect } from "react";
@@ -129,9 +128,6 @@ const AppHeader: React.FC = () => {
           <div className="flex items-center gap-2 2xsm:gap-3">
             {/* <!-- Selector de Empresa Activa / Perfil Operativo (Multiempresa / Consultoría) --> */}
             <CompanyContextSwitcher />
-
-            {/* <!-- Sandbox Profile Switcher (Solo Admin) --> */}
-            <SandboxProfileSwitcher />
 
             {/* <!-- Dark Mode Toggler --> */}
             <ThemeToggleButton />

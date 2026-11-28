@@ -43,7 +43,7 @@ import type {
   ProductionCenterFormData,
 } from '@/types/wasteManagement';
 
-type ActiveTab = 'identidad' | 'sedes' | 'integraciones' | 'autorizaciones' | 'delegacion';
+type ActiveTab = 'identidad' | 'sedes' | 'integraciones' | 'autorizaciones' | 'delegacion' | 'configuraciones';
 
 const TIPOS_EMPRESA: Array<{
   value: NonNullable<CompanyFormData['tipo_empresa']>;
@@ -141,6 +141,14 @@ export default function MiEmpresaPage() {
     holded_api_key: '',
     firma_electronica_activa: false,
     mostrar_ayudas_ui: false,
+    app_config: {
+      deca: {
+        permitir_firma_movil: true,
+        permitir_subida_ticket: true,
+        permitir_finalizar_movil: true,
+        requerir_dni_conductor: true,
+      },
+    },
   });
 
   useEffect(() => {
@@ -198,6 +206,14 @@ export default function MiEmpresaPage() {
           holded_api_key: data.holded_api_key || '',
           firma_electronica_activa: Boolean(data.firma_electronica_activa),
           mostrar_ayudas_ui: Boolean(data.mostrar_ayudas_ui),
+          app_config: {
+            deca: {
+              permitir_firma_movil: data.app_config?.deca?.permitir_firma_movil ?? true,
+              permitir_subida_ticket: data.app_config?.deca?.permitir_subida_ticket ?? true,
+              permitir_finalizar_movil: data.app_config?.deca?.permitir_finalizar_movil ?? true,
+              requerir_dni_conductor: data.app_config?.deca?.requerir_dni_conductor ?? true,
+            },
+          },
         });
 
         const [centers, auths] = await Promise.all([
@@ -585,6 +601,14 @@ export default function MiEmpresaPage() {
               id: 'delegacion',
               label: 'Delegación y Acceso',
               hidden: !(company && (membershipRole === 'owner' || isPlatformAdmin)),
+            },
+            {
+              id: 'configuraciones',
+              label: 'Configuraciones',
+              hidden: !(
+                formData.tipo_empresa === 'transportista' ||
+                formData.perfil_operativo === 'transportista'
+              ),
             },
           ]}
         />
@@ -1174,6 +1198,107 @@ export default function MiEmpresaPage() {
               </ComponentCard>
             </div>
           )}
+
+          {/* =========================================================
+              PESTAÑA CONFIGURACIONES (EXTENSIBLE POR PERFIL)
+          ========================================================= */}
+          {activeTab === 'configuraciones' &&
+            (formData.tipo_empresa === 'transportista' ||
+              formData.perfil_operativo === 'transportista') && (
+              <div className="space-y-6">
+                <ComponentCard title="Configuraciones de la Aplicación">
+                  <div className="space-y-4">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Configuraciones relativas al funcionamiento de la aplicación para tu perfil operativo.
+                    </p>
+
+                    {(formData.tipo_empresa === 'transportista' ||
+                      formData.perfil_operativo === 'transportista') && (
+                      <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
+                        <div>
+                          <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+                            DeCA — Vista Móvil del Conductor
+                          </h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Activa o desactiva las acciones disponibles para el conductor en /mobile/deca/[token].
+                          </p>
+                        </div>
+
+                        {[
+                          {
+                            key: 'permitir_firma_movil' as const,
+                            label: 'Permitir firma manuscrita del conductor en móvil',
+                            desc: 'Habilita el panel táctil de firma y la sincronización con el DI vinculado.',
+                          },
+                          {
+                            key: 'permitir_subida_ticket' as const,
+                            label: 'Permitir subida de ticket de báscula e incidencias',
+                            desc: 'Permite adjuntar foto del ticket de pesaje o nota de incidencia en ruta.',
+                          },
+                          {
+                            key: 'permitir_finalizar_movil' as const,
+                            label: 'Permitir finalizar servicio desde el móvil',
+                            desc: 'El conductor podrá cerrar el DeCA al entregar la mercancía (inicia el plazo de 7 días).',
+                          },
+                          {
+                            key: 'requerir_dni_conductor' as const,
+                            label: 'Exigir verificación por DNI del conductor',
+                            desc: 'Solicita el DNI registrado en flota o en el DeCA antes de firmar, subir ticket o finalizar.',
+                          },
+                        ].map((opt) => {
+                          const decaCfg = formData.app_config?.deca ?? {
+                            permitir_firma_movil: true,
+                            permitir_subida_ticket: true,
+                            permitir_finalizar_movil: true,
+                            requerir_dni_conductor: true,
+                          };
+                          return (
+                            <div
+                              key={opt.key}
+                              className="flex items-center justify-between gap-4 py-2 border-t border-slate-100 dark:border-slate-800/80 first:border-t-0"
+                            >
+                              <div>
+                                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                                  {opt.label}
+                                </p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  {opt.desc}
+                                </p>
+                              </div>
+                              <input
+                                type="checkbox"
+                                disabled={!canManageCompany}
+                                checked={decaCfg[opt.key]}
+                                onChange={(e) =>
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    app_config: {
+                                      ...prev.app_config,
+                                      deca: {
+                                        permitir_firma_movil:
+                                          prev.app_config?.deca?.permitir_firma_movil ?? true,
+                                        permitir_subida_ticket:
+                                          prev.app_config?.deca?.permitir_subida_ticket ?? true,
+                                        permitir_finalizar_movil:
+                                          prev.app_config?.deca?.permitir_finalizar_movil ?? true,
+                                        requerir_dni_conductor:
+                                          prev.app_config?.deca?.requerir_dni_conductor ?? true,
+                                        [opt.key]: e.target.checked,
+                                      },
+                                    },
+                                  }))
+                                }
+                                className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-60"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </ComponentCard>
+              </div>
+            )}
 
           {/* Barra de Acciones del Formulario Principal */}
           {activeTab !== 'autorizaciones' && activeTab !== 'delegacion' && (

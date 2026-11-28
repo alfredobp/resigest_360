@@ -325,6 +325,8 @@ export default function DocumentosIdentificacionPage() {
   const filteredDocuments = documentsByCenter.filter(d => {
     if (filterStatus === 'all') {
       return true;
+    } else if (filterStatus === 'pendiente_firma') {
+      return !d.firmado_transportista && d.estado_traslado !== 'tratado' && d.estado_traslado !== 'rechazado_total';
     } else if (filterStatus === 'sin_contrato') {
       return hasNoContract(d);
     } else if (filterStatus === 'tratamiento_no_autorizado') {
@@ -676,6 +678,15 @@ export default function DocumentosIdentificacionPage() {
             >
               En Tránsito ({documentsByCenter.filter(d => d.estado_traslado === 'en_transito').length})
             </Button>
+            {perfilOperativo === 'transportista' && (
+              <Button
+                variant={filterStatus === 'pendiente_firma' ? 'primary' : 'outline'}
+                size="sm"
+                onClick={() => handleFilterStatusChange('pendiente_firma')}
+              >
+                Pendientes Firma ({documentsByCenter.filter(d => !d.firmado_transportista && d.estado_traslado !== 'tratado' && d.estado_traslado !== 'rechazado_total').length})
+              </Button>
+            )}
             <Button
               variant={filterStatus === 'recepcionado' ? 'primary' : 'outline'}
               size="sm"
