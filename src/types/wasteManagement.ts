@@ -57,6 +57,8 @@ export interface TreatmentManagerFormData {
   email?: string;
   persona_contacto?: string;
   notas?: string;
+  pin_acceso?: string;
+  pwa_habilitado?: boolean;
   activo?: boolean;
   holded_contact_id?: string;
 }
@@ -89,6 +91,8 @@ export interface FleetVehicle {
   tarjeta_transporte?: string;
   autorizacion_especial?: string;
   notas?: string;
+  pin_acceso?: string;
+  pwa_habilitado?: boolean;
   activo?: boolean;
 }
 
@@ -105,6 +109,8 @@ export interface FleetDriver {
   fecha_caducidad_adr?: string;
   fecha_caducidad_cap?: string;
   notas?: string;
+  pin_acceso?: string;
+  pwa_habilitado?: boolean;
   activo?: boolean;
 }
 
@@ -126,6 +132,8 @@ export interface CarrierVehicle {
   tarjeta_transporte?: string | null;
   autorizacion_especial?: string | null;
   notas?: string | null;
+  pin_acceso?: string | null;
+  pwa_habilitado?: boolean;
   activo: boolean;
   created_at: string;
   updated_at: string;
@@ -147,6 +155,8 @@ export interface CarrierVehicleFormData {
   tarjeta_transporte?: string;
   autorizacion_especial?: string;
   notas?: string;
+  pin_acceso?: string;
+  pwa_habilitado?: boolean;
   activo?: boolean;
 }
 
@@ -167,6 +177,8 @@ export interface CarrierDriver {
   fecha_caducidad_adr?: string | null;
   fecha_caducidad_cap?: string | null;
   notas?: string | null;
+  pin_acceso?: string | null;
+  pwa_habilitado?: boolean;
   activo: boolean;
   created_at: string;
   updated_at: string;
@@ -187,6 +199,8 @@ export interface CarrierDriverFormData {
   fecha_caducidad_adr?: string;
   fecha_caducidad_cap?: string;
   notas?: string;
+  pin_acceso?: string;
+  pwa_habilitado?: boolean;
   activo?: boolean;
 }
 
@@ -248,6 +262,8 @@ export interface CarrierFormData {
   email?: string;
   persona_contacto?: string;
   notas?: string;
+  pin_acceso?: string;
+  pwa_habilitado?: boolean;
   activo?: boolean;
   holded_contact_id?: string;
 }
@@ -404,6 +420,7 @@ export interface DecaMobileConfig {
   permitir_subida_ticket: boolean;
   permitir_finalizar_movil: boolean;
   requerir_dni_conductor: boolean;
+  notificar_push_conductor?: boolean;
 }
 
 export interface CompanyAppConfig {
@@ -489,6 +506,8 @@ export interface CompanyFormData {
   onboarding_completado?: boolean;
   logo_url?: string;
   notas?: string;
+  pin_acceso?: string;
+  pwa_habilitado?: boolean;
   activo?: boolean;
 
   // Integración SIRA
@@ -1275,6 +1294,8 @@ export interface EnvironmentalAuthorizationFormData {
   es_indefinida?: boolean;
   archivo_url?: string;
   notas?: string;
+  pin_acceso?: string;
+  pwa_habilitado?: boolean;
   activo?: boolean;
   waste_codes?: AuthorizationWasteCodeFormData[];
 }

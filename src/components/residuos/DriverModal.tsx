@@ -41,6 +41,8 @@ const INITIAL_FORM: CarrierDriverFormData = {
   fecha_caducidad_adr: '',
   fecha_caducidad_cap: '',
   notas: '',
+  pin_acceso: '',
+  pwa_habilitado: true,
   activo: true,
 };
 
@@ -76,6 +78,8 @@ export default function DriverModal({
         fecha_caducidad_adr: driver.fecha_caducidad_adr || '',
         fecha_caducidad_cap: driver.fecha_caducidad_cap || '',
         notas: driver.notas || '',
+        pin_acceso: driver.pin_acceso || '',
+        pwa_habilitado: driver.pwa_habilitado ?? true,
         activo: driver.activo ?? true,
       });
     } else {
@@ -231,6 +235,63 @@ export default function DriverModal({
                 error={Boolean(errors.email)}
                 hint={errors.email}
               />
+            </div>
+
+            <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label htmlFor="driver_pin_acceso">PIN Acceso PWA Móvil</Label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const pin = String(Math.floor(1000 + Math.random() * 9000));
+                      setFormData((prev) => ({ ...prev, pin_acceso: pin }));
+                    }}
+                    className="text-[11px] font-semibold text-brand-600 hover:underline"
+                  >
+                    Generar PIN
+                  </button>
+                </div>
+                <Input
+                  id="driver_pin_acceso"
+                  type="text"
+                  placeholder="Ej. 4829 (4-6 dígitos)"
+                  value={formData.pin_acceso || ''}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, pin_acceso: e.target.value }))
+                  }
+                  className="font-mono"
+                />
+              </div>
+
+              <div className="flex flex-col justify-between gap-2">
+                <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300 mt-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.pwa_habilitado ?? true}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, pwa_habilitado: e.target.checked }))
+                    }
+                    className="h-4 w-4 rounded border-slate-300 text-brand-500"
+                  />
+                  Habilitar acceso PWA (/mobile/conductor)
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url =
+                      typeof window !== 'undefined'
+                        ? `${window.location.origin}/mobile/conductor`
+                        : '/mobile/conductor';
+                    navigator.clipboard?.writeText(url);
+                    toast.success('Enlace /mobile/conductor copiado para compartir con el conductor.');
+                  }}
+                  className="text-left text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                >
+                  Copiar enlace de acceso App Conductor →
+                </button>
+              </div>
             </div>
           </div>
         </div>

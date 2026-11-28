@@ -1245,12 +1245,18 @@ export default function MiEmpresaPage() {
                             label: 'Exigir verificación por DNI del conductor',
                             desc: 'Solicita el DNI registrado en flota o en el DeCA antes de firmar, subir ticket o finalizar.',
                           },
+                          {
+                            key: 'notificar_push_conductor' as const,
+                            label: 'Enviar notificación Push al conductor al asignar DeCA',
+                            desc: 'Avisa automáticamente en la PWA del conductor (/mobile/conductor) cuando se emite o actualiza un DeCA.',
+                          },
                         ].map((opt) => {
                           const decaCfg = formData.app_config?.deca ?? {
                             permitir_firma_movil: true,
                             permitir_subida_ticket: true,
                             permitir_finalizar_movil: true,
                             requerir_dni_conductor: true,
+                            notificar_push_conductor: true,
                           };
                           return (
                             <div
@@ -1268,7 +1274,7 @@ export default function MiEmpresaPage() {
                               <input
                                 type="checkbox"
                                 disabled={!canManageCompany}
-                                checked={decaCfg[opt.key]}
+                                checked={decaCfg[opt.key] ?? true}
                                 onChange={(e) =>
                                   setFormData((prev) => ({
                                     ...prev,

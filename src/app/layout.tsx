@@ -29,9 +29,14 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon.svg", type: "image/svg+xml" }
+      { url: "/images/logo/pwa-192.png", sizes: "192x192", type: "image/png" }
     ],
-    apple: "/apple-icon.png"
+    apple: "/images/logo/apple-touch-icon.png"
+  },
+  appleWebApp: {
+    capable: true,
+    title: "ResiGest",
+    statusBarStyle: "black-translucent"
   }
 };
 

@@ -363,6 +363,13 @@ export default function DecaManagementPage() {
       const newDoc = await decaService.create(formData as DecaFormData);
       setCreateModalOpen(false);
       toast.success(`Documento DeCA ${newDoc.numero_deca} emitido con éxito.`);
+      if (newDoc.conductor_dni) {
+        fetch('/api/push/notify-deca', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ decaId: newDoc.id }),
+        }).catch(() => undefined);
+      }
       await loadDocuments();
       // Abrir automáticamente el modal de QR e inspección para verificar y descargar el PDF
       await handleOpenQrModal(newDoc);
@@ -403,6 +410,13 @@ export default function DecaManagementPage() {
       setMotivoVersion('');
       setVersionErrors({});
       toast.success(`Nueva versión v${updated.version} de ${updated.numero_deca} emitida.`);
+      if (updated.conductor_dni) {
+        fetch('/api/push/notify-deca', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ decaId: updated.id }),
+        }).catch(() => undefined);
+      }
       await loadDocuments();
       await handleOpenQrModal(updated);
     } catch (err: any) {
@@ -602,6 +616,32 @@ export default function DecaManagementPage() {
                   title="Finalizar Servicio de Transporte"
                   onClick={() => handleFinalize(doc.id)}
                 />
+              )}
+              {canModifyOrFinalize && doc.conductor_dni && (
+                <button
+                  type="button"
+                  title="Enviar notificación Push al conductor"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch('/api/push/notify-deca', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ decaId: doc.id, force: true }),
+                      });
+                      const json = await res.json();
+                      if (res.ok && json.sent > 0) {
+                        toast.success(`Notificación enviada (${json.sent} dispositivo/s).`);
+                      } else {
+                        toast.info('El conductor aún no tiene avisos Push activos en su PWA.');
+                      }
+                    } catch {
+                      toast.error('No se pudo enviar la notificación Push.');
+                    }
+                  }}
+                  className="px-2 py-1 rounded-lg text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40"
+                >
+                  Avisar
+                </button>
               )}
             </div>
           );

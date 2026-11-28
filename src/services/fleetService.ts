@@ -119,6 +119,8 @@ export const fleetService = {
         : null,
       fecha_caducidad_cap: cleanOptionalDate(driverData.fecha_caducidad_cap),
       notas: cleanOptionalString(driverData.notas),
+      pin_acceso: cleanOptionalString(driverData.pin_acceso),
+      pwa_habilitado: driverData.pwa_habilitado ?? true,
       activo: driverData.activo ?? true,
     };
 
@@ -172,6 +174,12 @@ export const fleetService = {
       updatePayload.fecha_caducidad_cap = cleanOptionalDate(driverData.fecha_caducidad_cap);
     }
     if (driverData.notas !== undefined) updatePayload.notas = cleanOptionalString(driverData.notas);
+    if (driverData.pin_acceso !== undefined) {
+      updatePayload.pin_acceso = cleanOptionalString(driverData.pin_acceso);
+    }
+    if (driverData.pwa_habilitado !== undefined) {
+      updatePayload.pwa_habilitado = Boolean(driverData.pwa_habilitado);
+    }
     if (driverData.activo !== undefined) updatePayload.activo = Boolean(driverData.activo);
 
     let query = supabase

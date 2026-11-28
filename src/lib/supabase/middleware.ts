@@ -3,8 +3,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { canAccessPath, getRequiredModuleForPath } from '@/lib/profiles/moduleCatalog'
 import { ACTIVE_COMPANY_COOKIE, resolveTenantContext } from '@/services/tenantContextService'
 
-// Rutas API accesibles sin sesión (formulario comercial, descarga de inspección DeCA, firma pública DI y acceso demo si está habilitado)
-export const PUBLIC_API_PREFIXES = ['/api/contact', '/api/deca/', '/api/demo/', '/api/public/']
+// Rutas API accesibles sin sesión (formulario comercial, descarga de inspección DeCA, firma pública DI, portal PWA conductor y acceso demo si está habilitado)
+export const PUBLIC_API_PREFIXES = ['/api/contact', '/api/deca/', '/api/demo/', '/api/public/', '/api/mobile/conductor/', '/api/push/subscribe']
 
 export function isDemoAccessEnabled(): boolean {
   return process.env.ENABLE_DEMO_ACCESS === 'true' || process.env.NEXT_PUBLIC_ENABLE_DEMO_ACCESS === 'true'
@@ -110,7 +110,10 @@ export async function updateSession(request: NextRequest) {
     !pathname.startsWith('/api/') && // Gestionado arriba (401 para API)
     !pathname.startsWith('/public/') && // Public signature and other public pages
     !pathname.startsWith('/mockups/') && // Design mockups showcase
-    !pathname.startsWith('/mobile/deca/') // Public driver view for DeCA inspection
+    !pathname.startsWith('/mobile/deca/') && // Public driver view for DeCA inspection
+    !pathname.startsWith('/mobile/conductor') && // Accessory Driver PWA portal (uses driver cookie)
+    pathname !== '/manifest.webmanifest' &&
+    pathname !== '/sw.js'
   ) {
     // Store the original URL to redirect back after login
     const url = request.nextUrl.clone()
@@ -159,6 +162,7 @@ export async function updateSession(request: NextRequest) {
     !pathname.startsWith('/auth/') &&
     !pathname.startsWith('/public/') &&
     !pathname.startsWith('/mobile/deca/') &&
+    !pathname.startsWith('/mobile/conductor') &&
     !pathname.startsWith('/accesos-prueba') &&
     !pathname.startsWith('/error-404')
   ) {
