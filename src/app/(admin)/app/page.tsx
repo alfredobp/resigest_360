@@ -61,7 +61,7 @@ export default function ExecutiveDashboardPage() {
   return (
     <div className="space-y-6 pb-12">
       {/* Cabecera Ejecutiva */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div data-tour="dashboard-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
@@ -77,7 +77,7 @@ export default function ExecutiveDashboardPage() {
         </div>
 
         {/* Acciones Rápidas */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div data-tour="dashboard-quick-actions" className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
             onClick={() => router.push('/residuos/documentos-identificacion/nuevo')}

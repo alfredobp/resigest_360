@@ -173,7 +173,7 @@ export default function ContratosPage() {
 
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
+        <div data-tour="contratos-header" className="flex justify-between items-center">
           <h2 className="text-2xl font-bold text-foreground">
             Contratos de Gestión de Residuos
           </h2>

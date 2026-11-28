@@ -10,6 +10,7 @@ import Button from '@/components/ui/button/Button';
 import ImageUpload from '@/components/common/ImageUpload';
 import Alert from '@/components/ui/alert/Alert';
 import { toast } from '@/context/ToastContext';
+import { useOnboarding } from '@/context/OnboardingContext';
 import companyService from '@/services/companyService';
 import productionCenterService from '@/services/productionCenterService';
 import type { Company, CompanyFormData, ProductionCenter, ProductionCenterFormData } from '@/types/wasteManagement';
@@ -24,6 +25,7 @@ const TIPOS_EMPRESA = [
 
 export default function MiEmpresaPage() {
   const router = useRouter();
+  const { activeRole } = useOnboarding();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [company, setCompany] = useState<Company | null>(null);
@@ -108,6 +110,17 @@ export default function MiEmpresaPage() {
         // Cargar centros de producción
         const centers = await productionCenterService.getByCompanyId(data.id);
         setProductionCenters(centers);
+      } else if (
+        activeRole === 'productor' ||
+        activeRole === 'gestor' ||
+        activeRole === 'transportista' ||
+        activeRole === 'negociante' ||
+        activeRole === 'agente'
+      ) {
+        setFormData((prev) => ({
+          ...prev,
+          tipo_empresa: activeRole,
+        }));
       }
     } catch (err: any) {
       setError(err.message);
@@ -231,7 +244,7 @@ export default function MiEmpresaPage() {
         pageTitle="Mi Empresa"
       />
 
-      <div className="max-w-5xl mx-auto">
+      <div data-tour="mi-empresa-form" className="max-w-5xl mx-auto">
         {error && (
           <div className="mb-6">
             <Alert variant="error" title="Error" message={error} />
@@ -326,23 +339,23 @@ export default function MiEmpresaPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Tipo de Empresa *</label>
-                <select
-                  name="tipo_empresa"
-                  value={formData.tipo_empresa}
-                  onChange={handleChange}
-                  required
-                  className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
-                >
-                  {TIPOS_EMPRESA.map((tipo) => (
-                    <option key={tipo.value} value={tipo.value}>
-                      {tipo.label}
-                    </option>
-                  ))}
-                </select>
+                <div data-tour="mi-empresa-tipo">
+                  <label className="block text-sm font-medium mb-2">Tipo de Empresa *</label>
+                  <select
+                    name="tipo_empresa"
+                    value={formData.tipo_empresa}
+                    onChange={handleChange}
+                    required
+                    className="h-11 w-full appearance-none rounded-lg border border-stroke bg-transparent px-4 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:border-strokedark dark:bg-dark dark:focus:border-primary"
+                  >
+                    {TIPOS_EMPRESA.map((tipo) => (
+                      <option key={tipo.value} value={tipo.value}>
+                        {tipo.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
           </ComponentCard>
 
           {/* Domicilio Social */}
@@ -473,70 +486,72 @@ export default function MiEmpresaPage() {
           </ComponentCard>
 
           {/* Configuración SIRA (Junta de Andalucía) */}
-          <ComponentCard title="Configuración SIRA (Junta de Andalucía)" className="mt-6 border-emerald-200/80 bg-emerald-50/20 dark:border-emerald-900/40 dark:bg-emerald-950/10">
-            <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-emerald-100/50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-950 dark:text-emerald-200 text-xs leading-relaxed space-y-2">
-                <div className="font-semibold text-sm text-emerald-900 dark:text-emerald-100">
-                  ¿Qué es la conexión SIRA y cómo funciona?
-                </div>
-                <p>
-                  <strong>SIRA</strong> (Sistema de Información de Residuos de Andalucía) es la plataforma oficial de la Junta de Andalucía para la tramitación de traslados de residuos.
-                </p>
-                <p>
-                  Al activar la integración e introducir tus credenciales del Servicio Web (Usuario WS y Contraseña WS), <strong>Resigest 360</strong> enviará los Documentos de Identificación (DI) firmados directamente a la Consejería mediante protocolo cifrado E3L. Obtendrás el <strong>ID de Registro SIRA</strong> oficial en segundos sin necesidad de subidas manuales.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h4 className="font-semibold text-gray-900 dark:text-white">Conexión con el Web Service</h4>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Configura las credenciales para el envío directo de DI a la plataforma SIRA.
+          <div data-tour="mi-empresa-sira">
+            <ComponentCard title="Configuración SIRA (Junta de Andalucía)" className="mt-6 border-emerald-200/80 bg-emerald-50/20 dark:border-emerald-900/40 dark:bg-emerald-950/10">
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-emerald-100/50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-950 dark:text-emerald-200 text-xs leading-relaxed space-y-2">
+                  <div className="font-semibold text-sm text-emerald-900 dark:text-emerald-100">
+                    ¿Qué es la conexión SIRA y cómo funciona?
+                  </div>
+                  <p>
+                    <strong>SIRA</strong> (Sistema de Información de Residuos de Andalucía) es la plataforma oficial de la Junta de Andalucía para la tramitación de traslados de residuos.
+                  </p>
+                  <p>
+                    Al activar la integración e introducir tus credenciales del Servicio Web (Usuario WS y Contraseña WS), <strong>Resigest 360</strong> enviará los Documentos de Identificación (DI) firmados directamente a la Consejería mediante protocolo cifrado E3L. Obtendrás el <strong>ID de Registro SIRA</strong> oficial en segundos sin necesidad de subidas manuales.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium uppercase tracking-wider text-muted">Desactivado</span>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={formData.sira_activo}
-                      onChange={(e) => setFormData(prev => ({ ...prev, sira_activo: e.target.checked }))}
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary" />
-                  </label>
-                  <span className="text-xs font-medium uppercase tracking-wider text-primary">Activado</span>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Usuario WS (CIF o NIMA)</label>
-                  <Input
-                    name="sira_usuario"
-                    value={formData.sira_usuario}
-                    onChange={handleChange}
-                    placeholder="Usuario asignado en SIRA"
-                    className="bg-white dark:bg-dark"
-                  />
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="font-semibold text-gray-900 dark:text-white">Conexión con el Web Service</h4>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Configura las credenciales para el envío directo de DI a la plataforma SIRA.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wider text-muted">Desactivado</span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={formData.sira_activo}
+                        onChange={(e) => setFormData(prev => ({ ...prev, sira_activo: e.target.checked }))}
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary" />
+                    </label>
+                    <span className="text-xs font-medium uppercase tracking-wider text-primary">Activado</span>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Contraseña WS</label>
-                  <Input
-                    name="sira_password"
-                    type="password"
-                    value={formData.sira_password}
-                    onChange={handleChange}
-                    placeholder="••••••••"
-                    className="bg-white dark:bg-dark"
-                  />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Usuario WS (CIF o NIMA)</label>
+                    <Input
+                      name="sira_usuario"
+                      value={formData.sira_usuario}
+                      onChange={handleChange}
+                      placeholder="Usuario asignado en SIRA"
+                      className="bg-white dark:bg-dark"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Contraseña WS</label>
+                    <Input
+                      name="sira_password"
+                      type="password"
+                      value={formData.sira_password}
+                      onChange={handleChange}
+                      placeholder="••••••••"
+                      className="bg-white dark:bg-dark"
+                    />
+                  </div>
                 </div>
+                <p className="text-[10px] text-muted-foreground mt-2 italic">
+                  * Las credenciales se utilizan exclusivamente para la comunicación cifrada con los servidores de la Junta de Andalucía.
+                </p>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-2 italic">
-                * Las credenciales se utilizan exclusivamente para la comunicación cifrada con los servidores de la Junta de Andalucía.
-              </p>
-            </div>
-          </ComponentCard>
+            </ComponentCard>
+          </div>
 
           {/* Configuración Holded */}
           <ComponentCard title="Integración con Holded" className="mt-6 border-orange-200 bg-orange-50/30 dark:border-orange-900/30">

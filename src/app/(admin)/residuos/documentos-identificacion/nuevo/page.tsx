@@ -489,123 +489,125 @@ export default function NuevoDocumentoIdentificacionPage() {
 
         <form onSubmit={handleSubmit} className="space-y-6" noValidate>
           {/* Modalidad de Expedición */}
-          <ComponentCard
-            title="Perspectiva de Expedición (RD 553/2020)"
-            desc="Selecciona si emites el traslado como Productor (envío de tus residuos) o como Gestor Receptor (recepción o gestión para un cliente)."
-          >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => handleRoleSwitch('productor')}
-                className={`p-4 rounded-xl border text-left transition-all ${
-                  expeditionRole === 'productor'
-                    ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
-                    : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
-                }`}
-              >
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="text-xl">🏭</span>
-                  <span className="font-semibold text-sm text-foreground">Como Productor / Poseedor</span>
-                </div>
-                <p className="text-xs text-muted">
-                  Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) genera el residuo y lo transfiere a un gestor de destino.
-                </p>
-              </button>
+          <div data-tour="di-nuevo-perspectiva">
+            <ComponentCard
+              title="Perspectiva de Expedición (RD 553/2020)"
+              desc="Selecciona si emites el traslado como Productor (envío de tus residuos) o como Gestor Receptor (recepción o gestión para un cliente)."
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => handleRoleSwitch('productor')}
+                  className={`p-4 rounded-xl border text-left transition-all ${expeditionRole === 'productor'
+                      ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
+                      : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
+                    }`}
+                >
+                  <div className="flex items-center gap-3 mb-1">
+                    <span className="text-xl">🏭</span>
+                    <span className="font-semibold text-sm text-foreground">Como Productor / Poseedor</span>
+                  </div>
+                  <p className="text-xs text-muted">
+                    Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) genera el residuo y lo transfiere a un gestor de destino.
+                  </p>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => handleRoleSwitch('gestor')}
-                className={`p-4 rounded-xl border text-left transition-all ${
-                  expeditionRole === 'gestor'
-                    ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
-                    : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
-                }`}
-              >
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="text-xl">♻️</span>
-                  <span className="font-semibold text-sm text-foreground">Como Gestor Receptor</span>
-                </div>
-                <p className="text-xs text-muted">
-                  Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) es la instalación autorizada que recepcionará el residuo de un cliente.
-                </p>
-              </button>
-            </div>
-          </ComponentCard>
+                <button
+                  type="button"
+                  onClick={() => handleRoleSwitch('gestor')}
+                  className={`p-4 rounded-xl border text-left transition-all ${expeditionRole === 'gestor'
+                      ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
+                      : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
+                    }`}
+                >
+                  <div className="flex items-center gap-3 mb-1">
+                    <span className="text-xl">♻️</span>
+                    <span className="font-semibold text-sm text-foreground">Como Gestor Receptor</span>
+                  </div>
+                  <p className="text-xs text-muted">
+                    Mi empresa ({myCompany?.razon_social || 'Mi Empresa'}) es la instalación autorizada que recepcionará el residuo de un cliente.
+                  </p>
+                </button>
+              </div>
+            </ComponentCard>
+          </div>
 
           {/* Datos del Documento */}
-          <ComponentCard title="Datos del Documento">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label htmlFor="numero_documento" className="block text-sm font-medium mb-2">Número de Documento</label>
-                <Input
-                  id="numero_documento"
-                  type="text"
-                  value={formData.numero_documento || ''}
-                  onChange={(e) => setFormData({ ...formData, numero_documento: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="fecha_documento" className="block text-sm font-medium mb-2">Fecha del Documento</label>
-                <Input
-                  id="fecha_documento"
-                  type="date"
-                  value={formData.fecha_documento}
-                  onChange={(e) => setFormData({ ...formData, fecha_documento: e.target.value })}
-                  required
-                />
-              </div>
-
-              {expeditionRole === 'productor' ? (
+          <div data-tour="di-nuevo-datos">
+            <ComponentCard title="Datos del Documento">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="origin_selector" className="block text-sm font-medium mb-2">Origen del Residuo (Instalación / Centro) *</label>
+                  <label htmlFor="numero_documento" className="block text-sm font-medium mb-2">Número de Documento</label>
+                  <Input
+                    id="numero_documento"
+                    type="text"
+                    value={formData.numero_documento || ''}
+                    onChange={(e) => setFormData({ ...formData, numero_documento: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="fecha_documento" className="block text-sm font-medium mb-2">Fecha del Documento</label>
+                  <Input
+                    id="fecha_documento"
+                    type="date"
+                    value={formData.fecha_documento}
+                    onChange={(e) => setFormData({ ...formData, fecha_documento: e.target.value })}
+                    required
+                  />
+                </div>
+
+                {expeditionRole === 'productor' ? (
+                  <div>
+                    <label htmlFor="origin_selector" className="block text-sm font-medium mb-2">Origen del Residuo (Instalación / Centro) *</label>
+                    <Select
+                      options={[
+                        { value: 'principal', label: `🏢 Sede / Instalación Principal (${myCompany?.razon_social || 'Mi Empresa'})` },
+                        ...productionCenters.map(pc => ({
+                          value: pc.id.toString(),
+                          label: `📍 ${pc.nombre} (${pc.nima})`,
+                        })),
+                      ]}
+                      value={selectedOrigin}
+                      onChange={handleOriginChange}
+                      placeholder="Selecciona el origen del residuo"
+                      error={!!validationErrors.production_center_id}
+                      hint={validationErrors.production_center_id}
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {selectedOrigin === 'principal'
+                        ? 'Origen: Sede/Instalación principal según ficha de Mi Empresa.'
+                        : 'Origen: Centro de producción secundario seleccionado.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Destino de Recepción</label>
+                    <div className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/40 text-xs text-foreground">
+                      🏢 Recepciona: <span className="font-semibold">{myCompany?.razon_social}</span> (NIMA: {myCompany?.nima || 'S/D'})
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label htmlFor="contract_id" className="block text-sm font-medium mb-2">Contrato de Referencia (Opcional)</label>
                   <Select
                     options={[
-                      { value: 'principal', label: `🏢 Sede / Instalación Principal (${myCompany?.razon_social || 'Mi Empresa'})` },
-                      ...productionCenters.map(pc => ({
-                        value: pc.id.toString(),
-                        label: `📍 ${pc.nombre} (${pc.nima})`,
+                      { value: '', label: contracts.length > 0 ? '-- Seleccionar Contrato --' : '-- Sin contratos vigentes con gestor --' },
+                      ...contracts.map(c => ({
+                        value: c.id.toString(),
+                        label: `${c.numero_contrato || `#${c.id}`} - ${c.treatment_manager?.razon_social || c.gestor_company?.razon_social || 'Gestor asignado'}`,
                       })),
                     ]}
-                    value={selectedOrigin}
-                    onChange={handleOriginChange}
-                    placeholder="Selecciona el origen del residuo"
-                    error={!!validationErrors.production_center_id}
-                    hint={validationErrors.production_center_id}
+                    value={formData.contract_id?.toString() || ''}
+                    onChange={(value) => handleContractChange(value)}
+                    placeholder="Selecciona un contrato"
                   />
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {selectedOrigin === 'principal'
-                      ? 'Origen: Sede/Instalación principal según ficha de Mi Empresa.'
-                      : 'Origen: Centro de producción secundario seleccionado.'}
-                  </p>
                 </div>
-              ) : (
-                <div>
-                  <label className="block text-sm font-medium mb-2">Destino de Recepción</label>
-                  <div className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/40 text-xs text-foreground">
-                    🏢 Recepciona: <span className="font-semibold">{myCompany?.razon_social}</span> (NIMA: {myCompany?.nima || 'S/D'})
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label htmlFor="contract_id" className="block text-sm font-medium mb-2">Contrato de Referencia (Opcional)</label>
-                <Select
-                  options={[
-                    { value: '', label: contracts.length > 0 ? '-- Seleccionar Contrato --' : '-- Sin contratos vigentes con gestor --' },
-                    ...contracts.map(c => ({
-                      value: c.id.toString(),
-                      label: `${c.numero_contrato || `#${c.id}`} - ${c.treatment_manager?.razon_social || c.gestor_company?.razon_social || 'Gestor asignado'}`,
-                    })),
-                  ]}
-                  value={formData.contract_id?.toString() || ''}
-                  onChange={(value) => handleContractChange(value)}
-                  placeholder="Selecciona un contrato"
-                />
               </div>
-            </div>
-          </ComponentCard>
+            </ComponentCard>
+          </div>
 
           {/* Productor / Origen */}
           <ComponentCard title="Productor / Origen">
@@ -950,69 +952,69 @@ export default function NuevoDocumentoIdentificacionPage() {
               </div>
 
               {/* Datos adicionales de dirección requeridos por SIRA */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 bg-muted/10 p-4 border rounded-md">
-                <div className="md:col-span-2 flex items-center gap-2 mb-2">
-                  <span className="text-xs font-bold uppercase text-primary/80 tracking-wider">Datos para SIRA (Requeridos)</span>
-                  <div className="h-px flex-1 bg-border" />
-                </div>
+                <div data-tour="di-nuevo-sira-transportista" className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 bg-muted/10 p-4 border rounded-md">
+                  <div className="md:col-span-2 flex items-center gap-2 mb-2">
+                    <span className="text-xs font-bold uppercase text-primary/80 tracking-wider">Datos para SIRA (Requeridos)</span>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
 
-                <div>
-                  <label htmlFor="transportista_nima" className="block text-sm font-medium mb-2">NIMA Transportista *</label>
-                  <Input
-                    id="transportista_nima"
-                    type="text"
-                    value={formData.transportista_nima || ''}
-                    onChange={(e) => setFormData({ ...formData, transportista_nima: e.target.value })}
-                    placeholder="NIMA..."
-                    error={!!validationErrors.transportista_nima}
-                    hint={validationErrors.transportista_nima}
-                  />
-                </div>
+                  <div>
+                    <label htmlFor="transportista_nima" className="block text-sm font-medium mb-2">NIMA Transportista *</label>
+                    <Input
+                      id="transportista_nima"
+                      type="text"
+                      value={formData.transportista_nima || ''}
+                      onChange={(e) => setFormData({ ...formData, transportista_nima: e.target.value })}
+                      placeholder="NIMA..."
+                      error={!!validationErrors.transportista_nima}
+                      hint={validationErrors.transportista_nima}
+                    />
+                  </div>
 
-                <div>
-                  <label htmlFor="transportista_direccion" className="block text-sm font-medium mb-2">Dirección</label>
-                  <Input
-                    id="transportista_direccion"
-                    type="text"
-                    value={formData.transportista_direccion || ''}
-                    onChange={(e) => setFormData({ ...formData, transportista_direccion: e.target.value })}
-                    placeholder="Calle y número"
-                    error={!!validationErrors.transportista_direccion}
-                    hint={validationErrors.transportista_direccion}
-                  />
-                </div>
+                  <div>
+                    <label htmlFor="transportista_direccion" className="block text-sm font-medium mb-2">Dirección</label>
+                    <Input
+                      id="transportista_direccion"
+                      type="text"
+                      value={formData.transportista_direccion || ''}
+                      onChange={(e) => setFormData({ ...formData, transportista_direccion: e.target.value })}
+                      placeholder="Calle y número"
+                      error={!!validationErrors.transportista_direccion}
+                      hint={validationErrors.transportista_direccion}
+                    />
+                  </div>
 
-                <div>
-                  <label htmlFor="transportista_municipio" className="block text-sm font-medium mb-2">Municipio</label>
-                  <Input
-                    id="transportista_municipio"
-                    type="text"
-                    value={formData.transportista_municipio || ''}
-                    onChange={(e) => setFormData({ ...formData, transportista_municipio: e.target.value })}
-                  />
-                </div>
+                  <div>
+                    <label htmlFor="transportista_municipio" className="block text-sm font-medium mb-2">Municipio</label>
+                    <Input
+                      id="transportista_municipio"
+                      type="text"
+                      value={formData.transportista_municipio || ''}
+                      onChange={(e) => setFormData({ ...formData, transportista_municipio: e.target.value })}
+                    />
+                  </div>
 
-                <div>
-                  <label htmlFor="transportista_provincia" className="block text-sm font-medium mb-2">Provincia</label>
-                  <Input
-                    id="transportista_provincia"
-                    type="text"
-                    value={formData.transportista_provincia || ''}
-                    onChange={(e) => setFormData({ ...formData, transportista_provincia: e.target.value })}
-                  />
-                </div>
+                  <div>
+                    <label htmlFor="transportista_provincia" className="block text-sm font-medium mb-2">Provincia</label>
+                    <Input
+                      id="transportista_provincia"
+                      type="text"
+                      value={formData.transportista_provincia || ''}
+                      onChange={(e) => setFormData({ ...formData, transportista_provincia: e.target.value })}
+                    />
+                  </div>
 
-                <div>
-                  <label htmlFor="transportista_codigo_postal" className="block text-sm font-medium mb-2">CP</label>
-                  <Input
-                    id="transportista_codigo_postal"
-                    type="text"
-                    value={formData.transportista_codigo_postal || ''}
-                    onChange={(e) => setFormData({ ...formData, transportista_codigo_postal: e.target.value })}
-                  />
+                  <div>
+                    <label htmlFor="transportista_codigo_postal" className="block text-sm font-medium mb-2">CP</label>
+                    <Input
+                      id="transportista_codigo_postal"
+                      type="text"
+                      value={formData.transportista_codigo_postal || ''}
+                      onChange={(e) => setFormData({ ...formData, transportista_codigo_postal: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
           </ComponentCard>
 
           {/* Datos del Residuo */}

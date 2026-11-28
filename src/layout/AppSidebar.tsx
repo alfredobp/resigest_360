@@ -23,7 +23,6 @@ import {
 } from "../icons/index";
 import Logo from "@/components/common/Logo";
 import adminPlatformService from "@/services/adminPlatformService";
-import { useSandbox } from "@/context/SandboxContext";
 
 type NavItem = {
   name: string;
@@ -149,18 +148,13 @@ const othersItems: NavItem[] = [
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
-  const { isPathVisible, profile, profileLabel } = useSandbox();
   const pathname = usePathname();
 
   const renderMenuItems = (
     navItemsList: NavItem[],
     menuType: "main" | "others"
   ) => {
-    const filteredList = navItemsList.filter((nav) => {
-      if (nav.path) return isPathVisible(nav.path);
-      if (nav.subItems) return nav.subItems.some((s) => isPathVisible(s.path));
-      return true;
-    });
+    const filteredList = navItemsList;
 
     return (
       <ul className="flex flex-col gap-4">
@@ -374,7 +368,7 @@ const AppSidebar: React.FC = () => {
         </Link>
       </div>
       <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
-        <nav className="mb-6">
+        <nav data-tour="sidebar-nav" className="mb-6">
           <div className="flex flex-col gap-4">
             <div>
               <h2
@@ -407,19 +401,6 @@ const AppSidebar: React.FC = () => {
                   )}
                 </h2>
                 {renderMenuItems(adminNavItems, "main")}
-              </div>
-            )}
-
-            {/* Indicador de perfil Sandbox activo (Provisional) */}
-            {profile !== 'all' && (isExpanded || isHovered || isMobileOpen) && (
-              <div className="mt-2 p-3 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs">
-                <div className="flex items-center gap-1.5 font-bold text-blue-700 dark:text-blue-300">
-                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                  <span>Sandbox: {profileLabel}</span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  Menú simplificado para este tipo de usuario.
-                </p>
               </div>
             )}
           </div>

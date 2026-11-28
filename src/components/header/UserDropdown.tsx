@@ -6,6 +6,8 @@ import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { createClient } from "@/lib/supabase/client";
 import { companyService } from "@/services/companyService";
 import adminPlatformService from "@/services/adminPlatformService";
+import { useOnboarding } from "@/context/OnboardingContext";
+import { Compass } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface UserProfile {
@@ -25,6 +27,7 @@ export default function UserDropdown() {
   const [companyName, setCompanyName] = useState<string | null>(null);
   const [imgSrc, setImgSrc] = useState<string>("/images/logo/company-default.svg");
   const [loading, setLoading] = useState(true);
+  const { startTour } = useOnboarding();
   const router = useRouter();
 
   const loadUserProfile = async () => {
@@ -131,6 +134,7 @@ export default function UserDropdown() {
     <div className="relative">
       <button
         onClick={toggleDropdown}
+        data-tour="user-menu-trigger"
         className="flex items-center text-gray-700 dark:text-gray-400 dropdown-toggle"
       >
         <span className="mr-3 overflow-hidden rounded-full h-11 w-11 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center justify-center flex-shrink-0 shadow-sm">
@@ -283,6 +287,19 @@ export default function UserDropdown() {
               </svg>
               Soporte y Manual
             </DropdownItem>
+          </li>
+          <li>
+            <button
+              type="button"
+              onClick={() => {
+                closeDropdown();
+                startTour();
+              }}
+              className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300 w-full text-left"
+            >
+              <Compass className="w-5 h-5 text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300" />
+              Ver tour guiado
+            </button>
           </li>
         </ul>
         <button

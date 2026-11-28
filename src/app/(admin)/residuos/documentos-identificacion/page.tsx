@@ -237,7 +237,7 @@ export default function DocumentosIdentificacionPage() {
     <>
       <PageBreadCrumb pageTitle="Documentos de Identificación" />
 
-      <div className="space-y-6">
+      <div data-tour="di-header" className="space-y-6">
         {error && (
           <Alert variant="error" title="Error" message={error} />
         )}

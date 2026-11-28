@@ -16,3 +16,6 @@
      - `npm run typecheck`
      - `npm run lint`
      - `npm run test:ci`
+
+4. **Actualización del Tour de Onboarding**:
+   - Cada vez que se añada una nueva feature, módulo o ruta en la aplicación, se debe actualizar el registro [src/config/onboardingTours.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/config/onboardingTours.ts) con los pasos correspondientes para los roles afectados y añadir los atributos `data-tour="..."` necesarios.

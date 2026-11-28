@@ -96,7 +96,7 @@ export default function OperacionesComercialesPage() {
   return (
     <div className="space-y-6">
       {/* Cabecera Principal */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div data-tour="operaciones-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
@@ -213,16 +213,14 @@ export default function OperacionesComercialesPage() {
           <button
             key={tab.key}
             onClick={() => setSelectedEstado(tab.key)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
-              selectedEstado === tab.key
-                ? 'bg-primary text-white shadow-sm'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${selectedEstado === tab.key
+              ? 'bg-primary text-white shadow-sm'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+              }`}
           >
             {tab.label}
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-              selectedEstado === tab.key ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-            }`}>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${selectedEstado === tab.key ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+              }`}>
               {tab.count}
             </span>
           </button>

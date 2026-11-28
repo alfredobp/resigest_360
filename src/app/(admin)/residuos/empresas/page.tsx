@@ -125,7 +125,7 @@ function EmpresasContent() {
 
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div data-tour="empresas-header" className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h2 className="text-2xl font-bold text-foreground">
               Directorio de Empresas y Contactos

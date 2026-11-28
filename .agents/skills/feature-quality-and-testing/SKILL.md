@@ -27,6 +27,8 @@ Este documento define el procedimiento operativo estándar obligatorio para el d
    - El código debe cumplir `eslint.config.mjs` sin suppressions no justificadas.
 5. **Verificación Previa a Commit/Push**:
    - Antes de dar por finalizada la tarea o hacer `git push`, deben pasar `npm run typecheck`, `npm run lint` y `npm run test:ci`.
+6. **Actualización del Tour de Onboarding**:
+   - Toda nueva feature o ruta debe actualizar los pasos por rol en [src/config/onboardingTours.ts](file:///c:/Users/Alfredo/Desktop/resigest_360/src/config/onboardingTours.ts) y añadir los atributos `data-tour` en la UI.
 
 ---
 

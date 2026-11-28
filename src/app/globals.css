@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import 'driver.js/dist/driver.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -729,4 +730,68 @@ span.flatpickr-weekday,
     0 1px 2px 0 rgba(16, 24, 40, 0.06);
   opacity: 0.8;
   cursor: grabbing; /* Changes the cursor to indicate dragging */
+}
+
+/* Estilos personalizados para el tour guiado (driver.js) */
+.resigest-driver-popover.driver-popover {
+  border-radius: 1rem;
+  padding: 1.25rem;
+  font-family: var(--font-outfit), sans-serif;
+  box-shadow: 0 20px 25px -5px rgba(16, 24, 40, 0.15), 0 8px 10px -6px rgba(16, 24, 40, 0.1);
+  border: 1px solid #e4e7ec;
+}
+
+.resigest-driver-popover .driver-popover-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #101828;
+}
+
+.resigest-driver-popover .driver-popover-description {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #475467;
+  margin-top: 0.5rem;
+}
+
+.resigest-driver-popover .driver-popover-next-btn {
+  background-color: #059669;
+  color: #ffffff;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-shadow: none;
+}
+
+.resigest-driver-popover .driver-popover-next-btn:hover {
+  background-color: #047857;
+}
+
+.resigest-driver-popover .driver-popover-prev-btn {
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.dark .resigest-driver-popover.driver-popover {
+  background-color: #101828;
+  border-color: #1d2939;
+  color: #f9fafb;
+}
+
+.dark .resigest-driver-popover .driver-popover-title {
+  color: #ffffff;
+}
+
+.dark .resigest-driver-popover .driver-popover-description {
+  color: #98a2b3;
+}
+
+.dark .resigest-driver-popover .driver-popover-prev-btn {
+  background-color: #1d2939;
+  color: #d0d5dd;
+  border-color: #344054;
 }

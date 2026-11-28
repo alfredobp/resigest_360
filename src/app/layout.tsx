@@ -4,7 +4,6 @@ import './globals.css';
 import { SidebarProvider } from '@/context/SidebarContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { ToastProvider } from '@/context/ToastContext';
-import { SandboxProvider } from '@/context/SandboxContext';
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -20,9 +19,7 @@ export default function RootLayout({
       <body className={`${outfit.className} dark:bg-gray-900`}>
         <ThemeProvider>
           <ToastProvider>
-            <SandboxProvider>
-              <SidebarProvider>{children}</SidebarProvider>
-            </SandboxProvider>
+            <SidebarProvider>{children}</SidebarProvider>
           </ToastProvider>
         </ThemeProvider>
       </body>

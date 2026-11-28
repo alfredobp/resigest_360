@@ -73,7 +73,7 @@ export default function TransportistasPage() {
         <>
             <PageBreadCrumb pageTitle="Transportistas" />
 
-            <div className="max-w-6xl mx-auto space-y-6">
+            <div data-tour="transportistas-header" className="max-w-6xl mx-auto space-y-6">
                 {/* Banner Directorio Unificado */}
                 <div className="p-4 rounded-xl border border-brand-200 bg-brand-50/60 dark:bg-brand-950/20 dark:border-brand-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
                     <div>
