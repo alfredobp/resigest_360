@@ -433,7 +433,7 @@ export default function DriverPortalPwaPage() {
           {displayedList.map((doc) => (
             <Link
               key={doc.id}
-              href={`/mobile/deca/${doc.token}`}
+              href={`/mobile/deca/${doc.token}?from=conductor`}
               className="block bg-slate-900 hover:bg-slate-800/80 border border-slate-800 rounded-2xl p-4 space-y-2.5 transition"
             >
               <div className="flex items-center justify-between">

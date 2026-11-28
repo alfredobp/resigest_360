@@ -21,6 +21,7 @@ import {
   MapPin,
   Package,
   ArrowRight,
+  ArrowLeft,
   Navigation,
   PenTool,
   Camera,
@@ -56,8 +57,18 @@ export default function DecaDriverMobilePage({
   const [actionMsg, setActionMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [showSignPad, setShowSignPad] = useState(false);
+  const [canReturnToPortal, setCanReturnToPortal] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const fromPortal = new URLSearchParams(window.location.search).get('from') === 'conductor';
+    const isStandalone = window.matchMedia?.('(display-mode: standalone)').matches;
+    if (fromPortal || isStandalone) {
+      setCanReturnToPortal(true);
+    }
+  }, []);
 
   useEffect(() => {
     async function loadData() {
@@ -285,6 +296,17 @@ export default function DecaDriverMobilePage({
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6 max-w-lg mx-auto">
       {/* Cabecera */}
       <header className="mb-4">
+        {canReturnToPortal && (
+          <div className="mb-3">
+            <Link
+              href="/mobile/conductor"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-400 hover:text-blue-300 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Volver a Mis DeCAs
+            </Link>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-blue-600/20 text-blue-400 rounded-lg">

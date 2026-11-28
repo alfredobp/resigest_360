@@ -562,16 +562,38 @@ export default function DecaManagementPage() {
         sortable: true,
         className: 'whitespace-nowrap',
         cell: ({ row: doc }) => {
-          if (!isLatestInFamily(doc) || doc.is_vigente === false || doc.estado === 'sustituido') {
-            return <Badge variant="light" color="light" size="sm">Sustituida</Badge>;
-          }
-          if (doc.estado === 'vigente') {
-            return <Badge variant="light" color="success" size="sm">Vigente</Badge>;
-          }
-          if (doc.estado === 'finalizado') {
-            return <Badge variant="light" color="light" size="sm">Finalizado</Badge>;
-          }
-          return <Badge variant="light" color="warning" size="sm">{doc.estado}</Badge>;
+          const statusBadge = !isLatestInFamily(doc) || doc.is_vigente === false || doc.estado === 'sustituido'
+            ? <Badge variant="light" color="light" size="sm">Sustituida</Badge>
+            : doc.estado === 'vigente'
+            ? <Badge variant="light" color="success" size="sm">Vigente</Badge>
+            : doc.estado === 'finalizado'
+            ? <Badge variant="light" color="light" size="sm">Finalizado</Badge>
+            : <Badge variant="light" color="warning" size="sm">{doc.estado}</Badge>;
+
+          return (
+            <div className="space-y-1">
+              {statusBadge}
+              {(doc.firma_conductor_url || doc.ticket_bascula_url || doc.incidencia_movil) && (
+                <div className="flex flex-wrap gap-1">
+                  {doc.firma_conductor_url && (
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 text-[10px] font-medium">
+                      Firmado
+                    </span>
+                  )}
+                  {doc.ticket_bascula_url && (
+                    <span className="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 text-[10px] font-medium">
+                      Ticket
+                    </span>
+                  )}
+                  {doc.incidencia_movil && (
+                    <span className="px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 text-[10px] font-medium">
+                      Incidencia
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
         },
       },
       {
@@ -950,6 +972,65 @@ export default function DecaManagementPage() {
                 </div>
               </div>
             </div>
+
+            {(qrModalDoc.firma_conductor_url ||
+              qrModalDoc.ticket_bascula_url ||
+              qrModalDoc.incidencia_movil) && (
+              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 space-y-3 bg-slate-50/70 dark:bg-slate-900/60">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Evidencias del Conductor (Móvil)
+                </div>
+
+                {qrModalDoc.firma_conductor_url && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500">
+                      <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                        Firma del Conductor
+                      </span>
+                      {qrModalDoc.fecha_firma_conductor && (
+                        <span>
+                          {new Date(qrModalDoc.fecha_firma_conductor).toLocaleString('es-ES')}
+                        </span>
+                      )}
+                    </div>
+                    <img
+                      src={qrModalDoc.firma_conductor_url}
+                      alt="Firma del conductor"
+                      className="h-20 bg-white rounded-xl border border-slate-200 p-1 object-contain"
+                    />
+                  </div>
+                )}
+
+                {qrModalDoc.ticket_bascula_url && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-semibold text-blue-700 dark:text-blue-400">
+                        Ticket de Báscula / Albarán
+                      </span>
+                      <a
+                        href={qrModalDoc.ticket_bascula_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline font-medium"
+                      >
+                        Abrir imagen →
+                      </a>
+                    </div>
+                    <img
+                      src={qrModalDoc.ticket_bascula_url}
+                      alt="Ticket de báscula"
+                      className="max-h-36 w-full rounded-xl border border-slate-200 object-contain bg-white"
+                    />
+                  </div>
+                )}
+
+                {qrModalDoc.incidencia_movil && (
+                  <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200">
+                    <strong>Nota / Incidencia:</strong> {qrModalDoc.incidencia_movil}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="pt-2">
               <a
