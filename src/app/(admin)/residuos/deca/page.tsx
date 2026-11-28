@@ -10,6 +10,8 @@ import QRCode from 'qrcode';
 import { decaService } from '@/services/decaService';
 import identificationDocumentService from '@/services/identificationDocumentService';
 import { useTenant } from '@/context/TenantContext';
+import { evaluateCompanyPremiumFeature } from '@/lib/auth/premiumAccess';
+import PremiumStatusTag from '@/components/common/PremiumStatusTag';
 import { companyService } from '@/services/companyService';
 import { carrierService } from '@/services/carrierService';
 import fleetService from '@/services/fleetService';
@@ -65,6 +67,7 @@ import {
 export default function DecaManagementPage() {
   const { activeCompany, activeCompanyId, perfilOperativo } = useTenant();
   const isTransportista = perfilOperativo === 'transportista';
+  const premiumEval = evaluateCompanyPremiumFeature(activeCompany, 'transporte_pwa_evidencias');
   const [documents, setDocuments] = useState<DecaDocument[]>([]);
   const [availableDIs, setAvailableDIs] = useState<IdentificationDocument[]>([]);
   const [availableCompanies, setAvailableCompanies] = useState<Company[]>([]);
@@ -573,7 +576,7 @@ export default function DecaManagementPage() {
           return (
             <div className="space-y-1">
               {statusBadge}
-              {(doc.firma_conductor_url || doc.ticket_bascula_url || doc.incidencia_movil) && (
+              {(premiumEval.active && (doc.firma_conductor_url || doc.ticket_bascula_url || doc.incidencia_movil)) && (
                 <div className="flex flex-wrap gap-1">
                   {doc.firma_conductor_url && (
                     <span className="px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 text-[10px] font-medium">
@@ -639,7 +642,7 @@ export default function DecaManagementPage() {
                   onClick={() => handleFinalize(doc.id)}
                 />
               )}
-              {canModifyOrFinalize && doc.conductor_dni && (
+              {premiumEval.active && canModifyOrFinalize && doc.conductor_dni && (
                 <button
                   type="button"
                   title="Enviar notificación Push al conductor"
@@ -685,9 +688,14 @@ export default function DecaManagementPage() {
         title="Documento Electrónico de Control (DeCA)"
         breadcrumbTitle="Documentos de Control (DeCA)"
         badge={
-          <Badge variant="light" color="info">
-            Transporte por Carretera
-          </Badge>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant="light" color="info">
+              Transporte por Carretera
+            </Badge>
+            {isTransportista && (
+              <PremiumStatusTag company={activeCompany} feature="transporte_pwa_evidencias" />
+            )}
+          </div>
         }
         description="Emisión, versionado inmutable, código QR y enlace directo para inspección en carretera (Orden FOM/2861/2012 y Ley 9/2025)."
         actions={
@@ -973,9 +981,10 @@ export default function DecaManagementPage() {
               </div>
             </div>
 
-            {(qrModalDoc.firma_conductor_url ||
-              qrModalDoc.ticket_bascula_url ||
-              qrModalDoc.incidencia_movil) && (
+            {premiumEval.active &&
+              (qrModalDoc.firma_conductor_url ||
+                qrModalDoc.ticket_bascula_url ||
+                qrModalDoc.incidencia_movil) && (
               <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 space-y-3 bg-slate-50/70 dark:bg-slate-900/60">
                 <div className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                   Evidencias del Conductor (Móvil)

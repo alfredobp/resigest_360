@@ -7,6 +7,9 @@ import Label from '@/components/form/Label';
 import Button from '@/components/ui/button/Button';
 import { toast } from '@/context/ToastContext';
 import fleetService from '@/services/fleetService';
+import { useTenant } from '@/context/TenantContext';
+import { evaluateCompanyPremiumFeature } from '@/lib/auth/premiumAccess';
+import PremiumStatusTag from '@/components/common/PremiumStatusTag';
 import {
   DRIVER_LICENSE_TYPES,
   validateDriverForm,
@@ -55,6 +58,8 @@ export default function DriverModal({
   carrierId,
   onSuccess,
 }: DriverModalProps) {
+  const { activeCompany } = useTenant();
+  const premiumEval = evaluateCompanyPremiumFeature(activeCompany, 'transporte_pwa_evidencias');
   const [formData, setFormData] = useState<CarrierDriverFormData>(INITIAL_FORM);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -238,16 +243,24 @@ export default function DriverModal({
             </div>
 
             <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
+              <div className="sm:col-span-2 flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Acceso App Móvil Conductor (PWA)
+                </span>
+                <PremiumStatusTag company={activeCompany} feature="transporte_pwa_evidencias" />
+              </div>
+
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <Label htmlFor="driver_pin_acceso">PIN Acceso PWA Móvil</Label>
                   <button
                     type="button"
+                    disabled={!premiumEval.active}
                     onClick={() => {
                       const pin = String(Math.floor(1000 + Math.random() * 9000));
                       setFormData((prev) => ({ ...prev, pin_acceso: pin }));
                     }}
-                    className="text-[11px] font-semibold text-brand-600 hover:underline"
+                    className="text-[11px] font-semibold text-brand-600 hover:underline disabled:opacity-50"
                   >
                     Generar PIN
                   </button>
@@ -255,6 +268,7 @@ export default function DriverModal({
                 <Input
                   id="driver_pin_acceso"
                   type="text"
+                  disabled={!premiumEval.active}
                   placeholder="Ej. 4829 (4-6 dígitos)"
                   value={formData.pin_acceso || ''}
                   onChange={(e) =>
@@ -268,17 +282,19 @@ export default function DriverModal({
                 <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300 mt-1 cursor-pointer">
                   <input
                     type="checkbox"
+                    disabled={!premiumEval.active}
                     checked={formData.pwa_habilitado ?? true}
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, pwa_habilitado: e.target.checked }))
                     }
-                    className="h-4 w-4 rounded border-slate-300 text-brand-500"
+                    className="h-4 w-4 rounded border-slate-300 text-brand-500 disabled:opacity-50"
                   />
                   Habilitar acceso PWA (/mobile/conductor)
                 </label>
 
                 <button
                   type="button"
+                  disabled={!premiumEval.active}
                   onClick={() => {
                     const url =
                       typeof window !== 'undefined'
@@ -287,7 +303,7 @@ export default function DriverModal({
                     navigator.clipboard?.writeText(url);
                     toast.success('Enlace /mobile/conductor copiado para compartir con el conductor.');
                   }}
-                  className="text-left text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                  className="text-left text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline disabled:opacity-50"
                 >
                   Copiar enlace de acceso App Conductor →
                 </button>

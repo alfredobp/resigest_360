@@ -294,7 +294,8 @@ export type AppModule =
   | 'archivo_cronologico'
   | 'operaciones_comerciales'
   | 'memorias_anuales'
-  | 'sira_integraciones';
+  | 'sira_integraciones'
+  | 'transporte_pwa_evidencias';
 
 export type MembershipRole = 'owner' | 'consultor_admin' | 'consultor_operador' | 'lectura';
 
@@ -411,6 +412,12 @@ export interface Company {
   // Configuraciones modulares de la app por perfil/empresa
   app_config?: CompanyAppConfig;
 
+  // Planes Premium multi-rol y período de cortesía
+  plan_tier?: 'basico' | 'trial' | 'premium';
+  premium_features?: string[];
+  trial_ends_at?: string | null;
+  premium_expires_at?: string | null;
+
   // Relaciones
   production_centers?: ProductionCenter[];
 }
@@ -526,6 +533,12 @@ export interface CompanyFormData {
 
   // Configuraciones modulares de la app por perfil/empresa
   app_config?: CompanyAppConfig;
+
+  // Planes Premium multi-rol y período de cortesía
+  plan_tier?: 'basico' | 'trial' | 'premium';
+  premium_features?: string[];
+  trial_ends_at?: string | null;
+  premium_expires_at?: string | null;
 }
 
 // =====================================================

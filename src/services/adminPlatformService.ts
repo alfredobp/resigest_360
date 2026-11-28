@@ -638,7 +638,103 @@ export const adminPlatformService = {
       blocked_at: string | null;
       blocked_reason: string | null;
     };
-  }
+  },
+
+  /**
+   * Obtiene los días de cortesía configurados por rol en platform_settings.
+   */
+  async getTrialDaysByRole(): Promise<Record<string, number>> {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'trial_days_by_role')
+      .maybeSingle();
+
+    const value = (data?.value as Record<string, number> | null) || {};
+    return {
+      transportista: Number.isFinite(Number(value.transportista)) ? Number(value.transportista) : 15,
+      ...value,
+    };
+  },
+
+  /**
+   * Actualiza los días de cortesía por rol desde /platform-admin.
+   */
+  async updateTrialDaysForRole(role: string, days: number): Promise<Record<string, number>> {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuario no autenticado');
+
+    const authorized = await this.checkIsAdmin(user.email || '', user.id);
+    if (!authorized) {
+      throw new Error('Acceso denegado: Se requieren permisos de Administrador de Plataforma.');
+    }
+
+    const current = await this.getTrialDaysByRole();
+    const updated = { ...current, [role]: Math.max(0, Math.floor(days)) };
+
+    const { error } = await supabase.from('platform_settings').upsert(
+      {
+        key: 'trial_days_by_role',
+        value: updated,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'key' }
+    );
+
+    if (error) {
+      throw new Error(`No se pudo guardar la configuración de cortesía: ${error.message}`);
+    }
+
+    return updated;
+  },
+
+  /**
+   * Activa, extiende cortesía o revoca el Plan Premium de una empresa.
+   */
+  async setCompanyPremiumPlan(
+    companyId: number,
+    options: {
+      planTier: 'basico' | 'trial' | 'premium';
+      features?: string[];
+      trialDays?: number;
+      premiumExpiresAt?: string | null;
+    }
+  ): Promise<void> {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuario no autenticado');
+
+    const authorized = await this.checkIsAdmin(user.email || '', user.id);
+    if (!authorized) {
+      throw new Error('Acceso denegado: Se requieren permisos de Administrador de Plataforma.');
+    }
+
+    const features = options.features ?? (options.planTier === 'basico' ? [] : ['transporte_pwa_evidencias']);
+    const trialEndsAt =
+      options.planTier === 'trial'
+        ? new Date(Date.now() + (options.trialDays ?? 15) * 86400000).toISOString()
+        : null;
+
+    const { error } = await supabase
+      .from('companies')
+      .update({
+        plan_tier: options.planTier,
+        premium_features: features,
+        trial_ends_at: trialEndsAt,
+        premium_expires_at: options.planTier === 'premium' ? (options.premiumExpiresAt ?? null) : null,
+      })
+      .eq('id', companyId);
+
+    if (error) {
+      throw new Error(`No se pudo actualizar el plan de la empresa: ${error.message}`);
+    }
+  },
 };
 
 export default adminPlatformService;

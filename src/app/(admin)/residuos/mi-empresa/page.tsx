@@ -24,6 +24,8 @@ import productionCenterService from '@/services/productionCenterService';
 import authorizationService from '@/services/authorizationService';
 import { resolveTelematicPlatform } from '@/services/siraService';
 import { useTenant } from '@/context/TenantContext';
+import { evaluateCompanyPremiumFeature } from '@/lib/auth/premiumAccess';
+import PremiumStatusTag from '@/components/common/PremiumStatusTag';
 import {
   ALL_MODULES,
   MODULE_LABELS,
@@ -1215,13 +1217,19 @@ export default function MiEmpresaPage() {
                     {(formData.tipo_empresa === 'transportista' ||
                       formData.perfil_operativo === 'transportista') && (
                       <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
-                        <div>
-                          <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
-                            DeCA — Vista Móvil del Conductor
-                          </h4>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Activa o desactiva las acciones disponibles para el conductor en /mobile/deca/[token].
-                          </p>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+                              DeCA — Vista Móvil del Conductor
+                            </h4>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              Activa o desactiva las acciones disponibles para el conductor en /mobile/deca/[token].
+                            </p>
+                          </div>
+                          <PremiumStatusTag
+                            company={company}
+                            feature="transporte_pwa_evidencias"
+                          />
                         </div>
 
                         {[
@@ -1273,7 +1281,13 @@ export default function MiEmpresaPage() {
                               </div>
                               <input
                                 type="checkbox"
-                                disabled={!canManageCompany}
+                                disabled={
+                                  !canManageCompany ||
+                                  !evaluateCompanyPremiumFeature(
+                                    company,
+                                    'transporte_pwa_evidencias'
+                                  ).active
+                                }
                                 checked={decaCfg[opt.key] ?? true}
                                 onChange={(e) =>
                                   setFormData((prev) => ({

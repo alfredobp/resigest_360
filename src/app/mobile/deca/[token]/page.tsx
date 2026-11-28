@@ -46,10 +46,11 @@ export default function DecaDriverMobilePage({
 
   // Acciones móviles del conductor
   const [driverDniOrPin, setDriverDniOrPin] = useState('');
+  const [premiumEnabled, setPremiumEnabled] = useState(false);
   const [driverConfig, setDriverConfig] = useState<DecaMobileConfig>({
-    permitir_firma_movil: true,
-    permitir_subida_ticket: true,
-    permitir_finalizar_movil: true,
+    permitir_firma_movil: false,
+    permitir_subida_ticket: false,
+    permitir_finalizar_movil: false,
     requerir_dni_conductor: true,
   });
   const [incidentNote, setIncidentNote] = useState('');
@@ -85,7 +86,10 @@ export default function DecaDriverMobilePage({
         fetch(`/api/deca/${token}/driver-action`)
           .then((r) => (r.ok ? r.json() : null))
           .then((cfg) => {
-            if (cfg?.config) setDriverConfig(cfg.config);
+            if (cfg) {
+              setPremiumEnabled(Boolean(cfg.premiumEnabled));
+              if (cfg.config) setDriverConfig(cfg.config);
+            }
           })
           .catch(() => undefined);
 
@@ -529,8 +533,9 @@ export default function DecaDriverMobilePage({
     )}
   </div>
 
-  {/* Panel Operativo del Conductor (Firma, Ticket y Finalización) */}
-  {deca.estado !== 'finalizado' &&
+  {/* Panel Operativo del Conductor (Firma, Ticket y Finalización - Solo Plan Premium) */}
+  {premiumEnabled &&
+    deca.estado !== 'finalizado' &&
     deca.is_vigente !== false &&
     (driverConfig.permitir_firma_movil ||
       driverConfig.permitir_subida_ticket ||

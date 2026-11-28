@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { checkCompanyPremiumFeature } from '@/lib/auth/premiumGate';
 import pushNotificationService from '@/services/pushNotificationService';
 
 export async function POST(request: NextRequest) {
@@ -33,6 +34,21 @@ export async function POST(request: NextRequest) {
 
     if (decaError || !deca) {
       return NextResponse.json({ error: 'DeCA no encontrado' }, { status: 404 });
+    }
+
+    const premium = await checkCompanyPremiumFeature(
+      supabase,
+      { companyId: deca.company_id, userId: user.id },
+      'transporte_pwa_evidencias'
+    );
+    if (!premium.active) {
+      return NextResponse.json(
+        {
+          error: 'Notificaciones Push disponibles únicamente en Plan Premium Transportista.',
+          code: 'PREMIUM_REQUIRED',
+        },
+        { status: 403 }
+      );
     }
 
     // Comprobar configuración de la empresa (si no es envío manual forzado)

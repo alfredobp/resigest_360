@@ -4,6 +4,7 @@ import {
   DRIVER_SESSION_COOKIE,
   verifyDriverSessionToken,
 } from '@/lib/auth/driverSession';
+import { checkCompanyPremiumFeature } from '@/lib/auth/premiumGate';
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -36,6 +37,21 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getServiceSupabase();
+
+    const premium = await checkCompanyPremiumFeature(
+      supabase,
+      { companyId: session.companyId, userId: session.userId },
+      'transporte_pwa_evidencias'
+    );
+    if (!premium.active) {
+      return NextResponse.json(
+        {
+          error: 'El Portal PWA de Conductores requiere un Plan Premium Transportista activo.',
+          code: 'PREMIUM_REQUIRED',
+        },
+        { status: 403 }
+      );
+    }
 
     // Cargar empresa para mostrar logo_url y nombre en el portal PWA
     const companyQuery = supabase

@@ -73,6 +73,7 @@ export default function DriverPortalPwaPage() {
   const [dni, setDni] = useState('');
   const [pin, setPin] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [premiumBlocked, setPremiumBlocked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // PWA & Push
@@ -87,6 +88,11 @@ export default function DriverPortalPwaPage() {
       const res = await fetch('/api/mobile/conductor/decas', { cache: 'no-store' });
       if (res.status === 401) {
         setDriver(null);
+        return;
+      }
+      if (res.status === 403) {
+        setDriver(null);
+        setPremiumBlocked(true);
         return;
       }
       if (!res.ok) return;
@@ -252,9 +258,11 @@ export default function DriverPortalPwaPage() {
             Accede con el <strong>DNI</strong> y el <strong>PIN</strong> facilitado por tu empresa para consultar tus DeCAs asignados y recibir avisos en ruta.
           </p>
 
-          {loginError && (
+          {(loginError || premiumBlocked) && (
             <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-xs text-red-300">
-              {loginError}
+              {premiumBlocked
+                ? 'El Portal PWA de Conductores está disponible únicamente en el Plan Premium Transportista.'
+                : loginError}
             </div>
           )}
 

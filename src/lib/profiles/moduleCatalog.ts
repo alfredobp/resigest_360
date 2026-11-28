@@ -22,6 +22,7 @@ export const ALL_MODULES: AppModule[] = [
   'operaciones_comerciales',
   'memorias_anuales',
   'sira_integraciones',
+  'transporte_pwa_evidencias',
 ];
 
 export const MODULE_LABELS: Record<AppModule, string> = {
@@ -35,6 +36,7 @@ export const MODULE_LABELS: Record<AppModule, string> = {
   operaciones_comerciales: 'Operaciones Comerciales y Báscula',
   memorias_anuales: 'Memorias Anuales',
   sira_integraciones: 'Integraciones e-SIR / SIRA y Auditoría',
+  transporte_pwa_evidencias: 'PWA Conductores, Push y Evidencias DeCA (Premium)',
 };
 
 export const PROFILE_DEFINITIONS: Record<OperationalProfile, ProfileDefinition> = {

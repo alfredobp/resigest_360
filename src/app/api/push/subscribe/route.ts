@@ -4,6 +4,7 @@ import {
   DRIVER_SESSION_COOKIE,
   verifyDriverSessionToken,
 } from '@/lib/auth/driverSession';
+import { checkCompanyPremiumFeature } from '@/lib/auth/premiumGate';
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -36,6 +37,18 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getServiceSupabase();
+    const premium = await checkCompanyPremiumFeature(
+      supabase,
+      { companyId: session.companyId, userId: session.userId },
+      'transporte_pwa_evidencias'
+    );
+    if (!premium.active) {
+      return NextResponse.json(
+        { error: 'Plan Premium requerido.', code: 'PREMIUM_REQUIRED' },
+        { status: 403 }
+      );
+    }
+
     const { error } = await supabase.from('push_subscriptions').upsert(
       {
         company_id: session.companyId,

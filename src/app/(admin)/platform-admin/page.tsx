@@ -104,15 +104,19 @@ export default function PlatformAdminPage() {
     try {
       setLoading(true);
       setError(null);
-      const [statsData, companiesData, delegationsData] = await Promise.all([
+      const [statsData, companiesData, delegationsData, trialConfig] = await Promise.all([
         adminPlatformService.getPlatformStats(),
         adminPlatformService.getAllPlatformCompanies(),
         adminPlatformService.getAdminDelegations().catch(() => ({} as Record<number, AdminDelegationSummary>)),
+        adminPlatformService.getTrialDaysByRole().catch(() => ({ transportista: 15 })),
       ]);
 
       setStats(statsData);
       setCompanies(companiesData);
       setDelegationsMap(delegationsData);
+      if (typeof trialConfig.transportista === 'number') {
+        setTransportistaTrialDays(trialConfig.transportista);
+      }
     } catch (err: any) {
       console.error('Error al cargar datos globales:', err);
       setError(err.message || 'Error al obtener la información de la plataforma.');
@@ -465,6 +469,30 @@ const companyColumns = useMemo<ColumnDef<PlatformCompanyRecord>[]>(() => [
               onClick={() => setActivatingCompany(c)}
             />
           )
+        )}
+        {c.is_my_company && (
+          <select
+            aria-label={`Plan Premium de ${c.razon_social}`}
+            value={c.plan_tier || 'basico'}
+            onChange={async (e) => {
+              const nextTier = e.target.value as 'basico' | 'trial' | 'premium';
+              try {
+                await adminPlatformService.setCompanyPremiumPlan(c.id, {
+                  planTier: nextTier,
+                  trialDays: transportistaTrialDays,
+                });
+                toast.success(`Plan actualizado a "${nextTier}" para ${c.razon_social}.`);
+                await loadPlatformData();
+              } catch (err: unknown) {
+                toast.error(err instanceof Error ? err.message : 'Error al actualizar plan');
+              }
+            }}
+            className="text-[11px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 font-medium text-slate-700 dark:text-slate-200"
+          >
+            <option value="basico">Plan Básico</option>
+            <option value="trial">Cortesía ({transportistaTrialDays}d)</option>
+            <option value="premium">Premium</option>
+          </select>
         )}
         <DataTableActionButton
           action="audit"

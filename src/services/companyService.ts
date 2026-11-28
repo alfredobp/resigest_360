@@ -432,10 +432,45 @@ export const companyService = {
       );
     }
 
+    // Si se crea como empresa titular transportista sin plan explícito, conceder cortesía configurable (15 días por defecto)
+    let trialPayload: Record<string, unknown> = {};
+    if (
+      companyData.is_my_company &&
+      !companyData.plan_tier &&
+      (primaryType === 'transportista' || roles.includes('transportista'))
+    ) {
+      let trialDays = 15;
+      try {
+        const settingsQuery: any = supabase.from('platform_settings');
+        if (typeof settingsQuery?.select === 'function') {
+          const { data: settingRow } = await settingsQuery
+            .select('value')
+            .eq('key', 'trial_days_by_role')
+            .maybeSingle();
+          const configured = Number(settingRow?.value?.transportista);
+          if (Number.isFinite(configured) && configured >= 0) {
+            trialDays = configured;
+          }
+        }
+      } catch {
+        // Mantener fallback de 15 días si platform_settings aún no existe
+      }
+
+      if (trialDays > 0) {
+        const endsAt = new Date(Date.now() + trialDays * 86400000).toISOString();
+        trialPayload = {
+          plan_tier: 'trial',
+          premium_features: ['transporte_pwa_evidencias'],
+          trial_ends_at: endsAt,
+        };
+      }
+    }
+
     const { data, error } = await supabase
       .from('companies')
       .insert({
         ...companyData,
+        ...trialPayload,
         cif: normCif,
         user_id: targetUserId,
         tipo_empresa: primaryType,

@@ -4,6 +4,7 @@ import {
   DRIVER_SESSION_COOKIE,
   signDriverSessionToken,
 } from '@/lib/auth/driverSession';
+import { checkCompanyPremiumFeature } from '@/lib/auth/premiumGate';
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -57,6 +58,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'DNI o PIN incorrecto, o acceso PWA no habilitado por tu empresa.' },
         { status: 401 }
+      );
+    }
+
+    const premium = await checkCompanyPremiumFeature(
+      supabase,
+      { companyId: matched.company_id ?? null, userId: matched.user_id },
+      'transporte_pwa_evidencias'
+    );
+    if (!premium.active) {
+      return NextResponse.json(
+        {
+          error: 'El Portal PWA de Conductores requiere un Plan Premium Transportista activo.',
+          code: 'PREMIUM_REQUIRED',
+        },
+        { status: 403 }
       );
     }
 

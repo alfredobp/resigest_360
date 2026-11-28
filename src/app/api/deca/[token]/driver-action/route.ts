@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { checkCompanyPremiumFeature } from '@/lib/auth/premiumGate';
 import type { DecaMobileConfig } from '@/types/wasteManagement';
 
 type DriverActionType = 'sign' | 'report_ticket' | 'finalize';
@@ -116,8 +117,24 @@ export async function GET(
       return NextResponse.json({ error: 'Documento DeCA no encontrado' }, { status: 404 });
     }
 
-    const config = await resolveCompanyDecaConfig(supabase, deca);
-    return NextResponse.json({ config });
+    const [config, premium] = await Promise.all([
+      resolveCompanyDecaConfig(supabase, deca),
+      checkCompanyPremiumFeature(supabase, { companyId: deca.company_id, userId: deca.user_id }, 'transporte_pwa_evidencias'),
+    ]);
+
+    if (!premium.active) {
+      return NextResponse.json({
+        premiumEnabled: false,
+        config: {
+          permitir_firma_movil: false,
+          permitir_subida_ticket: false,
+          permitir_finalizar_movil: false,
+          requerir_dni_conductor: true,
+        },
+      });
+    }
+
+    return NextResponse.json({ premiumEnabled: true, config });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error interno del servidor';
     return NextResponse.json({ error: message }, { status: 500 });
@@ -155,7 +172,23 @@ export async function POST(
       );
     }
 
-    // 2. Cargar configuración de la empresa para acciones móviles DeCA
+    // 2. Verificar Plan Premium / Cortesía de la empresa
+    const premium = await checkCompanyPremiumFeature(
+      supabase,
+      { companyId: deca.company_id, userId: deca.user_id },
+      'transporte_pwa_evidencias'
+    );
+    if (!premium.active) {
+      return NextResponse.json(
+        {
+          error: 'Funcionalidad exclusiva del Plan Premium Transportista.',
+          code: 'PREMIUM_REQUIRED',
+        },
+        { status: 403 }
+      );
+    }
+
+    // 3. Cargar configuración de la empresa para acciones móviles DeCA
     const decaConfig = await resolveCompanyDecaConfig(supabase, deca);
 
     if (body.action === 'sign' && !decaConfig.permitir_firma_movil) {
