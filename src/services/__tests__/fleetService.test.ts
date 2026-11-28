@@ -140,5 +140,75 @@ describe('fleetService', () => {
     mockSupabase.from.mockReturnValue(errChain);
     await expect(fleetService.getVehicles()).rejects.toThrow('Error al cargar vehículos: DB error');
     await expect(fleetService.getDrivers()).rejects.toThrow('Error al cargar conductores: DB error');
+    await expect(
+      fleetService.createVehicle({
+        tipo: 'tractora',
+        matricula: '1234ABC',
+        adr_habilitado: false,
+        activo: true,
+      })
+    ).rejects.toThrow('Error al crear vehículo: DB error');
+    await expect(fleetService.updateVehicle(1, { activo: false })).rejects.toThrow(
+      'Error al actualizar vehículo: DB error'
+    );
+    await expect(
+      fleetService.createDriver({
+        nombre_completo: 'Test',
+        dni: '12345678A',
+        adr_habilitado: false,
+        activo: true,
+      })
+    ).rejects.toThrow('Error al crear conductor: DB error');
+    await expect(fleetService.updateDriver(1, { activo: false })).rejects.toThrow(
+      'Error al actualizar conductor: DB error'
+    );
+
+    const delErrChain: Record<string, jest.Mock> = {
+      delete: jest.fn().mockReturnThis(),
+      eq: jest.fn(),
+    };
+    delErrChain.eq
+      .mockReturnValueOnce(delErrChain)
+      .mockResolvedValueOnce({ error: { message: 'Del error' } });
+    mockSupabase.from.mockReturnValue(delErrChain);
+    await expect(fleetService.deleteVehicle(1)).rejects.toThrow(
+      'Error al eliminar vehículo: Del error'
+    );
+
+    const delDrvErrChain: Record<string, jest.Mock> = {
+      delete: jest.fn().mockReturnThis(),
+      eq: jest.fn(),
+    };
+    delDrvErrChain.eq
+      .mockReturnValueOnce(delDrvErrChain)
+      .mockResolvedValueOnce({ error: { message: 'Del error' } });
+    mockSupabase.from.mockReturnValue(delDrvErrChain);
+    await expect(fleetService.deleteDriver(1)).rejects.toThrow(
+      'Error al eliminar conductor: Del error'
+    );
+  });
+
+  it('throws when unauthenticated on mutations', async () => {
+    mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } });
+    await expect(
+      fleetService.createVehicle({
+        tipo: 'tractora',
+        matricula: '1234ABC',
+        adr_habilitado: false,
+        activo: true,
+      })
+    ).rejects.toThrow('Usuario no autenticado');
+    await expect(fleetService.updateVehicle(1, {})).rejects.toThrow('Usuario no autenticado');
+    await expect(fleetService.deleteVehicle(1)).rejects.toThrow('Usuario no autenticado');
+    await expect(
+      fleetService.createDriver({
+        nombre_completo: 'Test',
+        dni: '12345678A',
+        adr_habilitado: false,
+        activo: true,
+      })
+    ).rejects.toThrow('Usuario no autenticado');
+    await expect(fleetService.updateDriver(1, {})).rejects.toThrow('Usuario no autenticado');
+    await expect(fleetService.deleteDriver(1)).rejects.toThrow('Usuario no autenticado');
   });
 });
